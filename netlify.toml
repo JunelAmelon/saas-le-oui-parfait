@@ -1,9 +1,10 @@
 [build]
-command = "npm install && npx next build"
+command = "npm ci && npm run build"
 publish = ".next"
 
 [build.environment]
 NODE_VERSION = "18.17.0"
+NPM_FLAGS = "--legacy-peer-deps"
 
 [[plugins]]
 package = "@netlify/plugin-nextjs"
