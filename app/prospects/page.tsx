@@ -96,21 +96,22 @@ export default function ProspectsPage() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-brand-purple mb-2">
+            <h1 className="text-2xl sm:text-3xl font-bold text-brand-purple mb-1 sm:mb-2">
               Prospects
             </h1>
-            <p className="text-brand-gray">
+            <p className="text-sm sm:text-base text-brand-gray">
               Gérez vos prospects et suivez votre pipeline commercial
             </p>
           </div>
           <Button 
-            className="bg-brand-turquoise hover:bg-brand-turquoise-hover gap-2"
+            className="bg-brand-turquoise hover:bg-brand-turquoise-hover gap-2 w-full sm:w-auto"
             onClick={() => setIsNewProspectOpen(true)}
           >
             <Plus className="h-4 w-4" />
-            Nouveau prospect
+            <span className="hidden sm:inline">Nouveau prospect</span>
+            <span className="sm:hidden">Nouveau</span>
           </Button>
         </div>
 
@@ -132,18 +133,55 @@ export default function ProspectsPage() {
             </Button>
           </div>
 
-          <div className="overflow-x-auto">
+          {/* Version mobile - Cards */}
+          <div className="block sm:hidden space-y-4">
+            {prospects.map((prospect) => {
+              const config = statusConfig[prospect.status as keyof typeof statusConfig];
+              return (
+                <div key={prospect.id} className="p-4 bg-gray-50 rounded-lg space-y-3">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="font-medium text-brand-purple">
+                        {prospect.name} & {prospect.partner}
+                      </p>
+                      <p className="text-sm text-brand-gray">{prospect.email}</p>
+                    </div>
+                    <Badge className={`${config.className} text-white border-0`}>
+                      {config.label}
+                    </Badge>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-brand-gray">{prospect.eventDate}</span>
+                    <span className="font-medium text-brand-purple">
+                      {parseInt(prospect.budget).toLocaleString('fr-FR')} €
+                    </span>
+                  </div>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    className="w-full"
+                    onClick={() => handleViewDetail(prospect)}
+                  >
+                    Voir détails
+                  </Button>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Version desktop - Table */}
+          <div className="hidden sm:block overflow-x-auto">
             <table className="w-full">
               <thead className="border-b border-[#E5E5E5]">
                 <tr>
                   <th className="pb-3 text-left text-xs font-medium uppercase tracking-label text-brand-gray">
                     Couple
                   </th>
-                  <th className="pb-3 text-left text-xs font-medium uppercase tracking-label text-brand-gray">
+                  <th className="pb-3 text-left text-xs font-medium uppercase tracking-label text-brand-gray hidden md:table-cell">
                     Contact
                   </th>
                   <th className="pb-3 text-left text-xs font-medium uppercase tracking-label text-brand-gray">
-                    Date événement
+                    Date
                   </th>
                   <th className="pb-3 text-left text-xs font-medium uppercase tracking-label text-brand-gray">
                     Budget
@@ -163,27 +201,25 @@ export default function ProspectsPage() {
                       className="border-b border-[#E5E5E5] transition-colors hover:bg-gray-50"
                     >
                       <td className="py-4">
-                        <div>
-                          <p className="font-medium text-brand-purple">
-                            {prospect.name} & {prospect.partner}
-                          </p>
-                        </div>
+                        <p className="font-medium text-brand-purple">
+                          {prospect.name} & {prospect.partner}
+                        </p>
                       </td>
-                      <td className="py-4">
+                      <td className="py-4 hidden md:table-cell">
                         <div className="text-sm">
                           <p className="text-brand-gray">{prospect.email}</p>
                           <p className="text-brand-gray">{prospect.phone}</p>
                         </div>
                       </td>
-                      <td className="py-4 text-brand-gray">
+                      <td className="py-4 text-brand-gray text-sm">
                         {prospect.eventDate}
                       </td>
-                      <td className="py-4 font-medium text-brand-purple">
+                      <td className="py-4 font-medium text-brand-purple text-sm">
                         {parseInt(prospect.budget).toLocaleString('fr-FR')} €
                       </td>
                       <td className="py-4">
                         <Badge
-                          className={`${config.className} hover:${config.className} text-white border-0`}
+                          className={`${config.className} hover:${config.className} text-white border-0 text-xs`}
                         >
                           {config.label}
                         </Badge>
@@ -194,7 +230,7 @@ export default function ProspectsPage() {
                           size="sm"
                           onClick={() => handleViewDetail(prospect)}
                         >
-                          Voir détails
+                          Voir
                         </Button>
                       </td>
                     </tr>
@@ -208,7 +244,7 @@ export default function ProspectsPage() {
 
       {/* Modal Détail Prospect */}
       <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-lg w-[95vw] sm:w-full max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-brand-purple">
               {selectedProspect?.name} & {selectedProspect?.partner}
@@ -284,7 +320,7 @@ export default function ProspectsPage() {
 
       {/* Modal Nouveau Prospect */}
       <Dialog open={isNewProspectOpen} onOpenChange={setIsNewProspectOpen}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-lg w-[95vw] sm:w-full max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-brand-purple">Nouveau prospect</DialogTitle>
             <DialogDescription>
@@ -343,7 +379,7 @@ export default function ProspectsPage() {
 
       {/* Modal Convertir en Client */}
       <Dialog open={isConvertOpen} onOpenChange={setIsConvertOpen}>
-        <DialogContent className="sm:max-w-md text-center">
+        <DialogContent className="sm:max-w-md w-[95vw] sm:w-full text-center">
           <div className="flex flex-col items-center py-6">
             <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
               <CheckCircle className="h-8 w-8 text-green-600" />

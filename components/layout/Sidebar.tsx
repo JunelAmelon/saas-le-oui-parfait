@@ -17,6 +17,7 @@ import {
   ChevronDown,
   Menu,
   X,
+  MessageSquare,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useState, useEffect } from 'react';
@@ -69,6 +70,11 @@ const menuItems: MenuItem[] = [
     label: 'Mes prestataires',
     icon: UsersRound,
     href: '/prestataires',
+  },
+  {
+    label: 'Messagerie',
+    icon: MessageSquare,
+    href: '/messages',
   },
   {
     label: 'Devis & Facturation',

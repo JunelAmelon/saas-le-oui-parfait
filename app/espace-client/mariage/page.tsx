@@ -55,19 +55,19 @@ export default function MariagePage() {
   return (
     <ClientDashboardLayout clientName="Julie & Frédérick" daysRemaining={weddingData.daysRemaining}>
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-brand-purple flex items-center gap-3">
-              <Heart className="h-8 w-8 text-red-500 fill-red-500" />
+            <h1 className="text-2xl sm:text-3xl font-bold text-brand-purple flex items-center gap-2 sm:gap-3">
+              <Heart className="h-6 w-6 sm:h-8 sm:w-8 text-red-500 fill-red-500" />
               Mon Mariage
             </h1>
-            <p className="text-brand-gray mt-1">
+            <p className="text-sm sm:text-base text-brand-gray mt-1">
               Toutes les informations sur votre grand jour
             </p>
           </div>
           <Button
             onClick={() => setIsEditing(!isEditing)}
-            className={isEditing ? 'bg-green-600 hover:bg-green-700' : 'bg-brand-turquoise hover:bg-brand-turquoise-hover'}
+            className={`w-full sm:w-auto ${isEditing ? 'bg-green-600 hover:bg-green-700' : 'bg-brand-turquoise hover:bg-brand-turquoise-hover'}`}
           >
             {isEditing ? (
               <>

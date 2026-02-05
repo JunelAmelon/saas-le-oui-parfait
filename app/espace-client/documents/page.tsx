@@ -178,16 +178,14 @@ export default function DocumentsPage() {
   return (
     <ClientDashboardLayout clientName="Julie & Frédérick" daysRemaining={165}>
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-brand-purple flex items-center gap-3">
-              <FileText className="h-8 w-8 text-brand-turquoise" />
-              Mes Documents
-            </h1>
-            <p className="text-brand-gray mt-1">
-              Tous vos documents au même endroit
-            </p>
-          </div>
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold text-brand-purple flex items-center gap-2 sm:gap-3">
+            <FileText className="h-6 w-6 sm:h-8 sm:w-8 text-brand-turquoise" />
+            Mes Documents
+          </h1>
+          <p className="text-sm sm:text-base text-brand-gray mt-1">
+            Tous vos documents au même endroit
+          </p>
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
@@ -232,39 +230,39 @@ export default function DocumentsPage() {
             {filteredDocuments.map((doc) => (
               <div
                 key={doc.id}
-                className="flex items-center justify-between p-4 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors"
+                className="flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors gap-3"
               >
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-3 sm:gap-4">
                   <div className="p-2 bg-white rounded-lg shadow-sm">
                     {getTypeIcon(doc.type)}
                   </div>
                   <div>
-                    <h3 className="font-medium text-brand-purple">{doc.name}</h3>
-                    <div className="flex items-center gap-3 mt-1 text-sm text-brand-gray">
+                    <h3 className="font-medium text-brand-purple text-sm sm:text-base">{doc.name}</h3>
+                    <div className="flex flex-wrap items-center gap-1 sm:gap-3 mt-1 text-xs sm:text-sm text-brand-gray">
                       <span>{doc.type}</span>
-                      <span>•</span>
+                      <span className="hidden sm:inline">•</span>
                       <span>{doc.date}</span>
-                      <span>•</span>
-                      <span>{doc.size}</span>
                     </div>
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center justify-between sm:justify-end gap-2 sm:gap-3 pl-11 sm:pl-0">
                   {getStatusBadge(doc.status)}
-                  <Button 
-                    variant="ghost" 
-                    size="icon"
-                    onClick={() => handlePreview(doc as Document)}
-                  >
-                    <Eye className="h-4 w-4 text-brand-gray" />
-                  </Button>
-                  <Button 
-                    variant="ghost" 
-                    size="icon"
-                    onClick={() => handleDownload(doc as Document)}
-                  >
-                    <Download className="h-4 w-4 text-brand-turquoise" />
-                  </Button>
+                  <div className="flex gap-1">
+                    <Button 
+                      variant="ghost" 
+                      size="icon"
+                      onClick={() => handlePreview(doc as Document)}
+                    >
+                      <Eye className="h-4 w-4 text-brand-gray" />
+                    </Button>
+                    <Button 
+                      variant="ghost" 
+                      size="icon"
+                      onClick={() => handleDownload(doc as Document)}
+                    >
+                      <Download className="h-4 w-4 text-brand-turquoise" />
+                    </Button>
+                  </div>
                 </div>
               </div>
             ))}
@@ -279,7 +277,7 @@ export default function DocumentsPage() {
         </Card>
 
         <Dialog open={isPreviewOpen} onOpenChange={setIsPreviewOpen}>
-          <DialogContent className="sm:max-w-2xl">
+          <DialogContent className="sm:max-w-2xl w-[95vw] sm:w-full max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="text-brand-purple flex items-center gap-2">
                 <FileText className="h-5 w-5 text-brand-turquoise" />
@@ -319,7 +317,7 @@ export default function DocumentsPage() {
         </Dialog>
 
         <Dialog open={isDownloadSuccess} onOpenChange={setIsDownloadSuccess}>
-          <DialogContent className="sm:max-w-md text-center">
+          <DialogContent className="sm:max-w-md w-[95vw] sm:w-full text-center">
             <div className="flex flex-col items-center py-6">
               <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
                 <CheckCircle className="h-8 w-8 text-green-600" />

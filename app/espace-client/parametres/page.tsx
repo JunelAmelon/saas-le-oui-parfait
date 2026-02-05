@@ -39,11 +39,11 @@ export default function ParametresPage() {
     <ClientDashboardLayout clientName="Julie & Frédérick" daysRemaining={165}>
       <div className="space-y-6">
         <div>
-          <h1 className="text-3xl font-bold text-brand-purple flex items-center gap-3">
-            <Settings className="h-8 w-8 text-brand-turquoise" />
+          <h1 className="text-2xl sm:text-3xl font-bold text-brand-purple flex items-center gap-2 sm:gap-3">
+            <Settings className="h-6 w-6 sm:h-8 sm:w-8 text-brand-turquoise" />
             Paramètres
           </h1>
-          <p className="text-brand-gray mt-1">
+          <p className="text-sm sm:text-base text-brand-gray mt-1">
             Gérez votre compte et vos préférences
           </p>
         </div>

@@ -189,26 +189,27 @@ export default function PaiementsPage() {
   return (
     <ClientDashboardLayout clientName="Julie & Frédérick" daysRemaining={165}>
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-brand-purple flex items-center gap-3">
-              <Euro className="h-8 w-8 text-brand-turquoise" />
+            <h1 className="text-2xl sm:text-3xl font-bold text-brand-purple flex items-center gap-2 sm:gap-3">
+              <Euro className="h-6 w-6 sm:h-8 sm:w-8 text-brand-turquoise" />
               Paiements
             </h1>
-            <p className="text-brand-gray mt-1">
+            <p className="text-sm sm:text-base text-brand-gray mt-1">
               Suivez votre budget et vos paiements
             </p>
           </div>
           <Button 
-            className="bg-brand-turquoise hover:bg-brand-turquoise-hover gap-2"
+            className="bg-brand-turquoise hover:bg-brand-turquoise-hover gap-2 w-full sm:w-auto"
             onClick={() => setIsPaymentModalOpen(true)}
           >
             <CreditCard className="h-4 w-4" />
-            Effectuer un paiement
+            <span className="hidden sm:inline">Effectuer un paiement</span>
+            <span className="sm:hidden">Payer</span>
           </Button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
           <Card className="p-6 shadow-xl border-0 bg-gradient-to-br from-brand-turquoise/10 to-white">
             <div className="flex items-center gap-3 mb-2">
               <Euro className="h-6 w-6 text-brand-turquoise" />
@@ -275,24 +276,24 @@ export default function PaiementsPage() {
               {payments.map((payment) => (
                 <div
                   key={payment.id}
-                  className="flex items-center justify-between p-4 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors"
+                  className="flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors gap-3"
                 >
-                  <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-3 sm:gap-4">
                     {getStatusIcon(payment.status)}
                     <div>
-                      <h3 className="font-medium text-brand-purple">{payment.description}</h3>
-                      <p className="text-sm text-brand-gray">{payment.vendor}</p>
+                      <h3 className="font-medium text-brand-purple text-sm sm:text-base">{payment.description}</h3>
+                      <p className="text-xs sm:text-sm text-brand-gray">{payment.vendor}</p>
                       <p className="text-xs text-brand-gray mt-1">
                         {payment.status === 'paid' 
-                          ? `Payé le ${payment.date} • ${payment.method}`
+                          ? `Payé le ${payment.date}`
                           : `Échéance: ${payment.dueDate}`
                         }
                       </p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-4">
-                    <div className="text-right">
-                      <p className="text-lg font-bold text-brand-purple">
+                  <div className="flex items-center justify-between sm:justify-end gap-3 sm:gap-4 pl-8 sm:pl-0">
+                    <div className="text-left sm:text-right">
+                      <p className="text-base sm:text-lg font-bold text-brand-purple">
                         {payment.amount.toLocaleString()} €
                       </p>
                       {getStatusBadge(payment.status)}
@@ -344,7 +345,7 @@ export default function PaiementsPage() {
         </div>
 
         <Dialog open={isPaymentModalOpen} onOpenChange={setIsPaymentModalOpen}>
-          <DialogContent className="sm:max-w-md">
+          <DialogContent className="sm:max-w-md w-[95vw] sm:w-full max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="text-brand-purple">Effectuer un paiement</DialogTitle>
               <DialogDescription>

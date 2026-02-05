@@ -89,21 +89,22 @@ export default function EventsPage() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-brand-purple mb-2">
+            <h1 className="text-2xl sm:text-3xl font-bold text-brand-purple mb-1 sm:mb-2">
               Événements
             </h1>
-            <p className="text-brand-gray">
+            <p className="text-sm sm:text-base text-brand-gray">
               Gérez tous vos mariages et événements
             </p>
           </div>
           <Button 
-            className="bg-brand-turquoise hover:bg-brand-turquoise-hover gap-2"
+            className="bg-brand-turquoise hover:bg-brand-turquoise-hover gap-2 w-full sm:w-auto"
             onClick={() => setIsNewEventOpen(true)}
           >
             <Plus className="h-4 w-4" />
-            Nouvel événement
+            <span className="hidden sm:inline">Nouvel événement</span>
+            <span className="sm:hidden">Nouveau</span>
           </Button>
         </div>
 
@@ -181,7 +182,7 @@ export default function EventsPage() {
 
       {/* Modal Détail Événement */}
       <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
-        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto w-[95vw] sm:w-full">
           <DialogHeader>
             <DialogTitle className="text-brand-purple flex items-center gap-2">
               <CalendarIcon className="h-5 w-5 text-brand-turquoise" />
@@ -199,7 +200,7 @@ export default function EventsPage() {
                 </Badge>
               </div>
 
-              <div className="grid grid-cols-2 gap-4 p-4 bg-gray-50 rounded-lg">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 bg-gray-50 rounded-lg">
                 <div className="flex items-center gap-3">
                   <CalendarIcon className="h-5 w-5 text-brand-turquoise" />
                   <div>
@@ -249,7 +250,7 @@ export default function EventsPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <Button variant="outline" className="gap-2">
                   <FileText className="h-4 w-4" />
                   Documents
@@ -279,7 +280,7 @@ export default function EventsPage() {
 
       {/* Modal Nouvel Événement */}
       <Dialog open={isNewEventOpen} onOpenChange={setIsNewEventOpen}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-lg w-[95vw] sm:w-full max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-brand-purple">Nouvel événement</DialogTitle>
             <DialogDescription>
@@ -291,7 +292,7 @@ export default function EventsPage() {
               <Label>Noms des mariés</Label>
               <Input placeholder="Julie & Frédérick" className="mt-1" />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Label>Date de l'événement</Label>
                 <Input type="date" className="mt-1" />
@@ -301,7 +302,7 @@ export default function EventsPage() {
                 <Input type="number" placeholder="120" className="mt-1" />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Label>Lieu</Label>
                 <Input placeholder="Château d'Apigné" className="mt-1" />

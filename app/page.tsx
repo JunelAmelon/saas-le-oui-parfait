@@ -37,10 +37,10 @@ export default function Home() {
     <DashboardLayout>
       <div className="space-y-6">
         <div>
-          <h1 className="text-3xl font-bold text-brand-purple mb-2">
+          <h1 className="text-2xl sm:text-3xl font-bold text-brand-purple mb-1 sm:mb-2">
             Tableau de bord
           </h1>
-          <p className="text-brand-gray">
+          <p className="text-sm sm:text-base text-brand-gray">
             Bienvenue sur votre plateforme Le Oui Parfait
           </p>
         </div>

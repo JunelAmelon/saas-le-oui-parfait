@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Bell, Mail, MessageSquare, Settings, Plus, LogOut, User } from 'lucide-react';
+import { Bell, Settings, Plus, LogOut, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -59,25 +59,6 @@ export function Topbar() {
         </div>
 
         <div className="flex items-center gap-1 md:gap-3">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="relative"
-            onClick={() => setShowMessages(true)}
-          >
-            <Mail className="h-5 w-5 text-brand-gray" />
-            <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-brand-turquoise"></span>
-          </Button>
-
-          <Button
-            variant="ghost"
-            size="icon"
-            className="relative hidden sm:flex"
-            onClick={() => setShowMessages(true)}
-          >
-            <MessageSquare className="h-5 w-5 text-brand-gray" />
-          </Button>
-
           <Button
             variant="ghost"
             size="icon"

@@ -11,10 +11,10 @@ export default function AgencyPage() {
     <DashboardLayout>
       <div className="space-y-6">
         <div>
-          <h1 className="text-3xl font-bold text-brand-purple mb-2">
+          <h1 className="text-2xl sm:text-3xl font-bold text-brand-purple mb-1 sm:mb-2">
             Mon Agence
           </h1>
-          <p className="text-brand-gray">
+          <p className="text-sm sm:text-base text-brand-gray">
             Gérez les informations de votre agence Le Oui Parfait
           </p>
         </div>

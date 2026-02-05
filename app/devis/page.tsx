@@ -120,25 +120,26 @@ export default function DevisPage() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-brand-purple mb-2">
+            <h1 className="text-2xl sm:text-3xl font-bold text-brand-purple mb-1 sm:mb-2">
               Devis
             </h1>
-            <p className="text-brand-gray">
+            <p className="text-sm sm:text-base text-brand-gray">
               Créez et gérez vos devis clients
             </p>
           </div>
           <Button 
-            className="bg-brand-turquoise hover:bg-brand-turquoise-hover gap-2"
+            className="bg-brand-turquoise hover:bg-brand-turquoise-hover gap-2 w-full sm:w-auto"
             onClick={() => setIsNewDevisOpen(true)}
           >
             <Plus className="h-4 w-4" />
-            Nouveau devis
+            <span className="hidden sm:inline">Nouveau devis</span>
+            <span className="sm:hidden">Nouveau</span>
           </Button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-6">
           <Card className="p-6 shadow-xl border-0 bg-gradient-to-br from-gray-50 to-white">
             <p className="text-sm text-brand-gray uppercase tracking-label mb-1">Brouillons</p>
             <p className="text-3xl font-bold text-brand-purple">

@@ -89,21 +89,22 @@ export default function ClientFilesPage() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-brand-purple mb-2">
+            <h1 className="text-2xl sm:text-3xl font-bold text-brand-purple mb-1 sm:mb-2">
               Fiches Clients
             </h1>
-            <p className="text-brand-gray">
+            <p className="text-sm sm:text-base text-brand-gray">
               Gérez les dossiers complets de vos mariés
             </p>
           </div>
           <Button 
-            className="bg-brand-turquoise hover:bg-brand-turquoise-hover gap-2"
+            className="bg-brand-turquoise hover:bg-brand-turquoise-hover gap-2 w-full sm:w-auto"
             onClick={() => setIsNewClientOpen(true)}
           >
             <Plus className="h-4 w-4" />
-            Nouvelle fiche client
+            <span className="hidden sm:inline">Nouvelle fiche client</span>
+            <span className="sm:hidden">Nouveau</span>
           </Button>
         </div>
 
@@ -119,30 +120,30 @@ export default function ClientFilesPage() {
 
         <div className="grid grid-cols-1 gap-6">
           {clientsDemo.map((client) => (
-            <Card key={client.id} className="p-6 shadow-xl border-0 hover:shadow-2xl transition-shadow">
-              <div className="flex gap-6">
-                <div className="flex-shrink-0">
-                  <div className="w-32 h-32 rounded-lg bg-gray-100 flex items-center justify-center border-2 border-[#E5E5E5]">
-                    <ImageIcon className="h-12 w-12 text-brand-gray" />
+            <Card key={client.id} className="p-4 sm:p-6 shadow-xl border-0 hover:shadow-2xl transition-shadow">
+              <div className="flex flex-col sm:flex-row gap-4 sm:gap-6">
+                <div className="flex-shrink-0 mx-auto sm:mx-0">
+                  <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-lg bg-gray-100 flex items-center justify-center border-2 border-[#E5E5E5]">
+                    <ImageIcon className="h-8 w-8 sm:h-12 sm:w-12 text-brand-gray" />
                   </div>
                 </div>
 
                 <div className="flex-1 space-y-4">
-                  <div className="flex items-start justify-between">
+                  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2 text-center sm:text-left">
                     <div>
-                      <h3 className="text-xl font-bold text-brand-purple mb-1 flex items-center gap-2">
-                        <Heart className="h-5 w-5 text-red-500 fill-red-500" />
+                      <h3 className="text-lg sm:text-xl font-bold text-brand-purple mb-1 flex items-center justify-center sm:justify-start gap-2">
+                        <Heart className="h-4 w-4 sm:h-5 sm:w-5 text-red-500 fill-red-500" />
                         {client.names}
                       </h3>
                       <Badge className="bg-brand-turquoise text-white">
                         {client.status}
                       </Badge>
                     </div>
-                    <div className="text-right">
-                      <p className="text-sm text-brand-gray uppercase tracking-label">
+                    <div className="text-center sm:text-right mt-2 sm:mt-0">
+                      <p className="text-xs sm:text-sm text-brand-gray uppercase tracking-label">
                         Budget
                       </p>
-                      <p className="text-2xl font-bold text-brand-purple">
+                      <p className="text-xl sm:text-2xl font-bold text-brand-purple">
                         {client.budget.toLocaleString()} €
                       </p>
                     </div>
@@ -190,13 +191,14 @@ export default function ClientFilesPage() {
                     </div>
                   </div>
 
-                  <div className="flex gap-3 pt-2">
+                  <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 pt-2">
                     <Button 
-                      className="flex-1 bg-brand-turquoise hover:bg-brand-turquoise-hover gap-2"
+                      className="flex-1 bg-brand-turquoise hover:bg-brand-turquoise-hover gap-2 text-sm"
                       onClick={() => handleViewDetail(client)}
                     >
                       <FileText className="h-4 w-4" />
-                      Voir la fiche complète
+                      <span className="hidden sm:inline">Voir la fiche complète</span>
+                      <span className="sm:hidden">Voir</span>
                     </Button>
                     <Button
                       variant="outline"
@@ -215,7 +217,7 @@ export default function ClientFilesPage() {
 
       {/* Modal Détail Client */}
       <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
-        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto w-[95vw] sm:w-full">
           <DialogHeader>
             <DialogTitle className="text-brand-purple flex items-center gap-2">
               <Heart className="h-5 w-5 text-red-500 fill-red-500" />
@@ -241,7 +243,7 @@ export default function ClientFilesPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4 p-4 bg-gray-50 rounded-lg">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 bg-gray-50 rounded-lg">
                 <div className="flex items-center gap-3">
                   <Calendar className="h-5 w-5 text-brand-turquoise" />
                   <div>
@@ -284,7 +286,7 @@ export default function ClientFilesPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <Button variant="outline" className="gap-2">
                   <MessageSquare className="h-4 w-4" />
                   Message
@@ -320,7 +322,7 @@ export default function ClientFilesPage() {
 
       {/* Modal Nouveau Client */}
       <Dialog open={isNewClientOpen} onOpenChange={setIsNewClientOpen}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-lg w-[95vw] sm:w-full max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-brand-purple">Nouvelle fiche client</DialogTitle>
             <DialogDescription>
@@ -328,7 +330,7 @@ export default function ClientFilesPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Label>Partenaire 1</Label>
                 <Input placeholder="Prénom Nom" className="mt-1" />
@@ -338,7 +340,7 @@ export default function ClientFilesPage() {
                 <Input placeholder="Prénom Nom" className="mt-1" />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Label>Email</Label>
                 <Input type="email" placeholder="email@exemple.com" className="mt-1" />
@@ -348,7 +350,7 @@ export default function ClientFilesPage() {
                 <Input placeholder="+33 6 00 00 00 00" className="mt-1" />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Label>Date de l'événement</Label>
                 <Input type="date" className="mt-1" />

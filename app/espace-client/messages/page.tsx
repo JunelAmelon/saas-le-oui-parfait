@@ -110,16 +110,16 @@ export default function MessagesPage() {
     <ClientDashboardLayout clientName="Julie & Frédérick" daysRemaining={165}>
       <div className="space-y-6">
         <div>
-          <h1 className="text-3xl font-bold text-brand-purple flex items-center gap-3">
-            <MessageSquare className="h-8 w-8 text-brand-turquoise" />
+          <h1 className="text-2xl sm:text-3xl font-bold text-brand-purple flex items-center gap-2 sm:gap-3">
+            <MessageSquare className="h-6 w-6 sm:h-8 sm:w-8 text-brand-turquoise" />
             Messages
           </h1>
-          <p className="text-brand-gray mt-1">
+          <p className="text-sm sm:text-base text-brand-gray mt-1">
             Communiquez avec votre wedding planner et vos prestataires
           </p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[calc(100vh-250px)]">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[calc(100vh-250px)] min-h-[400px]">
           <Card className="p-4 shadow-xl border-0 overflow-hidden flex flex-col">
             <div className="mb-4">
               <div className="relative">
@@ -201,7 +201,7 @@ export default function MessagesPage() {
                   className={`flex ${message.isMe ? 'justify-end' : 'justify-start'}`}
                 >
                   <div
-                    className={`max-w-[70%] p-3 rounded-lg ${
+                    className={`max-w-[85%] sm:max-w-[70%] p-3 rounded-lg ${
                       message.isMe
                         ? 'bg-brand-turquoise text-white rounded-br-none'
                         : 'bg-gray-100 text-brand-purple rounded-bl-none'
