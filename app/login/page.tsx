@@ -5,8 +5,9 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
-import { Heart, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import Image from 'next/image';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -40,12 +41,16 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-brand-beige via-white to-brand-turquoise-light p-4">
       <Card className="w-full max-w-md p-8 shadow-2xl border-0">
         <div className="text-center mb-8">
-          <div className="flex items-center justify-center mb-4">
-            <Heart className="h-12 w-12 text-brand-turquoise fill-brand-turquoise" />
+          <div className="flex items-center justify-center mb-6">
+            <Image 
+              src="/logo-horizontal.png" 
+              alt="Le Oui Parfait" 
+              width={200} 
+              height={60}
+              priority
+              className="object-contain"
+            />
           </div>
-          <h1 className="text-3xl font-bold text-brand-purple mb-2">
-            Le Oui Parfait
-          </h1>
           <p className="text-brand-gray">
             Connectez-vous à votre espace
           </p>

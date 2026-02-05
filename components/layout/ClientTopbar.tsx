@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Bell, Settings, LogOut, User, Heart } from 'lucide-react';
+import { Bell, Settings, LogOut, User, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -12,6 +12,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { QuickAddModal } from '@/components/modals/QuickAddModal';
 import { MessagesModal } from '@/components/modals/MessagesModal';
 import { NotificationsModal } from '@/components/modals/NotificationsModal';
 import { useAuth } from '@/contexts/AuthContext';
@@ -25,6 +26,7 @@ interface ClientTopbarProps {
 }
 
 export function ClientTopbar({ clientName = 'Julie & Frédérick', daysRemaining = 165 }: ClientTopbarProps) {
+  const [showQuickAdd, setShowQuickAdd] = useState(false);
   const [showMessages, setShowMessages] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const { signOut, user } = useAuth();
@@ -51,17 +53,13 @@ export function ClientTopbar({ clientName = 'Julie & Frédérick', daysRemaining
     <>
       <header className="fixed left-0 md:left-64 right-0 top-0 z-30 flex h-16 items-center justify-between border-b border-[#E5E5E5] bg-white px-4 md:px-6">
         <div className="flex items-center gap-2 md:gap-4 ml-12 md:ml-0">
-          <div className="flex items-center gap-2">
-            <Heart className="h-5 w-5 text-red-500 fill-red-500" />
-            <div className="hidden sm:block">
-              <p className="text-sm font-medium text-brand-purple">{clientName}</p>
-              <p className="text-xs text-brand-gray">J-{daysRemaining}</p>
-            </div>
-          </div>
-          <Badge className="bg-brand-turquoise/10 text-brand-turquoise border-0 hidden md:flex">
-            <Heart className="h-3 w-3 mr-1 fill-brand-turquoise" />
-            J-{daysRemaining}
-          </Badge>
+          <Button
+            onClick={() => setShowQuickAdd(true)}
+            className="bg-[#C4A26A] hover:bg-[#B59260] text-white gap-2"
+          >
+            <Plus className="h-4 w-4" />
+            <span className="hidden sm:inline">Ajout rapide</span>
+          </Button>
         </div>
 
         <div className="flex items-center gap-1 md:gap-3">
@@ -103,10 +101,6 @@ export function ClientTopbar({ clientName = 'Julie & Frédérick', daysRemaining
             <DropdownMenuContent align="end" className="w-56">
               <DropdownMenuLabel>Mon compte</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => router.push('/espace-client/mariage')}>
-                <Heart className="mr-2 h-4 w-4" />
-                Mon mariage
-              </DropdownMenuItem>
               <DropdownMenuItem onClick={() => router.push('/espace-client/parametres')}>
                 <Settings className="mr-2 h-4 w-4" />
                 Paramètres
@@ -121,6 +115,7 @@ export function ClientTopbar({ clientName = 'Julie & Frédérick', daysRemaining
         </div>
       </header>
 
+      <QuickAddModal open={showQuickAdd} onOpenChange={setShowQuickAdd} />
       <MessagesModal open={showMessages} onOpenChange={setShowMessages} />
       <NotificationsModal open={showNotifications} onOpenChange={setShowNotifications} />
     </>
