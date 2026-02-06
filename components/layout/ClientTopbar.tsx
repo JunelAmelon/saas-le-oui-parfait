@@ -51,17 +51,7 @@ export function ClientTopbar({ clientName = 'Julie & Frédérick', daysRemaining
 
   return (
     <>
-      <header className="fixed left-0 md:left-64 right-0 top-0 z-30 flex h-16 items-center justify-between border-b border-[#E5E5E5] bg-white px-4 md:px-6">
-        <div className="flex items-center gap-2 md:gap-4 ml-12 md:ml-0">
-          <Button
-            onClick={() => setShowQuickAdd(true)}
-            className="bg-[#C4A26A] hover:bg-[#B59260] text-white gap-2"
-          >
-            <Plus className="h-4 w-4" />
-            <span className="hidden sm:inline">Ajout rapide</span>
-          </Button>
-        </div>
-
+      <header className="fixed left-0 md:left-64 right-0 top-0 z-30 flex h-16 items-center justify-end border-b border-[#E5E5E5] bg-white px-4 md:px-6">
         <div className="flex items-center gap-1 md:gap-3">
           <Button
             variant="ghost"

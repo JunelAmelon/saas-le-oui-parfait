@@ -1,9 +1,14 @@
+'use client';
+
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Plus, Search, FileText, Eye, Download, Clock, CheckCircle, AlertCircle } from 'lucide-react';
+import { Plus, Search, FileText, Eye, Download, Clock, CheckCircle, AlertCircle, DollarSign } from 'lucide-react';
+import { useState } from 'react';
+import { NewInvoiceModal } from '@/components/modals/NewInvoiceModal';
+import { RecordPaymentModal } from '@/components/modals/RecordPaymentModal';
 
 const facturesDemo = [
   {
@@ -97,6 +102,9 @@ const typeLabels = {
 };
 
 export default function FacturesPage() {
+  const [isNewInvoiceOpen, setIsNewInvoiceOpen] = useState(false);
+  const [isRecordPaymentOpen, setIsRecordPaymentOpen] = useState(false);
+  
   const totalCA = facturesDemo.reduce((acc, f) => acc + f.paid, 0);
   const totalEnAttente = facturesDemo.filter(f => f.status !== 'paid').reduce((acc, f) => acc + (f.montantTTC - f.paid), 0);
 
@@ -112,11 +120,25 @@ export default function FacturesPage() {
               Gérez vos factures et paiements clients
             </p>
           </div>
-          <Button className="bg-brand-turquoise hover:bg-brand-turquoise-hover gap-2 w-full sm:w-auto">
-            <Plus className="h-4 w-4" />
-            <span className="hidden sm:inline">Nouvelle facture</span>
-            <span className="sm:hidden">Nouvelle</span>
-          </Button>
+          <div className="flex gap-2 w-full sm:w-auto">
+            <Button 
+              className="bg-brand-turquoise hover:bg-brand-turquoise-hover gap-2 flex-1 sm:flex-none"
+              onClick={() => setIsNewInvoiceOpen(true)}
+            >
+              <Plus className="h-4 w-4" />
+              <span className="hidden sm:inline">Nouvelle facture</span>
+              <span className="sm:hidden">Nouvelle</span>
+            </Button>
+            <Button 
+              variant="outline"
+              className="gap-2 flex-1 sm:flex-none border-brand-turquoise text-brand-turquoise hover:bg-brand-turquoise hover:text-white"
+              onClick={() => setIsRecordPaymentOpen(true)}
+            >
+              <DollarSign className="h-4 w-4" />
+              <span className="hidden sm:inline">Enregistrer un paiement</span>
+              <span className="sm:hidden">Paiement</span>
+            </Button>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -221,7 +243,12 @@ export default function FacturesPage() {
                     PDF
                   </Button>
                   {facture.status !== 'paid' && (
-                    <Button size="sm" variant="outline" className="border-2 border-green-500 text-green-600 hover:bg-green-500 hover:text-white">
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      className="border-2 border-green-500 text-green-600 hover:bg-green-500 hover:text-white"
+                      onClick={() => setIsRecordPaymentOpen(true)}
+                    >
                       Enregistrer un paiement
                     </Button>
                   )}
@@ -231,6 +258,9 @@ export default function FacturesPage() {
           })}
         </div>
       </div>
+
+      <NewInvoiceModal isOpen={isNewInvoiceOpen} onClose={() => setIsNewInvoiceOpen(false)} />
+      <RecordPaymentModal isOpen={isRecordPaymentOpen} onClose={() => setIsRecordPaymentOpen(false)} />
     </DashboardLayout>
   );
 }

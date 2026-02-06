@@ -81,18 +81,19 @@ export default function CampaignsPage() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-brand-purple mb-2">
+            <h1 className="text-2xl sm:text-3xl font-bold text-brand-purple mb-1 sm:mb-2">
               Campagnes email
             </h1>
-            <p className="text-brand-gray">
+            <p className="text-sm sm:text-base text-brand-gray">
               Créez et suivez vos campagnes marketing
             </p>
           </div>
-          <Button className="bg-brand-turquoise hover:bg-brand-turquoise-hover gap-2">
+          <Button className="bg-brand-turquoise hover:bg-brand-turquoise-hover gap-2 w-full sm:w-auto">
             <Plus className="h-4 w-4" />
-            Nouvelle campagne
+            <span className="hidden sm:inline">Nouvelle campagne</span>
+            <span className="sm:hidden">Nouvelle</span>
           </Button>
         </div>
 
@@ -241,7 +242,7 @@ export default function CampaignsPage() {
                   </div>
                 )}
 
-                <div className="flex gap-2 pt-2">
+                <div className="flex flex-wrap gap-2 pt-2">
                   {campaign.status === 'draft' && (
                     <>
                       <Button
@@ -256,7 +257,7 @@ export default function CampaignsPage() {
                         className="border-2 border-brand-turquoise text-brand-gray hover:bg-brand-turquoise hover:text-white gap-2"
                       >
                         <Send className="h-3 w-3" />
-                        Envoyer maintenant
+                        Envoyer
                       </Button>
                     </>
                   )}

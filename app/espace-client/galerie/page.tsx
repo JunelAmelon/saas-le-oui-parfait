@@ -46,34 +46,24 @@ const albums = [
 ];
 
 const photos = [
-  { id: '1', album: 'Inspiration', liked: true, date: '15/01/2024' },
-  { id: '2', album: 'Inspiration', liked: false, date: '15/01/2024' },
-  { id: '3', album: 'Lieu de réception', liked: true, date: '20/01/2024' },
-  { id: '4', album: 'Lieu de réception', liked: true, date: '20/01/2024' },
-  { id: '5', album: 'Décoration', liked: false, date: '25/01/2024' },
-  { id: '6', album: 'Décoration', liked: true, date: '25/01/2024' },
-  { id: '7', album: 'Robes & Costumes', liked: true, date: '01/02/2024' },
-  { id: '8', album: 'Nos photos', liked: true, date: '05/02/2024' },
-  { id: '9', album: 'Inspiration', liked: false, date: '10/02/2024' },
-  { id: '10', album: 'Décoration', liked: true, date: '12/02/2024' },
-  { id: '11', album: 'Nos photos', liked: false, date: '14/02/2024' },
-  { id: '12', album: 'Lieu de réception', liked: true, date: '15/02/2024' },
+  { id: '1', album: 'Inspiration', liked: true, date: '15/01/2024', url: 'https://images.unsplash.com/photo-1519741497674-611481863552?w=400' },
+  { id: '2', album: 'Inspiration', liked: false, date: '15/01/2024', url: 'https://images.unsplash.com/photo-1465495976277-4387d4b0b4c6?w=400' },
+  { id: '3', album: 'Lieu de réception', liked: true, date: '20/01/2024', url: 'https://images.unsplash.com/photo-1464366400600-7168b8af9bc3?w=400' },
+  { id: '4', album: 'Lieu de réception', liked: true, date: '20/01/2024', url: 'https://images.unsplash.com/photo-1478146896981-b80fe463b330?w=400' },
+  { id: '5', album: 'Décoration', liked: false, date: '25/01/2024', url: 'https://images.unsplash.com/photo-1511285560929-80b456fea0bc?w=400' },
+  { id: '6', album: 'Décoration', liked: true, date: '25/01/2024', url: 'https://images.unsplash.com/photo-1522673607200-164d1b6ce486?w=400' },
+  { id: '7', album: 'Robes & Costumes', liked: true, date: '01/02/2024', url: 'https://images.unsplash.com/photo-1594552072238-5cb96f3d0e8e?w=400' },
+  { id: '8', album: 'Nos photos', liked: true, date: '05/02/2024', url: 'https://images.unsplash.com/photo-1606800052052-a08af7148866?w=400' },
+  { id: '9', album: 'Inspiration', liked: false, date: '10/02/2024', url: 'https://images.unsplash.com/photo-1460978812857-470ed1c77af0?w=400' },
+  { id: '10', album: 'Décoration', liked: true, date: '12/02/2024', url: 'https://images.unsplash.com/photo-1525258437537-f9a5a3a8f4e7?w=400' },
+  { id: '11', album: 'Nos photos', liked: false, date: '14/02/2024', url: 'https://images.unsplash.com/photo-1537633552985-df8429e8048b?w=400' },
+  { id: '12', album: 'Lieu de réception', liked: true, date: '15/02/2024', url: 'https://images.unsplash.com/photo-1519167758481-83f29da8c2b0?w=400' },
+  { id: '13', album: 'Inspiration', liked: true, date: '16/02/2024', url: 'https://images.unsplash.com/photo-1583939003579-730e3918a45a?w=400' },
+  { id: '14', album: 'Décoration', liked: false, date: '18/02/2024', url: 'https://images.unsplash.com/photo-1530023367847-a683933f4172?w=400' },
+  { id: '15', album: 'Robes & Costumes', liked: true, date: '20/02/2024', url: 'https://images.unsplash.com/photo-1515934751635-c81c6bc9a2d8?w=400' },
+  { id: '16', album: 'Nos photos', liked: true, date: '22/02/2024', url: 'https://images.unsplash.com/photo-1591604466107-ec97de577aff?w=400' },
 ];
 
-const colors = [
-  'from-pink-200 to-pink-300',
-  'from-blue-200 to-blue-300',
-  'from-green-200 to-green-300',
-  'from-purple-200 to-purple-300',
-  'from-yellow-200 to-yellow-300',
-  'from-orange-200 to-orange-300',
-  'from-teal-200 to-teal-300',
-  'from-rose-200 to-rose-300',
-  'from-indigo-200 to-indigo-300',
-  'from-cyan-200 to-cyan-300',
-  'from-amber-200 to-amber-300',
-  'from-emerald-200 to-emerald-300',
-];
 
 export default function GaleriePage() {
   const [selectedAlbum, setSelectedAlbum] = useState<string | null>(null);
@@ -210,7 +200,11 @@ export default function GaleriePage() {
                   className="relative group aspect-square rounded-lg overflow-hidden cursor-pointer"
                   onClick={() => setSelectedPhoto(photo.id)}
                 >
-                  <div className={`w-full h-full bg-gradient-to-br ${colors[index % colors.length]}`} />
+                  <img 
+                    src={photo.url} 
+                    alt={`Photo ${photo.id}`}
+                    className="w-full h-full object-cover"
+                  />
                   <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
                     <ZoomIn className="h-6 w-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
                   </div>
@@ -239,7 +233,11 @@ export default function GaleriePage() {
                   key={photo.id}
                   className="flex items-center gap-4 p-3 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors"
                 >
-                  <div className={`w-16 h-16 rounded-lg bg-gradient-to-br ${colors[index % colors.length]}`} />
+                  <img 
+                    src={photo.url} 
+                    alt={`Photo ${photo.id}`}
+                    className="w-16 h-16 rounded-lg object-cover"
+                  />
                   <div className="flex-1">
                     <p className="font-medium text-brand-purple">Photo {photo.id}</p>
                     <p className="text-sm text-brand-gray">{photo.album} • {photo.date}</p>
@@ -286,7 +284,11 @@ export default function GaleriePage() {
             >
               <ChevronLeft className="h-8 w-8" />
             </Button>
-            <div className={`w-[80vw] h-[80vh] rounded-lg bg-gradient-to-br ${colors[parseInt(selectedPhoto) % colors.length]}`} />
+            <img 
+              src={filteredPhotos.find(p => p.id === selectedPhoto)?.url} 
+              alt="Photo agrandie"
+              className="w-[80vw] h-[80vh] rounded-lg object-contain"
+            />
             <Button
               variant="ghost"
               size="icon"

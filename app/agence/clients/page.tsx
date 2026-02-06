@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/dialog';
 import { Search, Plus, Heart, MapPin, Calendar, Euro, Phone, Mail, FileText, Image as ImageIcon, X, Users, CheckCircle, Clock, Edit, MessageSquare } from 'lucide-react';
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 
 interface Client {
   id: string;
@@ -71,6 +72,7 @@ const clientsDemo: Client[] = [
 ];
 
 export default function ClientFilesPage() {
+  const router = useRouter();
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isNewClientOpen, setIsNewClientOpen] = useState(false);
@@ -84,6 +86,25 @@ export default function ClientFilesPage() {
   const handleEdit = (client: Client) => {
     setSelectedClient(client);
     setIsEditOpen(true);
+  };
+
+  const handleGoToMessages = () => {
+    setIsDetailOpen(false);
+    router.push('/messages');
+  };
+
+  const handleGoToDocuments = () => {
+    if (selectedClient) {
+      setIsDetailOpen(false);
+      router.push(`/admin/clients/${selectedClient.id}/documents`);
+    }
+  };
+
+  const handleGoToPlanning = () => {
+    if (selectedClient) {
+      setIsDetailOpen(false);
+      router.push(`/admin/clients/${selectedClient.id}/planning`);
+    }
   };
 
   return (
@@ -287,15 +308,15 @@ export default function ClientFilesPage() {
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <Button variant="outline" className="gap-2">
+                <Button variant="outline" className="gap-2" onClick={handleGoToMessages}>
                   <MessageSquare className="h-4 w-4" />
                   Message
                 </Button>
-                <Button variant="outline" className="gap-2">
+                <Button variant="outline" className="gap-2" onClick={handleGoToDocuments}>
                   <FileText className="h-4 w-4" />
                   Documents
                 </Button>
-                <Button variant="outline" className="gap-2">
+                <Button variant="outline" className="gap-2" onClick={handleGoToPlanning}>
                   <Calendar className="h-4 w-4" />
                   Planning
                 </Button>

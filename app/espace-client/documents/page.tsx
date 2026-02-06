@@ -26,6 +26,7 @@ import {
   CheckCircle,
   XCircle,
   X,
+  Upload,
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -127,6 +128,7 @@ export default function DocumentsPage() {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedDocument, setSelectedDocument] = useState<Document | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [isDownloadSuccess, setIsDownloadSuccess] = useState(false);
 
   const handlePreview = (doc: Document) => {
@@ -178,14 +180,24 @@ export default function DocumentsPage() {
   return (
     <ClientDashboardLayout clientName="Julie & Frédérick" daysRemaining={165}>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-brand-purple flex items-center gap-2 sm:gap-3">
-            <FileText className="h-6 w-6 sm:h-8 sm:w-8 text-brand-turquoise" />
-            Mes Documents
-          </h1>
-          <p className="text-sm sm:text-base text-brand-gray mt-1">
-            Tous vos documents au même endroit
-          </p>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold text-brand-purple flex items-center gap-2 sm:gap-3">
+              <FileText className="h-6 w-6 sm:h-8 sm:w-8 text-brand-turquoise" />
+              Mes Documents
+            </h1>
+            <p className="text-sm sm:text-base text-brand-gray mt-1">
+              Tous vos documents au même endroit
+            </p>
+          </div>
+          <Button 
+            className="bg-brand-turquoise hover:bg-brand-turquoise-hover gap-2 w-full sm:w-auto"
+            onClick={() => setIsUploadOpen(true)}
+          >
+            <Upload className="h-4 w-4" />
+            <span className="hidden sm:inline">Ajouter un document</span>
+            <span className="sm:hidden">Ajouter</span>
+          </Button>
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">

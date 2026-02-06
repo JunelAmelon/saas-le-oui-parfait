@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/dialog';
 import { Plus, Search, FileText, Eye, Download, Send, Clock, CheckCircle, Euro, Calendar, Edit } from 'lucide-react';
 import { useState } from 'react';
+import { NewDevisModal } from '@/components/modals/NewDevisModal';
 
 interface Devis {
   id: string;
@@ -433,6 +434,8 @@ export default function DevisPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <NewDevisModal isOpen={isNewDevisOpen} onClose={() => setIsNewDevisOpen(false)} />
     </DashboardLayout>
   );
 }

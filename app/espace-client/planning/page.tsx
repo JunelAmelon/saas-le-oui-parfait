@@ -34,6 +34,8 @@ import {
   MapPin,
 } from 'lucide-react';
 import { useState } from 'react';
+import { MilestoneManager } from '@/components/planning/MilestoneManager';
+import { AppointmentRequest } from '@/components/planning/AppointmentRequest';
 
 const events = [
   {
@@ -88,15 +90,65 @@ const events = [
   },
 ];
 
-const milestones = [
-  { id: '1', title: 'Réservation lieu', date: '15/01/2024', status: 'completed' },
-  { id: '2', title: 'Choix traiteur', date: '22/01/2024', status: 'completed' },
-  { id: '3', title: 'Réservation photographe', date: '05/02/2024', status: 'completed' },
-  { id: '4', title: 'Confirmation DJ', date: '12/02/2024', status: 'in_progress' },
-  { id: '5', title: 'Choix fleurs', date: '25/02/2024', status: 'pending' },
-  { id: '6', title: 'Validation menu', date: '20/03/2024', status: 'pending' },
-  { id: '7', title: 'Plan de table', date: '01/07/2024', status: 'pending' },
-  { id: '8', title: 'Répétition cérémonie', date: '20/08/2024', status: 'pending' },
+interface Milestone {
+  id: string;
+  title: string;
+  date: string;
+  status: 'pending' | 'in_progress' | 'completed';
+  eventId: string;
+  createdBy: 'admin' | 'client';
+  completedAt?: string;
+}
+
+const initialMilestones: Milestone[] = [
+  { id: '1', title: 'Réservation lieu', date: '2024-01-15', status: 'completed', eventId: 'event-1', createdBy: 'admin', completedAt: '2024-01-15T10:00:00Z' },
+  { id: '2', title: 'Choix traiteur', date: '2024-01-22', status: 'completed', eventId: 'event-1', createdBy: 'admin', completedAt: '2024-01-22T14:00:00Z' },
+  { id: '3', title: 'Réservation photographe', date: '2024-02-05', status: 'completed', eventId: 'event-1', createdBy: 'admin', completedAt: '2024-02-05T16:00:00Z' },
+  { id: '4', title: 'Confirmation DJ', date: '2024-02-12', status: 'in_progress', eventId: 'event-1', createdBy: 'admin' },
+  { id: '5', title: 'Choix fleurs', date: '2024-02-25', status: 'pending', eventId: 'event-1', createdBy: 'admin' },
+  { id: '6', title: 'Validation menu', date: '2024-03-20', status: 'pending', eventId: 'event-1', createdBy: 'admin' },
+  { id: '7', title: 'Plan de table', date: '2024-07-01', status: 'pending', eventId: 'event-1', createdBy: 'admin' },
+  { id: '8', title: 'Répétition cérémonie', date: '2024-08-20', status: 'pending', eventId: 'event-1', createdBy: 'admin' },
+];
+
+interface Appointment {
+  id: string;
+  type: string;
+  dateRequested: string;
+  timeRequested: string;
+  notes: string;
+  status: 'pending' | 'accepted' | 'refused' | 'completed';
+  clientId: string;
+  createdAt: string;
+  adminResponse?: string;
+  confirmedDate?: string;
+  confirmedTime?: string;
+}
+
+const initialAppointments: Appointment[] = [
+  {
+    id: '1',
+    type: 'Rendez-vous fleuriste',
+    dateRequested: '2024-02-20',
+    timeRequested: '14:00',
+    notes: 'Pour choisir les compositions florales',
+    status: 'accepted',
+    clientId: 'client-1',
+    createdAt: '2024-02-10T10:00:00Z',
+    confirmedDate: '2024-02-20',
+    confirmedTime: '14:00',
+    adminResponse: 'Rendez-vous confirmé avec Atelier Floral',
+  },
+  {
+    id: '2',
+    type: 'Dégustation traiteur',
+    dateRequested: '2024-03-15',
+    timeRequested: '19:00',
+    notes: 'Dégustation du menu final',
+    status: 'pending',
+    clientId: 'client-1',
+    createdAt: '2024-02-15T09:00:00Z',
+  },
 ];
 
 const months = [
@@ -125,6 +177,8 @@ export default function PlanningPage() {
   const [rdvType, setRdvType] = useState('');
   const [rdvDate, setRdvDate] = useState('');
   const [rdvNotes, setRdvNotes] = useState('');
+  const [milestones, setMilestones] = useState<Milestone[]>(initialMilestones);
+  const [appointments, setAppointments] = useState<Appointment[]>(initialAppointments);
 
   const handleRequestRdv = () => {
     setIsRdvModalOpen(false);
@@ -177,18 +231,9 @@ export default function PlanningPage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-6">
             <Card className="p-6 shadow-xl border-0">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-bold text-brand-purple">
-                  Prochains rendez-vous
-                </h2>
-                <Button 
-                  className="bg-brand-turquoise hover:bg-brand-turquoise-hover"
-                  onClick={() => setIsRdvModalOpen(true)}
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Demander un RDV
-                </Button>
-              </div>
+              <h2 className="text-xl font-bold text-brand-purple mb-6">
+                Prochains rendez-vous
+              </h2>
               <div className="space-y-4">
                 {events.map((event) => (
                   <div
@@ -284,30 +329,21 @@ export default function PlanningPage() {
             </Card>
 
             <Card className="p-6 shadow-xl border-0">
-              <h3 className="text-lg font-bold text-brand-purple mb-4 flex items-center gap-2">
-                <CheckCircle className="h-5 w-5 text-brand-turquoise" />
-                Étapes clés
-              </h3>
-              <div className="space-y-3">
-                {milestones.map((milestone, index) => (
-                  <div key={milestone.id} className="flex items-start gap-3">
-                    <div className="flex flex-col items-center">
-                      {getStatusIcon(milestone.status)}
-                      {index < milestones.length - 1 && (
-                        <div className="w-0.5 h-8 bg-gray-200 my-1"></div>
-                      )}
-                    </div>
-                    <div className="flex-1">
-                      <p className={`text-sm font-medium ${
-                        milestone.status === 'completed' ? 'text-brand-purple' : 'text-brand-gray'
-                      }`}>
-                        {milestone.title}
-                      </p>
-                      <p className="text-xs text-brand-gray">{milestone.date}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
+              <MilestoneManager
+                eventId="event-1"
+                isAdmin={false}
+                milestones={milestones}
+                onUpdate={(items) => setMilestones(items)}
+              />
+            </Card>
+
+            <Card className="p-6 shadow-xl border-0">
+              <AppointmentRequest
+                clientId="client-1"
+                isAdmin={false}
+                appointments={appointments}
+                onUpdate={(items) => setAppointments(items)}
+              />
             </Card>
           </div>
         </div>

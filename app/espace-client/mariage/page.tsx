@@ -21,6 +21,7 @@ import {
   Save,
 } from 'lucide-react';
 import { useState } from 'react';
+import { ColorPalette } from '@/components/wedding/ColorPalette';
 
 const weddingData = {
   couple: {
@@ -51,6 +52,17 @@ const weddingData = {
 
 export default function MariagePage() {
   const [isEditing, setIsEditing] = useState(false);
+  const [weddingInfo, setWeddingInfo] = useState(weddingData);
+  
+  const handleColorChange = (colors: string[]) => {
+    setWeddingInfo({
+      ...weddingInfo,
+      theme: {
+        ...weddingInfo.theme,
+        colors,
+      },
+    });
+  };
 
   return (
     <ClientDashboardLayout clientName="Julie & Frédérick" daysRemaining={weddingData.daysRemaining}>
@@ -93,20 +105,34 @@ export default function MariagePage() {
               <div>
                 <Label className="text-brand-gray">Partenaire 1</Label>
                 {isEditing ? (
-                  <Input defaultValue={weddingData.couple.partner1} className="mt-1" />
+                  <Input 
+                    value={weddingInfo.couple.partner1} 
+                    onChange={(e) => setWeddingInfo({
+                      ...weddingInfo,
+                      couple: { ...weddingInfo.couple, partner1: e.target.value }
+                    })}
+                    className="mt-1" 
+                  />
                 ) : (
                   <p className="text-lg font-medium text-brand-purple mt-1">
-                    {weddingData.couple.partner1}
+                    {weddingInfo.couple.partner1}
                   </p>
                 )}
               </div>
               <div>
                 <Label className="text-brand-gray">Partenaire 2</Label>
                 {isEditing ? (
-                  <Input defaultValue={weddingData.couple.partner2} className="mt-1" />
+                  <Input 
+                    value={weddingInfo.couple.partner2} 
+                    onChange={(e) => setWeddingInfo({
+                      ...weddingInfo,
+                      couple: { ...weddingInfo.couple, partner2: e.target.value }
+                    })}
+                    className="mt-1" 
+                  />
                 ) : (
                   <p className="text-lg font-medium text-brand-purple mt-1">
-                    {weddingData.couple.partner2}
+                    {weddingInfo.couple.partner2}
                   </p>
                 )}
               </div>
@@ -120,10 +146,27 @@ export default function MariagePage() {
             </h2>
             <div className="text-center">
               <p className="text-5xl font-bold text-brand-turquoise">
-                J-{weddingData.daysRemaining}
+                J-{weddingInfo.daysRemaining}
               </p>
-              <p className="text-brand-gray mt-2">{weddingData.date}</p>
-              <p className="text-sm text-brand-gray">à {weddingData.time}</p>
+              {isEditing ? (
+                <>
+                  <Input 
+                    value={weddingInfo.date} 
+                    onChange={(e) => setWeddingInfo({ ...weddingInfo, date: e.target.value })}
+                    className="mt-2 text-center" 
+                  />
+                  <Input 
+                    value={weddingInfo.time} 
+                    onChange={(e) => setWeddingInfo({ ...weddingInfo, time: e.target.value })}
+                    className="mt-1 text-center text-sm" 
+                  />
+                </>
+              ) : (
+                <>
+                  <p className="text-brand-gray mt-2">{weddingInfo.date}</p>
+                  <p className="text-sm text-brand-gray">à {weddingInfo.time}</p>
+                </>
+              )}
             </div>
           </Card>
         </div>
@@ -138,24 +181,50 @@ export default function MariagePage() {
               <div>
                 <Label className="text-brand-gray">Nom du lieu</Label>
                 {isEditing ? (
-                  <Input defaultValue={weddingData.venue.name} className="mt-1" />
+                  <Input 
+                    value={weddingInfo.venue.name} 
+                    onChange={(e) => setWeddingInfo({
+                      ...weddingInfo,
+                      venue: { ...weddingInfo.venue, name: e.target.value }
+                    })}
+                    className="mt-1" 
+                  />
                 ) : (
                   <p className="text-lg font-medium text-brand-purple mt-1">
-                    {weddingData.venue.name}
+                    {weddingInfo.venue.name}
                   </p>
                 )}
               </div>
               <div>
                 <Label className="text-brand-gray">Adresse</Label>
                 {isEditing ? (
-                  <Input defaultValue={weddingData.venue.address} className="mt-1" />
+                  <Input 
+                    value={weddingInfo.venue.address} 
+                    onChange={(e) => setWeddingInfo({
+                      ...weddingInfo,
+                      venue: { ...weddingInfo.venue, address: e.target.value }
+                    })}
+                    className="mt-1" 
+                  />
                 ) : (
-                  <p className="text-brand-purple mt-1">{weddingData.venue.address}</p>
+                  <p className="text-brand-purple mt-1">{weddingInfo.venue.address}</p>
                 )}
               </div>
               <div>
                 <Label className="text-brand-gray">Capacité</Label>
-                <p className="text-brand-purple mt-1">{weddingData.venue.capacity} personnes</p>
+                {isEditing ? (
+                  <Input 
+                    type="number"
+                    value={weddingInfo.venue.capacity} 
+                    onChange={(e) => setWeddingInfo({
+                      ...weddingInfo,
+                      venue: { ...weddingInfo.venue, capacity: parseInt(e.target.value) }
+                    })}
+                    className="mt-1" 
+                  />
+                ) : (
+                  <p className="text-brand-purple mt-1">{weddingInfo.venue.capacity} personnes</p>
+                )}
               </div>
             </div>
           </Card>
@@ -167,20 +236,68 @@ export default function MariagePage() {
             </h2>
             <div className="grid grid-cols-2 gap-4">
               <div className="text-center p-4 bg-gray-50 rounded-lg">
-                <p className="text-3xl font-bold text-brand-purple">{weddingData.guests.invited}</p>
-                <p className="text-sm text-brand-gray">Invités</p>
+                {isEditing ? (
+                  <Input 
+                    type="number"
+                    value={weddingInfo.guests.invited} 
+                    onChange={(e) => setWeddingInfo({
+                      ...weddingInfo,
+                      guests: { ...weddingInfo.guests, invited: parseInt(e.target.value) }
+                    })}
+                    className="text-center font-bold" 
+                  />
+                ) : (
+                  <p className="text-3xl font-bold text-brand-purple">{weddingInfo.guests.invited}</p>
+                )}
+                <p className="text-sm text-brand-gray mt-1">Invités</p>
               </div>
               <div className="text-center p-4 bg-green-50 rounded-lg">
-                <p className="text-3xl font-bold text-green-600">{weddingData.guests.confirmed}</p>
-                <p className="text-sm text-brand-gray">Confirmés</p>
+                {isEditing ? (
+                  <Input 
+                    type="number"
+                    value={weddingInfo.guests.confirmed} 
+                    onChange={(e) => setWeddingInfo({
+                      ...weddingInfo,
+                      guests: { ...weddingInfo.guests, confirmed: parseInt(e.target.value) }
+                    })}
+                    className="text-center font-bold" 
+                  />
+                ) : (
+                  <p className="text-3xl font-bold text-green-600">{weddingInfo.guests.confirmed}</p>
+                )}
+                <p className="text-sm text-brand-gray mt-1">Confirmés</p>
               </div>
               <div className="text-center p-4 bg-orange-50 rounded-lg">
-                <p className="text-3xl font-bold text-orange-600">{weddingData.guests.pending}</p>
-                <p className="text-sm text-brand-gray">En attente</p>
+                {isEditing ? (
+                  <Input 
+                    type="number"
+                    value={weddingInfo.guests.pending} 
+                    onChange={(e) => setWeddingInfo({
+                      ...weddingInfo,
+                      guests: { ...weddingInfo.guests, pending: parseInt(e.target.value) }
+                    })}
+                    className="text-center font-bold" 
+                  />
+                ) : (
+                  <p className="text-3xl font-bold text-orange-600">{weddingInfo.guests.pending}</p>
+                )}
+                <p className="text-sm text-brand-gray mt-1">En attente</p>
               </div>
               <div className="text-center p-4 bg-red-50 rounded-lg">
-                <p className="text-3xl font-bold text-red-600">{weddingData.guests.declined}</p>
-                <p className="text-sm text-brand-gray">Déclinés</p>
+                {isEditing ? (
+                  <Input 
+                    type="number"
+                    value={weddingInfo.guests.declined} 
+                    onChange={(e) => setWeddingInfo({
+                      ...weddingInfo,
+                      guests: { ...weddingInfo.guests, declined: parseInt(e.target.value) }
+                    })}
+                    className="text-center font-bold" 
+                  />
+                ) : (
+                  <p className="text-3xl font-bold text-red-600">{weddingInfo.guests.declined}</p>
+                )}
+                <p className="text-sm text-brand-gray mt-1">Déclinés</p>
               </div>
             </div>
           </Card>
@@ -195,31 +312,44 @@ export default function MariagePage() {
             <div>
               <Label className="text-brand-gray">Style</Label>
               {isEditing ? (
-                <Input defaultValue={weddingData.theme.style} className="mt-1" />
+                <Input 
+                  value={weddingInfo.theme.style} 
+                  onChange={(e) => setWeddingInfo({
+                    ...weddingInfo,
+                    theme: { ...weddingInfo.theme, style: e.target.value }
+                  })}
+                  className="mt-1" 
+                />
               ) : (
                 <p className="text-lg font-medium text-brand-purple mt-1">
-                  {weddingData.theme.style}
+                  {weddingInfo.theme.style}
                 </p>
               )}
               <div className="mt-4">
                 <Label className="text-brand-gray">Palette de couleurs</Label>
-                <div className="flex gap-2 mt-2">
-                  {weddingData.theme.colors.map((color, index) => (
-                    <div
-                      key={index}
-                      className="w-10 h-10 rounded-full border-2 border-white shadow-md"
-                      style={{ backgroundColor: color }}
-                    />
-                  ))}
+                <div className="mt-2">
+                  <ColorPalette 
+                    selectedColors={weddingInfo.theme.colors}
+                    onColorsChange={handleColorChange}
+                    maxColors={6}
+                  />
                 </div>
               </div>
             </div>
             <div>
               <Label className="text-brand-gray">Description</Label>
               {isEditing ? (
-                <Textarea defaultValue={weddingData.theme.description} className="mt-1" rows={4} />
+                <Textarea 
+                  value={weddingInfo.theme.description} 
+                  onChange={(e) => setWeddingInfo({
+                    ...weddingInfo,
+                    theme: { ...weddingInfo.theme, description: e.target.value }
+                  })}
+                  className="mt-1" 
+                  rows={4} 
+                />
               ) : (
-                <p className="text-brand-purple mt-1">{weddingData.theme.description}</p>
+                <p className="text-brand-purple mt-1">{weddingInfo.theme.description}</p>
               )}
             </div>
           </div>
@@ -231,9 +361,14 @@ export default function MariagePage() {
             Notes & Déroulement
           </h2>
           {isEditing ? (
-            <Textarea defaultValue={weddingData.notes} className="mt-1" rows={4} />
+            <Textarea 
+              value={weddingInfo.notes} 
+              onChange={(e) => setWeddingInfo({ ...weddingInfo, notes: e.target.value })}
+              className="mt-1" 
+              rows={4} 
+            />
           ) : (
-            <p className="text-brand-purple">{weddingData.notes}</p>
+            <p className="text-brand-purple">{weddingInfo.notes}</p>
           )}
         </Card>
       </div>
