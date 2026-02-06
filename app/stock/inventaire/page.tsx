@@ -1,8 +1,13 @@
+'use client';
+
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Plus, Calendar, CheckCircle, Clock, Package } from 'lucide-react';
+import { useState } from 'react';
+import { NewInventaireModal } from '@/components/modals/NewInventaireModal';
+import { InventaireDetailModal } from '@/components/modals/InventaireDetailModal';
 
 const inventairesDemo = [
   {
@@ -56,6 +61,15 @@ const statusConfig = {
 };
 
 export default function InventairePage() {
+  const [isNewInventaireOpen, setIsNewInventaireOpen] = useState(false);
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
+  const [selectedInventaire, setSelectedInventaire] = useState<typeof inventairesDemo[0] | null>(null);
+
+  const handleViewDetail = (inventaire: typeof inventairesDemo[0]) => {
+    setSelectedInventaire(inventaire);
+    setIsDetailOpen(true);
+  };
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -68,7 +82,10 @@ export default function InventairePage() {
               Planifiez et suivez vos inventaires
             </p>
           </div>
-          <Button className="bg-brand-turquoise hover:bg-brand-turquoise-hover gap-2">
+          <Button 
+            className="bg-brand-turquoise hover:bg-brand-turquoise-hover gap-2"
+            onClick={() => setIsNewInventaireOpen(true)}
+          >
             <Plus className="h-4 w-4" />
             Nouvel inventaire
           </Button>
@@ -142,7 +159,11 @@ export default function InventairePage() {
                 </div>
 
                 <div className="flex gap-2">
-                  <Button size="sm" className="bg-brand-turquoise hover:bg-brand-turquoise-hover">
+                  <Button 
+                    size="sm" 
+                    className="bg-brand-turquoise hover:bg-brand-turquoise-hover"
+                    onClick={() => handleViewDetail(inventaire)}
+                  >
                     Voir les détails
                   </Button>
                   {inventaire.status === 'in_progress' && (
@@ -156,6 +177,17 @@ export default function InventairePage() {
           })}
         </div>
       </div>
+
+      <NewInventaireModal
+        isOpen={isNewInventaireOpen}
+        onClose={() => setIsNewInventaireOpen(false)}
+      />
+
+      <InventaireDetailModal
+        isOpen={isDetailOpen}
+        onClose={() => setIsDetailOpen(false)}
+        inventaire={selectedInventaire}
+      />
     </DashboardLayout>
   );
 }

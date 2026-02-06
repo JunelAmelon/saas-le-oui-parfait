@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Plus, Calendar, AlertCircle, CheckCircle2, Clock } from 'lucide-react';
 import { useState } from 'react';
+import { TodoModal } from '@/components/modals/TodoModal';
 
 interface Todo {
   id: string;
@@ -101,6 +102,21 @@ const statusColors = {
 export default function TodoPage() {
   const [todos, setTodos] = useState(todosDemo);
   const [filter, setFilter] = useState<'all' | 'todo' | 'in_progress' | 'done'>('all');
+  const [isTodoModalOpen, setIsTodoModalOpen] = useState(false);
+  const [selectedTodo, setSelectedTodo] = useState<Todo | null>(null);
+  const [modalMode, setModalMode] = useState<'create' | 'edit'>('create');
+
+  const handleEdit = (todo: Todo) => {
+    setSelectedTodo(todo);
+    setModalMode('edit');
+    setIsTodoModalOpen(true);
+  };
+
+  const handleCreate = () => {
+    setSelectedTodo(null);
+    setModalMode('create');
+    setIsTodoModalOpen(true);
+  };
 
   const filteredTodos = filter === 'all' ? todos : todos.filter(t => t.status === filter);
 
@@ -126,7 +142,10 @@ export default function TodoPage() {
               Organisez et suivez toutes vos tâches
             </p>
           </div>
-          <Button className="bg-brand-turquoise hover:bg-brand-turquoise-hover gap-2">
+          <Button 
+            className="bg-brand-turquoise hover:bg-brand-turquoise-hover gap-2"
+            onClick={handleCreate}
+          >
             <Plus className="h-4 w-4" />
             Nouvelle tâche
           </Button>
@@ -218,6 +237,7 @@ export default function TodoPage() {
                         size="sm"
                         variant="outline"
                         className="border-2 border-brand-turquoise text-brand-gray hover:bg-brand-turquoise hover:text-white"
+                        onClick={() => handleEdit(todo)}
                       >
                         Modifier
                       </Button>
@@ -236,6 +256,13 @@ export default function TodoPage() {
           })}
         </div>
       </div>
+
+      <TodoModal
+        isOpen={isTodoModalOpen}
+        onClose={() => setIsTodoModalOpen(false)}
+        todo={selectedTodo}
+        mode={modalMode}
+      />
     </DashboardLayout>
   );
 }

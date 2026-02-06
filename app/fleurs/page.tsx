@@ -1,9 +1,13 @@
+'use client';
+
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Plus, Search, Flower2, Calculator } from 'lucide-react';
+import { useState } from 'react';
+import { NewCompositionModal } from '@/components/modals/NewCompositionModal';
 
 const compositionsDemo = [
   {
@@ -54,6 +58,8 @@ const fleursCatalog = [
 ];
 
 export default function FleursPage() {
+  const [isNewCompositionOpen, setIsNewCompositionOpen] = useState(false);
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -66,7 +72,10 @@ export default function FleursPage() {
               Créez et calculez vos compositions florales
             </p>
           </div>
-          <Button className="bg-brand-turquoise hover:bg-brand-turquoise-hover gap-2 w-full sm:w-auto">
+          <Button 
+            className="bg-brand-turquoise hover:bg-brand-turquoise-hover gap-2 w-full sm:w-auto"
+            onClick={() => setIsNewCompositionOpen(true)}
+          >
             <Plus className="h-4 w-4" />
             <span className="hidden sm:inline">Nouvelle composition</span>
             <span className="sm:hidden">Nouvelle</span>
@@ -187,6 +196,11 @@ export default function FleursPage() {
           </div>
         </div>
       </div>
+
+      <NewCompositionModal
+        isOpen={isNewCompositionOpen}
+        onClose={() => setIsNewCompositionOpen(false)}
+      />
     </DashboardLayout>
   );
 }

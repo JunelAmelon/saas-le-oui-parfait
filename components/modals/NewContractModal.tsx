@@ -1,14 +1,16 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import Image from 'next/image';
+import { FileText, Eye } from 'lucide-react';
 
 interface NewContractModalProps {
   isOpen: boolean;
@@ -16,124 +18,381 @@ interface NewContractModalProps {
 }
 
 const clients = [
-  { id: '1', name: 'Julie & Frédérick', email: 'julie.martin@email.com' },
-  { id: '2', name: 'Sophie & Alexandre', email: 'sophie.dubois@email.com' },
-  { id: '3', name: 'Emma & Thomas', email: 'emma.bernard@email.com' },
+  { id: '1', name: 'Julie & Frédérick', email: 'julie.martin@email.com', phone: '06 12 34 56 78', address: '15 rue de la Paix, 35000 Rennes' },
+  { id: '2', name: 'Sophie & Alexandre', email: 'sophie.dubois@email.com', phone: '06 23 45 67 89', address: '8 avenue des Fleurs, 44000 Nantes' },
+  { id: '3', name: 'Emma & Thomas', email: 'emma.bernard@email.com', phone: '06 34 56 78 90', address: '22 boulevard du Château, 56000 Vannes' },
 ];
 
+const prestationsDisponibles = [
+  { id: '1', nom: 'Coordination complète du mariage', prix: 2500 },
+  { id: '2', nom: 'Coordination le jour J uniquement', prix: 1200 },
+  { id: '3', nom: 'Recherche et sélection des prestataires', prix: 800 },
+  { id: '4', nom: 'Gestion du planning et rétroplanning', prix: 600 },
+  { id: '5', nom: 'Accompagnement personnalisé (forfait 10h)', prix: 1000 },
+  { id: '6', nom: 'Décoration et mise en place', prix: 1500 },
+  { id: '7', nom: 'Gestion des invitations et réponses', prix: 400 },
+  { id: '8', nom: 'Recherche de lieu de réception', prix: 500 },
+];
+
+interface AdminInfo {
+  nomRepresentant: string;
+  adresseAgence: string;
+  siret: string;
+  ville: string;
+  email: string;
+  telephone: string;
+}
+
+const adminInfoDefault: AdminInfo = {
+  nomRepresentant: 'Marie DUPONT',
+  adresseAgence: '12 Avenue des Mariages, 35000 Rennes',
+  siret: '123 456 789 00012',
+  ville: 'Rennes',
+  email: 'contact@leouiparfait.fr',
+  telephone: '02 99 00 00 00',
+};
+
 const contractTemplate = `CONTRAT DE PRESTATION DE SERVICES
-WEDDING PLANNING
+ORGANISATION ET COORDINATION D'ÉVÉNEMENT MATRIMONIAL
 
-Entre les soussignés :
 
-L'AGENCE "LE OUI PARFAIT"
-Représentée par [Nom du représentant]
-Adresse : [Adresse de l'agence]
-SIRET : [Numéro SIRET]
+ENTRE LES SOUSSIGNÉS :
 
-Ci-après dénommée "Le Prestataire"
+D'UNE PART,
 
-D'une part,
+La société LE OUI PARFAIT, société par actions simplifiée au capital de 10 000 euros, immatriculée au Registre du Commerce et des Sociétés de Rennes sous le numéro [SIRET_AGENCE], dont le siège social est situé [ADRESSE_AGENCE], représentée par [NOM_REPRESENTANT] en sa qualité de Président, dûment habilité aux fins des présentes.
 
-Et :
+Email : [EMAIL_AGENCE]
+Téléphone : [TELEPHONE_AGENCE]
 
-[NOM_CLIENT]
-Adresse : [ADRESSE_CLIENT]
+Ci-après dénommée « le Prestataire »,
+
+D'UNE PART,
+
+ET :
+
+Monsieur et Madame [NOM_CLIENT]
+Demeurant : [ADRESSE_CLIENT]
 Email : [EMAIL_CLIENT]
 Téléphone : [TELEPHONE_CLIENT]
 
-Ci-après dénommé "Le Client"
+Ci-après dénommés « le Client » ou « les Clients »,
 
-D'autre part,
+D'AUTRE PART,
+
+Ci-après dénommés ensemble « les Parties ».
+
+
+PRÉAMBULE
+
+Le Client souhaite confier au Prestataire l'organisation et/ou la coordination de son événement matrimonial. Le Prestataire dispose des compétences, de l'expérience et des moyens nécessaires pour répondre aux attentes du Client dans le respect des normes professionnelles en vigueur.
+
+Les Parties ont convenu de formaliser leur collaboration dans le cadre du présent contrat, dont les termes et conditions sont ci-après définis.
+
+
+IL A ÉTÉ CONVENU ET ARRÊTÉ CE QUI SUIT :
+
 
 ARTICLE 1 - OBJET DU CONTRAT
-Le présent contrat a pour objet la prestation de services de wedding planning pour l'organisation du mariage du Client prévu le [DATE_MARIAGE] au [LIEU_MARIAGE].
 
-ARTICLE 2 - PRESTATIONS
+Le présent contrat a pour objet de définir les conditions dans lesquelles le Prestataire s'engage à fournir au Client des prestations de conseil, d'organisation et de coordination pour la réalisation de son événement matrimonial prévu le [DATE_MARIAGE] au [LIEU_MARIAGE].
+
+Les prestations détaillées sont énumérées à l'article 2 du présent contrat.
+
+
+ARTICLE 2 - DESCRIPTION DES PRESTATIONS
+
 Le Prestataire s'engage à fournir les prestations suivantes :
+
 [PRESTATIONS]
 
-ARTICLE 3 - MONTANT ET MODALITÉS DE PAIEMENT
-Le montant total des prestations s'élève à [MONTANT_TOTAL] € TTC.
+Le détail précis de chaque prestation, ainsi que les livrables associés, sont décrits dans l'annexe technique jointe au présent contrat et en faisant partie intégrante.
 
-Modalités de paiement :
-- Acompte de 30% à la signature : [MONTANT_ACOMPTE] €
-- Solde avant le [DATE_SOLDE]
+Le Prestataire mettra en œuvre tous les moyens nécessaires à la bonne exécution de ses obligations, dans le respect des règles de l'art et des normes professionnelles applicables.
 
-ARTICLE 4 - DURÉE DU CONTRAT
-Le présent contrat prend effet à compter de sa signature et prendra fin après la réalisation complète de l'événement.
+
+ARTICLE 3 - DURÉE DU CONTRAT
+
+Le présent contrat prend effet à compter de sa signature par les deux Parties et se poursuivra jusqu'à la réalisation complète de l'événement matrimonial et l'exécution de l'ensemble des prestations convenues.
+
+La date de fin prévisionnelle du contrat est fixée au [DATE_FIN_CONTRAT], sous réserve de la bonne exécution des obligations respectives des Parties.
+
+
+ARTICLE 4 - CONDITIONS FINANCIÈRES
+
+4.1 - Prix
+
+Le montant total des prestations définies à l'article 2 s'élève à la somme de [MONTANT_TOTAL] euros TTC (Toutes Taxes Comprises).
+
+Ce montant est ferme et définitif, sauf modification expresse des prestations convenues, auquel cas un avenant au présent contrat sera établi.
+
+4.2 - Modalités de paiement
+
+Le règlement du prix s'effectuera selon l'échéancier suivant :
+
+- Un acompte de 30% du montant total, soit [MONTANT_ACOMPTE] euros TTC, payable à la signature du présent contrat par virement bancaire ou chèque.
+- Un second versement de 40% du montant total, soit [MONTANT_SECOND] euros TTC, payable au plus tard le [DATE_SECOND_PAIEMENT].
+- Le solde de 30%, soit [MONTANT_SOLDE] euros TTC, payable au plus tard 15 jours avant la date de l'événement, soit avant le [DATE_SOLDE].
+
+4.3 - Retard de paiement
+
+Tout retard de paiement entraînera de plein droit, et sans mise en demeure préalable, l'application de pénalités de retard calculées sur la base du taux d'intérêt appliqué par la Banque Centrale Européenne à son opération de refinancement la plus récente, majoré de 10 points de pourcentage.
+
+En outre, toute somme non payée à l'échéance donnera lieu au paiement d'une indemnité forfaitaire de 40 euros pour frais de recouvrement, sans préjudice d'une indemnisation complémentaire si les frais de recouvrement effectivement exposés sont supérieurs à ce montant.
+
 
 ARTICLE 5 - OBLIGATIONS DU PRESTATAIRE
+
 Le Prestataire s'engage à :
-- Respecter les délais convenus
-- Fournir des prestations de qualité professionnelle
-- Maintenir une communication régulière avec le Client
+
+5.1 - Exécuter les prestations avec diligence, compétence et dans le respect des règles de l'art.
+
+5.2 - Respecter les délais convenus et informer le Client sans délai de toute difficulté susceptible d'affecter la bonne exécution des prestations.
+
+5.3 - Tenir le Client régulièrement informé de l'avancement des prestations et lui soumettre pour validation les choix importants.
+
+5.4 - Coordonner l'intervention des prestataires tiers sélectionnés en accord avec le Client.
+
+5.5 - Respecter la confidentialité des informations personnelles et des données communiquées par le Client.
+
+5.6 - Souscrire et maintenir en vigueur une assurance responsabilité civile professionnelle couvrant les dommages pouvant résulter de l'exécution des prestations.
+
 
 ARTICLE 6 - OBLIGATIONS DU CLIENT
+
 Le Client s'engage à :
-- Fournir toutes les informations nécessaires
-- Respecter les échéances de paiement
-- Valider les choix dans les délais impartis
 
-ARTICLE 7 - ANNULATION
-En cas d'annulation par le Client :
-- Plus de 6 mois avant : remboursement de 70%
-- Entre 3 et 6 mois : remboursement de 50%
-- Moins de 3 mois : aucun remboursement
+6.1 - Fournir au Prestataire toutes les informations, documents et éléments nécessaires à la bonne exécution des prestations.
 
-ARTICLE 8 - RESPONSABILITÉ
-Le Prestataire ne pourra être tenu responsable des événements indépendants de sa volonté (force majeure, défaillance d'un prestataire tiers, etc.).
+6.2 - Répondre dans les délais convenus aux demandes de validation et aux sollicitations du Prestataire.
+
+6.3 - Respecter l'échéancier de paiement défini à l'article 4.2.
+
+6.4 - Informer le Prestataire sans délai de toute modification de ses coordonnées ou de ses souhaits concernant l'événement.
+
+6.5 - Collaborer de bonne foi avec le Prestataire et les prestataires tiers pour faciliter la réalisation de l'événement.
+
+
+ARTICLE 7 - MODIFICATION DES PRESTATIONS
+
+Toute modification des prestations initialement convenues devra faire l'objet d'un accord écrit entre les Parties sous forme d'avenant au présent contrat.
+
+Si la modification entraîne une augmentation ou une diminution du prix, celle-ci sera répercutée dans l'avenant et donnera lieu à un ajustement de l'échéancier de paiement.
+
+
+ARTICLE 8 - RÉSILIATION ET ANNULATION
+
+8.1 - Résiliation par le Client
+
+Le Client peut résilier le présent contrat à tout moment moyennant le respect d'un préavis de 30 jours par lettre recommandée avec accusé de réception.
+
+En cas de résiliation par le Client, les sommes suivantes resteront acquises au Prestataire à titre d'indemnité forfaitaire :
+
+- En cas de résiliation plus de 6 mois avant la date de l'événement : 30% du montant total du contrat.
+- En cas de résiliation entre 3 et 6 mois avant la date de l'événement : 50% du montant total du contrat.
+- En cas de résiliation moins de 3 mois avant la date de l'événement : 70% du montant total du contrat.
+- En cas de résiliation moins de 1 mois avant la date de l'événement : 100% du montant total du contrat.
+
+Les sommes déjà versées viendront en déduction de cette indemnité. Si les sommes versées sont supérieures à l'indemnité due, le trop-perçu sera remboursé au Client dans un délai de 30 jours.
+
+8.2 - Résiliation par le Prestataire
+
+Le Prestataire peut résilier le présent contrat de plein droit, sans indemnité, en cas de manquement grave du Client à ses obligations contractuelles, notamment en cas de non-paiement d'une échéance après mise en demeure restée infructueuse pendant 15 jours.
+
+8.3 - Force majeure
+
+En cas de survenance d'un événement de force majeure au sens de l'article 1218 du Code civil rendant impossible l'exécution du contrat, celui-ci sera résilié de plein droit sans indemnité pour aucune des Parties. Les sommes déjà versées seront remboursées au Client au prorata des prestations non exécutées.
+
+
+ARTICLE 9 - RESPONSABILITÉ
+
+9.1 - Responsabilité du Prestataire
+
+Le Prestataire est tenu à une obligation de moyens dans l'exécution des prestations. Sa responsabilité ne pourra être engagée qu'en cas de faute prouvée.
+
+Le Prestataire ne saurait être tenu responsable :
+- Des dommages résultant d'une faute, négligence ou défaillance du Client ou d'un prestataire tiers.
+- Des événements imprévisibles et irrésistibles constitutifs de force majeure.
+- Des modifications de dernière minute imposées par le Client.
+- De la qualité des prestations fournies par les prestataires tiers, même s'ils ont été recommandés par le Prestataire.
+
+9.2 - Limitation de responsabilité
+
+En tout état de cause, la responsabilité du Prestataire est limitée au montant total des sommes effectivement perçues au titre du présent contrat.
+
+9.3 - Assurance
+
+Le Prestataire déclare avoir souscrit une assurance responsabilité civile professionnelle auprès de [NOM_ASSURANCE] couvrant les conséquences pécuniaires de sa responsabilité civile professionnelle.
+
+
+ARTICLE 10 - PROPRIÉTÉ INTELLECTUELLE
+
+Tous les documents, concepts, créations et éléments produits par le Prestataire dans le cadre de l'exécution du présent contrat demeurent sa propriété exclusive, sauf stipulation contraire.
+
+Le Client dispose d'un droit d'utilisation de ces éléments strictement limité à la réalisation de son événement matrimonial. Toute autre utilisation, notamment commerciale, est interdite sans l'accord préalable écrit du Prestataire.
+
+
+ARTICLE 11 - CONFIDENTIALITÉ
+
+Chacune des Parties s'engage à conserver strictement confidentielles toutes les informations de nature confidentielle de l'autre Partie dont elle pourrait avoir connaissance dans le cadre de l'exécution du présent contrat.
+
+Cet engagement de confidentialité demeurera en vigueur pendant toute la durée du contrat et pendant une période de 3 ans suivant son terme.
+
+
+ARTICLE 12 - DONNÉES PERSONNELLES
+
+Conformément au Règlement Général sur la Protection des Données (RGPD) et à la loi Informatique et Libertés, le Prestataire s'engage à traiter les données personnelles du Client dans le strict respect de la réglementation en vigueur.
+
+Le Client dispose d'un droit d'accès, de rectification, d'effacement, de limitation, d'opposition et de portabilité de ses données personnelles, qu'il peut exercer en adressant un courrier à l'adresse du siège social du Prestataire.
+
+
+ARTICLE 13 - CESSION DU CONTRAT
+
+Le présent contrat est conclu intuitu personae. En conséquence, aucune des Parties ne pourra céder ou transférer tout ou partie de ses droits et obligations au titre du présent contrat sans l'accord préalable écrit de l'autre Partie.
+
+
+ARTICLE 14 - INDÉPENDANCE DES CLAUSES
+
+Si l'une quelconque des stipulations du présent contrat était déclarée nulle ou inapplicable en application d'une loi, d'un règlement ou à la suite d'une décision de justice devenue définitive, elle serait réputée non écrite et les autres stipulations resteraient en vigueur.
+
+
+ARTICLE 15 - MODIFICATION DU CONTRAT
+
+Toute modification du présent contrat devra faire l'objet d'un avenant signé par les deux Parties.
+
+
+ARTICLE 16 - DROIT APPLICABLE ET JURIDICTION COMPÉTENTE
+
+Le présent contrat est soumis au droit français.
+
+En cas de litige relatif à l'interprétation ou à l'exécution du présent contrat, les Parties s'engagent à rechercher une solution amiable.
+
+À défaut d'accord amiable dans un délai de 30 jours suivant la notification du différend par lettre recommandée avec accusé de réception, le litige sera porté devant les tribunaux compétents du ressort du siège social du Prestataire.
+
 
 Fait à [VILLE], le [DATE_SIGNATURE]
-En deux exemplaires originaux
+En deux exemplaires originaux, dont un pour chaque Partie.
 
-Signature du Prestataire                    Signature du Client`;
+
+Signature du Prestataire                                    Signature du Client
+Précédée de la mention                                       Précédée de la mention
+« Lu et approuvé, bon pour accord »                          « Lu et approuvé, bon pour accord »
+
+
+[NOM_REPRESENTANT]                                           [NOM_CLIENT]
+Président de LE OUI PARFAIT`;
 
 export function NewContractModal({ isOpen, onClose }: NewContractModalProps) {
   const { toast } = useToast();
   const [selectedClient, setSelectedClient] = useState('');
+  const [selectedPrestations, setSelectedPrestations] = useState<string[]>([]);
+  const [prestationsPersonnalisees, setPrestationsPersonnalisees] = useState<Array<{nom: string, prix: number}>>([]);
+  const [nouvellePrestationNom, setNouvellePrestationNom] = useState('');
+  const [nouvellePrestationPrix, setNouvellePrestationPrix] = useState('');
   const [eventDate, setEventDate] = useState('');
   const [eventLocation, setEventLocation] = useState('');
-  const [totalAmount, setTotalAmount] = useState('');
-  const [services, setServices] = useState('');
+  const [adminInfo, setAdminInfo] = useState<AdminInfo>(adminInfoDefault);
   const [contractContent, setContractContent] = useState(contractTemplate);
+  const [activeTab, setActiveTab] = useState('form');
+
+  const calculerMontantTotal = () => {
+    const montantPrestations = selectedPrestations.reduce((total, id) => {
+      const prestation = prestationsDisponibles.find(p => p.id === id);
+      return total + (prestation?.prix || 0);
+    }, 0);
+    
+    const montantPersonnalisees = prestationsPersonnalisees.reduce((total, p) => total + p.prix, 0);
+    
+    return montantPrestations + montantPersonnalisees;
+  };
+
+  const ajouterPrestationPersonnalisee = () => {
+    if (nouvellePrestationNom && nouvellePrestationPrix) {
+      setPrestationsPersonnalisees([...prestationsPersonnalisees, {
+        nom: nouvellePrestationNom,
+        prix: parseFloat(nouvellePrestationPrix)
+      }]);
+      setNouvellePrestationNom('');
+      setNouvellePrestationPrix('');
+    }
+  };
+
+  const supprimerPrestationPersonnalisee = (index: number) => {
+    setPrestationsPersonnalisees(prestationsPersonnalisees.filter((_, i) => i !== index));
+  };
+
+  useEffect(() => {
+    if (selectedClient && eventDate && eventLocation) {
+      generateContract();
+    }
+  }, [selectedClient, eventDate, eventLocation, selectedPrestations, prestationsPersonnalisees, adminInfo]);
 
   const generateContract = () => {
-    if (!selectedClient || !eventDate || !eventLocation || !totalAmount) {
-      toast({
-        title: 'Erreur',
-        description: 'Veuillez remplir tous les champs obligatoires',
-        variant: 'destructive',
-      });
+    if (!selectedClient || !eventDate || !eventLocation) {
       return;
     }
 
     const client = clients.find(c => c.id === selectedClient);
     if (!client) return;
 
-    const acompte = (parseFloat(totalAmount) * 0.3).toFixed(2);
+    const montantTotal = calculerMontantTotal();
+    const acompte = (montantTotal * 0.3).toFixed(2);
+    const secondPaiement = (montantTotal * 0.4).toFixed(2);
+    const solde = (montantTotal * 0.3).toFixed(2);
     const today = new Date().toLocaleDateString('fr-FR');
     
+    const eventDateObj = new Date(eventDate);
+    const dateSolde = new Date(eventDateObj);
+    dateSolde.setDate(dateSolde.getDate() - 15);
+    
+    const dateSecondPaiement = new Date(eventDateObj);
+    dateSecondPaiement.setMonth(dateSecondPaiement.getMonth() - 2);
+    
+    const dateFinContrat = new Date(eventDateObj);
+    dateFinContrat.setDate(dateFinContrat.getDate() + 7);
+    
+    const prestationsList: string[] = [];
+    
+    selectedPrestations.forEach(id => {
+      const prestation = prestationsDisponibles.find(p => p.id === id);
+      if (prestation) {
+        prestationsList.push(`- ${prestation.nom} : ${prestation.prix.toLocaleString('fr-FR')} € TTC`);
+      }
+    });
+    
+    prestationsPersonnalisees.forEach(p => {
+      prestationsList.push(`- ${p.nom} : ${p.prix.toLocaleString('fr-FR')} € TTC`);
+    });
+    
+    const prestationsText = prestationsList.length > 0 
+      ? prestationsList.join('\n')
+      : '- Coordination complète du mariage : à définir';
+    
     let generated = contractTemplate
-      .replace('[NOM_CLIENT]', client.name)
-      .replace('[EMAIL_CLIENT]', client.email)
-      .replace('[TELEPHONE_CLIENT]', '+33 6 XX XX XX XX')
-      .replace('[ADRESSE_CLIENT]', 'À compléter')
-      .replace('[DATE_MARIAGE]', new Date(eventDate).toLocaleDateString('fr-FR'))
-      .replace('[LIEU_MARIAGE]', eventLocation)
-      .replace('[PRESTATIONS]', services || 'À définir')
-      .replace('[MONTANT_TOTAL]', parseFloat(totalAmount).toLocaleString())
-      .replace('[MONTANT_ACOMPTE]', parseFloat(acompte).toLocaleString())
-      .replace('[DATE_SOLDE]', new Date(eventDate).toLocaleDateString('fr-FR'))
-      .replace('[VILLE]', 'Rennes')
-      .replace('[DATE_SIGNATURE]', today);
+      .replace(/\[NOM_REPRESENTANT\]/g, adminInfo.nomRepresentant)
+      .replace(/\[ADRESSE_AGENCE\]/g, adminInfo.adresseAgence)
+      .replace(/\[SIRET_AGENCE\]/g, adminInfo.siret)
+      .replace(/\[EMAIL_AGENCE\]/g, adminInfo.email)
+      .replace(/\[TELEPHONE_AGENCE\]/g, adminInfo.telephone)
+      .replace(/\[NOM_CLIENT\]/g, client.name)
+      .replace(/\[EMAIL_CLIENT\]/g, client.email)
+      .replace(/\[TELEPHONE_CLIENT\]/g, client.phone)
+      .replace(/\[ADRESSE_CLIENT\]/g, client.address)
+      .replace(/\[DATE_MARIAGE\]/g, eventDateObj.toLocaleDateString('fr-FR'))
+      .replace(/\[LIEU_MARIAGE\]/g, eventLocation)
+      .replace(/\[PRESTATIONS\]/g, prestationsText)
+      .replace(/\[MONTANT_TOTAL\]/g, montantTotal.toLocaleString('fr-FR'))
+      .replace(/\[MONTANT_ACOMPTE\]/g, parseFloat(acompte).toLocaleString('fr-FR'))
+      .replace(/\[MONTANT_SECOND\]/g, parseFloat(secondPaiement).toLocaleString('fr-FR'))
+      .replace(/\[MONTANT_SOLDE\]/g, parseFloat(solde).toLocaleString('fr-FR'))
+      .replace(/\[DATE_SECOND_PAIEMENT\]/g, dateSecondPaiement.toLocaleDateString('fr-FR'))
+      .replace(/\[DATE_SOLDE\]/g, dateSolde.toLocaleDateString('fr-FR'))
+      .replace(/\[DATE_FIN_CONTRAT\]/g, dateFinContrat.toLocaleDateString('fr-FR'))
+      .replace(/\[VILLE\]/g, adminInfo.ville)
+      .replace(/\[DATE_SIGNATURE\]/g, today)
+      .replace(/\[NOM_ASSURANCE\]/g, 'AXA Assurances Professionnelles');
 
     setContractContent(generated);
-    
-    toast({
-      title: 'Contrat généré',
-      description: 'Le contrat a été généré avec succès. Vous pouvez le modifier avant de l\'envoyer.',
-    });
   };
 
   const handleSubmit = () => {
@@ -149,24 +408,86 @@ export function NewContractModal({ isOpen, onClose }: NewContractModalProps) {
 
   const selectedClientData = clients.find(c => c.id === selectedClient);
 
+  const montantTotal = calculerMontantTotal();
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-7xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-brand-purple flex items-center gap-3">
-            <Image 
-              src="/logo-horizontal.png" 
-              alt="Le Oui Parfait" 
-              width={120} 
-              height={40}
-              className="object-contain"
-            />
-            Nouveau contrat
+            <FileText className="h-6 w-6 text-brand-turquoise" />
+            Nouveau contrat - {montantTotal > 0 ? `${montantTotal.toLocaleString('fr-FR')} € TTC` : 'Montant à définir'}
           </DialogTitle>
         </DialogHeader>
         
-        <div className="space-y-6 py-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-gray-50 rounded-lg">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="form">Informations</TabsTrigger>
+            <TabsTrigger value="preview">Prévisualisation</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="form" className="space-y-6 mt-4">
+            {/* Informations Admin */}
+            <div className="p-4 bg-brand-beige/30 rounded-lg">
+              <h3 className="font-bold text-brand-purple mb-3 flex items-center gap-2">
+                <FileText className="h-5 w-5" />
+                Informations de l'agence
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <Label>Nom du représentant *</Label>
+                  <Input
+                    value={adminInfo.nomRepresentant}
+                    onChange={(e) => setAdminInfo({...adminInfo, nomRepresentant: e.target.value})}
+                    className="mt-1"
+                  />
+                </div>
+                <div>
+                  <Label>SIRET *</Label>
+                  <Input
+                    value={adminInfo.siret}
+                    onChange={(e) => setAdminInfo({...adminInfo, siret: e.target.value})}
+                    className="mt-1"
+                  />
+                </div>
+                <div>
+                  <Label>Adresse de l'agence *</Label>
+                  <Input
+                    value={adminInfo.adresseAgence}
+                    onChange={(e) => setAdminInfo({...adminInfo, adresseAgence: e.target.value})}
+                    className="mt-1"
+                  />
+                </div>
+                <div>
+                  <Label>Ville *</Label>
+                  <Input
+                    value={adminInfo.ville}
+                    onChange={(e) => setAdminInfo({...adminInfo, ville: e.target.value})}
+                    className="mt-1"
+                  />
+                </div>
+                <div>
+                  <Label>Email *</Label>
+                  <Input
+                    type="email"
+                    value={adminInfo.email}
+                    onChange={(e) => setAdminInfo({...adminInfo, email: e.target.value})}
+                    className="mt-1"
+                  />
+                </div>
+                <div>
+                  <Label>Téléphone *</Label>
+                  <Input
+                    value={adminInfo.telephone}
+                    onChange={(e) => setAdminInfo({...adminInfo, telephone: e.target.value})}
+                    className="mt-1"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Informations Client et Événement */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-gray-50 rounded-lg">
             <div>
               <Label htmlFor="client">Client *</Label>
               <Select value={selectedClient} onValueChange={setSelectedClient}>
@@ -206,57 +527,147 @@ export function NewContractModal({ isOpen, onClose }: NewContractModalProps) {
               />
             </div>
 
-            <div>
-              <Label htmlFor="totalAmount">Montant total (€) *</Label>
-              <Input
-                id="totalAmount"
-                type="number"
-                min="0"
-                step="0.01"
-                placeholder="0.00"
-                value={totalAmount}
-                onChange={(e) => setTotalAmount(e.target.value)}
-              />
-              {totalAmount && (
-                <p className="text-xs text-brand-gray mt-1">
-                  Acompte 30%: {(parseFloat(totalAmount) * 0.3).toLocaleString()}€
-                </p>
+          </div>
+
+            {/* Sélection des Prestations */}
+            <div className="p-4 bg-gray-50 rounded-lg">
+              <h3 className="font-bold text-brand-purple mb-3">Prestations proposées</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-4">
+                {prestationsDisponibles.map((prestation) => (
+                  <label key={prestation.id} className="flex items-center gap-2 p-3 border rounded cursor-pointer hover:bg-white transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={selectedPrestations.includes(prestation.id)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedPrestations([...selectedPrestations, prestation.id]);
+                        } else {
+                          setSelectedPrestations(selectedPrestations.filter(id => id !== prestation.id));
+                        }
+                      }}
+                      className="rounded"
+                    />
+                    <div className="flex-1">
+                      <span className="text-sm font-medium">{prestation.nom}</span>
+                      <span className="text-sm text-brand-turquoise font-bold ml-2">{prestation.prix.toLocaleString('fr-FR')} €</span>
+                    </div>
+                  </label>
+                ))}
+              </div>
+
+              <div className="border-t pt-4">
+                <h4 className="font-semibold text-brand-purple mb-2">Ajouter une prestation personnalisée</h4>
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Nom de la prestation"
+                    value={nouvellePrestationNom}
+                    onChange={(e) => setNouvellePrestationNom(e.target.value)}
+                    className="flex-1"
+                  />
+                  <Input
+                    type="number"
+                    placeholder="Prix (€)"
+                    value={nouvellePrestationPrix}
+                    onChange={(e) => setNouvellePrestationPrix(e.target.value)}
+                    className="w-32"
+                  />
+                  <Button
+                    type="button"
+                    onClick={ajouterPrestationPersonnalisee}
+                    className="bg-brand-turquoise hover:bg-brand-turquoise-hover"
+                  >
+                    Ajouter
+                  </Button>
+                </div>
+              </div>
+
+              {prestationsPersonnalisees.length > 0 && (
+                <div className="mt-4">
+                  <h4 className="font-semibold text-brand-purple mb-2">Prestations personnalisées</h4>
+                  <div className="space-y-2">
+                    {prestationsPersonnalisees.map((prestation, index) => (
+                      <div key={index} className="flex items-center justify-between p-2 bg-white border rounded">
+                        <span className="text-sm">{prestation.nom} - {prestation.prix.toLocaleString('fr-FR')} €</span>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => supprimerPrestationPersonnalisee(index)}
+                          className="text-red-600 hover:text-red-700"
+                        >
+                          Supprimer
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               )}
+
+              <div className="mt-4 p-3 bg-brand-turquoise/10 rounded">
+                <p className="text-sm font-bold text-brand-purple">
+                  Montant total : {montantTotal.toLocaleString('fr-FR')} € TTC
+                </p>
+                <p className="text-xs text-brand-gray mt-1">
+                  Acompte 30% : {(montantTotal * 0.3).toLocaleString('fr-FR')} € | 
+                  Second versement 40% : {(montantTotal * 0.4).toLocaleString('fr-FR')} € | 
+                  Solde 30% : {(montantTotal * 0.3).toLocaleString('fr-FR')} €
+                </p>
+              </div>
             </div>
 
-            <div className="md:col-span-2">
-              <Label htmlFor="services">Prestations incluses</Label>
-              <Textarea
-                id="services"
-                value={services}
-                onChange={(e) => setServices(e.target.value)}
-                placeholder="Ex: Organisation complète, coordination le jour J, gestion des prestataires..."
-                rows={3}
-              />
-            </div>
-
-            <div className="md:col-span-2">
+            <div className="flex gap-2">
               <Button
                 type="button"
-                className="w-full bg-brand-turquoise hover:bg-brand-turquoise-hover"
-                onClick={generateContract}
+                className="flex-1 bg-brand-turquoise hover:bg-brand-turquoise-hover gap-2"
+                onClick={() => {
+                  generateContract();
+                  setActiveTab('preview');
+                }}
+                disabled={!selectedClient || !eventDate || !eventLocation}
               >
-                Générer le contrat avec ces informations
+                <Eye className="h-4 w-4" />
+                Voir la prévisualisation
               </Button>
             </div>
-          </div>
+          </TabsContent>
 
-          <div>
-            <Label htmlFor="contract">Contrat (éditable)</Label>
-            <Textarea
-              id="contract"
-              value={contractContent}
-              onChange={(e) => setContractContent(e.target.value)}
-              rows={20}
-              className="font-mono text-xs"
-            />
-          </div>
-        </div>
+          <TabsContent value="preview" className="mt-4">
+            <div className="bg-white border-2 border-gray-200 rounded-lg p-8 shadow-lg">
+              <div className="flex justify-center mb-6">
+                <Image 
+                  src="/logo-horizontal.png" 
+                  alt="Le Oui Parfait" 
+                  width={200} 
+                  height={60}
+                  className="object-contain"
+                />
+              </div>
+              
+              <div className="prose prose-sm max-w-none">
+                <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed text-gray-800">
+                  {contractContent}
+                </pre>
+              </div>
+
+              <div className="mt-8 pt-8 border-t-2 border-gray-300 grid grid-cols-2 gap-8">
+                <div className="text-center">
+                  <p className="font-bold text-brand-purple mb-4">Signature du Prestataire</p>
+                  <div className="border-2 border-dashed border-gray-300 h-24 rounded flex items-center justify-center">
+                    <p className="text-xs text-gray-400">Zone de signature</p>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-2">Le Oui Parfait</p>
+                </div>
+                <div className="text-center">
+                  <p className="font-bold text-brand-purple mb-4">Signature du Client</p>
+                  <div className="border-2 border-dashed border-gray-300 h-24 rounded flex items-center justify-center">
+                    <p className="text-xs text-gray-400">Zone de signature</p>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-2">{selectedClientData?.name}</p>
+                </div>
+              </div>
+            </div>
+          </TabsContent>
+        </Tabs>
 
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>

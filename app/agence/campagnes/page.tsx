@@ -1,8 +1,12 @@
+'use client';
+
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Plus, Mail, Send, Clock, CheckCircle, Users, Eye, MousePointerClick, Calendar } from 'lucide-react';
+import { useState } from 'react';
+import { CampaignModal } from '@/components/modals/CampaignModal';
 
 const campaignsDemo = [
   {
@@ -78,6 +82,8 @@ const statusConfig = {
 };
 
 export default function CampaignsPage() {
+  const [isCampaignModalOpen, setIsCampaignModalOpen] = useState(false);
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -90,7 +96,10 @@ export default function CampaignsPage() {
               Créez et suivez vos campagnes marketing
             </p>
           </div>
-          <Button className="bg-brand-turquoise hover:bg-brand-turquoise-hover gap-2 w-full sm:w-auto">
+          <Button 
+            className="bg-brand-turquoise hover:bg-brand-turquoise-hover gap-2 w-full sm:w-auto"
+            onClick={() => setIsCampaignModalOpen(true)}
+          >
             <Plus className="h-4 w-4" />
             <span className="hidden sm:inline">Nouvelle campagne</span>
             <span className="sm:hidden">Nouvelle</span>
@@ -228,6 +237,7 @@ export default function CampaignsPage() {
                       size="sm"
                       variant="outline"
                       className="border-2 border-blue-500 text-blue-600 hover:bg-blue-500 hover:text-white"
+                      onClick={() => alert('Fonctionnalité de modification de date à implémenter')}
                     >
                       Modifier la date
                     </Button>
@@ -248,6 +258,7 @@ export default function CampaignsPage() {
                       <Button
                         size="sm"
                         className="bg-brand-turquoise hover:bg-brand-turquoise-hover gap-2"
+                        onClick={() => alert('Ouverture de l\'\u00e9diteur de campagne')}
                       >
                         Continuer l'édition
                       </Button>
@@ -283,6 +294,7 @@ export default function CampaignsPage() {
                       <Button
                         size="sm"
                         className="bg-brand-turquoise hover:bg-brand-turquoise-hover gap-2"
+                        onClick={() => alert('Affichage des détails de la campagne')}
                       >
                         <Eye className="h-3 w-3" />
                         Voir les détails
@@ -291,6 +303,7 @@ export default function CampaignsPage() {
                         size="sm"
                         variant="outline"
                         className="border-2 border-brand-turquoise text-brand-gray hover:bg-brand-turquoise hover:text-white"
+                        onClick={() => alert('Duplication de la campagne')}
                       >
                         Dupliquer
                       </Button>
@@ -302,6 +315,11 @@ export default function CampaignsPage() {
           })}
         </div>
       </div>
+
+      <CampaignModal
+        isOpen={isCampaignModalOpen}
+        onClose={() => setIsCampaignModalOpen(false)}
+      />
     </DashboardLayout>
   );
 }

@@ -1,7 +1,11 @@
+'use client';
+
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useState } from 'react';
+import { NewDevisModal } from '@/components/modals/NewDevisModal';
 
 interface Quote {
   id: string;
@@ -20,17 +24,21 @@ const statusConfig = {
 };
 
 export function QuoteList({ quotes }: QuoteListProps) {
+  const [isNewDevisOpen, setIsNewDevisOpen] = useState(false);
+
   return (
-    <Card className="p-6 shadow-xl border-0">
-      <div className="mb-4 flex items-center justify-between">
-        <h3 className="text-lg font-bold text-brand-gray-dark">Devis</h3>
-        <Button
-          size="icon"
-          className="h-8 w-8 rounded-full bg-brand-turquoise hover:bg-brand-turquoise-hover"
-        >
-          <Plus className="h-4 w-4" />
-        </Button>
-      </div>
+    <>
+      <Card className="p-6 shadow-xl border-0">
+        <div className="mb-4 flex items-center justify-between">
+          <h3 className="text-lg font-bold text-brand-gray-dark">Devis</h3>
+          <Button
+            size="icon"
+            className="h-8 w-8 rounded-full bg-brand-turquoise hover:bg-brand-turquoise-hover"
+            onClick={() => setIsNewDevisOpen(true)}
+          >
+            <Plus className="h-4 w-4" />
+          </Button>
+        </div>
 
       <div className="space-y-3">
         {quotes.map((quote) => {
@@ -50,6 +58,12 @@ export function QuoteList({ quotes }: QuoteListProps) {
           );
         })}
       </div>
-    </Card>
+      </Card>
+
+      <NewDevisModal
+        isOpen={isNewDevisOpen}
+        onClose={() => setIsNewDevisOpen(false)}
+      />
+    </>
   );
 }

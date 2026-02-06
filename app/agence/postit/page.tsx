@@ -5,6 +5,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Plus, X } from 'lucide-react';
 import { useState } from 'react';
+import { PostItModal } from '@/components/modals/PostItModal';
 
 interface StickyNote {
   id: string;
@@ -71,6 +72,21 @@ const colorButtonClasses = {
 export default function PostItPage() {
   const [notes, setNotes] = useState(notesDemo);
   const [selectedColor, setSelectedColor] = useState<'yellow' | 'pink' | 'blue' | 'green' | 'purple'>('yellow');
+  const [isPostItModalOpen, setIsPostItModalOpen] = useState(false);
+  const [selectedPostIt, setSelectedPostIt] = useState<StickyNote | null>(null);
+  const [modalMode, setModalMode] = useState<'create' | 'edit'>('create');
+
+  const handleEdit = (note: StickyNote) => {
+    setSelectedPostIt(note);
+    setModalMode('edit');
+    setIsPostItModalOpen(true);
+  };
+
+  const handleCreate = () => {
+    setSelectedPostIt(null);
+    setModalMode('create');
+    setIsPostItModalOpen(true);
+  };
 
   const deleteNote = (id: string) => {
     setNotes(notes.filter(note => note.id !== id));
@@ -88,7 +104,10 @@ export default function PostItPage() {
               Notes rapides et rappels visuels
             </p>
           </div>
-          <Button className="bg-brand-turquoise hover:bg-brand-turquoise-hover gap-2">
+          <Button 
+            className="bg-brand-turquoise hover:bg-brand-turquoise-hover gap-2"
+            onClick={handleCreate}
+          >
             <Plus className="h-4 w-4" />
             Nouveau post-it
           </Button>
@@ -139,6 +158,7 @@ export default function PostItPage() {
                   size="sm"
                   variant="ghost"
                   className="w-full text-xs hover:bg-black/5"
+                  onClick={() => handleEdit(note)}
                 >
                   Modifier
                 </Button>
@@ -148,6 +168,7 @@ export default function PostItPage() {
 
           <Card
             className={`p-6 border-2 border-dashed shadow-lg hover:shadow-xl transition-all cursor-pointer ${colorClasses[selectedColor]} opacity-50 hover:opacity-100`}
+            onClick={handleCreate}
           >
             <div className="h-full flex flex-col items-center justify-center text-center space-y-3">
               <Plus className="h-12 w-12 text-brand-purple" />
@@ -158,6 +179,14 @@ export default function PostItPage() {
           </Card>
         </div>
       </div>
+
+      <PostItModal
+        isOpen={isPostItModalOpen}
+        onClose={() => setIsPostItModalOpen(false)}
+        postIt={selectedPostIt}
+        mode={modalMode}
+        defaultColor={selectedColor}
+      />
     </DashboardLayout>
   );
 }

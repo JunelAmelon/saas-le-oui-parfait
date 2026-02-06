@@ -1,9 +1,14 @@
+'use client';
+
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Plus, Search, Package, AlertTriangle, CheckCircle } from 'lucide-react';
+import { useState } from 'react';
+import { NewArticleModal } from '@/components/modals/NewArticleModal';
+import { EditArticleModal } from '@/components/modals/EditArticleModal';
 
 const articlesDemo = [
   {
@@ -77,6 +82,15 @@ const statusConfig = {
 };
 
 export default function ArticlesPage() {
+  const [isNewArticleOpen, setIsNewArticleOpen] = useState(false);
+  const [isEditArticleOpen, setIsEditArticleOpen] = useState(false);
+  const [selectedArticle, setSelectedArticle] = useState<typeof articlesDemo[0] | null>(null);
+
+  const handleEdit = (article: typeof articlesDemo[0]) => {
+    setSelectedArticle(article);
+    setIsEditArticleOpen(true);
+  };
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -89,7 +103,10 @@ export default function ArticlesPage() {
               Gérez votre stock d'articles et fournitures
             </p>
           </div>
-          <Button className="bg-brand-turquoise hover:bg-brand-turquoise-hover gap-2">
+          <Button 
+            className="bg-brand-turquoise hover:bg-brand-turquoise-hover gap-2"
+            onClick={() => setIsNewArticleOpen(true)}
+          >
             <Plus className="h-4 w-4" />
             Nouvel article
           </Button>
@@ -202,7 +219,11 @@ export default function ArticlesPage() {
                         </Badge>
                       </td>
                       <td className="py-4">
-                        <Button variant="ghost" size="sm">
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={() => handleEdit(article)}
+                        >
                           Modifier
                         </Button>
                       </td>
@@ -214,6 +235,17 @@ export default function ArticlesPage() {
           </div>
         </Card>
       </div>
+
+      <NewArticleModal
+        isOpen={isNewArticleOpen}
+        onClose={() => setIsNewArticleOpen(false)}
+      />
+
+      <EditArticleModal
+        isOpen={isEditArticleOpen}
+        onClose={() => setIsEditArticleOpen(false)}
+        article={selectedArticle}
+      />
     </DashboardLayout>
   );
 }

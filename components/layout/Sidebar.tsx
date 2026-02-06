@@ -44,7 +44,6 @@ const menuItems: MenuItem[] = [
       { label: 'Fiches Clients', href: '/agence/clients' },
       { label: 'Todo', href: '/agence/todo' },
       { label: 'Mes post-it', href: '/agence/postit' },
-      { label: 'Contrats', href: '/agence/contrats' },
       { label: 'Signatures', href: '/agence/signatures' },
       { label: 'Ma fiche annuaire', href: '/agence/annuaire' },
       { label: 'Campagnes email', href: '/agence/campagnes' },

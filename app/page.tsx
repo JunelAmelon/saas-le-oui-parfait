@@ -91,9 +91,9 @@ export default function Home() {
 
           <QuoteList
             quotes={[
-              { id: '1', reference: 'Devis n°1', status: 'sent' },
-              { id: '2', reference: 'Devis n°2', status: 'accepted' },
-              { id: '3', reference: 'Devis n°3', status: 'accepted' },
+              { id: '1', reference: 'DEVIS-2024-001', status: 'sent' },
+              { id: '2', reference: 'DEVIS-2024-002', status: 'accepted' },
+              { id: '3', reference: 'DEVIS-2024-003', status: 'accepted' },
             ]}
           />
 

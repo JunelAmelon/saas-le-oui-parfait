@@ -1,9 +1,13 @@
+'use client';
+
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Search, Plus, FileText, Download, Eye, Edit, CheckCircle, Clock, XCircle } from 'lucide-react';
+import { useState } from 'react';
+import { ContractModal } from '@/components/modals/ContractModal';
 
 const contractsDemo = [
   {
@@ -97,6 +101,8 @@ const typeLabels = {
 };
 
 export default function ContractsPage() {
+  const [isContractModalOpen, setIsContractModalOpen] = useState(false);
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -109,7 +115,10 @@ export default function ContractsPage() {
               Gérez tous vos contrats clients et prestataires
             </p>
           </div>
-          <Button className="bg-brand-turquoise hover:bg-brand-turquoise-hover gap-2">
+          <Button 
+            className="bg-brand-turquoise hover:bg-brand-turquoise-hover gap-2"
+            onClick={() => setIsContractModalOpen(true)}
+          >
             <Plus className="h-4 w-4" />
             Nouveau contrat
           </Button>
@@ -204,6 +213,11 @@ export default function ContractsPage() {
           })}
         </div>
       </div>
+
+      <ContractModal
+        isOpen={isContractModalOpen}
+        onClose={() => setIsContractModalOpen(false)}
+      />
     </DashboardLayout>
   );
 }

@@ -117,10 +117,23 @@ export default function VendorsPage() {
   const [selectedVendor, setSelectedVendor] = useState<Vendor | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isNewVendorOpen, setIsNewVendorOpen] = useState(false);
+  const [isEditMode, setIsEditMode] = useState(false);
 
   const handleViewDetail = (vendor: Vendor) => {
     setSelectedVendor(vendor);
     setIsDetailOpen(true);
+  };
+
+  const handleEdit = (vendor: Vendor) => {
+    setSelectedVendor(vendor);
+    setIsEditMode(true);
+    setIsNewVendorOpen(true);
+  };
+
+  const handleNewVendor = () => {
+    setSelectedVendor(null);
+    setIsEditMode(false);
+    setIsNewVendorOpen(true);
   };
 
   return (
@@ -137,7 +150,7 @@ export default function VendorsPage() {
           </div>
           <Button 
             className="bg-brand-turquoise hover:bg-brand-turquoise-hover gap-2 w-full sm:w-auto"
-            onClick={() => setIsNewVendorOpen(true)}
+            onClick={handleNewVendor}
           >
             <Plus className="h-4 w-4" />
             <span className="hidden sm:inline">Nouveau prestataire</span>
@@ -234,7 +247,7 @@ export default function VendorsPage() {
 
       {/* Modal Détail Prestataire */}
       <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-brand-purple flex items-center gap-2">
               {selectedVendor?.name}
@@ -304,7 +317,15 @@ export default function VendorsPage() {
             <Button variant="outline" onClick={() => setIsDetailOpen(false)}>
               Fermer
             </Button>
-            <Button className="bg-brand-turquoise hover:bg-brand-turquoise-hover gap-2">
+            <Button 
+              className="bg-brand-turquoise hover:bg-brand-turquoise-hover gap-2"
+              onClick={() => {
+                if (selectedVendor) {
+                  setIsDetailOpen(false);
+                  handleEdit(selectedVendor);
+                }
+              }}
+            >
               <Edit className="h-4 w-4" />
               Modifier
             </Button>
@@ -312,23 +333,29 @@ export default function VendorsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Modal Nouveau Prestataire */}
+      {/* Modal Nouveau/Modifier Prestataire */}
       <Dialog open={isNewVendorOpen} onOpenChange={setIsNewVendorOpen}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="text-brand-purple">Nouveau prestataire</DialogTitle>
+            <DialogTitle className="text-brand-purple">
+              {isEditMode ? 'Modifier le prestataire' : 'Nouveau prestataire'}
+            </DialogTitle>
             <DialogDescription>
-              Ajoutez un prestataire à votre réseau
+              {isEditMode ? 'Modifiez les informations du prestataire' : 'Ajoutez un prestataire à votre réseau'}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div>
-              <Label>Nom du prestataire</Label>
-              <Input placeholder="Nom de l'entreprise" className="mt-1" />
+              <Label>Nom du prestataire *</Label>
+              <Input 
+                placeholder="Nom de l'entreprise" 
+                className="mt-1"
+                defaultValue={isEditMode && selectedVendor ? selectedVendor.name : ''}
+              />
             </div>
             <div>
-              <Label>Catégorie</Label>
-              <Select>
+              <Label>Catégorie *</Label>
+              <Select defaultValue={isEditMode && selectedVendor ? selectedVendor.category : undefined}>
                 <SelectTrigger className="mt-1">
                   <SelectValue placeholder="Sélectionner une catégorie" />
                 </SelectTrigger>
@@ -345,44 +372,80 @@ export default function VendorsPage() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <Label>Nom du contact</Label>
-                <Input placeholder="Prénom Nom" className="mt-1" />
+                <Label>Nom du contact *</Label>
+                <Input 
+                  placeholder="Prénom Nom" 
+                  className="mt-1"
+                  defaultValue={isEditMode && selectedVendor ? selectedVendor.contactName : ''}
+                />
               </div>
               <div>
-                <Label>Ville</Label>
-                <Input placeholder="Rennes" className="mt-1" />
+                <Label>Ville *</Label>
+                <Input 
+                  placeholder="Rennes" 
+                  className="mt-1"
+                  defaultValue={isEditMode && selectedVendor ? selectedVendor.city : ''}
+                />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <Label>Email</Label>
-                <Input type="email" placeholder="contact@exemple.fr" className="mt-1" />
+                <Label>Email *</Label>
+                <Input 
+                  type="email" 
+                  placeholder="contact@exemple.fr" 
+                  className="mt-1"
+                  defaultValue={isEditMode && selectedVendor ? selectedVendor.email : ''}
+                />
               </div>
               <div>
-                <Label>Téléphone</Label>
-                <Input placeholder="02 99 00 00 00" className="mt-1" />
+                <Label>Téléphone *</Label>
+                <Input 
+                  placeholder="02 99 00 00 00" 
+                  className="mt-1"
+                  defaultValue={isEditMode && selectedVendor ? selectedVendor.phone : ''}
+                />
               </div>
             </div>
             <div>
               <Label>Site web</Label>
-              <Input placeholder="www.exemple.fr" className="mt-1" />
+              <Input 
+                placeholder="www.exemple.fr" 
+                className="mt-1"
+                defaultValue={isEditMode && selectedVendor ? selectedVendor.website : ''}
+              />
             </div>
             <div>
-              <Label>Notes</Label>
-              <Textarea placeholder="Notes sur ce prestataire..." className="mt-1" rows={2} />
+              <Label>Note (1-5 étoiles)</Label>
+              <Select defaultValue={isEditMode && selectedVendor ? selectedVendor.rating.toString() : '5'}>
+                <SelectTrigger className="mt-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1">⭐ 1 étoile</SelectItem>
+                  <SelectItem value="2">⭐⭐ 2 étoiles</SelectItem>
+                  <SelectItem value="3">⭐⭐⭐ 3 étoiles</SelectItem>
+                  <SelectItem value="4">⭐⭐⭐⭐ 4 étoiles</SelectItem>
+                  <SelectItem value="5">⭐⭐⭐⭐⭐ 5 étoiles</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Notes internes</Label>
+              <Textarea placeholder="Notes sur ce prestataire..." className="mt-1" rows={3} />
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsNewVendorOpen(false)}>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button variant="outline" onClick={() => setIsNewVendorOpen(false)} className="w-full sm:w-auto">
               Annuler
             </Button>
             <Button 
-              className="bg-brand-turquoise hover:bg-brand-turquoise-hover"
+              className="bg-brand-turquoise hover:bg-brand-turquoise-hover w-full sm:w-auto"
               onClick={() => setIsNewVendorOpen(false)}
             >
-              Créer le prestataire
+              {isEditMode ? 'Enregistrer les modifications' : 'Créer le prestataire'}
             </Button>
           </DialogFooter>
         </DialogContent>

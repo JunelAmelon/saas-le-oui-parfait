@@ -1,9 +1,14 @@
+'use client';
+
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Plus, Search, MapPin, Phone, Mail, Star, Package } from 'lucide-react';
+import { useState } from 'react';
+import { FournisseurModal } from '@/components/modals/FournisseurModal';
+import { FournisseurDetailModal } from '@/components/modals/FournisseurDetailModal';
 
 const fournisseursDemo = [
   {
@@ -53,6 +58,33 @@ const fournisseursDemo = [
 ];
 
 export default function FournisseursPage() {
+  const [isFournisseurModalOpen, setIsFournisseurModalOpen] = useState(false);
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
+  const [selectedFournisseur, setSelectedFournisseur] = useState<typeof fournisseursDemo[0] | null>(null);
+  const [modalMode, setModalMode] = useState<'create' | 'edit'>('create');
+
+  const handleViewDetail = (fournisseur: typeof fournisseursDemo[0]) => {
+    setSelectedFournisseur(fournisseur);
+    setIsDetailOpen(true);
+  };
+
+  const handleEdit = (fournisseur: typeof fournisseursDemo[0]) => {
+    setSelectedFournisseur(fournisseur);
+    setModalMode('edit');
+    setIsFournisseurModalOpen(true);
+  };
+
+  const handleDelete = (id: string) => {
+    // Logic to delete fournisseur
+    console.log('Delete fournisseur:', id);
+  };
+
+  const handleCreate = () => {
+    setSelectedFournisseur(null);
+    setModalMode('create');
+    setIsFournisseurModalOpen(true);
+  };
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -65,7 +97,10 @@ export default function FournisseursPage() {
               Gérez vos fournisseurs de stock et matériel
             </p>
           </div>
-          <Button className="bg-brand-turquoise hover:bg-brand-turquoise-hover gap-2">
+          <Button 
+            className="bg-brand-turquoise hover:bg-brand-turquoise-hover gap-2"
+            onClick={handleCreate}
+          >
             <Plus className="h-4 w-4" />
             Nouveau fournisseur
           </Button>
@@ -169,6 +204,7 @@ export default function FournisseursPage() {
                 <Button
                   size="sm"
                   className="w-full bg-brand-turquoise hover:bg-brand-turquoise-hover"
+                  onClick={() => handleViewDetail(fournisseur)}
                 >
                   Voir les détails
                 </Button>
@@ -177,6 +213,21 @@ export default function FournisseursPage() {
           ))}
         </div>
       </div>
+
+      <FournisseurModal
+        isOpen={isFournisseurModalOpen}
+        onClose={() => setIsFournisseurModalOpen(false)}
+        fournisseur={selectedFournisseur}
+        mode={modalMode}
+      />
+
+      <FournisseurDetailModal
+        isOpen={isDetailOpen}
+        onClose={() => setIsDetailOpen(false)}
+        fournisseur={selectedFournisseur}
+        onEdit={handleEdit}
+        onDelete={handleDelete}
+      />
     </DashboardLayout>
   );
 }
