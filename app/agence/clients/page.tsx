@@ -15,7 +15,13 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { Search, Plus, Heart, MapPin, Calendar, Euro, Phone, Mail, FileText, Image as ImageIcon, X, Users, CheckCircle, Clock, Edit, MessageSquare, Eye } from 'lucide-react';
+import { Search, Plus, Heart, MapPin, Calendar, Euro, Phone, Mail, FileText, Image as ImageIcon, X, Users, CheckCircle, Clock, Edit, MessageSquare, Eye, MoreVertical } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
@@ -142,120 +148,73 @@ export default function ClientFilesPage() {
 
         <div className="grid grid-cols-1 gap-6">
           {clientsDemo.map((client) => (
-            <Card key={client.id} className="overflow-hidden shadow-lg border border-gray-100 hover:shadow-2xl hover:border-brand-turquoise/30 transition-all hover:scale-[1.01] duration-300">
-              <div className="flex flex-col sm:flex-row">
-                <div className="flex-shrink-0 relative w-full sm:w-48 h-48 sm:h-auto">
+            <Card key={client.id} className="p-4 md:p-6 shadow-xl border-0 hover:shadow-2xl transition-shadow cursor-pointer group">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                <div
+                  className="relative h-24 w-full sm:w-24 overflow-hidden rounded-lg bg-gray-100 flex-shrink-0"
+                  onClick={() => handleViewDetail(client)}
+                >
                   {client.photo ? (
-                    <Image
+                    <img
                       src={client.photo}
                       alt={client.names}
-                      fill
-                      className="object-cover"
+                      className="h-full w-full object-cover group-hover:scale-110 transition-transform duration-300"
                     />
                   ) : (
-                    <div className="w-full h-full bg-gradient-to-br from-brand-beige to-brand-turquoise/20 flex items-center justify-center">
-                      <Heart className="h-16 w-16 text-white" />
+                    <div className="h-full w-full bg-gradient-to-br from-brand-beige to-brand-turquoise/20 flex items-center justify-center">
+                      <Heart className="h-12 w-12 text-white" />
                     </div>
                   )}
-                  <div className="absolute top-3 right-3">
-                    <Badge className="bg-white/95 backdrop-blur-sm text-brand-purple shadow-lg border border-white/50">
-                      {client.status}
-                    </Badge>
+                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                    <Eye className="h-8 w-8 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
                   </div>
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent"></div>
                 </div>
 
-                <div className="flex-1 p-4 sm:p-6">
-
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex-1">
-                      <h3 className="text-xl sm:text-2xl font-bold text-brand-purple mb-2 flex items-center gap-2 group-hover:text-brand-turquoise transition-colors">
-                        <Heart className="h-5 w-5 text-red-500 fill-red-500 group-hover:scale-110 transition-transform" />
-                        {client.names}
-                      </h3>
-                      <div className="flex items-center gap-3 text-sm">
-                        <div className="flex items-center gap-1.5 text-brand-gray">
-                          <Users className="h-4 w-4 text-brand-turquoise" />
-                          <span className="font-medium">{client.guests} invités</span>
-                        </div>
-                        <div className="h-4 w-px bg-gray-300"></div>
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-xs text-brand-gray uppercase tracking-wider">Budget</span>
-                          <span className="text-lg font-bold text-brand-turquoise">
-                            {client.budget.toLocaleString()} €
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2.5 mb-4">
-                    <div className="flex items-center gap-3 p-3 bg-gradient-to-r from-gray-50 to-transparent rounded-lg border border-gray-100 hover:border-brand-turquoise/30 transition-colors">
-                      <div className="w-10 h-10 rounded-full bg-brand-turquoise/10 flex items-center justify-center flex-shrink-0">
-                        <Calendar className="h-5 w-5 text-brand-turquoise" />
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-xs text-brand-gray uppercase tracking-wider font-medium">Date du mariage</p>
-                        <p className="font-bold text-brand-purple">
-                          {client.eventDate}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-3 p-3 bg-gradient-to-r from-gray-50 to-transparent rounded-lg border border-gray-100 hover:border-brand-turquoise/30 transition-colors">
-                      <div className="w-10 h-10 rounded-full bg-brand-turquoise/10 flex items-center justify-center flex-shrink-0">
-                        <MapPin className="h-5 w-5 text-brand-turquoise" />
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-xs text-brand-gray uppercase tracking-wider font-medium">Lieu</p>
-                        <p className="font-bold text-brand-purple">
-                          {client.eventLocation}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                      <div className="flex items-center gap-3 p-3 bg-gradient-to-r from-gray-50 to-transparent rounded-lg border border-gray-100 hover:border-brand-turquoise/30 transition-colors">
-                        <div className="w-10 h-10 rounded-full bg-brand-turquoise/10 flex items-center justify-center flex-shrink-0">
-                          <Phone className="h-5 w-5 text-brand-turquoise" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs text-brand-gray uppercase tracking-wider font-medium">Téléphone</p>
-                          <p className="font-bold text-brand-purple truncate text-sm">
-                            {client.phone}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-3 p-3 bg-gradient-to-r from-gray-50 to-transparent rounded-lg border border-gray-100 hover:border-brand-turquoise/30 transition-colors">
-                        <div className="w-10 h-10 rounded-full bg-brand-turquoise/10 flex items-center justify-center flex-shrink-0">
-                          <Mail className="h-5 w-5 text-brand-turquoise" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs text-brand-gray uppercase tracking-wider font-medium">Email</p>
-                          <p className="font-bold text-brand-purple truncate text-sm">
-                            {client.email}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-wrap gap-2 pt-2">
-                    <Button 
-                      className="flex-1 bg-gradient-to-r from-brand-turquoise to-brand-turquoise-hover hover:from-brand-turquoise-hover hover:to-brand-turquoise text-white gap-2 shadow-md hover:shadow-lg transition-all"
+                <div className="flex-1 w-full">
+                  <div className="mb-1 flex items-start justify-between">
+                    <h3
+                      className="text-lg font-bold text-brand-purple font-baskerville"
                       onClick={() => handleViewDetail(client)}
                     >
-                      <Eye className="h-4 w-4" />
-                      <span className="font-semibold">Voir la fiche</span>
-                    </Button>
+                      {client.names}
+                    </h3>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 -mr-2">
+                          <MoreVertical className="h-4 w-4 text-brand-gray" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => handleViewDetail(client)}>
+                          <Eye className="h-4 w-4 mr-2" />
+                          Voir détails
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleEdit(client)}>
+                          <Edit className="h-4 w-4 mr-2" />
+                          Modifier
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => router.push('/messages')}>
+                          <MessageSquare className="h-4 w-4 mr-2" />
+                          Message
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                  <p className="text-sm text-brand-gray mb-2">
+                    {client.eventDate} | {client.eventLocation}
+                  </p>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Badge className="bg-[#C4A26A] hover:bg-[#B59260] text-white border-0">
+                      {client.status}
+                    </Badge>
                     <Button
-                      variant="outline"
-                      className="border-2 border-brand-turquoise text-brand-turquoise hover:bg-brand-turquoise hover:text-white gap-2 font-semibold transition-all"
-                      onClick={() => handleEdit(client)}
+                      size="sm"
+                      variant="ghost"
+                      className="text-brand-turquoise hover:text-brand-turquoise-hover text-xs sm:text-sm"
+                      onClick={() => handleViewDetail(client)}
                     >
-                      <Edit className="h-4 w-4" />
-                      Modifier
+                      <Eye className="h-3 w-3 mr-1" />
+                      Voir détails
                     </Button>
                   </div>
                 </div>
