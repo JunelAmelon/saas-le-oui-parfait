@@ -133,17 +133,17 @@ export default function TodoPage() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-brand-purple mb-2">
+            <h1 className="text-2xl sm:text-3xl font-bold text-brand-purple mb-2">
               Gestion des tâches
             </h1>
-            <p className="text-brand-gray">
+            <p className="text-sm sm:text-base text-brand-gray">
               Organisez et suivez toutes vos tâches
             </p>
           </div>
           <Button 
-            className="bg-brand-turquoise hover:bg-brand-turquoise-hover gap-2"
+            className="bg-brand-turquoise hover:bg-brand-turquoise-hover gap-2 w-full sm:w-auto"
             onClick={handleCreate}
           >
             <Plus className="h-4 w-4" />
@@ -152,7 +152,7 @@ export default function TodoPage() {
         </div>
 
         <Card className="p-4 shadow-xl border-0">
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button
               variant={filter === 'all' ? 'default' : 'outline'}
               onClick={() => setFilter('all')}
@@ -188,55 +188,55 @@ export default function TodoPage() {
           {filteredTodos.map((todo) => {
             const StatusIcon = statusIcons[todo.status];
             return (
-              <Card key={todo.id} className="p-6 shadow-xl border-0 hover:shadow-2xl transition-shadow">
-                <div className="flex items-start gap-4">
+              <Card key={todo.id} className="p-4 sm:p-6 shadow-xl border-0 hover:shadow-2xl transition-shadow">
+                <div className="flex items-start gap-3 sm:gap-4">
                   <Checkbox
                     checked={todo.status === 'done'}
                     onCheckedChange={() => toggleStatus(todo.id)}
-                    className="mt-1"
+                    className="mt-1 flex-shrink-0"
                   />
 
-                  <div className="flex-1 space-y-3">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <h3 className={`text-lg font-bold mb-1 ${todo.status === 'done' ? 'line-through text-brand-gray' : 'text-brand-purple'}`}>
+                  <div className="flex-1 space-y-3 min-w-0">
+                    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <h3 className={`text-base sm:text-lg font-bold mb-1 ${todo.status === 'done' ? 'line-through text-brand-gray' : 'text-brand-purple'}`}>
                           {todo.title}
                         </h3>
-                        <p className="text-sm text-brand-gray">
+                        <p className="text-xs sm:text-sm text-brand-gray">
                           {todo.description}
                         </p>
                       </div>
 
-                      <Badge className={priorityColors[todo.priority]}>
+                      <Badge className={`${priorityColors[todo.priority]} flex-shrink-0 text-xs`}>
                         {priorityLabels[todo.priority]}
                       </Badge>
                     </div>
 
-                    <div className="flex items-center gap-6 text-sm">
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6 text-xs sm:text-sm">
                       <div className={`flex items-center gap-2 ${statusColors[todo.status]}`}>
-                        <StatusIcon className="h-4 w-4" />
+                        <StatusIcon className="h-4 w-4 flex-shrink-0" />
                         <span className="font-medium">{statusLabels[todo.status]}</span>
                       </div>
 
                       <div className="flex items-center gap-2 text-brand-gray">
-                        <Calendar className="h-4 w-4" />
-                        <span>
+                        <Calendar className="h-4 w-4 flex-shrink-0" />
+                        <span className="truncate">
                           Échéance: {new Date(todo.dueDate).toLocaleDateString('fr-FR')}
                         </span>
                       </div>
 
                       {todo.event && (
-                        <Badge variant="outline" className="border-brand-turquoise text-brand-turquoise">
+                        <Badge variant="outline" className="border-brand-turquoise text-brand-turquoise text-xs w-fit">
                           {todo.event}
                         </Badge>
                       )}
                     </div>
 
-                    <div className="flex gap-2 pt-2">
+                    <div className="flex flex-col sm:flex-row gap-2 pt-2">
                       <Button
                         size="sm"
                         variant="outline"
-                        className="border-2 border-brand-turquoise text-brand-gray hover:bg-brand-turquoise hover:text-white"
+                        className="border-2 border-brand-turquoise text-brand-gray hover:bg-brand-turquoise hover:text-white w-full sm:w-auto"
                         onClick={() => handleEdit(todo)}
                       >
                         Modifier
@@ -244,7 +244,7 @@ export default function TodoPage() {
                       <Button
                         size="sm"
                         variant="outline"
-                        className="border-2 border-red-300 text-red-600 hover:bg-red-500 hover:text-white"
+                        className="border-2 border-red-300 text-red-600 hover:bg-red-500 hover:text-white w-full sm:w-auto"
                       >
                         Supprimer
                       </Button>

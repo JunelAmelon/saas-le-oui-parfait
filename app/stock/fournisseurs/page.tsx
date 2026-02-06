@@ -88,17 +88,17 @@ export default function FournisseursPage() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-brand-purple mb-2">
+            <h1 className="text-2xl sm:text-3xl font-bold text-brand-purple mb-2">
               Fournisseurs
             </h1>
-            <p className="text-brand-gray">
+            <p className="text-sm sm:text-base text-brand-gray">
               Gérez vos fournisseurs de stock et matériel
             </p>
           </div>
           <Button 
-            className="bg-brand-turquoise hover:bg-brand-turquoise-hover gap-2"
+            className="bg-brand-turquoise hover:bg-brand-turquoise-hover gap-2 w-full sm:w-auto"
             onClick={handleCreate}
           >
             <Plus className="h-4 w-4" />

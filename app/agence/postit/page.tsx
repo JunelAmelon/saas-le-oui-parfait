@@ -3,7 +3,7 @@
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Plus, X } from 'lucide-react';
+import { Plus, X, GripVertical } from 'lucide-react';
 import { useState } from 'react';
 import { PostItModal } from '@/components/modals/PostItModal';
 
@@ -12,6 +12,7 @@ interface StickyNote {
   title: string;
   content: string;
   color: 'yellow' | 'pink' | 'blue' | 'green' | 'purple';
+  priority: number;
 }
 
 const notesDemo: StickyNote[] = [
@@ -20,36 +21,42 @@ const notesDemo: StickyNote[] = [
     title: 'Rappel important',
     content: 'Confirmer la livraison des fleurs pour le 23/08',
     color: 'yellow',
+    priority: 1,
   },
   {
     id: '2',
     title: 'À ne pas oublier',
     content: 'Envoyer le planning détaillé aux prestataires',
     color: 'pink',
+    priority: 2,
   },
   {
     id: '3',
     title: 'Idée déco',
     content: 'Proposer des lanternes suspendues pour le cocktail',
     color: 'blue',
+    priority: 3,
   },
   {
     id: '4',
     title: 'Contact traiteur',
     content: 'Tel: 02 99 XX XX XX\nDemander option végétarienne',
     color: 'green',
+    priority: 4,
   },
   {
     id: '5',
     title: 'Budget',
     content: 'Revoir les devis fleuriste\nNégocier tarif groupe photographe',
     color: 'purple',
+    priority: 5,
   },
   {
     id: '6',
     title: 'Timeline jour J',
     content: '14h - Cérémonie\n16h - Cocktail\n19h30 - Dîner',
     color: 'yellow',
+    priority: 6,
   },
 ];
 
@@ -70,11 +77,12 @@ const colorButtonClasses = {
 };
 
 export default function PostItPage() {
-  const [notes, setNotes] = useState(notesDemo);
+  const [notes, setNotes] = useState(notesDemo.sort((a, b) => a.priority - b.priority));
   const [selectedColor, setSelectedColor] = useState<'yellow' | 'pink' | 'blue' | 'green' | 'purple'>('yellow');
   const [isPostItModalOpen, setIsPostItModalOpen] = useState(false);
   const [selectedPostIt, setSelectedPostIt] = useState<StickyNote | null>(null);
   const [modalMode, setModalMode] = useState<'create' | 'edit'>('create');
+  const [draggedNote, setDraggedNote] = useState<string | null>(null);
 
   const handleEdit = (note: StickyNote) => {
     setSelectedPostIt(note);
@@ -92,20 +100,50 @@ export default function PostItPage() {
     setNotes(notes.filter(note => note.id !== id));
   };
 
+  const handleDragStart = (e: React.DragEvent, noteId: string) => {
+    setDraggedNote(noteId);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragOver = (e: React.DragEvent, targetNoteId: string) => {
+    e.preventDefault();
+    if (!draggedNote || draggedNote === targetNoteId) return;
+
+    const draggedIndex = notes.findIndex(n => n.id === draggedNote);
+    const targetIndex = notes.findIndex(n => n.id === targetNoteId);
+
+    if (draggedIndex === -1 || targetIndex === -1) return;
+
+    const newNotes = [...notes];
+    const [removed] = newNotes.splice(draggedIndex, 1);
+    newNotes.splice(targetIndex, 0, removed);
+
+    const reorderedNotes = newNotes.map((note, index) => ({
+      ...note,
+      priority: index + 1,
+    }));
+
+    setNotes(reorderedNotes);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedNote(null);
+  };
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-brand-purple mb-2">
+            <h1 className="text-2xl sm:text-3xl font-bold text-brand-purple mb-2">
               Mes Post-it
             </h1>
-            <p className="text-brand-gray">
+            <p className="text-sm sm:text-base text-brand-gray">
               Notes rapides et rappels visuels
             </p>
           </div>
           <Button 
-            className="bg-brand-turquoise hover:bg-brand-turquoise-hover gap-2"
+            className="bg-brand-turquoise hover:bg-brand-turquoise-hover gap-2 w-full sm:w-auto"
             onClick={handleCreate}
           >
             <Plus className="h-4 w-4" />
@@ -114,7 +152,7 @@ export default function PostItPage() {
         </div>
 
         <Card className="p-4 shadow-xl border-0">
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <span className="text-sm font-medium text-brand-gray">Couleur:</span>
             {(['yellow', 'pink', 'blue', 'green', 'purple'] as const).map((color) => (
               <button
@@ -133,8 +171,15 @@ export default function PostItPage() {
           {notes.map((note) => (
             <Card
               key={note.id}
-              className={`p-6 border-2 shadow-lg hover:shadow-xl transition-all cursor-move relative ${colorClasses[note.color]}`}
+              draggable
+              onDragStart={(e) => handleDragStart(e, note.id)}
+              onDragOver={(e) => handleDragOver(e, note.id)}
+              onDragEnd={handleDragEnd}
+              className={`p-6 border-2 shadow-lg hover:shadow-xl transition-all cursor-move relative ${colorClasses[note.color]} ${draggedNote === note.id ? 'opacity-50' : ''}`}
             >
+              <div className="absolute top-2 left-2 cursor-grab active:cursor-grabbing">
+                <GripVertical className="h-5 w-5 text-gray-400" />
+              </div>
               <button
                 onClick={() => deleteNote(note.id)}
                 className="absolute top-2 right-2 w-6 h-6 rounded-full bg-white/80 hover:bg-white flex items-center justify-center transition-colors"
@@ -142,7 +187,7 @@ export default function PostItPage() {
                 <X className="h-4 w-4 text-gray-600" />
               </button>
 
-              <div className="space-y-3">
+              <div className="space-y-3 pl-6">
                 {note.title && (
                   <h3 className="font-bold text-brand-purple pr-6">
                     {note.title}
