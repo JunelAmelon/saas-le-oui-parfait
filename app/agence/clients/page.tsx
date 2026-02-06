@@ -15,9 +15,10 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { Search, Plus, Heart, MapPin, Calendar, Euro, Phone, Mail, FileText, Image as ImageIcon, X, Users, CheckCircle, Clock, Edit, MessageSquare } from 'lucide-react';
+import { Search, Plus, Heart, MapPin, Calendar, Euro, Phone, Mail, FileText, Image as ImageIcon, X, Users, CheckCircle, Clock, Edit, MessageSquare, Eye } from 'lucide-react';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 
 interface Client {
   id: string;
@@ -36,7 +37,7 @@ const clientsDemo: Client[] = [
   {
     id: '1',
     names: 'Julie & Frédérick',
-    photo: null,
+    photo: 'https://images.unsplash.com/photo-1519741497674-611481863552?w=400&h=400&fit=crop',
     eventDate: '23/08/2024',
     eventLocation: 'Château d\'Apigné, Rennes',
     budget: 25000,
@@ -48,7 +49,7 @@ const clientsDemo: Client[] = [
   {
     id: '2',
     names: 'Sophie & Alexandre',
-    photo: null,
+    photo: 'https://images.unsplash.com/photo-1606800052052-a08af7148866?w=400&h=400&fit=crop',
     eventDate: '15/06/2024',
     eventLocation: 'Domaine de la Pommeraye',
     budget: 32000,
@@ -60,7 +61,7 @@ const clientsDemo: Client[] = [
   {
     id: '3',
     names: 'Emma & Thomas',
-    photo: null,
+    photo: 'https://images.unsplash.com/photo-1591604466107-ec97de577aff?w=400&h=400&fit=crop',
     eventDate: '02/09/2024',
     eventLocation: 'Manoir de la Bourbansais',
     budget: 28000,
@@ -141,91 +142,109 @@ export default function ClientFilesPage() {
 
         <div className="grid grid-cols-1 gap-6">
           {clientsDemo.map((client) => (
-            <Card key={client.id} className="p-4 sm:p-6 shadow-xl border-0 hover:shadow-2xl transition-shadow">
-              <div className="flex flex-col sm:flex-row gap-4 sm:gap-6">
-                <div className="flex-shrink-0 mx-auto sm:mx-0">
-                  <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-lg bg-gray-100 flex items-center justify-center border-2 border-[#E5E5E5]">
-                    <ImageIcon className="h-8 w-8 sm:h-12 sm:w-12 text-brand-gray" />
+            <Card key={client.id} className="overflow-hidden shadow-xl border-0 hover:shadow-2xl transition-all hover:scale-[1.01] duration-300">
+              <div className="flex flex-col sm:flex-row">
+                <div className="flex-shrink-0 relative w-full sm:w-48 h-48 sm:h-auto">
+                  {client.photo ? (
+                    <Image
+                      src={client.photo}
+                      alt={client.names}
+                      fill
+                      className="object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-gradient-to-br from-brand-beige to-brand-turquoise/20 flex items-center justify-center">
+                      <Heart className="h-16 w-16 text-white" />
+                    </div>
+                  )}
+                  <div className="absolute top-3 right-3">
+                    <Badge className="bg-white/90 text-brand-purple shadow-lg">
+                      {client.status}
+                    </Badge>
                   </div>
                 </div>
 
-                <div className="flex-1 space-y-4">
-                  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2 text-center sm:text-left">
+                <div className="flex-1 p-4 sm:p-6">
+
+                  <div className="flex items-start justify-between mb-4">
                     <div>
-                      <h3 className="text-lg sm:text-xl font-bold text-brand-purple mb-1 flex items-center justify-center sm:justify-start gap-2">
-                        <Heart className="h-4 w-4 sm:h-5 sm:w-5 text-red-500 fill-red-500" />
+                      <h3 className="text-xl sm:text-2xl font-bold text-brand-purple mb-2 flex items-center gap-2">
+                        <Heart className="h-5 w-5 text-red-500 fill-red-500" />
                         {client.names}
                       </h3>
-                      <Badge className="bg-brand-turquoise text-white">
-                        {client.status}
-                      </Badge>
+                      <div className="flex items-center gap-2 text-sm text-brand-gray">
+                        <Users className="h-4 w-4" />
+                        <span>{client.guests} invités</span>
+                      </div>
                     </div>
-                    <div className="text-center sm:text-right mt-2 sm:mt-0">
-                      <p className="text-xs sm:text-sm text-brand-gray uppercase tracking-label">
+                    <div className="text-right">
+                      <p className="text-xs text-brand-gray uppercase tracking-wider mb-1">
                         Budget
                       </p>
-                      <p className="text-xl sm:text-2xl font-bold text-brand-purple">
+                      <p className="text-2xl font-bold text-brand-turquoise">
                         {client.budget.toLocaleString()} €
                       </p>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="flex items-center gap-3 text-brand-gray">
-                      <Calendar className="h-5 w-5 text-brand-turquoise" />
-                      <div>
-                        <p className="text-xs uppercase tracking-label">Date</p>
-                        <p className="font-medium text-brand-purple">
+                  <div className="space-y-3 mb-4">
+                    <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                      <Calendar className="h-5 w-5 text-brand-turquoise flex-shrink-0" />
+                      <div className="flex-1">
+                        <p className="text-xs text-brand-gray uppercase tracking-wider">Date du mariage</p>
+                        <p className="font-semibold text-brand-purple">
                           {client.eventDate}
                         </p>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-3 text-brand-gray">
-                      <MapPin className="h-5 w-5 text-brand-turquoise" />
-                      <div>
-                        <p className="text-xs uppercase tracking-label">Lieu</p>
-                        <p className="font-medium text-brand-purple">
+                    <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                      <MapPin className="h-5 w-5 text-brand-turquoise flex-shrink-0" />
+                      <div className="flex-1">
+                        <p className="text-xs text-brand-gray uppercase tracking-wider">Lieu</p>
+                        <p className="font-semibold text-brand-purple">
                           {client.eventLocation}
                         </p>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-3 text-brand-gray">
-                      <Phone className="h-5 w-5 text-brand-turquoise" />
-                      <div>
-                        <p className="text-xs uppercase tracking-label">Téléphone</p>
-                        <p className="font-medium text-brand-purple">
-                          {client.phone}
-                        </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                        <Phone className="h-5 w-5 text-brand-turquoise flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs text-brand-gray uppercase tracking-wider">Téléphone</p>
+                          <p className="font-semibold text-brand-purple truncate">
+                            {client.phone}
+                          </p>
+                        </div>
                       </div>
-                    </div>
 
-                    <div className="flex items-center gap-3 text-brand-gray">
-                      <Mail className="h-5 w-5 text-brand-turquoise" />
-                      <div>
-                        <p className="text-xs uppercase tracking-label">Email</p>
-                        <p className="font-medium text-brand-purple">
-                          {client.email}
-                        </p>
+                      <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                        <Mail className="h-5 w-5 text-brand-turquoise flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs text-brand-gray uppercase tracking-wider">Email</p>
+                          <p className="font-semibold text-brand-purple truncate">
+                            {client.email}
+                          </p>
+                        </div>
                       </div>
                     </div>
                   </div>
 
-                  <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 pt-2">
+                  <div className="flex flex-wrap gap-2">
                     <Button 
-                      className="flex-1 bg-brand-turquoise hover:bg-brand-turquoise-hover gap-2 text-sm"
+                      className="flex-1 bg-brand-turquoise hover:bg-brand-turquoise-hover gap-2"
                       onClick={() => handleViewDetail(client)}
                     >
-                      <FileText className="h-4 w-4" />
-                      <span className="hidden sm:inline">Voir la fiche complète</span>
-                      <span className="sm:hidden">Voir</span>
+                      <Eye className="h-4 w-4" />
+                      Voir la fiche
                     </Button>
                     <Button
                       variant="outline"
-                      className="border-2 border-brand-turquoise text-brand-gray hover:bg-brand-turquoise hover:text-white"
+                      className="border-2 border-brand-turquoise text-brand-turquoise hover:bg-brand-turquoise hover:text-white gap-2"
                       onClick={() => handleEdit(client)}
                     >
+                      <Edit className="h-4 w-4" />
                       Modifier
                     </Button>
                   </div>
