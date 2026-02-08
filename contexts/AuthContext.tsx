@@ -37,7 +37,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (firebaseUser) {
         try {
           // Fetch user profile from Firestore
-          const profile = await getDocument('profiles', firebaseUser.uid);
+          const profile = await getDocument('profiles', firebaseUser.uid) as any;
 
           if (profile) {
             setUser({
@@ -70,7 +70,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       // Fetch profile to determine role and redirect
-      const profile = await getDocument('profiles', userCredential.user.uid);
+      const profile = await getDocument('profiles', userCredential.user.uid) as any;
 
       if (profile) {
         if (profile.role === 'client') {
