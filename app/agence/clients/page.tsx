@@ -15,21 +15,26 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { Search, Plus, Heart, MapPin, Calendar, Euro, Phone, Mail, FileText, Image as ImageIcon, X, Users, CheckCircle, Clock, Edit, MessageSquare, Eye, MoreVertical } from 'lucide-react';
+import { Search, Plus, Heart, MapPin, Calendar, Euro, Phone, Mail, FileText, Image as ImageIcon, X, Users, CheckCircle, Clock, Edit, MessageSquare, Eye, MoreVertical, ChevronLeft, ChevronRight } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
+import { useAuth } from '@/contexts/AuthContext';
+import { getDocuments } from '@/lib/db';
+import { ClientModal } from '@/components/modals/ClientModal';
+import { Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface Client {
   id: string;
   names: string;
-  photo: string | null;
+  photo?: string;
   eventDate: string;
   eventLocation: string;
   budget: number;
@@ -37,53 +42,70 @@ interface Client {
   phone: string;
   email: string;
   status: string;
+  createdAt?: any; // Pour le tri
 }
-
-const clientsDemo: Client[] = [
-  {
-    id: '1',
-    names: 'Julie & Frédérick',
-    photo: 'https://images.unsplash.com/photo-1519741497674-611481863552?w=400&h=400&fit=crop',
-    eventDate: '23/08/2024',
-    eventLocation: 'Château d\'Apigné, Rennes',
-    budget: 25000,
-    guests: 120,
-    phone: '+33 6 12 34 56 78',
-    email: 'julie.martin@email.com',
-    status: 'En cours',
-  },
-  {
-    id: '2',
-    names: 'Sophie & Alexandre',
-    photo: 'https://images.unsplash.com/photo-1606800052052-a08af7148866?w=400&h=400&fit=crop',
-    eventDate: '15/06/2024',
-    eventLocation: 'Domaine de la Pommeraye',
-    budget: 32000,
-    guests: 150,
-    phone: '+33 6 98 76 54 32',
-    email: 'sophie.dubois@email.com',
-    status: 'En cours',
-  },
-  {
-    id: '3',
-    names: 'Emma & Thomas',
-    photo: 'https://images.unsplash.com/photo-1591604466107-ec97de577aff?w=400&h=400&fit=crop',
-    eventDate: '02/09/2024',
-    eventLocation: 'Manoir de la Bourbansais',
-    budget: 28000,
-    guests: 100,
-    phone: '+33 6 45 67 89 01',
-    email: 'emma.bernard@email.com',
-    status: 'Confirmé',
-  },
-];
 
 export default function ClientFilesPage() {
   const router = useRouter();
+  const { user, loading: authLoading } = useAuth();
+  const [clients, setClients] = useState<Client[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isNewClientOpen, setIsNewClientOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 2;
+
+  // Fetch clients from Firestore
+  useEffect(() => {
+    async function fetchClients() {
+      if (user && user.role === 'planner') {
+        try {
+          const clientsData = await getDocuments('clients', [
+            { field: 'planner_id', operator: '==', value: user.uid }
+          ]);
+
+          // Map Firestore data to Client interface
+          const mappedClients = clientsData.map((c: any) => ({
+            id: c.id,
+            names: `${c.name} & ${c.partner}`,
+            photo: c.photo || undefined,
+            eventDate: c.event_date ? new Date(c.event_date).toLocaleDateString('fr-FR') : '',
+            eventLocation: c.event_location || '',
+            budget: parseInt(c.budget) || 0,
+            guests: parseInt(c.guests) || 0,
+            phone: c.phone || '',
+            email: c.email || '',
+            status: c.status || 'En cours',
+            createdAt: c.created_at || c.createdAt || new Date()
+          }));
+
+          // Trier par date de création (plus récent en premier)
+          mappedClients.sort((a: Client, b: Client) => {
+            const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt);
+            const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt);
+            return dateB - dateA;
+          });
+
+          setClients(mappedClients);
+        } catch (error) {
+          console.error('Error fetching clients:', error);
+          toast.error('Erreur lors du chargement des clients');
+        } finally {
+          setLoading(false);
+        }
+      }
+    }
+
+    if (!authLoading && user?.role === 'planner') {
+      fetchClients();
+    }
+  }, [user, authLoading]);
 
   const handleViewDetail = (client: Client) => {
     setSelectedClient(client);
@@ -114,9 +136,124 @@ export default function ClientFilesPage() {
     }
   };
 
+  // Refresh clients after modal save
+  const handleClientSaved = async () => {
+    if (!user) return;
+
+    try {
+      const clientsData = await getDocuments('clients', [
+        { field: 'planner_id', operator: '==', value: user.uid }
+      ]);
+      const mappedClients = clientsData.map((c: any) => ({
+        id: c.id,
+        names: `${c.name} & ${c.partner}`,
+        photo: c.photo || undefined,
+        eventDate: c.event_date ? new Date(c.event_date).toLocaleDateString('fr-FR') : '',
+        eventLocation: c.event_location || '',
+        budget: parseInt(c.budget) || 0,
+        guests: parseInt(c.guests) || 0,
+        phone: c.phone || '',
+        email: c.email || '',
+        status: c.status || 'En cours',
+        createdAt: c.created_at || c.createdAt || new Date()
+      }));
+
+      // Trier par date de création
+      mappedClients.sort((a, b) => {
+        const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt);
+        const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt);
+        return dateB - dateA;
+      });
+
+      setClients(mappedClients);
+      setCurrentPage(1); // Reset to first page
+    } catch (error) {
+      console.error('Error refreshing clients:', error);
+    }
+  };
+
+  // Filter clients based on search
+  const filteredClients = clients.filter(client =>
+    client.names.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    client.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    client.eventLocation.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  // Pagination calculations
+  const totalPages = Math.ceil(filteredClients.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const currentClients = filteredClients.slice(startIndex, endIndex);
+
+  // Reset to page 1 when search changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery]);
+
+  const handlePreviousPage = () => {
+    setCurrentPage(prev => Math.max(prev - 1, 1));
+  };
+
+  const handleNextPage = () => {
+    setCurrentPage(prev => Math.min(prev + 1, totalPages));
+  };
+
+  const goToPage = (page: number) => {
+    setCurrentPage(page);
+  };
+
+  // Générer les numéros de pages à afficher
+  const getPageNumbers = () => {
+    const pages = [];
+    const maxPagesToShow = 5;
+
+    if (totalPages <= maxPagesToShow) {
+      for (let i = 1; i <= totalPages; i++) {
+        pages.push(i);
+      }
+    } else {
+      if (currentPage <= 3) {
+        for (let i = 1; i <= 4; i++) {
+          pages.push(i);
+        }
+        pages.push('...');
+        pages.push(totalPages);
+      } else if (currentPage >= totalPages - 2) {
+        pages.push(1);
+        pages.push('...');
+        for (let i = totalPages - 3; i <= totalPages; i++) {
+          pages.push(i);
+        }
+      } else {
+        pages.push(1);
+        pages.push('...');
+        for (let i = currentPage - 1; i <= currentPage + 1; i++) {
+          pages.push(i);
+        }
+        pages.push('...');
+        pages.push(totalPages);
+      }
+    }
+
+    return pages;
+  };
+
+  if (authLoading || loading) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="text-center">
+            <Loader2 className="h-12 w-12 animate-spin text-brand-turquoise mx-auto" />
+            <p className="mt-4 text-brand-gray">Chargement des clients...</p>
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
   return (
     <DashboardLayout>
-      <div className="space-y-6">
+      <div className="space-y-6 pb-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold text-brand-purple mb-1 sm:mb-2">
@@ -126,7 +263,7 @@ export default function ClientFilesPage() {
               Gérez les dossiers complets de vos mariés
             </p>
           </div>
-          <Button 
+          <Button
             className="bg-brand-turquoise hover:bg-brand-turquoise-hover gap-2 w-full sm:w-auto"
             onClick={() => setIsNewClientOpen(true)}
           >
@@ -142,86 +279,161 @@ export default function ClientFilesPage() {
             <Input
               placeholder="Rechercher un client..."
               className="pl-10 border-[#E5E5E5] focus-visible:ring-brand-turquoise"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
         </Card>
 
-        <div className="grid grid-cols-1 gap-6">
-          {clientsDemo.map((client) => (
-            <Card key={client.id} className="p-4 md:p-6 shadow-xl border-0 hover:shadow-2xl transition-shadow cursor-pointer group">
-              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-                <div
-                  className="relative h-24 w-full sm:w-24 overflow-hidden rounded-lg bg-gray-100 flex-shrink-0"
-                  onClick={() => handleViewDetail(client)}
-                >
-                  {client.photo ? (
-                    <img
-                      src={client.photo}
-                      alt={client.names}
-                      className="h-full w-full object-cover group-hover:scale-110 transition-transform duration-300"
-                    />
-                  ) : (
-                    <div className="h-full w-full bg-gradient-to-br from-brand-beige to-brand-turquoise/20 flex items-center justify-center">
-                      <Heart className="h-12 w-12 text-white" />
+        {filteredClients.length === 0 ? (
+          <Card className="p-12 text-center shadow-xl border-0">
+            <Users className="h-16 w-16 text-brand-gray/30 mx-auto mb-4" />
+            <h3 className="text-lg font-semibold text-brand-purple mb-2">
+              {searchQuery ? 'Aucun client trouvé' : 'Aucun client'}
+            </h3>
+            <p className="text-brand-gray mb-6">
+              {searchQuery ? 'Essayez une autre recherche' : 'Créez votre première fiche client pour commencer'}
+            </p>
+            {!searchQuery && (
+              <Button
+                onClick={() => setIsNewClientOpen(true)}
+                className="bg-brand-turquoise hover:bg-brand-turquoise-hover"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Créer une fiche client
+              </Button>
+            )}
+          </Card>
+        ) : (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {currentClients.map((client) => (
+                <Card key={client.id} className="p-4 md:p-6 shadow-xl border-0 hover:shadow-2xl transition-shadow cursor-pointer group">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                    <div
+                      className="relative h-24 w-full sm:w-24 overflow-hidden rounded-lg bg-gray-100 flex-shrink-0"
+                      onClick={() => handleViewDetail(client)}
+                    >
+                      {client.photo ? (
+                        <img
+                          src={client.photo}
+                          alt={client.names}
+                          className="h-full w-full object-cover group-hover:scale-110 transition-transform duration-300"
+                        />
+                      ) : (
+                        <div className="h-full w-full bg-gradient-to-br from-brand-beige to-brand-turquoise/20 flex items-center justify-center">
+                          <Heart className="h-12 w-12 text-white" />
+                        </div>
+                      )}
+                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                        <Eye className="h-8 w-8 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </div>
                     </div>
-                  )}
-                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
-                    <Eye className="h-8 w-8 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-                  </div>
-                </div>
 
-                <div className="flex-1 w-full">
-                  <div className="mb-1 flex items-start justify-between">
-                    <h3
-                      className="text-lg font-bold text-brand-purple font-baskerville"
-                      onClick={() => handleViewDetail(client)}
-                    >
-                      {client.names}
-                    </h3>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 -mr-2">
-                          <MoreVertical className="h-4 w-4 text-brand-gray" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => handleViewDetail(client)}>
-                          <Eye className="h-4 w-4 mr-2" />
+                    <div className="flex-1 w-full">
+                      <div className="mb-1 flex items-start justify-between">
+                        <h3
+                          className="text-lg font-bold text-brand-purple font-baskerville cursor-pointer hover:text-brand-turquoise transition-colors"
+                          onClick={() => handleViewDetail(client)}
+                        >
+                          {client.names}
+                        </h3>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 -mr-2">
+                              <MoreVertical className="h-4 w-4 text-brand-gray" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => handleViewDetail(client)}>
+                              <Eye className="h-4 w-4 mr-2" />
+                              Voir détails
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleEdit(client)}>
+                              <Edit className="h-4 w-4 mr-2" />
+                              Modifier
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => router.push('/messages')}>
+                              <MessageSquare className="h-4 w-4 mr-2" />
+                              Message
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                      <p className="text-sm text-brand-gray mb-2">
+                        {client.eventDate} | {client.eventLocation}
+                      </p>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Badge className="bg-[#C4A26A] hover:bg-[#B59260] text-white border-0">
+                          {client.status}
+                        </Badge>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-brand-turquoise hover:text-brand-turquoise-hover text-xs sm:text-sm"
+                          onClick={() => handleViewDetail(client)}
+                        >
+                          <Eye className="h-3 w-3 mr-1" />
                           Voir détails
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleEdit(client)}>
-                          <Edit className="h-4 w-4 mr-2" />
-                          Modifier
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => router.push('/messages')}>
-                          <MessageSquare className="h-4 w-4 mr-2" />
-                          Message
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                        </Button>
+                      </div>
+                    </div>
                   </div>
-                  <p className="text-sm text-brand-gray mb-2">
-                    {client.eventDate} | {client.eventLocation}
-                  </p>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <Badge className="bg-[#C4A26A] hover:bg-[#B59260] text-white border-0">
-                      {client.status}
-                    </Badge>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="text-brand-turquoise hover:text-brand-turquoise-hover text-xs sm:text-sm"
-                      onClick={() => handleViewDetail(client)}
-                    >
-                      <Eye className="h-3 w-3 mr-1" />
-                      Voir détails
-                    </Button>
-                  </div>
+                </Card>
+              ))}
+            </div>
+
+            {/* Pagination améliorée */}
+            {totalPages > 1 && (
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2">
+                <p className="text-sm text-brand-gray">
+                  Affichage de {startIndex + 1}-{Math.min(endIndex, filteredClients.length)} sur {filteredClients.length} client{filteredClients.length > 1 ? 's' : ''}
+                </p>
+
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={handlePreviousPage}
+                    disabled={currentPage === 1}
+                    className="h-9 w-9"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+
+                  {getPageNumbers().map((page, index) => (
+                    page === '...' ? (
+                      <span key={`ellipsis-${index}`} className="px-2 text-brand-gray">...</span>
+                    ) : (
+                      <Button
+                        key={page}
+                        variant={currentPage === page ? "default" : "outline"}
+                        size="icon"
+                        onClick={() => goToPage(page as number)}
+                        className={`h-9 w-9 ${currentPage === page
+                          ? 'bg-brand-turquoise hover:bg-brand-turquoise-hover text-white'
+                          : 'hover:bg-gray-100'
+                          }`}
+                      >
+                        {page}
+                      </Button>
+                    )
+                  ))}
+
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={handleNextPage}
+                    disabled={currentPage === totalPages}
+                    className="h-9 w-9"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
                 </div>
               </div>
-            </Card>
-          ))}
-        </div>
+            )}
+          </>
+        )}
       </div>
 
       {/* Modal Détail Client */}
@@ -239,8 +451,16 @@ export default function ClientFilesPage() {
           {selectedClient && (
             <div className="space-y-6 py-4">
               <div className="flex items-center gap-4">
-                <div className="w-20 h-20 rounded-lg bg-gray-100 flex items-center justify-center">
-                  <ImageIcon className="h-8 w-8 text-brand-gray" />
+                <div className="w-20 h-20 rounded-lg bg-gray-100 flex items-center justify-center overflow-hidden">
+                  {selectedClient.photo ? (
+                    <img
+                      src={selectedClient.photo}
+                      alt={selectedClient.names}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <ImageIcon className="h-8 w-8 text-brand-gray" />
+                  )}
                 </div>
                 <div>
                   <Badge className="bg-brand-turquoise text-white mb-2">
@@ -315,7 +535,7 @@ export default function ClientFilesPage() {
             <Button variant="outline" onClick={() => setIsDetailOpen(false)}>
               Fermer
             </Button>
-            <Button 
+            <Button
               className="bg-brand-turquoise hover:bg-brand-turquoise-hover gap-2"
               onClick={() => {
                 setIsDetailOpen(false);
@@ -330,7 +550,7 @@ export default function ClientFilesPage() {
       </Dialog>
 
       {/* Modal Nouveau Client */}
-      <Dialog open={isNewClientOpen} onOpenChange={setIsNewClientOpen}>
+      <Dialog open={isNewClientOpen && !isNewClientOpen} onOpenChange={setIsNewClientOpen}>
         <DialogContent className="sm:max-w-lg w-[95vw] sm:w-full max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-brand-purple">Nouvelle fiche client</DialogTitle>
@@ -382,7 +602,7 @@ export default function ClientFilesPage() {
             <Button variant="outline" onClick={() => setIsNewClientOpen(false)}>
               Annuler
             </Button>
-            <Button 
+            <Button
               className="bg-brand-turquoise hover:bg-brand-turquoise-hover"
               onClick={() => setIsNewClientOpen(false)}
             >
@@ -393,7 +613,7 @@ export default function ClientFilesPage() {
       </Dialog>
 
       {/* Modal Modifier Client */}
-      <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
+      <Dialog open={isEditOpen && !isEditOpen} onOpenChange={setIsEditOpen}>
         <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-brand-purple">Modifier la fiche</DialogTitle>
@@ -470,7 +690,7 @@ export default function ClientFilesPage() {
             <Button variant="outline" onClick={() => setIsEditOpen(false)}>
               Annuler
             </Button>
-            <Button 
+            <Button
               className="bg-brand-turquoise hover:bg-brand-turquoise-hover"
               onClick={() => setIsEditOpen(false)}
             >
@@ -479,6 +699,24 @@ export default function ClientFilesPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ClientModal - Utilise le composant pour la vraie logique */}
+      <ClientModal
+        open={isNewClientOpen}
+        onOpenChange={setIsNewClientOpen}
+        mode="create"
+        userId={user?.uid || ''}
+        onSuccess={handleClientSaved}
+      />
+
+      <ClientModal
+        open={isEditOpen}
+        onOpenChange={setIsEditOpen}
+        mode="edit"
+        client={selectedClient || undefined}
+        userId={user?.uid || ''}
+        onSuccess={handleClientSaved}
+      />
     </DashboardLayout>
   );
 }

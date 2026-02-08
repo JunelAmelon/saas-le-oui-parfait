@@ -44,8 +44,8 @@ const menuItems: MenuItem[] = [
       { label: 'Fiches Clients', href: '/agence/clients' },
       { label: 'Todo', href: '/agence/todo' },
       { label: 'Mes post-it', href: '/agence/postit' },
-      { label: 'Signatures', href: '/agence/signatures' },
-      { label: 'Ma fiche annuaire', href: '/agence/annuaire' },
+      // { label: 'Signatures', href: '/agence/signatures' },
+      // { label: 'Ma fiche annuaire', href: '/agence/annuaire' },
       { label: 'Campagnes email', href: '/agence/campagnes' },
     ],
   },
@@ -98,11 +98,11 @@ const menuItems: MenuItem[] = [
     icon: Flower2,
     href: '/fleurs',
   },
-  {
-    label: 'E-shop',
-    icon: ShoppingBag,
-    href: '/eshop',
-  },
+  // {
+  //   label: 'E-shop',
+  //   icon: ShoppingBag,
+  //   href: '/eshop',
+  // },
   {
     label: 'Statistiques',
     icon: BarChart3,

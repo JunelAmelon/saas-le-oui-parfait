@@ -8,6 +8,7 @@ import { Card } from '@/components/ui/card';
 import { Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import Image from 'next/image';
+import { useRouter } from 'next/navigation';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -15,6 +16,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const { signIn } = useAuth();
   const { toast } = useToast();
+  const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -22,6 +24,7 @@ export default function LoginPage() {
 
     try {
       await signIn(email, password);
+      router.push('/');
       toast({
         title: 'Connexion réussie',
         description: 'Bienvenue sur Le Oui Parfait',
@@ -42,10 +45,10 @@ export default function LoginPage() {
       <Card className="w-full max-w-md p-8 shadow-2xl border-0">
         <div className="text-center mb-8">
           <div className="flex items-center justify-center mb-6">
-            <Image 
-              src="/logo-horizontal.png" 
-              alt="Le Oui Parfait" 
-              width={200} 
+            <Image
+              src="/logo-horizontal.png"
+              alt="Le Oui Parfait"
+              width={200}
               height={60}
               priority
               className="object-contain"

@@ -1,13 +1,15 @@
 'use client';
 
 import { useState } from 'react';
-import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { Heart, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
+import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { auth } from '@/lib/firebase';
+import { setDocument } from '@/lib/db';
 
 export default function SignUpPage() {
   const [email, setEmail] = useState('');
@@ -22,48 +24,41 @@ export default function SignUpPage() {
     setLoading(true);
 
     try {
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            full_name: fullName,
-          },
-          emailRedirectTo: undefined,
-        },
+      // 1. Create user in Firebase Auth
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+
+      // 2. Create user profile in Firestore
+      await setDocument('profiles', user.uid, {
+        email: email,
+        full_name: fullName,
+        role: 'planner', // Default role. You might want to change this or add a selection in the UI.
+        createdAt: new Date().toISOString(),
       });
 
-      if (authError) throw authError;
+      toast({
+        title: 'Compte créé',
+        description: 'Vous pouvez maintenant vous connecter',
+      });
 
-      if (authData.user) {
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .insert([
-            {
-              id: authData.user.id,
-              email: email,
-              full_name: fullName,
-              role: 'planner',
-            },
-          ]);
+      setTimeout(() => {
+        router.push('/login');
+      }, 1500);
 
-        if (profileError) {
-          console.error('Profile creation error:', profileError);
-        }
-
-        toast({
-          title: 'Compte créé',
-          description: 'Vous pouvez maintenant vous connecter',
-        });
-
-        setTimeout(() => {
-          router.push('/login');
-        }, 1500);
-      }
     } catch (error: any) {
+      console.error('Signup error:', error);
+      let errorMessage = 'Une erreur est survenue lors de l\'inscription.';
+      if (error.code === 'auth/email-already-in-use') {
+        errorMessage = 'Cet email est déjà utilisé.';
+      } else if (error.code === 'auth/weak-password') {
+        errorMessage = 'Le mot de passe est trop faible.';
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+
       toast({
         title: 'Erreur',
-        description: error.message,
+        description: errorMessage,
         variant: 'destructive',
       });
     } finally {

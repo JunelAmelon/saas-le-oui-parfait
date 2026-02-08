@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Users, Calendar, Building2, FileText, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/lib/supabase';
+import { addDocument } from '@/lib/db';
 import { useAuth } from '@/contexts/AuthContext';
 
 interface QuickAddModalProps {
@@ -35,13 +35,12 @@ export function QuickAddModal({ open, onOpenChange }: QuickAddModalProps) {
       budget: parseFloat(formData.get('budget') as string) || 0,
       notes: formData.get('notes') as string,
       status: 'nouveau',
-      planner_id: null,
+      planner_id: user?.uid,
+      created_at: new Date().toISOString(),
     };
 
     try {
-      const { error } = await supabase.from('prospects').insert([data]);
-
-      if (error) throw error;
+      await addDocument('prospects', data);
 
       toast({
         title: 'Prospect ajouté',
@@ -70,15 +69,15 @@ export function QuickAddModal({ open, onOpenChange }: QuickAddModalProps) {
       event_date: formData.get('eventDate') as string,
       location: formData.get('location') as string,
       guest_count: parseInt(formData.get('guestCount') as string) || 0,
+      client_email: formData.get('clientEmail') as string,
       budget: parseFloat(formData.get('budget') as string) || 0,
       status: 'planification',
-      planner_id: null,
+      planner_id: user?.uid,
+      created_at: new Date().toISOString(),
     };
 
     try {
-      const { error } = await supabase.from('events').insert([data]);
-
-      if (error) throw error;
+      await addDocument('events', data);
 
       toast({
         title: 'Événement créé',
@@ -109,13 +108,12 @@ export function QuickAddModal({ open, onOpenChange }: QuickAddModalProps) {
       phone: formData.get('phone') as string,
       website: formData.get('website') as string,
       notes: formData.get('notes') as string,
-      planner_id: null,
+      planner_id: user?.uid,
+      created_at: new Date().toISOString(),
     };
 
     try {
-      const { error } = await supabase.from('providers').insert([data]);
-
-      if (error) throw error;
+      await addDocument('providers', data);
 
       toast({
         title: 'Prestataire ajouté',
@@ -145,13 +143,12 @@ export function QuickAddModal({ open, onOpenChange }: QuickAddModalProps) {
       due_date: formData.get('dueDate') as string,
       priority: formData.get('priority') as string,
       status: 'todo',
-      assigned_to: null,
+      assigned_to: user?.uid,
+      created_at: new Date().toISOString(),
     };
 
     try {
-      const { error } = await supabase.from('tasks').insert([data]);
-
-      if (error) throw error;
+      await addDocument('tasks', data);
 
       toast({
         title: 'Tâche créée',
@@ -305,6 +302,17 @@ export function QuickAddModal({ open, onOpenChange }: QuickAddModalProps) {
                     placeholder="120"
                   />
                 </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="clientEmail">Email du client *</Label>
+                <Input
+                  id="clientEmail"
+                  name="clientEmail"
+                  type="email"
+                  placeholder="client@email.com"
+                  required
+                />
               </div>
 
               <div className="space-y-2">

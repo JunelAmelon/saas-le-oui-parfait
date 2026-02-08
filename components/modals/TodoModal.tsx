@@ -21,20 +21,14 @@ interface Todo {
 }
 
 interface TodoModalProps {
-  isOpen: boolean;
-  onClose: () => void;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
   todo?: Todo | null;
   mode: 'create' | 'edit';
+  onSave: (todo: Partial<Todo>) => Promise<void>;
 }
 
-const clients = [
-  'Julie & Frédérick',
-  'Sophie & Alexandre',
-  'Emma & Thomas',
-  'Marie & Pierre',
-];
-
-export function TodoModal({ isOpen, onClose, todo, mode }: TodoModalProps) {
+export function TodoModal({ open, onOpenChange, todo, mode, onSave }: TodoModalProps) {
   const { toast } = useToast();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -42,14 +36,15 @@ export function TodoModal({ isOpen, onClose, todo, mode }: TodoModalProps) {
   const [priority, setPriority] = useState<'low' | 'medium' | 'high' | 'urgent'>('medium');
   const [dueDate, setDueDate] = useState('');
   const [event, setEvent] = useState('');
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (mode === 'edit' && todo) {
       setTitle(todo.title);
-      setDescription(todo.description);
+      setDescription(todo.description || '');
       setStatus(todo.status);
       setPriority(todo.priority);
-      setDueDate(todo.dueDate);
+      setDueDate(todo.dueDate || '');
       setEvent(todo.event || '');
     } else if (mode === 'create') {
       setTitle('');
@@ -59,9 +54,9 @@ export function TodoModal({ isOpen, onClose, todo, mode }: TodoModalProps) {
       setDueDate('');
       setEvent('');
     }
-  }, [mode, todo, isOpen]);
+  }, [mode, todo, open]);
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!title || !description || !dueDate) {
       toast({
         title: 'Erreur',
@@ -71,23 +66,30 @@ export function TodoModal({ isOpen, onClose, todo, mode }: TodoModalProps) {
       return;
     }
 
-    if (mode === 'create') {
-      toast({
-        title: 'Tâche créée',
-        description: `La tâche "${title}" a été ajoutée avec succès`,
+    setLoading(true);
+    try {
+      await onSave({
+        title,
+        description,
+        status,
+        priority,
+        dueDate,
+        event
       });
-    } else {
+      onOpenChange(false);
+    } catch (error) {
       toast({
-        title: 'Tâche modifiée',
-        description: `La tâche "${title}" a été mise à jour`,
+        title: 'Erreur',
+        description: 'Une erreur est survenue lors de la sauvegarde',
+        variant: 'destructive',
       });
+    } finally {
+      setLoading(false);
     }
-
-    onClose();
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-brand-purple flex items-center gap-2">
@@ -95,33 +97,19 @@ export function TodoModal({ isOpen, onClose, todo, mode }: TodoModalProps) {
             {mode === 'create' ? 'Nouvelle tâche' : 'Modifier la tâche'}
           </DialogTitle>
           <DialogDescription>
-            {mode === 'create' 
-              ? 'Créez une nouvelle tâche à accomplir'
-              : 'Modifiez les informations de la tâche'
-            }
+            {mode === 'create' ? 'Créez une nouvelle tâche à accomplir' : 'Modifiez les informations de la tâche'}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-4">
           <div>
             <Label>Titre de la tâche *</Label>
-            <Input
-              placeholder="Ex: Appeler le traiteur"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className="mt-1"
-            />
+            <Input placeholder="Ex: Appeler le traiteur" value={title} onChange={(e) => setTitle(e.target.value)} className="mt-1" />
           </div>
 
           <div>
             <Label>Description *</Label>
-            <Textarea
-              placeholder="Détails de la tâche..."
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              className="mt-1"
-              rows={3}
-            />
+            <Textarea placeholder="Détails de la tâche..." value={description} onChange={(e) => setDescription(e.target.value)} className="mt-1" rows={3} />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -157,40 +145,19 @@ export function TodoModal({ isOpen, onClose, todo, mode }: TodoModalProps) {
 
           <div>
             <Label>Date d'échéance *</Label>
-            <Input
-              type="date"
-              value={dueDate}
-              onChange={(e) => setDueDate(e.target.value)}
-              className="mt-1"
-            />
+            <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className="mt-1" />
           </div>
 
           <div>
-            <Label>Associer à un événement (optionnel)</Label>
-            <Select value={event} onValueChange={setEvent}>
-              <SelectTrigger className="mt-1">
-                <SelectValue placeholder="Sélectionner un client" />
-              </SelectTrigger>
-              <SelectContent>
-                {clients.map((client) => (
-                  <SelectItem key={client} value={client}>
-                    {client}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Label>Événement</Label>
+            <Input placeholder="Nom de l'événement" value={event} onChange={(e) => setEvent(e.target.value)} className="mt-1" />
           </div>
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>
-            Annuler
-          </Button>
-          <Button
-            className="bg-brand-turquoise hover:bg-brand-turquoise-hover"
-            onClick={handleSubmit}
-          >
-            {mode === 'create' ? 'Créer la tâche' : 'Enregistrer'}
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Annuler</Button>
+          <Button className="bg-brand-turquoise hover:bg-brand-turquoise-hover" onClick={handleSubmit} disabled={loading}>
+            {loading ? 'Enregistrement...' : mode === 'create' ? 'Créer la tâche' : 'Enregistrer'}
           </Button>
         </DialogFooter>
       </DialogContent>

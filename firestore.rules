@@ -1,0 +1,41 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper function to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Helper function to check if user is the owner of the document
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+
+    // Profiles: Users can read/write their own profile
+    match /profiles/{userId} {
+      allow read, write: if isOwner(userId);
+    }
+
+    // Events: 
+    // - Planners can read/write all events created by them
+    // - Clients can read events where their email matches the client_email field
+    match /events/{eventId} {
+       allow create: if isAuthenticated(); // Allow creation (mostly for planners)
+       allow update, delete: if isAuthenticated() && (resource.data.planner_id == request.auth.uid || resource.data.client_email == request.auth.token.email);
+       allow read: if isAuthenticated() && (resource.data.planner_id == request.auth.uid || resource.data.client_email == request.auth.token.email);
+       
+       // Subcollections (timeline, documents, payments)
+       match /{subcollection}/{document=**} {
+          allow read, write: if isAuthenticated(); 
+       }
+    }
+
+    // General fallback for other collections (prospects, tasks, providers)
+    // For development simplicity, allow authenticated users to read/write
+    // In production, you should tighten these rules.
+    match /{document=**} {
+      allow read, write: if isAuthenticated();
+    }
+  }
+}

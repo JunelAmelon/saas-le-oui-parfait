@@ -22,6 +22,7 @@ interface PostItModalProps {
   postIt?: PostIt | null;
   mode: 'create' | 'edit';
   defaultColor?: 'yellow' | 'pink' | 'blue' | 'green' | 'purple';
+  onSave?: (postIt: Partial<PostIt>) => Promise<void>;
 }
 
 const colorOptions = [
@@ -32,11 +33,12 @@ const colorOptions = [
   { value: 'purple', label: 'Violet', class: 'bg-purple-200' },
 ];
 
-export function PostItModal({ isOpen, onClose, postIt, mode, defaultColor = 'yellow' }: PostItModalProps) {
+export function PostItModal({ isOpen, onClose, postIt, mode, defaultColor = 'yellow', onSave }: PostItModalProps) {
   const { toast } = useToast();
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [color, setColor] = useState<'yellow' | 'pink' | 'blue' | 'green' | 'purple'>(defaultColor);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (mode === 'edit' && postIt) {
@@ -50,7 +52,7 @@ export function PostItModal({ isOpen, onClose, postIt, mode, defaultColor = 'yel
     }
   }, [mode, postIt, defaultColor, isOpen]);
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!content) {
       toast({
         title: 'Erreur',
@@ -60,19 +62,38 @@ export function PostItModal({ isOpen, onClose, postIt, mode, defaultColor = 'yel
       return;
     }
 
-    if (mode === 'create') {
-      toast({
-        title: 'Post-it créé',
-        description: 'Votre post-it a été ajouté avec succès',
-      });
-    } else {
-      toast({
-        title: 'Post-it modifié',
-        description: 'Votre post-it a été mis à jour',
-      });
-    }
+    setLoading(true);
 
-    onClose();
+    try {
+      if (onSave) {
+        await onSave({
+          title,
+          content,
+          color
+        });
+      }
+
+      if (mode === 'create') {
+        toast({
+          title: 'Post-it créé',
+          description: 'Votre post-it a été ajouté avec succès',
+        });
+      } else {
+        toast({
+          title: 'Post-it modifié',
+          description: 'Votre post-it a été mis à jour',
+        });
+      }
+      onClose();
+    } catch (error) {
+      toast({
+        title: 'Erreur',
+        description: 'Une erreur est survenue',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -84,7 +105,7 @@ export function PostItModal({ isOpen, onClose, postIt, mode, defaultColor = 'yel
             {mode === 'create' ? 'Nouveau post-it' : 'Modifier le post-it'}
           </DialogTitle>
           <DialogDescription>
-            {mode === 'create' 
+            {mode === 'create'
               ? 'Créez un nouveau post-it pour vos notes rapides'
               : 'Modifiez votre post-it'
             }
@@ -121,9 +142,8 @@ export function PostItModal({ isOpen, onClose, postIt, mode, defaultColor = 'yel
                   key={option.value}
                   type="button"
                   onClick={() => setColor(option.value as any)}
-                  className={`w-12 h-12 rounded border-2 transition-transform ${
-                    option.class
-                  } ${color === option.value ? 'scale-110 ring-2 ring-brand-purple border-brand-purple' : 'border-gray-300'}`}
+                  className={`w-12 h-12 rounded border-2 transition-transform ${option.class
+                    } ${color === option.value ? 'scale-110 ring-2 ring-brand-purple border-brand-purple' : 'border-gray-300'}`}
                   title={option.label}
                 />
               ))}
@@ -138,8 +158,9 @@ export function PostItModal({ isOpen, onClose, postIt, mode, defaultColor = 'yel
           <Button
             className="bg-brand-turquoise hover:bg-brand-turquoise-hover"
             onClick={handleSubmit}
+            disabled={loading}
           >
-            {mode === 'create' ? 'Créer le post-it' : 'Enregistrer'}
+            {loading ? 'Enregistrement...' : (mode === 'create' ? 'Créer le post-it' : 'Enregistrer')}
           </Button>
         </DialogFooter>
       </DialogContent>
