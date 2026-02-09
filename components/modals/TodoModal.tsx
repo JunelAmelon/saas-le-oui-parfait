@@ -9,6 +9,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { CheckCircle2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
+import { addDocument, updateDocument } from '@/lib/db';
+import { toast as sonnerToast } from 'sonner';
 
 interface Todo {
   id: string;
@@ -30,6 +33,7 @@ interface TodoModalProps {
 
 export function TodoModal({ open, onOpenChange, todo, mode, onSave }: TodoModalProps) {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [status, setStatus] = useState<'todo' | 'in_progress' | 'done'>('todo');
@@ -58,31 +62,49 @@ export function TodoModal({ open, onOpenChange, todo, mode, onSave }: TodoModalP
 
   const handleSubmit = async () => {
     if (!title || !description || !dueDate) {
-      toast({
-        title: 'Erreur',
-        description: 'Veuillez remplir tous les champs obligatoires',
-        variant: 'destructive',
-      });
+      sonnerToast.error('Veuillez remplir tous les champs obligatoires');
+      return;
+    }
+
+    if (!user) {
+      sonnerToast.error('Vous devez être connecté');
       return;
     }
 
     setLoading(true);
     try {
-      await onSave({
+      const taskData = {
         title,
         description,
         status,
         priority,
-        dueDate,
-        event
-      });
+        due_date: dueDate,
+        event,
+        planner_id: user.uid,
+      };
+
+      if (mode === 'create') {
+        await addDocument('tasks', {
+          ...taskData,
+          created_at: new Date(),
+        });
+        sonnerToast.success('Tâche créée avec succès');
+      } else if (todo) {
+        await updateDocument('tasks', todo.id, {
+          ...taskData,
+          updated_at: new Date(),
+        });
+        sonnerToast.success('Tâche mise à jour avec succès');
+      }
+
+      if (onSave) {
+        await onSave(taskData);
+      }
+      
       onOpenChange(false);
     } catch (error) {
-      toast({
-        title: 'Erreur',
-        description: 'Une erreur est survenue lors de la sauvegarde',
-        variant: 'destructive',
-      });
+      console.error('Error saving task:', error);
+      sonnerToast.error('Erreur lors de la sauvegarde de la tâche');
     } finally {
       setLoading(false);
     }

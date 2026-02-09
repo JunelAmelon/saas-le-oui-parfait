@@ -8,6 +8,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Package } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { updateDocument } from '@/lib/db';
+import { toast as sonnerToast } from 'sonner';
 
 interface Article {
   id: string;
@@ -24,6 +26,7 @@ interface EditArticleModalProps {
   isOpen: boolean;
   onClose: () => void;
   article: Article | null;
+  onArticleUpdated?: () => void;
 }
 
 const categories = [
@@ -52,7 +55,7 @@ const statusOptions = [
   { value: 'out_of_stock', label: 'Rupture de stock' },
 ];
 
-export function EditArticleModal({ isOpen, onClose, article }: EditArticleModalProps) {
+export function EditArticleModal({ isOpen, onClose, article, onArticleUpdated }: EditArticleModalProps) {
   const { toast } = useToast();
   const [name, setName] = useState('');
   const [category, setCategory] = useState('');
@@ -61,6 +64,7 @@ export function EditArticleModal({ isOpen, onClose, article }: EditArticleModalP
   const [price, setPrice] = useState('');
   const [location, setLocation] = useState('');
   const [status, setStatus] = useState('');
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (article) {
@@ -74,22 +78,37 @@ export function EditArticleModal({ isOpen, onClose, article }: EditArticleModalP
     }
   }, [article]);
 
-  const handleSubmit = () => {
-    if (!name || !category || !quantity || !minQuantity || !price || !location) {
-      toast({
-        title: 'Erreur',
-        description: 'Veuillez remplir tous les champs',
-        variant: 'destructive',
-      });
+  const handleSubmit = async () => {
+    if (!name || !category || !quantity || !minQuantity || !price || !location || !article) {
+      sonnerToast.error('Veuillez remplir tous les champs');
       return;
     }
 
-    toast({
-      title: 'Article modifié',
-      description: `L'article "${name}" a été mis à jour`,
-    });
+    setLoading(true);
+    try {
+      await updateDocument('articles', article.id, {
+        name,
+        category,
+        quantity: parseInt(quantity),
+        min_quantity: parseInt(minQuantity),
+        price: parseFloat(price),
+        location,
+        updated_at: new Date(),
+      });
 
-    onClose();
+      sonnerToast.success(`L'article "${name}" a été mis à jour`);
+      
+      if (onArticleUpdated) {
+        onArticleUpdated();
+      }
+      
+      onClose();
+    } catch (error) {
+      console.error('Error updating article:', error);
+      sonnerToast.error('Erreur lors de la modification de l\'article');
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (!article) return null;
@@ -209,8 +228,9 @@ export function EditArticleModal({ isOpen, onClose, article }: EditArticleModalP
           <Button
             className="bg-brand-turquoise hover:bg-brand-turquoise-hover"
             onClick={handleSubmit}
+            disabled={loading}
           >
-            Enregistrer
+            {loading ? 'Enregistrement...' : 'Enregistrer'}
           </Button>
         </DialogFooter>
       </DialogContent>

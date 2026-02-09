@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -7,6 +8,8 @@ import { ClientDashboardLayout } from '@/components/layout/ClientDashboardLayout
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { useClientData } from '@/contexts/ClientDataContext';
+import { getEventVendors, calculateDaysRemaining } from '@/lib/client-helpers';
 import {
   Dialog,
   DialogContent,
@@ -27,8 +30,8 @@ import {
   Clock,
   Calendar,
   Send,
+  Loader2,
 } from 'lucide-react';
-import { useState } from 'react';
 
 interface Prestataire {
   id: string;
@@ -128,15 +131,48 @@ const prestataires = [
     website: 'www.leouiparfait.fr',
     status: 'confirmed',
     rating: 5,
-    nextRdv: 'Disponible sur demande',
+    nextRdv: null,
   },
 ];
 
 export default function PrestatairesPage() {
-  const [isContactModalOpen, setIsContactModalOpen] = useState(false);
+  const { client, event, loading: dataLoading } = useClientData();
+  const [prestataires, setPrestataires] = useState<Prestataire[]>([]);
+  const [loading, setLoading] = useState(true);
   const [selectedPrestataire, setSelectedPrestataire] = useState<Prestataire | null>(null);
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
+  const [isMessageOpen, setIsMessageOpen] = useState(false);
   const [message, setMessage] = useState('');
+  const [isContactModalOpen, setIsContactModalOpen] = useState(false);
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
+
+  useEffect(() => {
+    async function fetchPrestataires() {
+      if (event?.id) {
+        try {
+          const vendors = await getEventVendors(event.id);
+          setPrestataires(vendors as Prestataire[]);
+        } catch (error) {
+          console.error('Error fetching vendors:', error);
+        } finally {
+          setLoading(false);
+        }
+      }
+    }
+    if (!dataLoading && event) {
+      fetchPrestataires();
+    }
+  }, [event, dataLoading]);
+
+  const daysRemaining = event ? calculateDaysRemaining(event.event_date) : 0;
+
+  if (dataLoading || loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="animate-spin h-12 w-12 text-brand-turquoise" />
+      </div>
+    );
+  }
 
   const handleContact = (presta: Prestataire) => {
     setSelectedPrestataire(presta);
@@ -164,7 +200,7 @@ export default function PrestatairesPage() {
   const pendingCount = prestataires.filter(p => p.status === 'pending').length;
 
   return (
-    <ClientDashboardLayout clientName="Julie & Frédérick" daysRemaining={165}>
+    <ClientDashboardLayout clientName={event?.couple_names || 'Client'} daysRemaining={daysRemaining}>
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-brand-purple flex items-center gap-2 sm:gap-3">

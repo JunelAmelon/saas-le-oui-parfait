@@ -1,0 +1,347 @@
+═══════════════════════════════════════════════════════════════════════════════
+   🔥 GUIDE D'INITIALISATION FIREBASE - ESPACE CLIENT
+   Mise en place des collections et données de test
+═══════════════════════════════════════════════════════════════════════════════
+
+📋 ÉTAPES À SUIVRE POUR INITIALISER FIREBASE
+═══════════════════════════════════════════════════════════════════════════════
+
+ÉTAPE 1 : CRÉER UN COMPTE CLIENT DANS FIREBASE AUTH
+─────────────────────────────────────────────────────────────────────────────
+1. Ouvrir Firebase Console : https://console.firebase.google.com/
+2. Sélectionner votre projet
+3. Aller dans Authentication > Users
+4. Cliquer "Add user"
+5. Créer un utilisateur :
+   - Email: julie.martin@example.com
+   - Password: TestClient123
+   - UID sera généré automatiquement (le copier !)
+
+6. Cliquer sur l'utilisateur créé > Custom claims
+7. Ajouter le claim : { "role": "client" }
+
+⚠️  IMPORTANT: Copier l'UID généré, vous en aurez besoin !
+
+
+ÉTAPE 2 : RÉCUPÉRER VOTRE UID PLANNER
+─────────────────────────────────────────────────────────────────────────────
+1. Dans Firebase Console > Authentication
+2. Trouver votre compte planner (celui avec role: "planner")
+3. Copier votre UID
+
+
+ÉTAPE 3 : MODIFIER LE SCRIPT DE SEED
+─────────────────────────────────────────────────────────────────────────────
+1. Ouvrir le fichier : scripts/seed-firebase-data.ts
+
+2. Remplacer les constantes :
+   const PLANNER_UID = "VOTRE_UID_PLANNER_ICI";
+   const CLIENT_AUTH_UID = "UID_CLIENT_CREE_ETAPE_1";
+
+3. Remplacer la configuration Firebase :
+   const firebaseConfig = {
+     apiKey: "...",
+     authDomain: "...",
+     projectId: "...",
+     // etc.
+   };
+
+
+ÉTAPE 4 : INSTALLER LES DÉPENDANCES
+─────────────────────────────────────────────────────────────────────────────
+Dans le terminal, à la racine du projet :
+
+npm install firebase
+npm install -D ts-node @types/node
+
+
+ÉTAPE 5 : EXÉCUTER LE SCRIPT DE SEED
+─────────────────────────────────────────────────────────────────────────────
+Dans le terminal :
+
+npx ts-node scripts/seed-firebase-data.ts
+
+Vous devriez voir :
+🚀 Début du seed des données Firebase...
+📝 Création du client...
+✅ Client créé
+📝 Création de l'événement...
+✅ Événement créé
+...
+🎉 Seed terminé avec succès !
+
+
+ÉTAPE 6 : VÉRIFIER LES COLLECTIONS DANS FIRESTORE
+─────────────────────────────────────────────────────────────────────────────
+1. Firebase Console > Firestore Database
+2. Vérifier que ces collections existent :
+   ✓ clients (1 document)
+   ✓ events (1 document)
+   ✓ documents (3 documents)
+   ✓ checklist (5 documents)
+   ✓ payments (4 documents)
+   ✓ invoices (2 documents)
+   ✓ vendors (3 documents)
+
+
+ÉTAPE 7 : CONFIGURER LES RÈGLES DE SÉCURITÉ FIRESTORE
+─────────────────────────────────────────────────────────────────────────────
+1. Firebase Console > Firestore Database > Rules
+2. Remplacer par ces règles :
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper function pour vérifier si l'utilisateur est le planner du document
+    function isPlanner(plannerId) {
+      return request.auth != null && request.auth.uid == plannerId;
+    }
+    
+    // Helper function pour vérifier si l'utilisateur est le client du document
+    function isClientOwner(clientUserId) {
+      return request.auth != null && request.auth.uid == clientUserId;
+    }
+    
+    // Clients
+    match /clients/{clientId} {
+      allow read: if request.auth != null && 
+        (resource.data.client_user_id == request.auth.uid ||
+         resource.data.planner_id == request.auth.uid);
+      allow write: if request.auth != null && 
+        request.auth.token.role == 'planner';
+    }
+    
+    // Events
+    match /events/{eventId} {
+      allow read: if request.auth != null;
+      allow update: if request.auth != null;
+      allow create, delete: if request.auth != null && 
+        request.auth.token.role == 'planner';
+    }
+    
+    // Documents
+    match /documents/{docId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && 
+        request.auth.token.role == 'planner';
+    }
+    
+    // Checklist
+    match /checklist/{itemId} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // Payments
+    match /payments/{paymentId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && 
+        request.auth.token.role == 'planner';
+    }
+    
+    // Invoices
+    match /invoices/{invoiceId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && 
+        request.auth.token.role == 'planner';
+    }
+    
+    // Vendors
+    match /vendors/{vendorId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && 
+        request.auth.token.role == 'planner';
+    }
+    
+    // Conversations
+    match /conversations/{convId} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // Messages
+    match /messages/{msgId} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // Galleries
+    match /galleries/{galleryId} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}
+
+3. Cliquer "Publier"
+
+
+ÉTAPE 8 : TESTER L'ESPACE CLIENT
+─────────────────────────────────────────────────────────────────────────────
+1. Démarrer l'application : npm run dev
+
+2. Se connecter avec le compte client créé :
+   - Email: julie.martin@example.com
+   - Password: TestClient123
+
+3. Vous devriez être redirigé vers /espace-client
+
+4. Vérifier que les données s'affichent :
+   ✓ Dashboard : couple names, date, lieu, invités, budget
+   ✓ Documents : 3 documents visibles
+   ✓ Checklist : 5 tâches (2 complétées, 3 à faire)
+   ✓ Planning : Calendrier + RDV
+   ✓ Paiements : 4 paiements (3 payés, 1 en attente)
+   ✓ Prestataires : 3 prestataires listés
+   ✓ Mon Mariage : Informations du mariage
+
+
+═══════════════════════════════════════════════════════════════════════════════
+DÉPANNAGE - PROBLÈMES COURANTS
+═══════════════════════════════════════════════════════════════════════════════
+
+PROBLÈME 1 : "Permission denied" dans la console
+─────────────────────────────────────────────────────────────────────────────
+Solution : Vérifier les règles Firestore (Étape 7)
+
+PROBLÈME 2 : Aucune donnée ne s'affiche sur le dashboard
+─────────────────────────────────────────────────────────────────────────────
+Vérifications :
+1. L'UID du client dans la collection 'clients' correspond à l'UID Firebase Auth ?
+   - Aller dans Firestore > clients > client-test-1
+   - Vérifier que client_user_id == UID du compte julie.martin@example.com
+
+2. Le role "client" est bien défini dans Firebase Auth ?
+   - Aller dans Authentication > Users
+   - Cliquer sur julie.martin@example.com
+   - Custom claims doit contenir : { "role": "client" }
+
+PROBLÈME 3 : "Cannot read property 'couple_names' of null"
+─────────────────────────────────────────────────────────────────────────────
+Cause : L'événement n'est pas lié au client
+Solution :
+1. Vérifier dans Firestore > events > event-test-1
+2. S'assurer que client_id == "client-test-1"
+
+PROBLÈME 4 : Le script de seed ne fonctionne pas
+─────────────────────────────────────────────────────────────────────────────
+Erreurs possibles :
+- "Module not found" → npm install firebase ts-node
+- "Invalid API key" → Vérifier firebaseConfig dans le script
+- "Permission denied" → Vérifier que votre compte a les droits admin
+
+
+═══════════════════════════════════════════════════════════════════════════════
+CRÉER DES DONNÉES MANUELLEMENT (ALTERNATIVE AU SCRIPT)
+═══════════════════════════════════════════════════════════════════════════════
+
+Si le script de seed ne fonctionne pas, vous pouvez créer les données manuellement :
+
+1. Firebase Console > Firestore Database
+2. Cliquer "Start collection"
+3. Collection ID : "clients"
+4. Document ID : "client-test-1"
+5. Ajouter les champs (voir firebase-collections-structure.json)
+6. Répéter pour chaque collection
+
+⚠️  Utiliser les exemples dans : scripts/firebase-collections-structure.json
+
+
+═══════════════════════════════════════════════════════════════════════════════
+PROCHAINES ÉTAPES APRÈS INITIALISATION
+═══════════════════════════════════════════════════════════════════════════════
+
+Une fois les données de test créées et l'espace client fonctionnel :
+
+1. ✅ Tester toutes les pages de l'espace client
+2. ✅ Vérifier que les modifications (ex: cocher checklist) se sauvegardent
+3. ✅ Créer d'autres clients de test si besoin
+4. ✅ Implémenter la messagerie temps réel (onSnapshot)
+5. ✅ Intégrer Cloudinary pour les uploads de documents/photos
+6. ✅ Ajouter Stripe pour les paiements en ligne
+7. ✅ Déployer en production
+
+
+═══════════════════════════════════════════════════════════════════════════════
+STRUCTURE DES DONNÉES - RELATIONS
+═══════════════════════════════════════════════════════════════════════════════
+
+Planner (Auth UID)
+    |
+    └── clients (collection)
+            |
+            └── client-test-1 (document)
+                    ├── client_user_id: [Auth UID du client]
+                    ├── planner_id: [Auth UID du planner]
+                    |
+                    └── events (via client_id)
+                            |
+                            └── event-test-1
+                                    ├── documents (via client_id)
+                                    ├── checklist (via event_id)
+                                    ├── payments (via client_id)
+                                    ├── invoices (via client_id)
+                                    └── vendors (via event_ids[])
+
+
+═══════════════════════════════════════════════════════════════════════════════
+COMMANDES UTILES
+═══════════════════════════════════════════════════════════════════════════════
+
+# Lancer l'application
+npm run dev
+
+# Exécuter le script de seed
+npx ts-node scripts/seed-firebase-data.ts
+
+# Installer Firebase CLI (pour déploiement)
+npm install -g firebase-tools
+
+# Se connecter à Firebase
+firebase login
+
+# Déployer les règles Firestore
+firebase deploy --only firestore:rules
+
+# Déployer l'application
+npm run build
+firebase deploy --only hosting
+
+
+═══════════════════════════════════════════════════════════════════════════════
+AIDE SUPPLÉMENTAIRE
+═══════════════════════════════════════════════════════════════════════════════
+
+Documentation :
+- Firebase Auth : https://firebase.google.com/docs/auth
+- Firestore : https://firebase.google.com/docs/firestore
+- Règles de sécurité : https://firebase.google.com/docs/firestore/security/rules-structure
+
+Fichiers de référence dans le projet :
+- /scripts/firebase-collections-structure.json - Structure complète
+- /scripts/seed-firebase-data.ts - Script d'initialisation
+- /docs/DYNAMISATION_ESPACE_CLIENT_README.txt - Documentation complète
+- /lib/client-helpers.ts - Fonctions de récupération des données
+- /contexts/ClientDataContext.tsx - Context React partagé
+
+
+═══════════════════════════════════════════════════════════════════════════════
+✅ CHECKLIST DE VÉRIFICATION
+═══════════════════════════════════════════════════════════════════════════════
+
+Avant de tester l'espace client, vérifier que :
+
+□ Compte client créé dans Firebase Auth avec UID copié
+□ Custom claim { "role": "client" } ajouté au compte
+□ Votre UID planner récupéré
+□ Script seed-firebase-data.ts modifié avec les bons UIDs
+□ Script de seed exécuté avec succès
+□ 10 collections créées dans Firestore
+□ Règles de sécurité Firestore configurées et publiées
+□ Application démarrée (npm run dev)
+□ Connexion avec le compte client fonctionne
+□ Dashboard affiche les données correctes
+
+Si tous ces points sont ✅, l'espace client est prêt ! 🎉
+
+
+═══════════════════════════════════════════════════════════════════════════════
+FIN DU GUIDE
+═══════════════════════════════════════════════════════════════════════════════

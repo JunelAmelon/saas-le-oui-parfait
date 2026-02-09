@@ -5,67 +5,35 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Search, Plus, FileText, Download, Eye, Edit, CheckCircle, Clock, XCircle } from 'lucide-react';
-import { useState } from 'react';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import { Search, Plus, FileText, Download, Eye, Edit, CheckCircle, Clock, XCircle, Loader2, Send, ChevronLeft, ChevronRight, Trash2 } from 'lucide-react';
+import { useState, useEffect } from 'react';
 import { ContractModal } from '@/components/modals/ContractModal';
+import { NewContractModal } from '@/components/modals/NewContractModal';
+import { useAuth } from '@/contexts/AuthContext';
+import { getDocuments } from '@/lib/db';
+import { toast } from 'sonner';
 
-const contractsDemo = [
-  {
-    id: '1',
-    reference: 'CONT-2024-001',
-    title: 'Contrat de prestation Wedding Planning',
-    client: 'Julie & Frédérick',
-    type: 'service_contract',
-    amount: 5000,
-    status: 'signed',
-    createdAt: '15/01/2024',
-    signedAt: '20/01/2024',
-  },
-  {
-    id: '2',
-    reference: 'CONT-2024-002',
-    title: 'Contrat Château d\'Apigné',
-    client: 'Julie & Frédérick',
-    type: 'venue_contract',
-    amount: 12000,
-    status: 'sent',
-    createdAt: '18/01/2024',
-    signedAt: null,
-  },
-  {
-    id: '3',
-    reference: 'CONT-2024-003',
-    title: 'Contrat de prestation Wedding Planning',
-    client: 'Sophie & Alexandre',
-    type: 'service_contract',
-    amount: 6500,
-    status: 'signed',
-    createdAt: '22/01/2024',
-    signedAt: '25/01/2024',
-  },
-  {
-    id: '4',
-    reference: 'CONT-2024-004',
-    title: 'Contrat traiteur - Le Gourmet',
-    client: 'Sophie & Alexandre',
-    type: 'vendor_contract',
-    amount: 15000,
-    status: 'draft',
-    createdAt: '01/02/2024',
-    signedAt: null,
-  },
-  {
-    id: '5',
-    reference: 'CONT-2024-005',
-    title: 'Contrat de prestation Wedding Planning',
-    client: 'Emma & Thomas',
-    type: 'service_contract',
-    amount: 5500,
-    status: 'signed',
-    createdAt: '05/02/2024',
-    signedAt: '08/02/2024',
-  },
-];
+interface Contract {
+  id: string;
+  reference: string;
+  title: string;
+  client: string;
+  type: string;
+  amount: number;
+  status: string;
+  createdAt: string;
+  signedAt: string | null;
+  pdfUrl?: string;
+  contractContent?: string;
+}
 
 const statusConfig = {
   draft: {
@@ -101,7 +69,174 @@ const typeLabels = {
 };
 
 export default function ContractsPage() {
+  const { user } = useAuth();
   const [isContractModalOpen, setIsContractModalOpen] = useState(false);
+  const [contracts, setContracts] = useState<Contract[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedContract, setSelectedContract] = useState<Contract | null>(null);
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const contractsPerPage = 3;
+
+  // Fetch contracts from Firebase
+  const fetchContracts = async () => {
+    if (!user) {
+      console.log('No user, skipping fetch');
+      setLoading(false);
+      return;
+    }
+    
+    console.log('🔄 Fetching contracts for user:', user.uid);
+    setLoading(true);
+    try {
+      const data = await getDocuments('contracts', [
+        { field: 'planner_id', operator: '==', value: user.uid }
+      ]);
+      console.log('✅ Contracts fetched from Firebase:', data.length, 'contrats');
+      console.log('📄 Raw data:', data);
+      
+      const mapped = data.map((c: any) => {
+        try {
+          return {
+            id: c.id || '',
+            reference: c.reference || 'N/A',
+            title: c.title || 'Contrat sans titre',
+            client: c.client || 'Client inconnu',
+            type: c.type || 'service_contract',
+            amount: typeof c.amount === 'number' ? c.amount : 0,
+            status: c.status || 'draft',
+            createdAt: c.created_at || c.created_timestamp?.toDate?.()?.toLocaleDateString('fr-FR') || '',
+            signedAt: c.signed_at || null,
+            pdfUrl: c.pdf_url || '',
+            contractContent: c.contract_content || '',
+            _createdTimestamp: c.created_timestamp || null,
+          };
+        } catch (err) {
+          console.error('❌ Error mapping contract:', c.id, err);
+          return null;
+        }
+      }).filter((c: any) => c !== null) as Contract[];
+      
+      // Trier par date de création (plus récent en premier)
+      mapped.sort((a: any, b: any) => {
+        const dateA = a._createdTimestamp?.toDate?.() || new Date(a.createdAt || 0);
+        const dateB = b._createdTimestamp?.toDate?.() || new Date(b.createdAt || 0);
+        return dateB - dateA;
+      });
+      
+      console.log('✅ Mapped and sorted contracts:', mapped.length, 'contrats');
+      console.log('📋 Contracts list:', mapped);
+      setContracts(mapped);
+    } catch (e) {
+      console.error('Error fetching contracts:', e);
+      toast.error('Erreur lors du chargement des contrats');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (user) {
+      fetchContracts();
+    }
+  }, [user]);
+
+  const filteredContracts = contracts.filter(contract =>
+    contract.reference.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    contract.client.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    contract.title.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const totalPages = Math.ceil(filteredContracts.length / contractsPerPage);
+  const startIndex = (currentPage - 1) * contractsPerPage;
+  const paginatedContracts = filteredContracts.slice(startIndex, startIndex + contractsPerPage);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm]);
+
+  const handleViewContract = (contract: Contract) => {
+    if (contract.pdfUrl) {
+      window.open(contract.pdfUrl, '_blank');
+      toast.success('Ouverture du PDF');
+    } else if (contract.contractContent) {
+      setSelectedContract(contract);
+      setIsViewModalOpen(true);
+    } else {
+      toast.error('Aucun contenu disponible');
+    }
+  };
+
+  const handleDownloadContract = (contract: Contract) => {
+    if (contract.pdfUrl) {
+      // Créer un lien de téléchargement
+      fetch(contract.pdfUrl)
+        .then(response => response.blob())
+        .then(blob => {
+          const url = window.URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = `${contract.reference}.pdf`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          window.URL.revokeObjectURL(url);
+          toast.success('PDF téléchargé');
+        })
+        .catch(() => {
+          // Fallback: ouvrir dans un nouvel onglet
+          window.open(contract.pdfUrl, '_blank');
+          toast.info('PDF ouvert dans un nouvel onglet');
+        });
+    } else {
+      toast.error('Aucun PDF disponible pour ce contrat');
+    }
+  };
+
+  const handleSendContract = async (contract: Contract) => {
+    try {
+      const { updateDocument } = await import('@/lib/db');
+      await updateDocument('contracts', contract.id, {
+        status: 'sent',
+        sent_at: new Date().toLocaleDateString('fr-FR')
+      });
+      toast.success('Contrat envoyé au client');
+      fetchContracts();
+    } catch (e) {
+      console.error('Error sending contract:', e);
+      toast.error('Erreur lors de l\'envoi du contrat');
+    }
+  };
+
+  const handleSignContract = async (contract: Contract) => {
+    try {
+      const { updateDocument } = await import('@/lib/db');
+      await updateDocument('contracts', contract.id, {
+        status: 'signed',
+        signed_at: new Date().toLocaleDateString('fr-FR')
+      });
+      toast.success('Contrat marqué comme signé');
+      fetchContracts();
+    } catch (e) {
+      console.error('Error signing contract:', e);
+      toast.error('Erreur lors de la signature du contrat');
+    }
+  };
+
+  const handleCancelContract = async (contract: Contract) => {
+    if (!confirm(`Êtes-vous sûr de vouloir supprimer le contrat ${contract.reference} ?`)) return;
+    
+    try {
+      const { deleteDocument } = await import('@/lib/db');
+      await deleteDocument('contracts', contract.id);
+      toast.success('Contrat supprimé');
+      fetchContracts();
+    } catch (e) {
+      console.error('Error deleting contract:', e);
+      toast.error('Erreur lors de la suppression du contrat');
+    }
+  };
 
   return (
     <DashboardLayout>
@@ -130,12 +265,34 @@ export default function ContractsPage() {
             <Input
               placeholder="Rechercher un contrat..."
               className="pl-10 border-[#E5E5E5] focus-visible:ring-brand-turquoise"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
         </Card>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {contractsDemo.map((contract) => {
+        {loading ? (
+          <div className="flex justify-center py-20">
+            <Loader2 className="h-10 w-10 animate-spin text-brand-turquoise" />
+          </div>
+        ) : filteredContracts.length === 0 ? (
+          <Card className="p-12 text-center">
+            <FileText className="h-16 w-16 text-brand-gray mx-auto mb-4" />
+            <h3 className="text-xl font-bold text-brand-purple mb-2">
+              {searchTerm ? 'Aucun résultat' : 'Aucun contrat'}
+            </h3>
+            <p className="text-brand-gray mb-6">
+              {searchTerm ? 'Essayez avec d\'autres mots-clés' : 'Créez votre premier contrat'}
+            </p>
+            {!searchTerm && (
+              <Button onClick={() => setIsContractModalOpen(true)} className="bg-brand-turquoise hover:bg-brand-turquoise-hover">
+                <Plus className="h-4 w-4 mr-2" /> Créer un contrat
+              </Button>
+            )}
+          </Card>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {paginatedContracts.map((contract) => {
             const status = statusConfig[contract.status as keyof typeof statusConfig];
             const StatusIcon = status.icon;
 
@@ -154,11 +311,11 @@ export default function ContractsPage() {
                     <p className="text-xs uppercase tracking-label text-brand-gray mb-1">
                       {contract.reference}
                     </p>
-                    <h3 className="text-lg font-bold text-brand-purple mb-1">
-                      {contract.title}
+                    <h3 className="text-lg font-bold text-brand-purple mb-1 truncate" title={contract.title}>
+                      {contract.title.length > 30 ? `${contract.title.substring(0, 30)}...` : contract.title}
                     </h3>
-                    <p className="text-sm text-brand-gray">
-                      {contract.client}
+                    <p className="text-sm text-brand-gray truncate" title={contract.client}>
+                      {contract.client.length > 25 ? `${contract.client.substring(0, 25)}...` : contract.client}
                     </p>
                   </div>
 
@@ -191,33 +348,133 @@ export default function ContractsPage() {
                     )}
                   </div>
 
-                  <div className="flex gap-2 pt-2">
-                    <Button
-                      size="sm"
-                      className="flex-1 bg-brand-turquoise hover:bg-brand-turquoise-hover gap-2"
-                    >
-                      <Eye className="h-3 w-3" />
-                      Voir
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="border-2 border-brand-turquoise text-brand-gray hover:bg-brand-turquoise hover:text-white"
-                    >
-                      <Download className="h-3 w-3" />
-                    </Button>
+                  <div className="space-y-2 pt-2">
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        className="flex-1 bg-brand-turquoise hover:bg-brand-turquoise-hover gap-1"
+                        onClick={() => handleViewContract(contract)}
+                      >
+                        <Eye className="h-3 w-3" />
+                        <span className="text-xs">Voir</span>
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="border-2 border-brand-turquoise text-brand-gray hover:bg-brand-turquoise hover:text-white"
+                        onClick={() => handleDownloadContract(contract)}
+                      >
+                        <Download className="h-3 w-3" />
+                      </Button>
+                    </div>
+                    <div className="flex gap-1">
+                      {contract.status === 'draft' && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="flex-1 border-blue-400 text-blue-600 hover:bg-blue-500 hover:text-white text-xs"
+                          onClick={() => handleSendContract(contract)}
+                        >
+                          <Send className="h-3 w-3 mr-1" />
+                          Envoyer
+                        </Button>
+                      )}
+                      {(contract.status === 'draft' || contract.status === 'sent') && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="flex-1 border-green-400 text-green-600 hover:bg-green-500 hover:text-white text-xs"
+                          onClick={() => handleSignContract(contract)}
+                        >
+                          <CheckCircle className="h-3 w-3 mr-1" />
+                          Signer
+                        </Button>
+                      )}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="border-red-400 text-red-600 hover:bg-red-500 hover:text-white"
+                        onClick={() => handleCancelContract(contract)}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
                   </div>
                 </div>
               </Card>
             );
           })}
-        </div>
+          </div>
+        )}
+
+        {!loading && filteredContracts.length > contractsPerPage && (
+          <Card className="p-4 shadow-xl border-0">
+            <div className="flex items-center justify-between">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className="gap-2"
+              >
+                <ChevronLeft className="h-4 w-4" />
+                Précédent
+              </Button>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-brand-gray">
+                  Page {currentPage} sur {totalPages}
+                </span>
+                <span className="text-xs text-brand-gray">({filteredContracts.length} contrat{filteredContracts.length > 1 ? 's' : ''})</span>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+                className="gap-2"
+              >
+                Suivant
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          </Card>
+        )}
       </div>
 
-      <ContractModal
+      <NewContractModal
         isOpen={isContractModalOpen}
         onClose={() => setIsContractModalOpen(false)}
+        onContractCreated={fetchContracts}
       />
+
+      {/* Modal pour afficher le contenu du contrat */}
+      <Dialog open={isViewModalOpen} onOpenChange={setIsViewModalOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-brand-purple flex items-center gap-2">
+              <FileText className="h-5 w-5 text-brand-turquoise" />
+              {selectedContract?.reference} - {selectedContract?.title}
+            </DialogTitle>
+            <DialogDescription>
+              {selectedContract?.client}
+            </DialogDescription>
+          </DialogHeader>
+          {selectedContract && (
+            <div className="space-y-4 py-4">
+              <div className="prose max-w-none">
+                <pre className="whitespace-pre-wrap text-sm bg-gray-50 p-4 rounded-lg">
+                  {selectedContract.contractContent}
+                </pre>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsViewModalOpen(false)}>
+              Fermer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }

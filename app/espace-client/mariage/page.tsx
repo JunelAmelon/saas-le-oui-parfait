@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useMemo, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -7,6 +8,10 @@ import { ClientDashboardLayout } from '@/components/layout/ClientDashboardLayout
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { useClientData } from '@/contexts/ClientDataContext';
+import { calculateDaysRemaining } from '@/lib/client-helpers';
+import { updateDocument } from '@/lib/db';
+import { useToast } from '@/hooks/use-toast';
 import {
   Heart,
   Calendar,
@@ -19,53 +24,93 @@ import {
   Camera,
   Edit,
   Save,
+  Loader2,
 } from 'lucide-react';
-import { useState } from 'react';
 import { ColorPalette } from '@/components/wedding/ColorPalette';
 
-const weddingData = {
-  couple: {
-    partner1: 'Julie Martin',
-    partner2: 'Frédérick Dubois',
-  },
-  date: '23 août 2024',
-  time: '15:00',
-  daysRemaining: 165,
-  venue: {
-    name: 'Château d\'Apigné',
-    address: '35650 Le Rheu, Rennes',
-    capacity: 200,
-  },
-  guests: {
-    invited: 150,
-    confirmed: 120,
-    pending: 25,
-    declined: 5,
-  },
-  theme: {
-    style: 'Champêtre chic',
-    colors: ['#E8D5B7', '#7BA89D', '#C4A26A', '#FFFFFF'],
-    description: 'Un mariage élégant aux tons naturels, mêlant la douceur du champêtre à la sophistication.',
-  },
-  notes: 'Cérémonie laïque dans le parc du château, cocktail sur la terrasse, dîner dans la grande salle.',
-};
-
 export default function MariagePage() {
+  const { client, event, loading: dataLoading } = useClientData();
+  const { toast } = useToast();
   const [isEditing, setIsEditing] = useState(false);
-  const [weddingInfo, setWeddingInfo] = useState(weddingData);
-  
+  const [saving, setSaving] = useState(false);
+
+  const coupleNames = useMemo(() => {
+    const n1 = client?.name || '';
+    const n2 = client?.partner || '';
+    return `${n1}${n1 && n2 ? ' & ' : ''}${n2}`.trim() || event?.couple_names || 'Client';
+  }, [client?.name, client?.partner, event?.couple_names]);
+
+  const [eventDate, setEventDate] = useState('');
+  const [eventTime, setEventTime] = useState('');
+  const [location, setLocation] = useState('');
+  const [guestCount, setGuestCount] = useState<number>(0);
+  const [budget, setBudget] = useState<number>(0);
+  const [themeStyle, setThemeStyle] = useState('');
+  const [themeDescription, setThemeDescription] = useState('');
+  const [themeColors, setThemeColors] = useState<string[]>([]);
+  const [notes, setNotes] = useState('');
+
+  const daysRemaining = event ? calculateDaysRemaining(event.event_date) : 0;
+
+  useEffect(() => {
+    if (!event) return;
+    setEventDate(event.event_date || '');
+    setLocation(event.location || '');
+    setGuestCount(event.guest_count || 0);
+    setBudget(event.budget || 0);
+    setThemeStyle(event.theme?.style || '');
+    setThemeDescription(event.theme?.description || '');
+    setThemeColors(event.theme?.colors || []);
+    setNotes(event.notes || '');
+  }, [event]);
+
+  if (dataLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="animate-spin h-12 w-12 text-brand-turquoise" />
+      </div>
+    );
+  }
+
   const handleColorChange = (colors: string[]) => {
-    setWeddingInfo({
-      ...weddingInfo,
-      theme: {
-        ...weddingInfo.theme,
-        colors,
-      },
-    });
+    setThemeColors(colors);
+  };
+
+  const handleSave = async () => {
+    if (!event?.id) return;
+    setSaving(true);
+    try {
+      await updateDocument('events', event.id, {
+        event_date: eventDate,
+        location: location,
+        guest_count: guestCount,
+        budget: budget,
+        theme: {
+          style: themeStyle,
+          colors: themeColors,
+          description: themeDescription,
+        },
+        notes: notes,
+      });
+      toast({
+        title: 'Modifications enregistrées',
+        description: 'Les informations de votre mariage ont été mises à jour',
+      });
+      setIsEditing(false);
+    } catch (error) {
+      console.error('Error saving wedding info:', error);
+      toast({
+        title: 'Erreur',
+        description: 'Impossible de sauvegarder les modifications',
+        variant: 'destructive',
+      });
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
-    <ClientDashboardLayout clientName="Julie & Frédérick" daysRemaining={weddingData.daysRemaining}>
+    <ClientDashboardLayout clientName={coupleNames} daysRemaining={daysRemaining}>
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
@@ -78,13 +123,21 @@ export default function MariagePage() {
             </p>
           </div>
           <Button
-            onClick={() => setIsEditing(!isEditing)}
+            onClick={() => {
+              if (saving) return;
+              if (isEditing) {
+                void handleSave();
+              } else {
+                setIsEditing(true);
+              }
+            }}
             className={`w-full sm:w-auto ${isEditing ? 'bg-green-600 hover:bg-green-700' : 'bg-brand-turquoise hover:bg-brand-turquoise-hover'}`}
+            disabled={saving}
           >
             {isEditing ? (
               <>
                 <Save className="h-4 w-4 mr-2" />
-                Enregistrer
+                {saving ? 'Enregistrement...' : 'Enregistrer'}
               </>
             ) : (
               <>
@@ -106,16 +159,13 @@ export default function MariagePage() {
                 <Label className="text-brand-gray">Partenaire 1</Label>
                 {isEditing ? (
                   <Input 
-                    value={weddingInfo.couple.partner1} 
-                    onChange={(e) => setWeddingInfo({
-                      ...weddingInfo,
-                      couple: { ...weddingInfo.couple, partner1: e.target.value }
-                    })}
+                    value={client?.name || ''}
+                    disabled
                     className="mt-1" 
                   />
                 ) : (
                   <p className="text-lg font-medium text-brand-purple mt-1">
-                    {weddingInfo.couple.partner1}
+                    {client?.name || ''}
                   </p>
                 )}
               </div>
@@ -123,16 +173,13 @@ export default function MariagePage() {
                 <Label className="text-brand-gray">Partenaire 2</Label>
                 {isEditing ? (
                   <Input 
-                    value={weddingInfo.couple.partner2} 
-                    onChange={(e) => setWeddingInfo({
-                      ...weddingInfo,
-                      couple: { ...weddingInfo.couple, partner2: e.target.value }
-                    })}
+                    value={client?.partner || ''}
+                    disabled
                     className="mt-1" 
                   />
                 ) : (
                   <p className="text-lg font-medium text-brand-purple mt-1">
-                    {weddingInfo.couple.partner2}
+                    {client?.partner || ''}
                   </p>
                 )}
               </div>
@@ -146,25 +193,27 @@ export default function MariagePage() {
             </h2>
             <div className="text-center">
               <p className="text-5xl font-bold text-brand-turquoise">
-                J-{weddingInfo.daysRemaining}
+                J-{daysRemaining}
               </p>
               {isEditing ? (
                 <>
                   <Input 
-                    value={weddingInfo.date} 
-                    onChange={(e) => setWeddingInfo({ ...weddingInfo, date: e.target.value })}
+                    value={eventDate}
+                    onChange={(e) => setEventDate(e.target.value)}
                     className="mt-2 text-center" 
                   />
                   <Input 
-                    value={weddingInfo.time} 
-                    onChange={(e) => setWeddingInfo({ ...weddingInfo, time: e.target.value })}
+                    value={eventTime}
+                    onChange={(e) => setEventTime(e.target.value)}
                     className="mt-1 text-center text-sm" 
                   />
                 </>
               ) : (
                 <>
-                  <p className="text-brand-gray mt-2">{weddingInfo.date}</p>
-                  <p className="text-sm text-brand-gray">à {weddingInfo.time}</p>
+                  <p className="text-brand-gray mt-2">
+                    {eventDate ? new Date(eventDate).toLocaleDateString('fr-FR') : 'Date à définir'}
+                  </p>
+                  {eventTime ? <p className="text-sm text-brand-gray">à {eventTime}</p> : null}
                 </>
               )}
             </div>
@@ -182,16 +231,13 @@ export default function MariagePage() {
                 <Label className="text-brand-gray">Nom du lieu</Label>
                 {isEditing ? (
                   <Input 
-                    value={weddingInfo.venue.name} 
-                    onChange={(e) => setWeddingInfo({
-                      ...weddingInfo,
-                      venue: { ...weddingInfo.venue, name: e.target.value }
-                    })}
+                    value={location}
+                    onChange={(e) => setLocation(e.target.value)}
                     className="mt-1" 
                   />
                 ) : (
                   <p className="text-lg font-medium text-brand-purple mt-1">
-                    {weddingInfo.venue.name}
+                    {location || 'À définir'}
                   </p>
                 )}
               </div>
@@ -199,15 +245,12 @@ export default function MariagePage() {
                 <Label className="text-brand-gray">Adresse</Label>
                 {isEditing ? (
                   <Input 
-                    value={weddingInfo.venue.address} 
-                    onChange={(e) => setWeddingInfo({
-                      ...weddingInfo,
-                      venue: { ...weddingInfo.venue, address: e.target.value }
-                    })}
+                    value={''}
+                    disabled
                     className="mt-1" 
                   />
                 ) : (
-                  <p className="text-brand-purple mt-1">{weddingInfo.venue.address}</p>
+                  <p className="text-brand-purple mt-1">{''}</p>
                 )}
               </div>
               <div>
@@ -215,15 +258,12 @@ export default function MariagePage() {
                 {isEditing ? (
                   <Input 
                     type="number"
-                    value={weddingInfo.venue.capacity} 
-                    onChange={(e) => setWeddingInfo({
-                      ...weddingInfo,
-                      venue: { ...weddingInfo.venue, capacity: parseInt(e.target.value) }
-                    })}
+                    value={guestCount}
+                    onChange={(e) => setGuestCount(parseInt(e.target.value) || 0)}
                     className="mt-1" 
                   />
                 ) : (
-                  <p className="text-brand-purple mt-1">{weddingInfo.venue.capacity} personnes</p>
+                  <p className="text-brand-purple mt-1">{guestCount || 0} personnes</p>
                 )}
               </div>
             </div>
@@ -239,65 +279,27 @@ export default function MariagePage() {
                 {isEditing ? (
                   <Input 
                     type="number"
-                    value={weddingInfo.guests.invited} 
-                    onChange={(e) => setWeddingInfo({
-                      ...weddingInfo,
-                      guests: { ...weddingInfo.guests, invited: parseInt(e.target.value) }
-                    })}
+                    value={guestCount}
+                    onChange={(e) => setGuestCount(parseInt(e.target.value) || 0)}
                     className="text-center font-bold" 
                   />
                 ) : (
-                  <p className="text-3xl font-bold text-brand-purple">{weddingInfo.guests.invited}</p>
+                  <p className="text-3xl font-bold text-brand-purple">{guestCount || 0}</p>
                 )}
                 <p className="text-sm text-brand-gray mt-1">Invités</p>
               </div>
-              <div className="text-center p-4 bg-green-50 rounded-lg">
+              <div className="text-center p-4 bg-brand-turquoise/10 rounded-lg">
                 {isEditing ? (
-                  <Input 
+                  <Input
                     type="number"
-                    value={weddingInfo.guests.confirmed} 
-                    onChange={(e) => setWeddingInfo({
-                      ...weddingInfo,
-                      guests: { ...weddingInfo.guests, confirmed: parseInt(e.target.value) }
-                    })}
-                    className="text-center font-bold" 
+                    value={budget}
+                    onChange={(e) => setBudget(parseFloat(e.target.value) || 0)}
+                    className="text-center font-bold"
                   />
                 ) : (
-                  <p className="text-3xl font-bold text-green-600">{weddingInfo.guests.confirmed}</p>
+                  <p className="text-3xl font-bold text-brand-purple">{(budget || 0).toLocaleString('fr-FR')} €</p>
                 )}
-                <p className="text-sm text-brand-gray mt-1">Confirmés</p>
-              </div>
-              <div className="text-center p-4 bg-orange-50 rounded-lg">
-                {isEditing ? (
-                  <Input 
-                    type="number"
-                    value={weddingInfo.guests.pending} 
-                    onChange={(e) => setWeddingInfo({
-                      ...weddingInfo,
-                      guests: { ...weddingInfo.guests, pending: parseInt(e.target.value) }
-                    })}
-                    className="text-center font-bold" 
-                  />
-                ) : (
-                  <p className="text-3xl font-bold text-orange-600">{weddingInfo.guests.pending}</p>
-                )}
-                <p className="text-sm text-brand-gray mt-1">En attente</p>
-              </div>
-              <div className="text-center p-4 bg-red-50 rounded-lg">
-                {isEditing ? (
-                  <Input 
-                    type="number"
-                    value={weddingInfo.guests.declined} 
-                    onChange={(e) => setWeddingInfo({
-                      ...weddingInfo,
-                      guests: { ...weddingInfo.guests, declined: parseInt(e.target.value) }
-                    })}
-                    className="text-center font-bold" 
-                  />
-                ) : (
-                  <p className="text-3xl font-bold text-red-600">{weddingInfo.guests.declined}</p>
-                )}
-                <p className="text-sm text-brand-gray mt-1">Déclinés</p>
+                <p className="text-sm text-brand-gray mt-1">Budget</p>
               </div>
             </div>
           </Card>
@@ -313,23 +315,20 @@ export default function MariagePage() {
               <Label className="text-brand-gray">Style</Label>
               {isEditing ? (
                 <Input 
-                  value={weddingInfo.theme.style} 
-                  onChange={(e) => setWeddingInfo({
-                    ...weddingInfo,
-                    theme: { ...weddingInfo.theme, style: e.target.value }
-                  })}
+                  value={themeStyle}
+                  onChange={(e) => setThemeStyle(e.target.value)}
                   className="mt-1" 
                 />
               ) : (
                 <p className="text-lg font-medium text-brand-purple mt-1">
-                  {weddingInfo.theme.style}
+                  {themeStyle || 'À définir'}
                 </p>
               )}
               <div className="mt-4">
                 <Label className="text-brand-gray">Palette de couleurs</Label>
                 <div className="mt-2">
                   <ColorPalette 
-                    selectedColors={weddingInfo.theme.colors}
+                    selectedColors={themeColors}
                     onColorsChange={handleColorChange}
                     maxColors={6}
                   />
@@ -340,16 +339,13 @@ export default function MariagePage() {
               <Label className="text-brand-gray">Description</Label>
               {isEditing ? (
                 <Textarea 
-                  value={weddingInfo.theme.description} 
-                  onChange={(e) => setWeddingInfo({
-                    ...weddingInfo,
-                    theme: { ...weddingInfo.theme, description: e.target.value }
-                  })}
+                  value={themeDescription}
+                  onChange={(e) => setThemeDescription(e.target.value)}
                   className="mt-1" 
                   rows={4} 
                 />
               ) : (
-                <p className="text-brand-purple mt-1">{weddingInfo.theme.description}</p>
+                <p className="text-brand-purple mt-1">{themeDescription || ''}</p>
               )}
             </div>
           </div>
@@ -362,13 +358,13 @@ export default function MariagePage() {
           </h2>
           {isEditing ? (
             <Textarea 
-              value={weddingInfo.notes} 
-              onChange={(e) => setWeddingInfo({ ...weddingInfo, notes: e.target.value })}
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
               className="mt-1" 
               rows={4} 
             />
           ) : (
-            <p className="text-brand-purple">{weddingInfo.notes}</p>
+            <p className="text-brand-purple">{notes}</p>
           )}
         </Card>
       </div>

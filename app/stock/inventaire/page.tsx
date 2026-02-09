@@ -4,43 +4,24 @@ import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Calendar, CheckCircle, Clock, Package } from 'lucide-react';
-import { useState } from 'react';
+import { Plus, Calendar, CheckCircle, Clock, Package, Loader2 } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
+import { getDocuments, addDocument, updateDocument, deleteDocument } from '@/lib/db';
+import { toast } from 'sonner';
 import { NewInventaireModal } from '@/components/modals/NewInventaireModal';
 import { InventaireDetailModal } from '@/components/modals/InventaireDetailModal';
 
-const inventairesDemo = [
-  {
-    id: '1',
-    reference: 'INV-2024-001',
-    date: '01/02/2024',
-    location: 'Entrepôt A',
-    itemsCount: 156,
-    status: 'completed',
-    discrepancies: 3,
-    by: 'Sophie Martin',
-  },
-  {
-    id: '2',
-    reference: 'INV-2024-002',
-    date: '05/02/2024',
-    location: 'Entrepôt B',
-    itemsCount: 89,
-    status: 'in_progress',
-    discrepancies: 0,
-    by: 'Julie Dubois',
-  },
-  {
-    id: '3',
-    reference: 'INV-2024-003',
-    date: '08/02/2024',
-    location: 'Entrepôt C',
-    itemsCount: 45,
-    status: 'planned',
-    discrepancies: 0,
-    by: 'Marie Laurent',
-  },
-];
+interface Inventaire {
+  id: string;
+  reference: string;
+  date: string;
+  location: string;
+  itemsCount: number;
+  status: string;
+  discrepancies: number;
+  by: string;
+}
 
 const statusConfig = {
   completed: {
@@ -61,11 +42,45 @@ const statusConfig = {
 };
 
 export default function InventairePage() {
+  const { user } = useAuth();
+  const [inventaires, setInventaires] = useState<Inventaire[]>([]);
+  const [loading, setLoading] = useState(true);
   const [isNewInventaireOpen, setIsNewInventaireOpen] = useState(false);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
-  const [selectedInventaire, setSelectedInventaire] = useState<typeof inventairesDemo[0] | null>(null);
+  const [selectedInventaire, setSelectedInventaire] = useState<Inventaire | null>(null);
 
-  const handleViewDetail = (inventaire: typeof inventairesDemo[0]) => {
+  // Fetch inventaires
+  const fetchInventaires = async () => {
+    if (!user) return;
+    setLoading(true);
+    try {
+      const data = await getDocuments('inventaires', [
+        { field: 'owner_id', operator: '==', value: user.uid }
+      ]);
+      const mapped = data.map((d: any) => ({
+        id: d.id,
+        reference: d.reference,
+        date: d.date,
+        location: d.location,
+        itemsCount: d.items_count || 0,
+        status: d.status,
+        discrepancies: d.discrepancies || 0,
+        by: d.by || '',
+      }));
+      setInventaires(mapped);
+    } catch (e) {
+      console.error('Error fetching inventaires:', e);
+      toast.error('Erreur lors du chargement des inventaires');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchInventaires();
+  }, [user]);
+
+  const handleViewDetail = (inventaire: Inventaire) => {
     setSelectedInventaire(inventaire);
     setIsDetailOpen(true);
   };
@@ -95,25 +110,39 @@ export default function InventairePage() {
           <Card className="p-6 shadow-xl border-0 bg-gradient-to-br from-green-50 to-white">
             <p className="text-sm text-brand-gray uppercase tracking-label mb-1">Terminés</p>
             <p className="text-3xl font-bold text-brand-purple">
-              {inventairesDemo.filter(i => i.status === 'completed').length}
+              {inventaires.filter(i => i.status === 'completed').length}
             </p>
           </Card>
           <Card className="p-6 shadow-xl border-0 bg-gradient-to-br from-blue-50 to-white">
             <p className="text-sm text-brand-gray uppercase tracking-label mb-1">En cours</p>
             <p className="text-3xl font-bold text-brand-purple">
-              {inventairesDemo.filter(i => i.status === 'in_progress').length}
+              {inventaires.filter(i => i.status === 'in_progress').length}
             </p>
           </Card>
           <Card className="p-6 shadow-xl border-0 bg-gradient-to-br from-gray-50 to-white">
             <p className="text-sm text-brand-gray uppercase tracking-label mb-1">Planifiés</p>
             <p className="text-3xl font-bold text-brand-purple">
-              {inventairesDemo.filter(i => i.status === 'planned').length}
+              {inventaires.filter(i => i.status === 'planned').length}
             </p>
           </Card>
         </div>
 
-        <div className="space-y-4">
-          {inventairesDemo.map((inventaire) => {
+        {loading ? (
+          <div className="flex justify-center py-20">
+            <Loader2 className="h-10 w-10 animate-spin text-brand-turquoise" />
+          </div>
+        ) : inventaires.length === 0 ? (
+          <Card className="p-12 text-center">
+            <Package className="h-16 w-16 text-brand-gray mx-auto mb-4" />
+            <h3 className="text-xl font-bold text-brand-purple mb-2">Aucun inventaire</h3>
+            <p className="text-brand-gray mb-6">Créez votre premier inventaire</p>
+            <Button onClick={() => setIsNewInventaireOpen(true)} className="bg-brand-turquoise hover:bg-brand-turquoise-hover">
+              <Plus className="h-4 w-4 mr-2" /> Créer un inventaire
+            </Button>
+          </Card>
+        ) : (
+          <div className="space-y-4">
+            {inventaires.map((inventaire) => {
             const config = statusConfig[inventaire.status as keyof typeof statusConfig];
             const StatusIcon = config.icon;
 
@@ -173,20 +202,23 @@ export default function InventairePage() {
                   )}
                 </div>
               </Card>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       <NewInventaireModal
         isOpen={isNewInventaireOpen}
         onClose={() => setIsNewInventaireOpen(false)}
+        onInventaireCreated={fetchInventaires}
       />
 
       <InventaireDetailModal
         isOpen={isDetailOpen}
         onClose={() => setIsDetailOpen(false)}
         inventaire={selectedInventaire}
+        onInventaireUpdated={fetchInventaires}
       />
     </DashboardLayout>
   );

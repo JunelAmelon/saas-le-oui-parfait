@@ -4,48 +4,36 @@ import { useEffect, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { FileText, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { getDocuments } from '@/lib/db';
+import { getClientDocuments, DocumentData } from '@/lib/client-helpers';
 import { Loader2 } from 'lucide-react';
 
 interface DocumentsProps {
     eventId: string;
+    clientId?: string;
 }
 
-interface DocumentItem {
-    id: string;
-    name: string;
-    type: string;
-    date: string;
-    url?: string;
-}
-
-export function ClientDocuments({ eventId }: DocumentsProps) {
-    const [documents, setDocuments] = useState<DocumentItem[]>([]);
+export function ClientDocuments({ eventId, clientId }: DocumentsProps) {
+    const [documents, setDocuments] = useState<DocumentData[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         async function fetchDocuments() {
-            if (eventId) {
+            if (clientId) {
                 try {
-                    const items = await getDocuments('events/' + eventId + '/documents', []);
-
-                    setDocuments(items.map((item: any) => ({
-                        id: item.id,
-                        name: item.name,
-                        type: item.type,
-                        date: item.date,
-                        url: item.url
-                    })));
+                    const items = await getClientDocuments(clientId);
+                    setDocuments(items);
                 } catch (error) {
                     console.error("Error fetching documents", error);
                 } finally {
                     setLoading(false);
                 }
+            } else {
+                setLoading(false);
             }
         }
 
         fetchDocuments();
-    }, [eventId]);
+    }, [clientId]);
 
     if (loading) {
         return <div className="flex justify-center p-4"><Loader2 className="animate-spin h-6 w-6 text-brand-turquoise" /></div>;
@@ -70,7 +58,7 @@ export function ClientDocuments({ eventId }: DocumentsProps) {
                 Documents
             </h3>
             <div className="space-y-3">
-                {documents.map((doc) => (
+                {documents.slice(0, 5).map((doc) => (
                     <div
                         key={doc.id}
                         className="flex items-center justify-between p-4 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors"
@@ -82,16 +70,16 @@ export function ClientDocuments({ eventId }: DocumentsProps) {
                                     {doc.name}
                                 </p>
                                 <p className="text-xs text-brand-gray">
-                                    {doc.type} - {new Date(doc.date).toLocaleDateString()}
+                                    {doc.type} - {doc.date || doc.uploaded_at || 'Date inconnue'}
                                 </p>
                             </div>
                         </div>
-                        {doc.url && (
+                        {doc.file_url && (
                             <Button
                                 size="sm"
                                 variant="ghost"
                                 className="text-brand-turquoise hover:text-brand-turquoise-hover"
-                                onClick={() => window.open(doc.url, '_blank')}
+                                onClick={() => window.open(doc.file_url, '_blank')}
                             >
                                 <Download className="h-4 w-4" />
                             </Button>

@@ -15,8 +15,12 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { Plus, Search, FileText, Eye, Download, Send, Clock, CheckCircle, Euro, Calendar, Edit } from 'lucide-react';
-import { useState } from 'react';
+import { Plus, Search, FileText, Eye, Download, Send, Clock, CheckCircle, Euro, Calendar, Edit, Loader2, Trash2 } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
+import { getDocuments, addDocument, updateDocument, deleteDocument } from '@/lib/db';
+import { toast } from 'sonner';
+import jsPDF from 'jspdf';
 import { NewDevisModal } from '@/components/modals/NewDevisModal';
 
 interface Devis {
@@ -28,50 +32,11 @@ interface Devis {
   montantTTC: number;
   status: string;
   validUntil: string;
+  description?: string;
+  tva: number;
+  pdfUrl?: string;
 }
 
-const devisDemo: Devis[] = [
-  {
-    id: '1',
-    reference: 'DEVIS-2024-001',
-    client: 'Sophie Martin & Thomas Dubois',
-    date: '05/02/2024',
-    montantHT: 28000,
-    montantTTC: 33600,
-    status: 'sent',
-    validUntil: '05/03/2024',
-  },
-  {
-    id: '2',
-    reference: 'DEVIS-2024-002',
-    client: 'Marie Laurent & Pierre Durand',
-    date: '03/02/2024',
-    montantHT: 38000,
-    montantTTC: 45600,
-    status: 'accepted',
-    validUntil: '03/03/2024',
-  },
-  {
-    id: '3',
-    reference: 'DEVIS-2024-003',
-    client: 'Emma Bernard & Lucas Moreau',
-    date: '01/02/2024',
-    montantHT: 22000,
-    montantTTC: 26400,
-    status: 'draft',
-    validUntil: '01/03/2024',
-  },
-  {
-    id: '4',
-    reference: 'DEVIS-2024-004',
-    client: 'Julie Martin',
-    date: '28/01/2024',
-    montantHT: 35000,
-    montantTTC: 42000,
-    status: 'rejected',
-    validUntil: '28/02/2024',
-  },
-];
 
 const statusConfig = {
   draft: {
@@ -97,15 +62,74 @@ const statusConfig = {
 };
 
 export default function DevisPage() {
+  const { user } = useAuth();
+  const [devisList, setDevisList] = useState<Devis[]>([]);
+  const [loading, setLoading] = useState(true);
   const [selectedDevis, setSelectedDevis] = useState<Devis | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isNewDevisOpen, setIsNewDevisOpen] = useState(false);
   const [isSendOpen, setIsSendOpen] = useState(false);
   const [isDownloadSuccess, setIsDownloadSuccess] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+
+  // Fetch devis
+  const fetchDevis = async () => {
+    if (!user) return;
+    setLoading(true);
+    try {
+      const data = await getDocuments('devis', [
+        { field: 'planner_id', operator: '==', value: user.uid }
+      ]);
+      const mapped = data.map((d: any) => ({
+        id: d.id,
+        reference: d.reference,
+        client: d.client,
+        date: d.date,
+        montantHT: d.montant_ht,
+        montantTTC: d.montant_ttc,
+        status: d.status,
+        validUntil: d.valid_until,
+        description: d.description || '',
+        tva: d.tva,
+        pdfUrl: d.pdf_url || '',
+      }));
+      setDevisList(mapped);
+    } catch (e) {
+      console.error('Error fetching devis:', e);
+      toast.error('Erreur lors du chargement des devis');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchDevis();
+  }, [user]);
+
+
+  const handleDelete = async (devisId: string) => {
+    if (!confirm('Êtes-vous sûr de vouloir supprimer ce devis ?')) return;
+    
+    try {
+      await deleteDocument('devis', devisId);
+      toast.success('Devis supprimé');
+      setIsDetailOpen(false);
+      fetchDevis();
+    } catch (e) {
+      toast.error('Erreur lors de la suppression');
+    }
+  };
+
 
   const handleViewDetail = (devis: Devis) => {
-    setSelectedDevis(devis);
-    setIsDetailOpen(true);
+    if (devis.pdfUrl) {
+      // Ouvrir le PDF dans un nouvel onglet
+      window.open(devis.pdfUrl, '_blank');
+    } else {
+      // Si pas de PDF, afficher les détails
+      setSelectedDevis(devis);
+      setIsDetailOpen(true);
+    }
   };
 
   const handleSend = (devis: Devis) => {
@@ -114,9 +138,74 @@ export default function DevisPage() {
   };
 
   const handleDownload = (devis: Devis) => {
-    setSelectedDevis(devis);
-    setIsDownloadSuccess(true);
+    if (devis.pdfUrl) {
+      // Télécharger le PDF depuis Cloudinary
+      const link = document.createElement('a');
+      link.href = devis.pdfUrl;
+      link.download = `${devis.reference}.pdf`;
+      link.target = '_blank';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      toast.success('Téléchargement du PDF lancé');
+    } else {
+      // Générer un PDF si pas de PDF enregistré
+      try {
+        const doc = new jsPDF();
+        
+        // Header
+        doc.setFontSize(20);
+        doc.text('DEVIS', 105, 20, { align: 'center' });
+        
+        doc.setFontSize(12);
+        doc.text(devis.reference, 105, 30, { align: 'center' });
+        
+        // Client info
+        doc.setFontSize(10);
+        doc.text('Client:', 20, 50);
+        doc.text(devis.client, 20, 56);
+        
+        doc.text('Date:', 150, 50);
+        doc.text(devis.date, 150, 56);
+        
+        doc.text('Valide jusqu\'au:', 150, 62);
+        doc.text(devis.validUntil, 150, 68);
+        
+        // Description
+        if (devis.description) {
+          doc.text('Description:', 20, 80);
+          const splitDesc = doc.splitTextToSize(devis.description, 170);
+          doc.text(splitDesc, 20, 86);
+        }
+        
+        // Montants
+        const yPos = devis.description ? 120 : 90;
+        doc.text('Montant HT:', 20, yPos);
+        doc.text(`${devis.montantHT.toLocaleString('fr-FR')} €`, 150, yPos);
+        
+        doc.text(`TVA (${devis.tva}%):`, 20, yPos + 6);
+        doc.text(`${(devis.montantTTC - devis.montantHT).toLocaleString('fr-FR')} €`, 150, yPos + 6);
+        
+        doc.setFontSize(12);
+        doc.text('Montant TTC:', 20, yPos + 14);
+        doc.text(`${devis.montantTTC.toLocaleString('fr-FR')} €`, 150, yPos + 14);
+        
+        doc.save(`${devis.reference}.pdf`);
+        setIsDownloadSuccess(true);
+      } catch (e) {
+        toast.error('Erreur lors de la génération du PDF');
+      }
+    }
   };
+
+  const handleNewDevis = () => {
+    setIsNewDevisOpen(true);
+  };
+
+  const filteredDevis = devisList.filter(devis =>
+    devis.reference.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    devis.client.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   return (
     <DashboardLayout>
@@ -132,7 +221,7 @@ export default function DevisPage() {
           </div>
           <Button 
             className="bg-brand-turquoise hover:bg-brand-turquoise-hover gap-2 w-full sm:w-auto"
-            onClick={() => setIsNewDevisOpen(true)}
+            onClick={handleNewDevis}
           >
             <Plus className="h-4 w-4" />
             <span className="hidden sm:inline">Nouveau devis</span>
@@ -144,25 +233,25 @@ export default function DevisPage() {
           <Card className="p-6 shadow-xl border-0 bg-gradient-to-br from-gray-50 to-white">
             <p className="text-sm text-brand-gray uppercase tracking-label mb-1">Brouillons</p>
             <p className="text-3xl font-bold text-brand-purple">
-              {devisDemo.filter(d => d.status === 'draft').length}
+              {devisList.filter(d => d.status === 'draft').length}
             </p>
           </Card>
           <Card className="p-6 shadow-xl border-0 bg-gradient-to-br from-blue-50 to-white">
             <p className="text-sm text-brand-gray uppercase tracking-label mb-1">Envoyés</p>
             <p className="text-3xl font-bold text-brand-purple">
-              {devisDemo.filter(d => d.status === 'sent').length}
+              {devisList.filter(d => d.status === 'sent').length}
             </p>
           </Card>
           <Card className="p-6 shadow-xl border-0 bg-gradient-to-br from-green-50 to-white">
             <p className="text-sm text-brand-gray uppercase tracking-label mb-1">Acceptés</p>
             <p className="text-3xl font-bold text-brand-purple">
-              {devisDemo.filter(d => d.status === 'accepted').length}
+              {devisList.filter(d => d.status === 'accepted').length}
             </p>
           </Card>
           <Card className="p-6 shadow-xl border-0 bg-gradient-to-br from-brand-beige to-white">
             <p className="text-sm text-brand-gray uppercase tracking-label mb-1">Total</p>
             <p className="text-3xl font-bold text-brand-purple">
-              {devisDemo.reduce((acc, d) => acc + d.montantTTC, 0).toLocaleString()} €
+              {devisList.reduce((acc, d) => acc + d.montantTTC, 0).toLocaleString()} €
             </p>
           </Card>
         </div>
@@ -173,12 +262,34 @@ export default function DevisPage() {
             <Input
               placeholder="Rechercher un devis..."
               className="pl-10 border-[#E5E5E5] focus-visible:ring-brand-turquoise"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
         </Card>
 
-        <div className="space-y-4">
-          {devisDemo.map((devis) => {
+        {loading ? (
+          <div className="flex justify-center py-20">
+            <Loader2 className="h-10 w-10 animate-spin text-brand-turquoise" />
+          </div>
+        ) : filteredDevis.length === 0 ? (
+          <Card className="p-12 text-center">
+            <FileText className="h-16 w-16 text-brand-gray mx-auto mb-4" />
+            <h3 className="text-xl font-bold text-brand-purple mb-2">
+              {searchTerm ? 'Aucun résultat' : 'Aucun devis'}
+            </h3>
+            <p className="text-brand-gray mb-6">
+              {searchTerm ? 'Essayez avec d\'autres mots-clés' : 'Créez votre premier devis'}
+            </p>
+            {!searchTerm && (
+              <Button onClick={handleNewDevis} className="bg-brand-turquoise hover:bg-brand-turquoise-hover">
+                <Plus className="h-4 w-4 mr-2" /> Créer un devis
+              </Button>
+            )}
+          </Card>
+        ) : (
+          <div className="space-y-4">
+            {filteredDevis.map((devis) => {
             const config = statusConfig[devis.status as keyof typeof statusConfig];
             const StatusIcon = config.icon;
 
@@ -251,9 +362,10 @@ export default function DevisPage() {
                   )}
                 </div>
               </Card>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Modal Détail Devis */}
@@ -292,86 +404,47 @@ export default function DevisPage() {
                 </div>
               </div>
 
-              <div className="p-4 bg-brand-beige/50 rounded-lg">
-                <h4 className="font-medium text-brand-purple mb-2">Prestations incluses</h4>
-                <ul className="text-sm text-brand-gray space-y-1">
-                  <li>• Coordination jour J</li>
-                  <li>• Gestion des prestataires</li>
-                  <li>• Planning détaillé</li>
-                  <li>• Suivi budget</li>
-                </ul>
-              </div>
+              {selectedDevis.description && (
+                <div className="p-4 bg-brand-beige/50 rounded-lg">
+                  <h4 className="font-medium text-brand-purple mb-2">Description</h4>
+                  <p className="text-sm text-brand-gray whitespace-pre-wrap">{selectedDevis.description}</p>
+                </div>
+              )}
             </div>
           )}
-          <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setIsDetailOpen(false)}>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button 
+              variant="destructive" 
+              onClick={() => selectedDevis && handleDelete(selectedDevis.id)}
+              className="w-full sm:w-auto"
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Supprimer
+            </Button>
+            <div className="flex-1" />
+            <Button variant="outline" onClick={() => setIsDetailOpen(false)} className="w-full sm:w-auto">
               Fermer
             </Button>
             <Button 
               variant="outline" 
-              className="gap-2"
+              className="gap-2 w-full sm:w-auto"
               onClick={() => {
-                setIsDetailOpen(false);
                 if (selectedDevis) handleDownload(selectedDevis);
               }}
             >
               <Download className="h-4 w-4" />
               Télécharger PDF
             </Button>
-            <Button className="bg-brand-turquoise hover:bg-brand-turquoise-hover gap-2">
-              <Edit className="h-4 w-4" />
-              Modifier
-            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* Modal Nouveau Devis */}
-      <Dialog open={isNewDevisOpen} onOpenChange={setIsNewDevisOpen}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle className="text-brand-purple">Nouveau devis</DialogTitle>
-            <DialogDescription>
-              Créez un nouveau devis pour un client
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div>
-              <Label>Client</Label>
-              <Input placeholder="Nom du couple" className="mt-1" />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label>Montant HT (€)</Label>
-                <Input type="number" placeholder="25000" className="mt-1" />
-              </div>
-              <div>
-                <Label>TVA (%)</Label>
-                <Input type="number" defaultValue="20" className="mt-1" />
-              </div>
-            </div>
-            <div>
-              <Label>Date de validité</Label>
-              <Input type="date" className="mt-1" />
-            </div>
-            <div>
-              <Label>Description des prestations</Label>
-              <Textarea placeholder="Détaillez les prestations incluses..." className="mt-1" rows={4} />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsNewDevisOpen(false)}>
-              Annuler
-            </Button>
-            <Button 
-              className="bg-brand-turquoise hover:bg-brand-turquoise-hover"
-              onClick={() => setIsNewDevisOpen(false)}
-            >
-              Créer le devis
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <NewDevisModal 
+        isOpen={isNewDevisOpen} 
+        onClose={() => setIsNewDevisOpen(false)}
+        onDevisCreated={fetchDevis}
+      />
 
       {/* Modal Envoyer Devis */}
       <Dialog open={isSendOpen} onOpenChange={setIsSendOpen}>
@@ -435,7 +508,6 @@ export default function DevisPage() {
         </DialogContent>
       </Dialog>
 
-      <NewDevisModal isOpen={isNewDevisOpen} onClose={() => setIsNewDevisOpen(false)} />
     </DashboardLayout>
   );
 }

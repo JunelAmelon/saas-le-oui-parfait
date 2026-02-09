@@ -2,9 +2,9 @@
 
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { ClientDashboardLayout } from '@/components/layout/ClientDashboardLayout';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
   Dialog,
   DialogContent,
@@ -22,163 +22,197 @@ import {
   File,
   FileCheck,
   FilePen,
-  Clock,
   CheckCircle,
-  XCircle,
-  X,
   Upload,
+  Loader2,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useClientData } from '@/contexts/ClientDataContext';
+import { calculateDaysRemaining } from '@/lib/client-helpers';
+import { addDocument, getDocuments } from '@/lib/db';
+import { uploadFile } from '@/lib/storage';
+import { toast } from 'sonner';
 
-interface Document {
+interface DocumentItem {
   id: string;
   name: string;
   type: string;
-  category: string;
-  date: string;
-  status: string;
-  size: string;
+  file_url?: string;
+  file_type?: string;
+  file_size?: number;
+  uploaded_at?: string;
+  uploaded_by?: 'client' | 'planner' | string;
+  status?: string;
 }
 
-const documents = [
-  {
-    id: '1',
-    name: 'Contrat de prestation Wedding Planner',
-    type: 'Contrat',
-    category: 'contrat',
-    date: '20/01/2024',
-    status: 'signed',
-    size: '245 Ko',
-  },
-  {
-    id: '2',
-    name: 'Devis traiteur - Menu Prestige',
-    type: 'Devis',
-    category: 'devis',
-    date: '22/01/2024',
-    status: 'accepted',
-    size: '180 Ko',
-  },
-  {
-    id: '3',
-    name: 'Facture acompte - Château d\'Apigné',
-    type: 'Facture',
-    category: 'facture',
-    date: '25/01/2024',
-    status: 'paid',
-    size: '120 Ko',
-  },
-  {
-    id: '4',
-    name: 'Devis photographe - Pack Premium',
-    type: 'Devis',
-    category: 'devis',
-    date: '28/01/2024',
-    status: 'accepted',
-    size: '156 Ko',
-  },
-  {
-    id: '5',
-    name: 'Planning jour J - Version 1',
-    type: 'Planning',
-    category: 'planning',
-    date: '01/02/2024',
-    status: 'draft',
-    size: '89 Ko',
-  },
-  {
-    id: '6',
-    name: 'Contrat DJ - Animation soirée',
-    type: 'Contrat',
-    category: 'contrat',
-    date: '05/02/2024',
-    status: 'pending',
-    size: '198 Ko',
-  },
-  {
-    id: '7',
-    name: 'Devis fleuriste - Décoration complète',
-    type: 'Devis',
-    category: 'devis',
-    date: '10/02/2024',
-    status: 'pending',
-    size: '210 Ko',
-  },
-  {
-    id: '8',
-    name: 'Facture photographe - Acompte 30%',
-    type: 'Facture',
-    category: 'facture',
-    date: '12/02/2024',
-    status: 'paid',
-    size: '95 Ko',
-  },
-];
-
-const categories = [
-  { id: 'all', label: 'Tous', count: documents.length },
-  { id: 'contrat', label: 'Contrats', count: documents.filter(d => d.category === 'contrat').length },
-  { id: 'devis', label: 'Devis', count: documents.filter(d => d.category === 'devis').length },
-  { id: 'facture', label: 'Factures', count: documents.filter(d => d.category === 'facture').length },
-  { id: 'planning', label: 'Planning', count: documents.filter(d => d.category === 'planning').length },
-];
+const docTypeLabels: Record<string, string> = {
+  contrat: 'Contrat',
+  devis: 'Devis',
+  facture: 'Facture',
+  planning: 'Planning',
+  photo: 'Photo',
+  autre: 'Autre',
+};
 
 export default function DocumentsPage() {
+  const { client, event, loading: dataLoading } = useClientData();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
-  const [selectedDocument, setSelectedDocument] = useState<Document | null>(null);
+  const [selectedDocument, setSelectedDocument] = useState<DocumentItem | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [isDownloadSuccess, setIsDownloadSuccess] = useState(false);
+  const [documents, setDocuments] = useState<DocumentItem[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const handlePreview = (doc: Document) => {
+  const [uploading, setUploading] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [docName, setDocName] = useState('');
+  const [docType, setDocType] = useState<'contrat' | 'devis' | 'facture' | 'planning' | 'photo' | 'autre'>('contrat');
+
+  const clientName = useMemo(() => {
+    const n1 = client?.name || '';
+    const n2 = client?.partner || '';
+    return `${n1}${n1 && n2 ? ' & ' : ''}${n2}`.trim() || event?.couple_names || 'Client';
+  }, [client?.name, client?.partner, event?.couple_names]);
+
+  const daysRemaining = event ? calculateDaysRemaining(event.event_date) : 0;
+
+  useEffect(() => {
+    async function fetchDocuments() {
+      if (!client?.id) {
+        setDocuments([]);
+        setLoading(false);
+        return;
+      }
+      try {
+        setLoading(true);
+        const items = await getDocuments('documents', [
+          { field: 'client_id', operator: '==', value: client.id },
+        ]);
+        setDocuments(items as unknown as DocumentItem[]);
+      } catch (e) {
+        console.error('Error fetching client documents:', e);
+        toast.error('Erreur lors du chargement des documents');
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    if (!dataLoading) {
+      fetchDocuments();
+    }
+  }, [client?.id, dataLoading]);
+
+  const handlePreview = (doc: DocumentItem) => {
     setSelectedDocument(doc);
     setIsPreviewOpen(true);
   };
 
-  const handleDownload = (doc: Document) => {
+  const handleDownload = (doc: DocumentItem) => {
     setSelectedDocument(doc);
     setIsDownloadSuccess(true);
   };
 
-  const filteredDocuments = documents.filter(doc => {
-    const matchesSearch = doc.name.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = selectedCategory === 'all' || doc.category === selectedCategory;
+  const filteredDocuments = documents.filter((doc) => {
+    const matchesSearch = (doc.name || '').toLowerCase().includes(searchTerm.toLowerCase());
+    const docCategory = (doc.type || '').toLowerCase();
+    const matchesCategory = selectedCategory === 'all' || docCategory === selectedCategory;
     return matchesSearch && matchesCategory;
   });
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'signed':
-        return <Badge className="bg-green-100 text-green-700">Signé</Badge>;
-      case 'accepted':
-        return <Badge className="bg-blue-100 text-blue-700">Accepté</Badge>;
-      case 'paid':
-        return <Badge className="bg-green-100 text-green-700">Payé</Badge>;
-      case 'pending':
-        return <Badge className="bg-orange-100 text-orange-700">En attente</Badge>;
-      case 'draft':
-        return <Badge className="bg-gray-100 text-gray-700">Brouillon</Badge>;
-      default:
-        return <Badge className="bg-gray-100 text-gray-700">{status}</Badge>;
-    }
-  };
+  const categories = useMemo(() => {
+    const getCount = (type: string) => documents.filter((d) => (d.type || '').toLowerCase() === type).length;
+    return [
+      { id: 'all', label: 'Tous', count: documents.length },
+      { id: 'contrat', label: 'Contrats', count: getCount('contrat') },
+      { id: 'devis', label: 'Devis', count: getCount('devis') },
+      { id: 'facture', label: 'Factures', count: getCount('facture') },
+      { id: 'planning', label: 'Planning', count: getCount('planning') },
+    ];
+  }, [documents]);
 
   const getTypeIcon = (type: string) => {
-    switch (type) {
-      case 'Contrat':
+    const t = (type || '').toLowerCase();
+    switch (t) {
+      case 'contrat':
         return <FileCheck className="h-5 w-5 text-brand-turquoise" />;
-      case 'Devis':
+      case 'devis':
         return <FilePen className="h-5 w-5 text-blue-500" />;
-      case 'Facture':
+      case 'facture':
         return <File className="h-5 w-5 text-green-500" />;
       default:
         return <FileText className="h-5 w-5 text-brand-gray" />;
     }
   };
 
+  const handleOpenFile = (doc: DocumentItem) => {
+    if (!doc.file_url) {
+      toast.error('Aucun fichier disponible');
+      return;
+    }
+    window.open(doc.file_url, '_blank');
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] || null;
+    setSelectedFile(file);
+    if (file && !docName) {
+      setDocName(file.name.replace(/\.[^/.]+$/, ''));
+    }
+  };
+
+  const handleUploadDocument = async () => {
+    if (!client?.id) {
+      toast.error('Client introuvable');
+      return;
+    }
+    if (!selectedFile || !docName) {
+      toast.error('Veuillez sélectionner un fichier et un nom');
+      return;
+    }
+    if (!client.planner_id) {
+      toast.error('Planner introuvable');
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const fileUrl = await uploadFile(selectedFile, 'documents');
+      await addDocument('documents', {
+        planner_id: client.planner_id,
+        client_id: client.id,
+        event_id: event?.id || null,
+        name: docName,
+        type: docType,
+        file_url: fileUrl,
+        file_type: selectedFile.type,
+        file_size: selectedFile.size,
+        uploaded_by: 'client',
+        uploaded_at: new Date().toLocaleDateString('fr-FR'),
+        created_timestamp: new Date(),
+      });
+
+      toast.success('Document ajouté');
+      setIsUploadOpen(false);
+      setSelectedFile(null);
+      setDocName('');
+      setDocType('contrat');
+
+      const items = await getDocuments('documents', [
+        { field: 'client_id', operator: '==', value: client.id },
+      ]);
+      setDocuments(items as unknown as DocumentItem[]);
+    } catch (e) {
+      console.error('Error uploading document:', e);
+      toast.error("Erreur lors de l'upload");
+    } finally {
+      setUploading(false);
+    }
+  };
+
   return (
-    <ClientDashboardLayout clientName="Julie & Frédérick" daysRemaining={165}>
+    <ClientDashboardLayout clientName={clientName} daysRemaining={daysRemaining}>
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
@@ -238,49 +272,56 @@ export default function DocumentsPage() {
             </Button>
           </div>
 
-          <div className="space-y-3">
-            {filteredDocuments.map((doc) => (
-              <div
-                key={doc.id}
-                className="flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors gap-3"
-              >
-                <div className="flex items-center gap-3 sm:gap-4">
-                  <div className="p-2 bg-white rounded-lg shadow-sm">
-                    {getTypeIcon(doc.type)}
+          {loading ? (
+            <div className="flex justify-center p-8">
+              <Loader2 className="animate-spin h-8 w-8 text-brand-turquoise" />
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {filteredDocuments.map((doc) => (
+                <div
+                  key={doc.id}
+                  className="flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors gap-3"
+                >
+                  <div className="flex items-center gap-3 sm:gap-4">
+                    <div className="p-2 bg-white rounded-lg shadow-sm">
+                      {getTypeIcon(doc.type)}
+                    </div>
+                    <div>
+                      <h3 className="font-medium text-brand-purple text-sm sm:text-base">{doc.name}</h3>
+                      <div className="flex flex-wrap items-center gap-1 sm:gap-3 mt-1 text-xs sm:text-sm text-brand-gray">
+                        <span>{docTypeLabels[(doc.type || '').toLowerCase()] || doc.type}</span>
+                        <span className="hidden sm:inline">•</span>
+                        <span>{doc.uploaded_at || 'Date inconnue'}</span>
+                        <span className="hidden sm:inline">•</span>
+                        <span>{doc.uploaded_by === 'client' ? 'Ajouté par vous' : 'Ajouté par votre planner'}</span>
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="font-medium text-brand-purple text-sm sm:text-base">{doc.name}</h3>
-                    <div className="flex flex-wrap items-center gap-1 sm:gap-3 mt-1 text-xs sm:text-sm text-brand-gray">
-                      <span>{doc.type}</span>
-                      <span className="hidden sm:inline">•</span>
-                      <span>{doc.date}</span>
+                  <div className="flex items-center justify-between sm:justify-end gap-2 sm:gap-3 pl-11 sm:pl-0">
+                    <div className="flex gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handlePreview(doc)}
+                      >
+                        <Eye className="h-4 w-4 text-brand-gray" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleDownload(doc)}
+                      >
+                        <Download className="h-4 w-4 text-brand-turquoise" />
+                      </Button>
                     </div>
                   </div>
                 </div>
-                <div className="flex items-center justify-between sm:justify-end gap-2 sm:gap-3 pl-11 sm:pl-0">
-                  {getStatusBadge(doc.status)}
-                  <div className="flex gap-1">
-                    <Button 
-                      variant="ghost" 
-                      size="icon"
-                      onClick={() => handlePreview(doc as Document)}
-                    >
-                      <Eye className="h-4 w-4 text-brand-gray" />
-                    </Button>
-                    <Button 
-                      variant="ghost" 
-                      size="icon"
-                      onClick={() => handleDownload(doc as Document)}
-                    >
-                      <Download className="h-4 w-4 text-brand-turquoise" />
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
 
-          {filteredDocuments.length === 0 && (
+          {!loading && filteredDocuments.length === 0 && (
             <div className="text-center py-12">
               <FileText className="h-12 w-12 text-brand-gray mx-auto mb-4" />
               <p className="text-brand-gray">Aucun document trouvé</p>
@@ -296,16 +337,18 @@ export default function DocumentsPage() {
                 {selectedDocument?.name}
               </DialogTitle>
               <DialogDescription>
-                {selectedDocument?.type} • {selectedDocument?.date} • {selectedDocument?.size}
+                {(selectedDocument?.type ? (docTypeLabels[(selectedDocument.type || '').toLowerCase()] || selectedDocument.type) : '')}
+                {selectedDocument?.uploaded_at ? ` • ${selectedDocument.uploaded_at}` : ''}
+                {typeof selectedDocument?.file_size === 'number' ? ` • ${(selectedDocument.file_size / 1024).toFixed(2)} KB` : ''}
               </DialogDescription>
             </DialogHeader>
             <div className="py-4">
-              <div className="bg-gray-100 rounded-lg p-8 min-h-[300px] flex items-center justify-center">
-                <div className="text-center">
-                  <FileText className="h-16 w-16 text-brand-gray mx-auto mb-4" />
-                  <p className="text-brand-gray">Aperçu du document</p>
-                  <p className="text-sm text-brand-gray mt-2">
-                    Le document s'afficherait ici dans une version complète
+              <div className="bg-gray-100 rounded-lg p-8 min-h-[200px] flex items-center justify-center">
+                <div className="text-center space-y-2">
+                  <FileText className="h-12 w-12 text-brand-gray mx-auto" />
+                  <p className="text-brand-gray">Ouvrir le document</p>
+                  <p className="text-sm text-brand-gray">
+                    Cliquez sur "Voir" pour l'ouvrir dans un nouvel onglet.
                   </p>
                 </div>
               </div>
@@ -317,12 +360,11 @@ export default function DocumentsPage() {
               <Button 
                 className="bg-brand-turquoise hover:bg-brand-turquoise-hover gap-2"
                 onClick={() => {
-                  setIsPreviewOpen(false);
-                  handleDownload(selectedDocument!);
+                  if (selectedDocument) handleOpenFile(selectedDocument);
                 }}
               >
-                <Download className="h-4 w-4" />
-                Télécharger
+                <Eye className="h-4 w-4" />
+                Voir
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -342,9 +384,80 @@ export default function DocumentsPage() {
             <DialogFooter className="justify-center">
               <Button 
                 className="bg-brand-turquoise hover:bg-brand-turquoise-hover"
-                onClick={() => setIsDownloadSuccess(false)}
+                onClick={() => {
+                  if (selectedDocument) handleOpenFile(selectedDocument);
+                  setIsDownloadSuccess(false);
+                }}
               >
-                Fermer
+                Ouvrir
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={isUploadOpen} onOpenChange={setIsUploadOpen}>
+          <DialogContent className="sm:max-w-md w-[95vw] sm:w-full">
+            <DialogHeader>
+              <DialogTitle className="text-brand-purple">Ajouter un document</DialogTitle>
+              <DialogDescription>
+                Ajoutez un document pour le partager avec votre Wedding Planner.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label>Nom du document</Label>
+                <Input value={docName} onChange={(e) => setDocName(e.target.value)} placeholder="Ex: Devis DJ" />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Type</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  {(['contrat', 'devis', 'facture', 'planning', 'photo', 'autre'] as const).map((t) => (
+                    <Button
+                      key={t}
+                      type="button"
+                      variant={docType === t ? 'default' : 'outline'}
+                      className={docType === t ? 'bg-brand-turquoise hover:bg-brand-turquoise-hover' : ''}
+                      onClick={() => setDocType(t)}
+                    >
+                      {docTypeLabels[t]}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Fichier</Label>
+                <Input type="file" onChange={handleFileSelect} />
+                {selectedFile ? (
+                  <p className="text-xs text-brand-gray">
+                    {selectedFile.name} ({(selectedFile.size / 1024).toFixed(2)} KB)
+                  </p>
+                ) : null}
+              </div>
+            </div>
+
+            <DialogFooter className="gap-2">
+              <Button variant="outline" onClick={() => setIsUploadOpen(false)} disabled={uploading}>
+                Annuler
+              </Button>
+              <Button
+                className="bg-brand-turquoise hover:bg-brand-turquoise-hover"
+                onClick={() => void handleUploadDocument()}
+                disabled={uploading || !selectedFile || !docName}
+              >
+                {uploading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Upload...
+                  </>
+                ) : (
+                  <>
+                    <Upload className="h-4 w-4 mr-2" />
+                    Ajouter
+                  </>
+                )}
               </Button>
             </DialogFooter>
           </DialogContent>

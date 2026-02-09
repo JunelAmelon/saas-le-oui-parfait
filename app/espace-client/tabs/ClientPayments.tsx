@@ -5,47 +5,36 @@ import { Card } from '@/components/ui/card';
 import { Euro } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { getDocuments } from '@/lib/db';
+import { getClientPayments, PaymentData } from '@/lib/client-helpers';
 import { Loader2 } from 'lucide-react';
 
 interface PaymentsProps {
     eventId: string;
+    clientId?: string;
 }
 
-interface PaymentItem {
-    id: string;
-    description: string;
-    amount: number;
-    status: 'paid' | 'pending';
-    date: string; // Payment date or Due date
-}
-
-export function ClientPayments({ eventId }: PaymentsProps) {
-    const [payments, setPayments] = useState<PaymentItem[]>([]);
+export function ClientPayments({ eventId, clientId }: PaymentsProps) {
+    const [payments, setPayments] = useState<PaymentData[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         async function fetchPayments() {
-            if (eventId) {
+            if (clientId) {
                 try {
-                    const items = await getDocuments('events/' + eventId + '/payments', []);
-                    setPayments(items.map((item: any) => ({
-                        id: item.id,
-                        description: item.description,
-                        amount: item.amount,
-                        status: item.status,
-                        date: item.date
-                    })));
+                    const items = await getClientPayments(clientId);
+                    setPayments(items);
                 } catch (error) {
                     console.error("Error fetching payments", error);
                 } finally {
                     setLoading(false);
                 }
+            } else {
+                setLoading(false);
             }
         }
 
         fetchPayments();
-    }, [eventId]);
+    }, [clientId]);
 
     if (loading) {
         return <div className="flex justify-center p-4"><Loader2 className="animate-spin h-6 w-6 text-brand-turquoise" /></div>;
@@ -70,7 +59,7 @@ export function ClientPayments({ eventId }: PaymentsProps) {
                 Paiements
             </h3>
             <div className="space-y-3">
-                {payments.map((payment) => (
+                {payments.slice(0, 5).map((payment) => (
                     <div
                         key={payment.id}
                         className="flex items-center justify-between p-4 rounded-lg bg-gray-50"
@@ -80,14 +69,18 @@ export function ClientPayments({ eventId }: PaymentsProps) {
                                 {payment.description}
                             </p>
                             <p className="text-xs text-brand-gray">
-                                {payment.status === 'paid' ? `Payé le ${new Date(payment.date).toLocaleDateString()}` : `Échéance: ${new Date(payment.date).toLocaleDateString()}`}
+                                {(payment.status === 'paid' || payment.status === 'completed') && payment.date
+                                    ? `Payé le ${payment.date}`
+                                    : payment.due_date
+                                    ? `Échéance: ${payment.due_date}`
+                                    : 'Date non définie'}
                             </p>
                         </div>
                         <div className="text-right">
                             <p className="text-lg font-bold text-brand-purple">
-                                {payment.amount.toLocaleString()} €
+                                {payment.amount.toLocaleString('fr-FR')} €
                             </p>
-                            {payment.status === 'paid' ? (
+                            {payment.status === 'paid' || payment.status === 'completed' ? (
                                 <Badge className="bg-green-100 text-green-700 text-xs">
                                     Payé
                                 </Badge>

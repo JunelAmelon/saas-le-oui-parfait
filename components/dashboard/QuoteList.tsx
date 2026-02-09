@@ -10,20 +10,22 @@ import { NewDevisModal } from '@/components/modals/NewDevisModal';
 interface Quote {
   id: string;
   reference: string;
-  status: 'sent' | 'accepted' | 'rejected';
+  status: 'draft' | 'sent' | 'accepted' | 'rejected';
 }
 
 interface QuoteListProps {
   quotes: Quote[];
+  onDevisCreated?: () => void;
 }
 
 const statusConfig = {
+  draft: { label: 'Brouillon', className: 'bg-gray-400 hover:bg-gray-500' },
   sent: { label: 'Envoyé', className: 'bg-[#C4A26A] hover:bg-[#B59260]' },
   accepted: { label: 'Validé', className: 'bg-green-500 hover:bg-green-600' },
   rejected: { label: 'Refusé', className: 'bg-red-500 hover:bg-red-600' },
 };
 
-export function QuoteList({ quotes }: QuoteListProps) {
+export function QuoteList({ quotes, onDevisCreated }: QuoteListProps) {
   const [isNewDevisOpen, setIsNewDevisOpen] = useState(false);
 
   return (
@@ -41,28 +43,36 @@ export function QuoteList({ quotes }: QuoteListProps) {
         </div>
 
       <div className="space-y-3">
-        {quotes.map((quote) => {
-          const config = statusConfig[quote.status];
-          return (
-            <div
-              key={quote.id}
-              className="flex items-center justify-between rounded-lg border border-[#E5E5E5] p-3 transition-colors hover:bg-gray-50"
-            >
-              <span className="text-sm font-medium text-brand-gray">
-                {quote.reference}
-              </span>
-              <Badge className={`${config.className} text-white border-0`}>
-                {config.label}
-              </Badge>
-            </div>
-          );
-        })}
+        {quotes.length === 0 ? (
+          <p className="text-sm text-gray-500 text-center py-4">Aucun devis pour le moment</p>
+        ) : (
+          quotes.map((quote) => {
+            const config = statusConfig[quote.status];
+            return (
+              <div
+                key={quote.id}
+                className="flex items-center justify-between rounded-lg border border-[#E5E5E5] p-3 transition-colors hover:bg-gray-50"
+              >
+                <span className="text-sm font-medium text-brand-gray">
+                  {quote.reference}
+                </span>
+                <Badge className={`${config.className} text-white border-0`}>
+                  {config.label}
+                </Badge>
+              </div>
+            );
+          })
+        )}
       </div>
       </Card>
 
       <NewDevisModal
         isOpen={isNewDevisOpen}
         onClose={() => setIsNewDevisOpen(false)}
+        onDevisCreated={() => {
+          setIsNewDevisOpen(false);
+          if (onDevisCreated) onDevisCreated();
+        }}
       />
     </>
   );

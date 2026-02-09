@@ -8,10 +8,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Package } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
+import { addDocument } from '@/lib/db';
+import { toast as sonnerToast } from 'sonner';
 
 interface NewArticleModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onArticleCreated?: () => void;
 }
 
 const categories = [
@@ -33,38 +37,62 @@ const locations = [
   'Entrepôt C',
 ];
 
-export function NewArticleModal({ isOpen, onClose }: NewArticleModalProps) {
+export function NewArticleModal({ isOpen, onClose, onArticleCreated }: NewArticleModalProps) {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [name, setName] = useState('');
   const [category, setCategory] = useState('');
   const [quantity, setQuantity] = useState('');
   const [minQuantity, setMinQuantity] = useState('');
   const [price, setPrice] = useState('');
   const [location, setLocation] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!name || !category || !quantity || !minQuantity || !price || !location) {
-      toast({
-        title: 'Erreur',
-        description: 'Veuillez remplir tous les champs',
-        variant: 'destructive',
-      });
+      sonnerToast.error('Veuillez remplir tous les champs');
       return;
     }
 
-    toast({
-      title: 'Article créé',
-      description: `L'article "${name}" a été ajouté au stock`,
-    });
+    if (!user) {
+      sonnerToast.error('Vous devez être connecté');
+      return;
+    }
 
-    // Reset form
-    setName('');
-    setCategory('');
-    setQuantity('');
-    setMinQuantity('');
-    setPrice('');
-    setLocation('');
-    onClose();
+    setLoading(true);
+    try {
+      await addDocument('articles', {
+        name,
+        category,
+        quantity: parseInt(quantity),
+        min_quantity: parseInt(minQuantity),
+        price: parseFloat(price),
+        location,
+        owner_id: user.uid,
+        created_at: new Date(),
+      });
+
+      sonnerToast.success(`L'article "${name}" a été ajouté au stock`);
+
+      // Reset form
+      setName('');
+      setCategory('');
+      setQuantity('');
+      setMinQuantity('');
+      setPrice('');
+      setLocation('');
+      
+      if (onArticleCreated) {
+        onArticleCreated();
+      }
+      
+      onClose();
+    } catch (error) {
+      console.error('Error creating article:', error);
+      sonnerToast.error('Erreur lors de la création de l\'article');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -170,8 +198,9 @@ export function NewArticleModal({ isOpen, onClose }: NewArticleModalProps) {
           <Button
             className="bg-brand-turquoise hover:bg-brand-turquoise-hover"
             onClick={handleSubmit}
+            disabled={loading}
           >
-            Créer l'article
+            {loading ? 'Création...' : 'Créer l\'article'}
           </Button>
         </DialogFooter>
       </DialogContent>

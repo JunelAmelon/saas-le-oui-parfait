@@ -1,0 +1,336 @@
+═══════════════════════════════════════════════════════════════════════════════
+   🔗 GUIDE : ASSOCIER UN CLIENT À UN ÉVÉNEMENT
+   Comment résoudre "Aucun événement n'est associé à votre compte"
+═══════════════════════════════════════════════════════════════════════════════
+
+PROBLÈME RENCONTRÉ:
+─────────────────────────────────────────────────────────────────────────────
+Lorsqu'un client se connecte à l'espace client, il voit :
+"Aucun événement n'est associé à votre compte pour le moment."
+
+CAUSE:
+─────────────────────────────────────────────────────────────────────────────
+Le système cherche un événement lié au client en 2 étapes :
+
+1. Trouve le client dans la collection 'clients' via client_user_id
+2. Trouve l'événement dans 'events' via client_id
+
+Si l'une de ces étapes échoue, aucun événement n'est trouvé.
+
+
+═══════════════════════════════════════════════════════════════════════════════
+SOLUTION 1 : CRÉER UN CLIENT ET UN ÉVÉNEMENT MANUELLEMENT
+═══════════════════════════════════════════════════════════════════════════════
+
+ÉTAPE 1 : Créer un compte Firebase Auth pour le client
+─────────────────────────────────────────────────────────────────────────────
+1. Firebase Console > Authentication > Users
+2. Cliquer "Add user"
+3. Email: julie.martin@example.com (ou autre)
+4. Password: TestClient123
+5. **COPIER L'UID GÉNÉRÉ** (exemple: "abc123xyz456")
+6. Cliquer sur l'utilisateur > Custom claims
+7. Ajouter : { "role": "client" }
+
+
+ÉTAPE 2 : Créer un document dans la collection 'clients'
+─────────────────────────────────────────────────────────────────────────────
+1. Firebase Console > Firestore Database
+2. Collection : clients
+3. Cliquer "Add document"
+4. Document ID : client-julie-001 (ou auto-généré)
+5. Ajouter ces champs :
+
+   Champ                  Type        Valeur
+   ─────────────────────────────────────────────────────────────────
+   planner_id             string      [VOTRE_UID_PLANNER]
+   client_user_id         string      [UID_COPIÉ_ÉTAPE_1]  ⚠️ IMPORTANT
+   name                   string      Julie Martin
+   partner                string      Frédérick Dubois
+   email                  string      julie.martin@example.com
+   phone                  string      +33 6 12 34 56 78
+   created_at             timestamp   [Maintenant]
+
+⚠️ CRUCIAL : client_user_id DOIT correspondre à l'UID Firebase Auth du client
+
+
+ÉTAPE 3 : Créer un document dans la collection 'events'
+─────────────────────────────────────────────────────────────────────────────
+1. Collection : events
+2. Cliquer "Add document"
+3. Document ID : event-julie-001 (ou auto-généré)
+4. Ajouter ces champs :
+
+   Champ                  Type        Valeur
+   ─────────────────────────────────────────────────────────────────
+   client_id              string      [ID_DU_CLIENT_CRÉÉ_ÉTAPE_2]  ⚠️ IMPORTANT
+   planner_id             string      [VOTRE_UID_PLANNER]
+   couple_names           string      Julie & Frédérick
+   event_date             string      2024-08-23
+   location               string      Château d'Apigné, Rennes
+   guest_count            number      150
+   budget                 number      25000
+   client_email           string      julie.martin@example.com
+   created_at             timestamp   [Maintenant]
+
+⚠️ CRUCIAL : client_id DOIT correspondre à l'ID du document client créé
+
+
+ÉTAPE 4 : Ajouter le thème (optionnel mais recommandé)
+─────────────────────────────────────────────────────────────────────────────
+Dans le document 'events', ajouter un champ de type 'map' :
+
+   theme (map):
+     ├─ style (string): "Champêtre chic"
+     ├─ colors (array): ["#E8D5B7", "#7BA89D", "#C4A26A", "#FFFFFF"]
+     └─ description (string): "Un mariage élégant aux tons naturels"
+
+
+ÉTAPE 5 : Tester la connexion
+─────────────────────────────────────────────────────────────────────────────
+1. Aller sur votre application
+2. Se connecter avec julie.martin@example.com / TestClient123
+3. Vous devriez être redirigé vers /espace-client
+4. Le dashboard devrait afficher les informations de l'événement
+
+
+═══════════════════════════════════════════════════════════════════════════════
+SOLUTION 2 : UTILISER LE SEEDER AUTOMATIQUE
+═══════════════════════════════════════════════════════════════════════════════
+
+ÉTAPE 1 : Créer le compte Firebase Auth
+─────────────────────────────────────────────────────────────────────────────
+Même chose que Solution 1, Étape 1
+
+
+ÉTAPE 2 : Modifier le seeder
+─────────────────────────────────────────────────────────────────────────────
+Ouvrir : scripts/seed-existing-collections.ts
+
+Ligne 18-19, remplacer :
+  const PLANNER_UID = "YOUR_PLANNER_UID";
+  const CLIENT_AUTH_UID = "CLIENT_AUTH_UID";
+
+Par :
+  const PLANNER_UID = "[VOTRE_UID_PLANNER]";
+  const CLIENT_AUTH_UID = "[UID_CLIENT_COPIÉ]";
+
+
+ÉTAPE 3 : Exécuter le seeder
+─────────────────────────────────────────────────────────────────────────────
+Dans le terminal :
+
+npx ts-node scripts/seed-existing-collections.ts
+
+Le script va créer automatiquement :
+  ✅ 1 client avec le bon client_user_id
+  ✅ 1 événement avec le bon client_id
+  ✅ 3 documents
+  ✅ 5 tâches
+  ✅ 4 factures
+  ✅ 3 prestataires
+
+
+ÉTAPE 4 : Tester
+─────────────────────────────────────────────────────────────────────────────
+Se connecter avec julie.martin@example.com
+
+
+═══════════════════════════════════════════════════════════════════════════════
+SOLUTION 3 : ASSOCIER UN CLIENT EXISTANT À UN ÉVÉNEMENT EXISTANT
+═══════════════════════════════════════════════════════════════════════════════
+
+Si vous avez déjà des clients et des événements dans Firestore :
+
+ÉTAPE 1 : Trouver l'UID Firebase Auth du client
+─────────────────────────────────────────────────────────────────────────────
+Firebase Console > Authentication > Users
+Trouver le client et copier son UID
+
+
+ÉTAPE 2 : Mettre à jour le document client
+─────────────────────────────────────────────────────────────────────────────
+1. Firestore > Collection 'clients'
+2. Trouver le document du client
+3. Ajouter/modifier le champ :
+   client_user_id = [UID_FIREBASE_AUTH]
+
+
+ÉTAPE 3 : Mettre à jour le document event
+─────────────────────────────────────────────────────────────────────────────
+1. Firestore > Collection 'events'
+2. Trouver l'événement du client
+3. Ajouter/modifier le champ :
+   client_id = [ID_DU_DOCUMENT_CLIENT]
+
+
+═══════════════════════════════════════════════════════════════════════════════
+VÉRIFICATIONS À FAIRE
+═══════════════════════════════════════════════════════════════════════════════
+
+✅ CHECKLIST DE VÉRIFICATION
+─────────────────────────────────────────────────────────────────────────────
+□ Le compte Firebase Auth existe avec role: "client"
+□ Le document dans 'clients' existe
+□ Le champ client_user_id correspond à l'UID Firebase Auth
+□ Le document dans 'events' existe
+□ Le champ client_id correspond à l'ID du document client
+□ Le champ planner_id est rempli
+□ Les règles Firestore permettent la lecture
+
+
+COMMENT VÉRIFIER LES ASSOCIATIONS
+─────────────────────────────────────────────────────────────────────────────
+
+1. Ouvrir la console du navigateur (F12)
+2. Se connecter avec le compte client
+3. Regarder les logs :
+
+   ✅ Bon signe :
+   "Client found: { id: 'client-xxx', name: 'Julie Martin', ... }"
+   "Event found: { id: 'event-xxx', couple_names: 'Julie & Frédérick', ... }"
+
+   ❌ Problème :
+   "No client found for auth ID: abc123xyz456"
+   → Le client_user_id ne correspond pas à l'UID
+
+   "No event found for client ID: client-xxx"
+   → Le client_id dans events ne correspond pas
+
+
+═══════════════════════════════════════════════════════════════════════════════
+SCHÉMA DE L'ASSOCIATION
+═══════════════════════════════════════════════════════════════════════════════
+
+Firebase Auth                    Firestore
+─────────────────────────────────────────────────────────────────────────────
+
+User                             Collection: clients
+├─ UID: "abc123xyz"        ───>  ├─ Document: "client-001"
+├─ Email: julie@...              │  ├─ client_user_id: "abc123xyz"  ← LIEN 1
+└─ role: "client"                │  ├─ name: "Julie Martin"
+                                 │  └─ ...
+                                 │
+                                 └─ Collection: events
+                                    └─ Document: "event-001"
+                                       ├─ client_id: "client-001"  ← LIEN 2
+                                       ├─ couple_names: "Julie & Frédérick"
+                                       └─ ...
+
+
+LIEN 1 : client_user_id (dans clients) = UID (Firebase Auth)
+LIEN 2 : client_id (dans events) = ID du document client
+
+
+═══════════════════════════════════════════════════════════════════════════════
+ERREURS COURANTES
+═══════════════════════════════════════════════════════════════════════════════
+
+ERREUR 1 : "No client found"
+─────────────────────────────────────────────────────────────────────────────
+Cause : client_user_id ne correspond pas à l'UID Firebase Auth
+Solution : Vérifier que client_user_id = UID exact du compte Auth
+
+
+ERREUR 2 : "No event found"
+─────────────────────────────────────────────────────────────────────────────
+Cause : client_id dans events ne correspond pas à l'ID du client
+Solution : Vérifier que client_id = ID exact du document client
+
+
+ERREUR 3 : "Permission denied"
+─────────────────────────────────────────────────────────────────────────────
+Cause : Règles Firestore trop restrictives
+Solution : Vérifier les règles Firestore (voir section suivante)
+
+
+═══════════════════════════════════════════════════════════════════════════════
+RÈGLES FIRESTORE NÉCESSAIRES
+═══════════════════════════════════════════════════════════════════════════════
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Clients - lecture par le client lui-même
+    match /clients/{clientId} {
+      allow read: if request.auth != null && 
+        (resource.data.client_user_id == request.auth.uid ||
+         resource.data.planner_id == request.auth.uid);
+      allow write: if request.auth != null && 
+        request.auth.token.role == 'planner';
+    }
+    
+    // Events - lecture par client ou planner
+    match /events/{eventId} {
+      allow read: if request.auth != null;
+      allow update: if request.auth != null;
+      allow create, delete: if request.auth != null && 
+        request.auth.token.role == 'planner';
+    }
+  }
+}
+
+
+═══════════════════════════════════════════════════════════════════════════════
+EXEMPLE COMPLET
+═══════════════════════════════════════════════════════════════════════════════
+
+1. Firebase Auth :
+   UID: "xYz789AbC123"
+   Email: julie.martin@example.com
+   Custom claims: { "role": "client" }
+
+2. Firestore > clients > "client-julie-001" :
+   {
+     "planner_id": "PlAnNeR_uId_123",
+     "client_user_id": "xYz789AbC123",  ← MÊME UID QUE AUTH
+     "name": "Julie Martin",
+     "partner": "Frédérick Dubois",
+     "email": "julie.martin@example.com",
+     "phone": "+33 6 12 34 56 78"
+   }
+
+3. Firestore > events > "event-julie-001" :
+   {
+     "client_id": "client-julie-001",  ← MÊME ID QUE LE CLIENT
+     "planner_id": "PlAnNeR_uId_123",
+     "couple_names": "Julie & Frédérick",
+     "event_date": "2024-08-23",
+     "location": "Château d'Apigné",
+     "guest_count": 150,
+     "budget": 25000
+   }
+
+Résultat : Le client peut se connecter et voir son événement ! ✅
+
+
+═══════════════════════════════════════════════════════════════════════════════
+COMMANDES UTILES
+═══════════════════════════════════════════════════════════════════════════════
+
+# Créer les données avec le seeder
+npx ts-node scripts/seed-existing-collections.ts
+
+# Tester la connexion client
+npx ts-node scripts/test-client-connection.ts
+
+# Lancer l'application
+npm run dev
+
+
+═══════════════════════════════════════════════════════════════════════════════
+BESOIN D'AIDE ?
+═══════════════════════════════════════════════════════════════════════════════
+
+Si le problème persiste :
+
+1. Vérifier la console navigateur (F12) pour les erreurs
+2. Vérifier les logs Firestore dans Firebase Console
+3. Utiliser le script de test : scripts/test-client-connection.ts
+4. Vérifier que les 2 liens sont corrects (voir schéma ci-dessus)
+
+
+═══════════════════════════════════════════════════════════════════════════════
+FIN DU GUIDE
+═══════════════════════════════════════════════════════════════════════════════

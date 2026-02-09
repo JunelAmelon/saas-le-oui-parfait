@@ -5,73 +5,27 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Plus, Search, FileText, Eye, Download, Clock, CheckCircle, AlertCircle, DollarSign } from 'lucide-react';
-import { useState } from 'react';
+import { Plus, Search, FileText, Eye, Download, Clock, CheckCircle, AlertCircle, DollarSign, Loader2 } from 'lucide-react';
+import { useState, useEffect } from 'react';
 import { NewInvoiceModal } from '@/components/modals/NewInvoiceModal';
 import { RecordPaymentModal } from '@/components/modals/RecordPaymentModal';
+import { useAuth } from '@/contexts/AuthContext';
+import { getDocuments } from '@/lib/db';
+import { toast } from 'sonner';
 
-const facturesDemo = [
-  {
-    id: '1',
-    reference: 'FACT-2024-001',
-    client: 'Julie Martin & Frédérick Dubois',
-    date: '25/01/2024',
-    dueDate: '25/02/2024',
-    montantHT: 25000,
-    montantTTC: 30000,
-    paid: 30000,
-    status: 'paid',
-    type: 'invoice',
-  },
-  {
-    id: '2',
-    reference: 'FACT-2024-002',
-    client: 'Sophie Martin & Alexandre Petit',
-    date: '20/01/2024',
-    dueDate: '20/02/2024',
-    montantHT: 15000,
-    montantTTC: 18000,
-    paid: 0,
-    status: 'pending',
-    type: 'invoice',
-  },
-  {
-    id: '3',
-    reference: 'ACOMPTE-2024-001',
-    client: 'Emma Bernard & Thomas Moreau',
-    date: '15/01/2024',
-    dueDate: '15/02/2024',
-    montantHT: 5000,
-    montantTTC: 6000,
-    paid: 6000,
-    status: 'paid',
-    type: 'deposit',
-  },
-  {
-    id: '4',
-    reference: 'FACT-2024-003',
-    client: 'Marie Laurent',
-    date: '10/01/2024',
-    dueDate: '10/02/2024',
-    montantHT: 32000,
-    montantTTC: 38400,
-    paid: 20000,
-    status: 'partial',
-    type: 'invoice',
-  },
-  {
-    id: '5',
-    reference: 'FACT-2024-004',
-    client: 'Claire Dubois',
-    date: '05/01/2024',
-    dueDate: '05/02/2024',
-    montantHT: 12000,
-    montantTTC: 14400,
-    paid: 0,
-    status: 'overdue',
-    type: 'invoice',
-  },
-];
+interface Facture {
+  id: string;
+  reference: string;
+  client: string;
+  date: string;
+  dueDate: string;
+  montantHT: number;
+  montantTTC: number;
+  paid: number;
+  status: 'paid' | 'pending' | 'partial' | 'overdue';
+  type: 'invoice' | 'deposit';
+  pdfUrl?: string;
+}
 
 const statusConfig = {
   paid: {
@@ -102,11 +56,76 @@ const typeLabels = {
 };
 
 export default function FacturesPage() {
+  const { user } = useAuth();
+  const [factures, setFactures] = useState<Facture[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
   const [isNewInvoiceOpen, setIsNewInvoiceOpen] = useState(false);
   const [isRecordPaymentOpen, setIsRecordPaymentOpen] = useState(false);
+
+  const fetchFactures = async () => {
+    if (!user) return;
+    setLoading(true);
+    try {
+      const data = await getDocuments('invoices', [
+        { field: 'planner_id', operator: '==', value: user.uid }
+      ]);
+      const mapped = data.map((f: any) => ({
+        id: f.id,
+        reference: f.reference,
+        client: f.client,
+        date: f.date,
+        dueDate: f.due_date,
+        montantHT: f.montant_ht || 0,
+        montantTTC: f.montant_ttc || 0,
+        paid: f.paid || 0,
+        status: f.status,
+        type: f.type,
+        pdfUrl: f.pdf_url || '',
+      }));
+      setFactures(mapped);
+    } catch (e) {
+      console.error('Error fetching invoices:', e);
+      toast.error('Erreur lors du chargement des factures');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchFactures();
+  }, [user]);
   
-  const totalCA = facturesDemo.reduce((acc, f) => acc + f.paid, 0);
-  const totalEnAttente = facturesDemo.filter(f => f.status !== 'paid').reduce((acc, f) => acc + (f.montantTTC - f.paid), 0);
+  const totalCA = factures.reduce((acc, f) => acc + f.paid, 0);
+  const totalEnAttente = factures.filter(f => f.status !== 'paid').reduce((acc, f) => acc + (f.montantTTC - f.paid), 0);
+
+  const filteredFactures = factures.filter(f =>
+    f.reference.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    f.client.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const handleViewInvoice = (facture: Facture) => {
+    if (facture.pdfUrl) {
+      window.open(facture.pdfUrl, '_blank');
+    } else {
+      toast.error('Aucun PDF disponible');
+    }
+  };
+
+  const handleDownloadInvoice = (facture: Facture) => {
+    if (facture.pdfUrl) {
+      const link = document.createElement('a');
+      link.href = facture.pdfUrl;
+      link.download = `${facture.reference}.pdf`;
+      link.target = '_blank';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      toast.success('Téléchargement lancé');
+    } else {
+      toast.error('Aucun PDF disponible');
+    }
+  };
 
   return (
     <DashboardLayout>
@@ -145,13 +164,13 @@ export default function FacturesPage() {
           <Card className="p-6 shadow-xl border-0 bg-gradient-to-br from-green-50 to-white">
             <p className="text-sm text-brand-gray uppercase tracking-label mb-1">Payées</p>
             <p className="text-3xl font-bold text-brand-purple">
-              {facturesDemo.filter(f => f.status === 'paid').length}
+              {factures.filter(f => f.status === 'paid').length}
             </p>
           </Card>
           <Card className="p-6 shadow-xl border-0 bg-gradient-to-br from-blue-50 to-white">
             <p className="text-sm text-brand-gray uppercase tracking-label mb-1">En attente</p>
             <p className="text-3xl font-bold text-brand-purple">
-              {facturesDemo.filter(f => f.status === 'pending').length}
+              {factures.filter(f => f.status === 'pending').length}
             </p>
           </Card>
           <Card className="p-6 shadow-xl border-0 bg-gradient-to-br from-brand-beige to-white">
@@ -174,12 +193,34 @@ export default function FacturesPage() {
             <Input
               placeholder="Rechercher une facture..."
               className="pl-10 border-[#E5E5E5] focus-visible:ring-brand-turquoise"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
         </Card>
 
-        <div className="space-y-4">
-          {facturesDemo.map((facture) => {
+        {loading ? (
+          <div className="flex justify-center py-20">
+            <Loader2 className="h-10 w-10 animate-spin text-brand-turquoise" />
+          </div>
+        ) : filteredFactures.length === 0 ? (
+          <Card className="p-12 text-center">
+            <FileText className="h-16 w-16 text-brand-gray mx-auto mb-4" />
+            <h3 className="text-xl font-bold text-brand-purple mb-2">
+              {searchTerm ? 'Aucun résultat' : 'Aucune facture'}
+            </h3>
+            <p className="text-brand-gray mb-6">
+              {searchTerm ? 'Essayez avec d\'autres mots-clés' : 'Créez votre première facture'}
+            </p>
+            {!searchTerm && (
+              <Button onClick={() => setIsNewInvoiceOpen(true)} className="bg-brand-turquoise hover:bg-brand-turquoise-hover">
+                <Plus className="h-4 w-4 mr-2" /> Créer une facture
+              </Button>
+            )}
+          </Card>
+        ) : (
+          <div className="space-y-4">
+            {filteredFactures.map((facture) => {
             const config = statusConfig[facture.status as keyof typeof statusConfig];
             const StatusIcon = config.icon;
             const restant = facture.montantTTC - facture.paid;
@@ -234,11 +275,11 @@ export default function FacturesPage() {
                 </div>
 
                 <div className="flex gap-2">
-                  <Button size="sm" className="bg-brand-turquoise hover:bg-brand-turquoise-hover gap-2">
+                  <Button size="sm" className="bg-brand-turquoise hover:bg-brand-turquoise-hover gap-2" onClick={() => handleViewInvoice(facture)}>
                     <Eye className="h-3 w-3" />
                     Voir
                   </Button>
-                  <Button size="sm" variant="outline" className="border-2 border-brand-turquoise text-brand-gray hover:bg-brand-turquoise hover:text-white gap-2">
+                  <Button size="sm" variant="outline" className="border-2 border-brand-turquoise text-brand-gray hover:bg-brand-turquoise hover:text-white gap-2" onClick={() => handleDownloadInvoice(facture)}>
                     <Download className="h-3 w-3" />
                     PDF
                   </Button>
@@ -256,11 +297,12 @@ export default function FacturesPage() {
               </Card>
             );
           })}
-        </div>
+          </div>
+        )}
       </div>
 
-      <NewInvoiceModal isOpen={isNewInvoiceOpen} onClose={() => setIsNewInvoiceOpen(false)} />
-      <RecordPaymentModal isOpen={isRecordPaymentOpen} onClose={() => setIsRecordPaymentOpen(false)} />
+      <NewInvoiceModal isOpen={isNewInvoiceOpen} onClose={() => { setIsNewInvoiceOpen(false); fetchFactures(); }} />
+      <RecordPaymentModal isOpen={isRecordPaymentOpen} onClose={() => { setIsRecordPaymentOpen(false); fetchFactures(); }} />
     </DashboardLayout>
   );
 }

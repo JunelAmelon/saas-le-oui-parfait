@@ -187,26 +187,30 @@ export default function PostItPage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {notes.map(note => (
+            {notes.map((note) => (
               <Card
                 key={note.id}
                 draggable
                 onDragStart={(e) => handleDragStart(e, note.id)}
                 onDragEnd={handleDragEnd}
-                className={`p-6 border-2 relative cursor-move ${colorClasses[note.color]} ${draggedNote === note.id ? 'opacity-50' : ''}`}
+                className={`p-4 border-2 shadow-lg hover:shadow-xl transition-all cursor-move relative min-h-[180px] flex flex-col justify-between ${colorClasses[note.color]} ${draggedNote === note.id ? 'opacity-50' : ''}`}
               >
-                <GripVertical className="absolute top-2 left-2 h-5 w-5 text-gray-400" />
-                <button onClick={() => deleteNote(note.id)} className="absolute top-2 right-2">
-                  <X className="h-4 w-4" />
-                </button>
+                <div className="flex items-start justify-between mb-2">
+                  <GripVertical className="h-4 w-4 text-gray-400 flex-shrink-0" />
+                  <button onClick={() => deleteNote(note.id)} className="text-gray-500 hover:text-red-500">
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
 
-                {note.title && <h3 className="font-bold mb-2">{note.title}</h3>}
-                <p className="text-sm whitespace-pre-wrap">{note.content}</p>
+                <div className="flex-1 flex flex-col justify-center text-center px-2">
+                  {note.title && <h3 className="font-bold text-base mb-2">{note.title}</h3>}
+                  <p className="text-sm whitespace-pre-wrap leading-relaxed">{note.content}</p>
+                </div>
 
                 <Button
                   size="sm"
                   variant="ghost"
-                  className="w-full mt-4"
+                  className="w-full mt-2 text-xs"
                   onClick={() => {
                     setSelectedPostIt(note);
                     setModalMode('edit');
@@ -219,11 +223,17 @@ export default function PostItPage() {
             ))}
 
             <Card
-              className={`p-6 border-2 border-dashed cursor-pointer ${colorClasses[selectedColor]} opacity-60`}
-              onClick={() => setIsPostItModalOpen(true)}
+              className={`p-4 border-2 border-dashed shadow-lg hover:shadow-xl transition-all cursor-pointer min-h-[180px] ${colorClasses[selectedColor]} opacity-50 hover:opacity-100`}
+              onClick={() => {
+                setModalMode('create');
+                setSelectedPostIt(null);
+                setIsPostItModalOpen(true);
+              }}
             >
-              <Plus className="h-12 w-12 mx-auto" />
-              <p className="text-center mt-2">Ajouter un post-it</p>
+              <div className="h-full flex flex-col items-center justify-center text-center">
+                <Plus className="h-10 w-10 mb-2" />
+                <p className="text-sm font-medium">Ajouter un post-it</p>
+              </div>
             </Card>
           </div>
         )}

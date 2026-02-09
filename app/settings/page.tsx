@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -9,6 +9,9 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
+import { getDocuments, updateDocument } from '@/lib/db';
+import { toast as sonnerToast } from 'sonner';
 import {
   Settings as SettingsIcon,
   Bell,
@@ -21,7 +24,12 @@ import {
 
 export default function SettingsPage() {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [settingsId, setSettingsId] = useState<string | null>(null);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
 
   const [notifications, setNotifications] = useState({
     emailNewProspect: true,
@@ -40,15 +48,116 @@ export default function SettingsPage() {
     currency: 'EUR',
   });
 
+  // Charger les paramètres depuis Firebase
+  useEffect(() => {
+    const loadSettings = async () => {
+      if (!user) return;
+      try {
+        const settings = await getDocuments('settings', [
+          { field: 'planner_id', operator: '==', value: user.uid }
+        ]);
+        if (settings.length > 0) {
+          const userSettings = settings[0];
+          setSettingsId(userSettings.id);
+          if (userSettings.notifications) setNotifications(userSettings.notifications);
+          if (userSettings.preferences) setPreferences(userSettings.preferences);
+        }
+      } catch (error) {
+        console.error('Error loading settings:', error);
+      }
+    };
+    loadSettings();
+  }, [user]);
+
   const handleSave = async () => {
+    if (!user) {
+      sonnerToast.error('Vous devez être connecté');
+      return;
+    }
+
     setLoading(true);
-    setTimeout(() => {
-      toast({
-        title: 'Paramètres enregistrés',
-        description: 'Vos préférences ont été mises à jour',
-      });
+    try {
+      const settingsData = {
+        planner_id: user.uid,
+        notifications,
+        preferences,
+        updated_at: new Date(),
+      };
+
+      if (settingsId) {
+        await updateDocument('settings', settingsId, settingsData);
+      } else {
+        // Créer un nouveau document de paramètres si nécessaire
+        const { addDocument } = await import('@/lib/db');
+        await addDocument('settings', {
+          ...settingsData,
+          created_at: new Date(),
+        });
+      }
+
+      sonnerToast.success('Paramètres enregistrés avec succès');
+    } catch (error) {
+      console.error('Error saving settings:', error);
+      sonnerToast.error('Erreur lors de la sauvegarde des paramètres');
+    } finally {
       setLoading(false);
-    }, 1000);
+    }
+  };
+
+  const handleChangePassword = async () => {
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      sonnerToast.error('Veuillez remplir tous les champs');
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      sonnerToast.error('Les mots de passe ne correspondent pas');
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      sonnerToast.error('Le mot de passe doit contenir au moins 6 caractères');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // Utiliser Firebase Auth pour changer le mot de passe
+      const { updatePassword, reauthenticateWithCredential, EmailAuthProvider } = await import('firebase/auth');
+      const { auth } = await import('@/lib/firebase');
+      
+      if (!auth.currentUser) {
+        sonnerToast.error('Utilisateur non connecté');
+        return;
+      }
+
+      // Ré-authentifier l'utilisateur avec le mot de passe actuel
+      const credential = EmailAuthProvider.credential(
+        auth.currentUser.email!,
+        currentPassword
+      );
+      
+      await reauthenticateWithCredential(auth.currentUser, credential);
+      
+      // Mettre à jour le mot de passe
+      await updatePassword(auth.currentUser, newPassword);
+      
+      sonnerToast.success('Mot de passe modifié avec succès');
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch (error: any) {
+      console.error('Error changing password:', error);
+      if (error.code === 'auth/wrong-password') {
+        sonnerToast.error('Mot de passe actuel incorrect');
+      } else if (error.code === 'auth/weak-password') {
+        sonnerToast.error('Le mot de passe est trop faible');
+      } else {
+        sonnerToast.error('Erreur lors du changement de mot de passe');
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -318,6 +427,8 @@ export default function SettingsPage() {
                     <Input
                       id="current-password"
                       type="password"
+                      value={currentPassword}
+                      onChange={(e) => setCurrentPassword(e.target.value)}
                       className="border-[#E5E5E5] focus-visible:ring-brand-turquoise"
                     />
                   </div>
@@ -326,6 +437,8 @@ export default function SettingsPage() {
                     <Input
                       id="new-password"
                       type="password"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
                       className="border-[#E5E5E5] focus-visible:ring-brand-turquoise"
                     />
                   </div>
@@ -336,11 +449,17 @@ export default function SettingsPage() {
                     <Input
                       id="confirm-password"
                       type="password"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
                       className="border-[#E5E5E5] focus-visible:ring-brand-turquoise"
                     />
                   </div>
-                  <Button className="bg-brand-turquoise hover:bg-brand-turquoise-hover">
-                    Modifier le mot de passe
+                  <Button 
+                    onClick={handleChangePassword}
+                    disabled={loading}
+                    className="bg-brand-turquoise hover:bg-brand-turquoise-hover"
+                  >
+                    {loading ? 'Modification...' : 'Modifier le mot de passe'}
                   </Button>
                 </div>
 

@@ -5,23 +5,31 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import Image from 'next/image';
 import { FileText, Eye } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+import { getDocuments, addDocument } from '@/lib/db';
+import { toast as sonnerToast } from 'sonner';
+import jsPDF from 'jspdf';
+import { uploadPdf } from '@/lib/storage';
 
 interface NewContractModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onContractCreated?: () => void;
 }
 
-const clients = [
-  { id: '1', name: 'Julie & Frédérick', email: 'julie.martin@email.com', phone: '06 12 34 56 78', address: '15 rue de la Paix, 35000 Rennes' },
-  { id: '2', name: 'Sophie & Alexandre', email: 'sophie.dubois@email.com', phone: '06 23 45 67 89', address: '8 avenue des Fleurs, 44000 Nantes' },
-  { id: '3', name: 'Emma & Thomas', email: 'emma.bernard@email.com', phone: '06 34 56 78 90', address: '22 boulevard du Château, 56000 Vannes' },
-];
+interface Client {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  address: string;
+}
 
 const prestationsDisponibles = [
   { id: '1', nom: 'Coordination complète du mariage', prix: 2500 },
@@ -282,8 +290,11 @@ Précédée de la mention                                       Précédée de l
 [NOM_REPRESENTANT]                                           [NOM_CLIENT]
 Président de LE OUI PARFAIT`;
 
-export function NewContractModal({ isOpen, onClose }: NewContractModalProps) {
+export function NewContractModal({ isOpen, onClose, onContractCreated }: NewContractModalProps) {
   const { toast } = useToast();
+  const { user } = useAuth();
+  const [clients, setClients] = useState<Client[]>([]);
+  const [agencyInfo, setAgencyInfo] = useState<any>(null);
   const [selectedClient, setSelectedClient] = useState('');
   const [selectedPrestations, setSelectedPrestations] = useState<string[]>([]);
   const [prestationsPersonnalisees, setPrestationsPersonnalisees] = useState<Array<{nom: string, prix: number}>>([]);
@@ -294,6 +305,57 @@ export function NewContractModal({ isOpen, onClose }: NewContractModalProps) {
   const [adminInfo, setAdminInfo] = useState<AdminInfo>(adminInfoDefault);
   const [contractContent, setContractContent] = useState(contractTemplate);
   const [activeTab, setActiveTab] = useState('form');
+  const [loading, setLoading] = useState(false);
+
+  // Fetch clients and agency info
+  useEffect(() => {
+    if (isOpen && user) {
+      fetchClients();
+      fetchAgencyInfo();
+    }
+  }, [isOpen, user]);
+
+  const fetchClients = async () => {
+    if (!user) return;
+    try {
+      const data = await getDocuments('clients', [
+        { field: 'planner_id', operator: '==', value: user.uid }
+      ]);
+      const mapped = data.map((d: any) => ({
+        id: d.id,
+        name: d.partner ? `${d.name} & ${d.partner}` : d.name,
+        email: d.email || '',
+        phone: d.phone || '',
+        address: d.address || d.event_location || '',
+      }));
+      setClients(mapped);
+    } catch (e) {
+      console.error('Error fetching clients:', e);
+    }
+  };
+
+  const fetchAgencyInfo = async () => {
+    if (!user) return;
+    try {
+      const data = await getDocuments('agencies', [
+        { field: 'planner_id', operator: '==', value: user.uid }
+      ]);
+      if (data.length > 0) {
+        const agency = data[0];
+        setAgencyInfo(agency);
+        setAdminInfo({
+          nomRepresentant: agency.representative_name || agency.name || adminInfoDefault.nomRepresentant,
+          adresseAgence: agency.address || adminInfoDefault.adresseAgence,
+          siret: agency.siret || adminInfoDefault.siret,
+          ville: agency.city || adminInfoDefault.ville,
+          email: agency.email || adminInfoDefault.email,
+          telephone: agency.phone || adminInfoDefault.telephone,
+        });
+      }
+    } catch (e) {
+      console.error('Error fetching agency info:', e);
+    }
+  };
 
   const calculerMontantTotal = () => {
     const montantPrestations = selectedPrestations.reduce((total, id) => {
@@ -395,15 +457,124 @@ export function NewContractModal({ isOpen, onClose }: NewContractModalProps) {
     setContractContent(generated);
   };
 
-  const handleSubmit = () => {
-    const client = clients.find(c => c.id === selectedClient);
+  const generatePdf = async (reference: string): Promise<Blob> => {
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const margin = 20;
+    let y = 20;
+
+    // Titre principal
+    doc.setFontSize(20);
+    doc.setFont('helvetica', 'bold');
+    doc.text('CONTRAT DE PRESTATION DE SERVICES', pageWidth / 2, y, { align: 'center' });
+    y += 10;
+    doc.setFontSize(12);
+    doc.text('ORGANISATION ET COORDINATION D\'ÉVÉNEMENT MATRIMONIAL', pageWidth / 2, y, { align: 'center' });
+    y += 15;
+
+    // Contenu du contrat avec formatage
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    const lines = contractContent.split('\n');
     
-    toast({
-      title: 'Contrat créé',
-      description: `Contrat créé et envoyé à ${client?.name} (${client?.email})`,
-    });
-    
-    onClose();
+    for (let line of lines) {
+      if (y > 270) {
+        doc.addPage();
+        y = 20;
+      }
+      
+      if (line.startsWith('ARTICLE')) {
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(10);
+      } else {
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(9);
+      }
+      
+      const splitLines = doc.splitTextToSize(line, pageWidth - 2 * margin);
+      doc.text(splitLines, margin, y);
+      y += splitLines.length * 5;
+    }
+
+    return doc.output('blob');
+  };
+
+  const handleSubmit = async () => {
+    if (!user || !selectedClient || !eventDate || !eventLocation) {
+      sonnerToast.error('Veuillez remplir tous les champs obligatoires');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const client = clients.find(c => c.id === selectedClient);
+      const montantTotal = calculerMontantTotal();
+      const reference = `CONT-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`;
+      
+      const prestationsList: string[] = [];
+      selectedPrestations.forEach(id => {
+        const prestation = prestationsDisponibles.find(p => p.id === id);
+        if (prestation) {
+          prestationsList.push(`${prestation.nom} : ${prestation.prix.toLocaleString('fr-FR')} € TTC`);
+        }
+      });
+      prestationsPersonnalisees.forEach(p => {
+        prestationsList.push(`${p.nom} : ${p.prix.toLocaleString('fr-FR')} € TTC`);
+      });
+
+      // Générer le PDF
+      sonnerToast.info('Génération du PDF en cours...');
+      const pdfBlob = await generatePdf(reference);
+      
+      // Upload vers Cloudinary
+      sonnerToast.info('Upload du PDF vers le cloud...');
+      const pdfUrl = await uploadPdf(pdfBlob, reference);
+
+      const contractData = {
+        planner_id: user.uid,
+        reference,
+        title: `Contrat de prestation - ${client?.name}`,
+        client: client?.name || '',
+        client_email: client?.email || '',
+        client_phone: client?.phone || '',
+        client_address: client?.address || '',
+        type: 'service_contract',
+        amount: montantTotal,
+        status: 'draft',
+        created_at: new Date().toLocaleDateString('fr-FR'),
+        signed_at: null,
+        event_date: eventDate,
+        event_location: eventLocation,
+        prestations: prestationsList,
+        contract_content: contractContent,
+        pdf_url: pdfUrl,
+        agency_name: adminInfo.nomRepresentant,
+        agency_address: adminInfo.adresseAgence,
+        agency_phone: adminInfo.telephone,
+        agency_email: adminInfo.email,
+        agency_siret: adminInfo.siret,
+        created_timestamp: new Date(),
+      };
+
+      await addDocument('contracts', contractData);
+      
+      sonnerToast.success(`Contrat créé avec PDF pour ${client?.name}`);
+      
+      // Fermer le modal d'abord
+      onClose();
+      
+      // Puis rafraîchir la liste après un court délai
+      if (onContractCreated) {
+        setTimeout(() => {
+          onContractCreated();
+        }, 300);
+      }
+    } catch (e) {
+      console.error('Error creating contract:', e);
+      sonnerToast.error('Erreur lors de la création du contrat');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const selectedClientData = clients.find(c => c.id === selectedClient);
@@ -418,6 +589,9 @@ export function NewContractModal({ isOpen, onClose }: NewContractModalProps) {
             <FileText className="h-6 w-6 text-brand-turquoise" />
             Nouveau contrat - {montantTotal > 0 ? `${montantTotal.toLocaleString('fr-FR')} € TTC` : 'Montant à définir'}
           </DialogTitle>
+          <DialogDescription>
+            Créez un contrat de prestation pour votre client
+          </DialogDescription>
         </DialogHeader>
         
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -676,9 +850,9 @@ export function NewContractModal({ isOpen, onClose }: NewContractModalProps) {
           <Button
             className="bg-brand-turquoise hover:bg-brand-turquoise-hover"
             onClick={handleSubmit}
-            disabled={!selectedClient}
+            disabled={!selectedClient || !eventDate || !eventLocation || loading}
           >
-            Créer et envoyer au client
+            {loading ? 'Création...' : 'Créer et envoyer au client'}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -44,6 +44,15 @@ interface Client {
   createdAt?: any;
 }
 
+interface Devis {
+  id: string;
+  reference: string;
+  status: 'draft' | 'sent' | 'accepted' | 'rejected';
+  montant_ttc: number;
+  client: string;
+  created_at: any;
+}
+
 export default function Home() {
   const { user, loading } = useAuth();
   const router = useRouter();
@@ -58,8 +67,9 @@ export default function Home() {
   });
   const [dataLoading, setDataLoading] = useState(true);
   const [lastClient, setLastClient] = useState<Client | null>(null);
+  const [recentDevis, setRecentDevis] = useState<Devis[]>([]);
 
-  // 🔐 Sécurité & redirection
+  // Sécurité & redirection
   useEffect(() => {
     if (!loading) {
       if (!user) router.push('/login');
@@ -67,20 +77,21 @@ export default function Home() {
     }
   }, [user, loading, router]);
 
-  // 📊 Fetch Firebase data (stats)
+  // Fetch Firebase data (stats)
   useEffect(() => {
     async function fetchData() {
       if (!user || user.role !== 'planner') return;
 
       try {
-        const [prospects, events, tasks, clients] = await Promise.all([
+        const [prospects, events, tasks, clients, devis] = await Promise.all([
           getDocuments('prospects', [{ field: 'planner_id', operator: '==', value: user.uid }]),
           getDocuments('events', [{ field: 'planner_id', operator: '==', value: user.uid }]),
           getDocuments('tasks', [
             { field: 'assigned_to', operator: '==', value: user.uid },
             { field: 'status', operator: '==', value: 'todo' }
           ]),
-          getDocuments('clients', [{ field: 'planner_id', operator: '==', value: user.uid }])
+          getDocuments('clients', [{ field: 'planner_id', operator: '==', value: user.uid }]),
+          getDocuments('devis', [{ field: 'planner_id', operator: '==', value: user.uid }])
         ]);
 
         const signedEvents = events.filter((e: any) =>
@@ -109,9 +120,28 @@ export default function Home() {
             };
           });
 
+        // Trier les devis par date de création et prendre les 5 derniers
+        const sortedDevis = devis
+          .sort((a: any, b: any) => {
+            const dateA = a.created_at?.toDate?.() || new Date(a.created_at);
+            const dateB = b.created_at?.toDate?.() || new Date(b.created_at);
+            return dateB.getTime() - dateA.getTime();
+          })
+          .slice(0, 5)
+          .map((d: any) => ({
+            id: d.id,
+            reference: d.reference,
+            status: d.status,
+            montant_ttc: d.montant_ttc,
+            client: d.client,
+            created_at: d.created_at
+          }));
+
+        setRecentDevis(sortedDevis);
+
         setStats({
           prospectsCount: prospects.length,
-          eventsCount: events.length,
+          eventsCount: signedEvents.length,
           activeEvents,
           upcomingTasks: tasks.slice(0, 5),
           revenue,
@@ -320,11 +350,31 @@ export default function Home() {
           />
 
           <QuoteList
-            quotes={[
-              { id: '1', reference: 'DEVIS-2024-001', status: 'sent' },
-              { id: '2', reference: 'DEVIS-2024-002', status: 'accepted' },
-              { id: '3', reference: 'DEVIS-2024-003', status: 'accepted' },
-            ]}
+            quotes={recentDevis}
+            onDevisCreated={() => {
+              // Recharger les devis après création
+              if (user) {
+                getDocuments('devis', [{ field: 'planner_id', operator: '==', value: user.uid }])
+                  .then((devis) => {
+                    const sortedDevis = devis
+                      .sort((a: any, b: any) => {
+                        const dateA = a.created_at?.toDate?.() || new Date(a.created_at);
+                        const dateB = b.created_at?.toDate?.() || new Date(b.created_at);
+                        return dateB.getTime() - dateA.getTime();
+                      })
+                      .slice(0, 5)
+                      .map((d: any) => ({
+                        id: d.id,
+                        reference: d.reference,
+                        status: d.status,
+                        montant_ttc: d.montant_ttc,
+                        client: d.client,
+                        created_at: d.created_at
+                      }));
+                    setRecentDevis(sortedDevis);
+                  });
+              }
+            }}
           />
 
           <TaskList

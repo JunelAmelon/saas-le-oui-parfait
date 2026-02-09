@@ -9,10 +9,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Package, Calendar, AlertCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
+import { addDocument } from '@/lib/db';
+import { toast as sonnerToast } from 'sonner';
 
 interface NewInventaireModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onInventaireCreated?: () => void;
 }
 
 const locations = [
@@ -22,36 +26,62 @@ const locations = [
   'Tous les entrepôts',
 ];
 
-export function NewInventaireModal({ isOpen, onClose }: NewInventaireModalProps) {
+export function NewInventaireModal({ isOpen, onClose, onInventaireCreated }: NewInventaireModalProps) {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [location, setLocation] = useState('');
   const [date, setDate] = useState('');
   const [responsiblePerson, setResponsiblePerson] = useState('');
   const [notes, setNotes] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!location || !date || !responsiblePerson) {
-      toast({
-        title: 'Erreur',
-        description: 'Veuillez remplir tous les champs obligatoires',
-        variant: 'destructive',
-      });
+      sonnerToast.error('Veuillez remplir tous les champs obligatoires');
       return;
     }
 
-    const reference = `INV-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`;
+    if (!user) {
+      sonnerToast.error('Vous devez être connecté');
+      return;
+    }
 
-    toast({
-      title: 'Inventaire créé',
-      description: `L'inventaire ${reference} a été planifié pour ${location}`,
-    });
+    setLoading(true);
+    try {
+      const reference = `INV-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`;
 
-    // Reset form
-    setLocation('');
-    setDate('');
-    setResponsiblePerson('');
-    setNotes('');
-    onClose();
+      await addDocument('inventaires', {
+        reference,
+        location,
+        date,
+        by: responsiblePerson,
+        notes,
+        status: 'planned',
+        items_count: 0,
+        discrepancies: 0,
+        owner_id: user.uid,
+        created_at: new Date(),
+      });
+
+      sonnerToast.success(`L'inventaire ${reference} a été planifié pour ${location}`);
+
+      // Reset form
+      setLocation('');
+      setDate('');
+      setResponsiblePerson('');
+      setNotes('');
+      
+      if (onInventaireCreated) {
+        onInventaireCreated();
+      }
+      
+      onClose();
+    } catch (error) {
+      console.error('Error creating inventaire:', error);
+      sonnerToast.error('Erreur lors de la création de l\'inventaire');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -148,8 +178,9 @@ export function NewInventaireModal({ isOpen, onClose }: NewInventaireModalProps)
           <Button
             className="bg-brand-turquoise hover:bg-brand-turquoise-hover"
             onClick={handleSubmit}
+            disabled={loading}
           >
-            Créer l'inventaire
+            {loading ? 'Création...' : 'Créer l\'inventaire'}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -118,21 +118,37 @@ export default function ClientFilesPage() {
   };
 
   const handleGoToMessages = () => {
-    setIsDetailOpen(false);
-    router.push('/messages');
+    if (selectedClient) {
+      setIsDetailOpen(false);
+      router.push(`/messages?clientId=${selectedClient.id}`);
+    }
   };
 
   const handleGoToDocuments = () => {
     if (selectedClient) {
       setIsDetailOpen(false);
-      router.push(`/admin/clients/${selectedClient.id}/documents`);
+      router.push(`/documents?clientId=${selectedClient.id}`);
     }
   };
 
   const handleGoToPlanning = () => {
     if (selectedClient) {
       setIsDetailOpen(false);
-      router.push(`/admin/clients/${selectedClient.id}/planning`);
+      router.push(`/planning?clientId=${selectedClient.id}`);
+    }
+  };
+
+  const handleGoToGallery = () => {
+    if (selectedClient) {
+      setIsDetailOpen(false);
+      router.push(`/admin/clients/${selectedClient.id}/galerie`);
+    }
+  };
+
+  const handleGoToSteps = () => {
+    if (selectedClient) {
+      setIsDetailOpen(false);
+      router.push(`/admin/clients/${selectedClient.id}/etapes`);
     }
   };
 
@@ -515,7 +531,7 @@ export default function ClientFilesPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
                 <Button variant="outline" className="gap-2" onClick={handleGoToMessages}>
                   <MessageSquare className="h-4 w-4" />
                   Message
@@ -527,6 +543,14 @@ export default function ClientFilesPage() {
                 <Button variant="outline" className="gap-2" onClick={handleGoToPlanning}>
                   <Calendar className="h-4 w-4" />
                   Planning
+                </Button>
+                <Button variant="outline" className="gap-2" onClick={handleGoToSteps}>
+                  <CheckCircle className="h-4 w-4" />
+                  Étapes
+                </Button>
+                <Button variant="outline" className="gap-2" onClick={handleGoToGallery}>
+                  <ImageIcon className="h-4 w-4" />
+                  Galerie
                 </Button>
               </div>
             </div>

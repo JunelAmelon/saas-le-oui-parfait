@@ -1,12 +1,13 @@
 'use client';
 
+import { useEffect, useMemo, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ClientDashboardLayout } from '@/components/layout/ClientDashboardLayout';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
+import { useClientData } from '@/contexts/ClientDataContext';
+import { calculateDaysRemaining } from '@/lib/client-helpers';
+import { getDocuments } from '@/lib/db';
 import {
   Dialog,
   DialogContent,
@@ -16,13 +17,6 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import {
   Calendar as CalendarIcon,
   Clock,
   CheckCircle,
@@ -30,131 +24,39 @@ import {
   AlertCircle,
   ChevronLeft,
   ChevronRight,
-  Plus,
   MapPin,
+  Loader2,
 } from 'lucide-react';
-import { useState } from 'react';
-import { MilestoneManager } from '@/components/planning/MilestoneManager';
-import { AppointmentRequest } from '@/components/planning/AppointmentRequest';
+import { updateDocument } from '@/lib/db';
 
-const events = [
-  {
-    id: '1',
-    title: 'RDV Fleuriste - Choix des compositions',
-    date: '2024-02-20',
-    time: '14:00',
-    duration: '2h',
-    location: 'Atelier Floral, Rennes',
-    status: 'upcoming',
-    type: 'rdv',
-  },
-  {
-    id: '2',
-    title: 'Essayage robe de mariée',
-    date: '2024-03-01',
-    time: '10:00',
-    duration: '1h30',
-    location: 'Boutique Marie & Nous',
-    status: 'upcoming',
-    type: 'rdv',
-  },
-  {
-    id: '3',
-    title: 'Dégustation menu traiteur',
-    date: '2024-03-15',
-    time: '19:00',
-    duration: '2h',
-    location: 'Restaurant Le Gourmet',
-    status: 'upcoming',
-    type: 'rdv',
-  },
-  {
-    id: '4',
-    title: 'Visite finale du lieu',
-    date: '2024-04-10',
-    time: '15:00',
-    duration: '2h',
-    location: 'Château d\'Apigné',
-    status: 'upcoming',
-    type: 'rdv',
-  },
-  {
-    id: '5',
-    title: 'Dernier essayage costume',
-    date: '2024-07-15',
-    time: '11:00',
-    duration: '1h',
-    location: 'Tailleur Prestige',
-    status: 'upcoming',
-    type: 'rdv',
-  },
-];
-
-interface Milestone {
+type Step = {
   id: string;
+  event_id: string;
+  client_id: string;
+  planner_id?: string;
   title: string;
-  date: string;
-  status: 'pending' | 'in_progress' | 'completed';
-  eventId: string;
-  createdBy: 'admin' | 'client';
-  completedAt?: string;
-}
+  description?: string;
+  deadline?: string;
+  kind?: 'milestone';
+  admin_confirmed?: boolean;
+  client_confirmed?: boolean;
+  created_at?: any;
+};
 
-const initialMilestones: Milestone[] = [
-  { id: '1', title: 'Réservation lieu', date: '2024-01-15', status: 'completed', eventId: 'event-1', createdBy: 'admin', completedAt: '2024-01-15T10:00:00Z' },
-  { id: '2', title: 'Choix traiteur', date: '2024-01-22', status: 'completed', eventId: 'event-1', createdBy: 'admin', completedAt: '2024-01-22T14:00:00Z' },
-  { id: '3', title: 'Réservation photographe', date: '2024-02-05', status: 'completed', eventId: 'event-1', createdBy: 'admin', completedAt: '2024-02-05T16:00:00Z' },
-  { id: '4', title: 'Confirmation DJ', date: '2024-02-12', status: 'in_progress', eventId: 'event-1', createdBy: 'admin' },
-  { id: '5', title: 'Choix fleurs', date: '2024-02-25', status: 'pending', eventId: 'event-1', createdBy: 'admin' },
-  { id: '6', title: 'Validation menu', date: '2024-03-20', status: 'pending', eventId: 'event-1', createdBy: 'admin' },
-  { id: '7', title: 'Plan de table', date: '2024-07-01', status: 'pending', eventId: 'event-1', createdBy: 'admin' },
-  { id: '8', title: 'Répétition cérémonie', date: '2024-08-20', status: 'pending', eventId: 'event-1', createdBy: 'admin' },
-];
-
-interface Appointment {
+type AppointmentTask = {
   id: string;
-  type: string;
-  dateRequested: string;
-  timeRequested: string;
-  notes: string;
-  status: 'pending' | 'accepted' | 'refused' | 'completed';
-  clientId: string;
-  createdAt: string;
-  adminResponse?: string;
-  confirmedDate?: string;
-  confirmedTime?: string;
-}
-
-const initialAppointments: Appointment[] = [
-  {
-    id: '1',
-    type: 'Rendez-vous fleuriste',
-    dateRequested: '2024-02-20',
-    timeRequested: '14:00',
-    notes: 'Pour choisir les compositions florales',
-    status: 'accepted',
-    clientId: 'client-1',
-    createdAt: '2024-02-10T10:00:00Z',
-    confirmedDate: '2024-02-20',
-    confirmedTime: '14:00',
-    adminResponse: 'Rendez-vous confirmé avec Atelier Floral',
-  },
-  {
-    id: '2',
-    type: 'Dégustation traiteur',
-    dateRequested: '2024-03-15',
-    timeRequested: '19:00',
-    notes: 'Dégustation du menu final',
-    status: 'pending',
-    clientId: 'client-1',
-    createdAt: '2024-02-15T09:00:00Z',
-  },
-];
-
-const months = [
-  'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
-  'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'
-];
+  kind?: 'appointment';
+  event_id: string;
+  client_id: string;
+  title?: string;
+  notes?: string;
+  location?: string;
+  status?: 'pending' | 'accepted' | 'refused' | 'cancelled' | 'completed';
+  confirmed_date?: string;
+  confirmed_time?: string;
+  requested_date?: string;
+  requested_time?: string;
+};
 
 interface Event {
   id: string;
@@ -168,25 +70,151 @@ interface Event {
 }
 
 export default function PlanningPage() {
-  const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
-  const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
-  const [isRdvModalOpen, setIsRdvModalOpen] = useState(false);
-  const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
+  const { client, event, loading: dataLoading } = useClientData();
+  const [rdvEvents, setRdvEvents] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
+  const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [steps, setSteps] = useState<Step[]>([]);
+  const [stepsLoading, setStepsLoading] = useState(true);
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [isEventDetailOpen, setIsEventDetailOpen] = useState(false);
-  const [rdvType, setRdvType] = useState('');
-  const [rdvDate, setRdvDate] = useState('');
-  const [rdvNotes, setRdvNotes] = useState('');
-  const [milestones, setMilestones] = useState<Milestone[]>(initialMilestones);
-  const [appointments, setAppointments] = useState<Appointment[]>(initialAppointments);
 
-  const handleRequestRdv = () => {
-    setIsRdvModalOpen(false);
-    setIsSuccessModalOpen(true);
-    setRdvType('');
-    setRdvDate('');
-    setRdvNotes('');
+  const coupleNames = useMemo(() => {
+    const n1 = client?.name || '';
+    const n2 = client?.partner || '';
+    return `${n1}${n1 && n2 ? ' & ' : ''}${n2}`.trim() || event?.couple_names || 'Client';
+  }, [client?.name, client?.partner, event?.couple_names]);
+
+  useEffect(() => {
+    async function fetchRDV() {
+      if (!client?.id) {
+        setRdvEvents([]);
+        setLoading(false);
+        return;
+      }
+
+      try {
+        setLoading(true);
+        const planningEvents = await getDocuments('events', [
+          { field: 'client_id', operator: '==', value: client.id },
+        ]);
+
+        const mappedFromEvents = (planningEvents as any[])
+          // Les événements de mariage (EventData) utilisent souvent event_date/location.
+          // Les items planning créés depuis /planning utilisent date/time/location.
+          .filter((e) => Boolean(e?.date))
+          .map((e) => {
+            return {
+              id: e.id,
+              title: e.title || 'Rendez-vous',
+              date: e.date || '',
+              time: e.time || '',
+              duration: '',
+              location: e.location || '',
+              status: 'upcoming',
+              type: 'rdv',
+              notes: e.description || '',
+              adminResponse: '',
+            };
+          });
+
+        let mappedFromTasks: any[] = [];
+        if (event?.id) {
+          const items = await getDocuments('tasks', [
+            { field: 'event_id', operator: '==', value: event.id },
+          ]);
+
+          const appointments = (items as any[])
+            .filter((t) => t?.kind === 'appointment')
+            .filter((t) => (t?.status || 'accepted') === 'accepted') as AppointmentTask[];
+
+          mappedFromTasks = appointments.map((a) => {
+            const date = a.confirmed_date || a.requested_date || '';
+            const time = a.confirmed_time || a.requested_time || '';
+            return {
+              id: a.id,
+              title: a.title || 'Rendez-vous',
+              date,
+              time,
+              duration: '',
+              location: a.location || '',
+              status: 'upcoming',
+              type: 'rdv',
+              notes: a.notes || '',
+              adminResponse: '',
+            };
+          });
+        }
+
+        const mapped = [...mappedFromEvents, ...mappedFromTasks];
+
+        mapped.sort((x, y) => {
+          const dx = new Date(`${x.date}T${x.time || '00:00'}`).getTime();
+          const dy = new Date(`${y.date}T${y.time || '00:00'}`).getTime();
+          return dx - dy;
+        });
+
+        setRdvEvents(mapped.filter((x) => x.date));
+      } catch (error) {
+        console.error('Error fetching RDV:', error);
+        setRdvEvents([]);
+      } finally {
+        setLoading(false);
+      }
+    }
+    if (!dataLoading) {
+      fetchRDV();
+    }
+  }, [event, client, dataLoading]);
+
+  useEffect(() => {
+    async function fetchSteps() {
+      if (!event?.id || !client?.id) {
+        setSteps([]);
+        setStepsLoading(false);
+        return;
+      }
+      try {
+        setStepsLoading(true);
+        const items = await getDocuments('tasks', [
+          { field: 'event_id', operator: '==', value: event.id },
+        ]);
+        const onlySteps = (items as any[]).filter((t) => t?.kind === 'milestone');
+        setSteps(onlySteps as Step[]);
+      } catch (e) {
+        console.error('Error fetching steps:', e);
+        setSteps([]);
+      } finally {
+        setStepsLoading(false);
+      }
+    }
+
+    if (!dataLoading) {
+      fetchSteps();
+    }
+  }, [event?.id, client?.id, dataLoading]);
+
+  const toggleClientConfirm = async (step: Step) => {
+    if (!step?.id) return;
+    const next = !step.client_confirmed;
+    setSteps((prev) => prev.map((s) => (s.id === step.id ? { ...s, client_confirmed: next } : s)));
+    try {
+      await updateDocument('tasks', step.id, { client_confirmed: next });
+    } catch (e) {
+      console.error('Error confirming step:', e);
+    }
   };
+
+  const daysRemaining = event ? calculateDaysRemaining(event.event_date) : 0;
+
+  if (dataLoading || loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="animate-spin h-12 w-12 text-brand-turquoise" />
+      </div>
+    );
+  }
 
   const handleEventClick = (event: Event) => {
     setSelectedEvent(event);
@@ -215,8 +243,13 @@ export default function PlanningPage() {
     }
   };
 
+  const months = [
+    'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
+    'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'
+  ];
+
   return (
-    <ClientDashboardLayout clientName="Julie & Frédérick" daysRemaining={165}>
+    <ClientDashboardLayout clientName={coupleNames} daysRemaining={daysRemaining}>
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-brand-purple flex items-center gap-2 sm:gap-3">
@@ -235,7 +268,12 @@ export default function PlanningPage() {
                 Prochains rendez-vous
               </h2>
               <div className="space-y-4">
-                {events.map((event) => (
+                {rdvEvents.length === 0 ? (
+                  <div className="text-center py-10 text-brand-gray">
+                    Aucun rendez-vous de prévu
+                  </div>
+                ) : (
+                  rdvEvents.map((event) => (
                   <div
                     key={event.id}
                     className="flex items-start gap-4 p-4 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer"
@@ -263,7 +301,8 @@ export default function PlanningPage() {
                       Confirmé
                     </Badge>
                   </div>
-                ))}
+                  ))
+                )}
               </div>
             </Card>
           </div>
@@ -272,24 +311,22 @@ export default function PlanningPage() {
             <Card className="p-6 shadow-xl border-0">
               <div className="flex items-center justify-between mb-4">
                 <Button variant="ghost" size="icon" onClick={() => {
-                  if (currentMonth === 0) {
-                    setCurrentMonth(11);
-                    setCurrentYear(currentYear - 1);
+                  if (currentMonth.getMonth() === 0) {
+                    setCurrentMonth(new Date(currentMonth.getFullYear() - 1, 11));
                   } else {
-                    setCurrentMonth(currentMonth - 1);
+                    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1));
                   }
                 }}>
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
                 <h3 className="font-medium text-brand-purple">
-                  {months[currentMonth]} {currentYear}
+                  {months[currentMonth.getMonth()]} {currentMonth.getFullYear()}
                 </h3>
                 <Button variant="ghost" size="icon" onClick={() => {
-                  if (currentMonth === 11) {
-                    setCurrentMonth(0);
-                    setCurrentYear(currentYear + 1);
+                  if (currentMonth.getMonth() === 11) {
+                    setCurrentMonth(new Date(currentMonth.getFullYear() + 1, 0));
                   } else {
-                    setCurrentMonth(currentMonth + 1);
+                    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1));
                   }
                 }}>
                   <ChevronRight className="h-4 w-4" />
@@ -302,13 +339,13 @@ export default function PlanningPage() {
                   </div>
                 ))}
                 {Array.from({ length: 35 }, (_, i) => {
-                  const day = i - new Date(currentYear, currentMonth, 1).getDay() + 2;
-                  const isCurrentMonth = day > 0 && day <= new Date(currentYear, currentMonth + 1, 0).getDate();
-                  const hasEvent = events.some(e => {
+                  const day = i - new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1).getDay() + 2;
+                  const isCurrentMonth = day > 0 && day <= new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0).getDate();
+                  const hasEvent = rdvEvents.some(e => {
                     const eventDate = new Date(e.date);
                     return eventDate.getDate() === day && 
-                           eventDate.getMonth() === currentMonth && 
-                           eventDate.getFullYear() === currentYear;
+                           eventDate.getMonth() === currentMonth.getMonth() && 
+                           eventDate.getFullYear() === currentMonth.getFullYear();
                   });
                   return (
                     <div
@@ -329,82 +366,76 @@ export default function PlanningPage() {
             </Card>
 
             <Card className="p-6 shadow-xl border-0">
-              <MilestoneManager
-                eventId="event-1"
-                isAdmin={false}
-                milestones={milestones}
-                onUpdate={(items) => setMilestones(items)}
-              />
-            </Card>
+              <div className="space-y-4">
+                <div>
+                  <h3 className="text-lg font-bold text-brand-purple">Étapes clés</h3>
+                  <p className="text-sm text-brand-gray">
+                    Suivez l'avancement de vos étapes
+                  </p>
+                </div>
 
-            <Card className="p-6 shadow-xl border-0">
-              <AppointmentRequest
-                clientId="client-1"
-                isAdmin={false}
-                appointments={appointments}
-                onUpdate={(items) => setAppointments(items)}
-              />
+                {stepsLoading ? (
+                  <div className="flex items-center justify-center py-10">
+                    <Loader2 className="h-6 w-6 animate-spin text-brand-turquoise" />
+                  </div>
+                ) : steps.length === 0 ? (
+                  <div className="text-center py-10 text-brand-gray">
+                    Aucune étape pour le moment
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {steps
+                      .slice()
+                      .sort((a, b) => (a.deadline || '').localeCompare(b.deadline || ''))
+                      .map((s) => {
+                        const done = Boolean(s.admin_confirmed) && Boolean(s.client_confirmed);
+                        return (
+                          <div
+                            key={s.id}
+                            className="p-4 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors"
+                          >
+                            <div className="flex items-start justify-between gap-4">
+                              <div className="min-w-0">
+                                <p className="font-medium text-brand-purple truncate">{s.title}</p>
+                                {s.deadline ? (
+                                  <p className="text-sm text-brand-gray">Échéance : {s.deadline}</p>
+                                ) : null}
+                                {s.description ? (
+                                  <p className="text-sm text-brand-gray mt-1">{s.description}</p>
+                                ) : null}
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Badge className={done ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'}>
+                                  {done ? 'Validée' : 'En cours'}
+                                </Badge>
+                              </div>
+                            </div>
+
+                            <div className="mt-3 flex flex-wrap items-center gap-2">
+                              <Badge className={s.admin_confirmed ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}>
+                                Admin : {s.admin_confirmed ? 'confirmé' : 'en attente'}
+                              </Badge>
+                              <Badge className={s.client_confirmed ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}>
+                                Vous : {s.client_confirmed ? 'confirmé' : 'en attente'}
+                              </Badge>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="ml-auto"
+                                onClick={() => void toggleClientConfirm(s)}
+                              >
+                                {s.client_confirmed ? 'Annuler ma confirmation' : 'Je confirme'}
+                              </Button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                  </div>
+                )}
+              </div>
             </Card>
           </div>
         </div>
-
-        <Dialog open={isRdvModalOpen} onOpenChange={setIsRdvModalOpen}>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle className="text-brand-purple">Demander un rendez-vous</DialogTitle>
-              <DialogDescription>
-                Envoyez une demande de rendez-vous à votre wedding planner
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label>Type de rendez-vous</Label>
-                <Select value={rdvType} onValueChange={setRdvType}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Sélectionner le type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="fleuriste">Fleuriste</SelectItem>
-                    <SelectItem value="traiteur">Traiteur</SelectItem>
-                    <SelectItem value="photographe">Photographe</SelectItem>
-                    <SelectItem value="lieu">Visite du lieu</SelectItem>
-                    <SelectItem value="essayage">Essayage</SelectItem>
-                    <SelectItem value="autre">Autre</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Date souhaitée</Label>
-                <Input 
-                  type="date" 
-                  value={rdvDate}
-                  onChange={(e) => setRdvDate(e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Notes / Précisions</Label>
-                <Textarea 
-                  placeholder="Ajoutez des précisions si nécessaire..."
-                  value={rdvNotes}
-                  onChange={(e) => setRdvNotes(e.target.value)}
-                  rows={3}
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsRdvModalOpen(false)}>
-                Annuler
-              </Button>
-              <Button 
-                className="bg-brand-turquoise hover:bg-brand-turquoise-hover"
-                onClick={handleRequestRdv}
-                disabled={!rdvType || !rdvDate}
-              >
-                Envoyer la demande
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
 
         <Dialog open={isEventDetailOpen} onOpenChange={setIsEventDetailOpen}>
           <DialogContent className="sm:max-w-md">
@@ -442,28 +473,6 @@ export default function PlanningPage() {
               <Button 
                 className="bg-brand-turquoise hover:bg-brand-turquoise-hover w-full"
                 onClick={() => setIsEventDetailOpen(false)}
-              >
-                Fermer
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        <Dialog open={isSuccessModalOpen} onOpenChange={setIsSuccessModalOpen}>
-          <DialogContent className="sm:max-w-md text-center">
-            <div className="flex flex-col items-center py-6">
-              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
-                <CheckCircle className="h-8 w-8 text-green-600" />
-              </div>
-              <DialogTitle className="text-brand-purple text-xl">Demande envoyée !</DialogTitle>
-              <DialogDescription className="mt-2">
-                Votre demande de rendez-vous a été envoyée. Votre wedding planner vous recontactera rapidement.
-              </DialogDescription>
-            </div>
-            <DialogFooter className="justify-center">
-              <Button 
-                className="bg-brand-turquoise hover:bg-brand-turquoise-hover"
-                onClick={() => setIsSuccessModalOpen(false)}
               >
                 Fermer
               </Button>

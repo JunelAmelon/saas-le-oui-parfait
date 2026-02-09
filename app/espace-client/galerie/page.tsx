@@ -34,53 +34,192 @@ import {
   ChevronLeft,
   ChevronRight,
   CheckCircle,
+  Loader2,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useClientData } from '@/contexts/ClientDataContext';
+import { calculateDaysRemaining, getEventGalleries, GalleryData } from '@/lib/client-helpers';
+import { addDocument, getDocument, updateDocument } from '@/lib/db';
+import { uploadImage } from '@/lib/storage';
+import { toast } from 'sonner';
 
-const albums = [
-  { id: '1', name: 'Inspiration', count: 24, cover: '🎨' },
-  { id: '2', name: 'Lieu de réception', count: 12, cover: '🏰' },
-  { id: '3', name: 'Décoration', count: 18, cover: '💐' },
-  { id: '4', name: 'Robes & Costumes', count: 8, cover: '👗' },
-  { id: '5', name: 'Nos photos', count: 45, cover: '📸' },
-];
+type GalleryPhoto = {
+  id: string;
+  url: string;
+  thumbnail_url?: string;
+  uploaded_by: 'client' | 'planner';
+  uploaded_at: any;
+  liked: boolean;
+  album?: string;
+  date?: string;
+};
 
-const photos = [
-  { id: '1', album: 'Inspiration', liked: true, date: '15/01/2024', url: 'https://images.unsplash.com/photo-1519741497674-611481863552?w=400' },
-  { id: '2', album: 'Inspiration', liked: false, date: '15/01/2024', url: 'https://images.unsplash.com/photo-1465495976277-4387d4b0b4c6?w=400' },
-  { id: '3', album: 'Lieu de réception', liked: true, date: '20/01/2024', url: 'https://images.unsplash.com/photo-1464366400600-7168b8af9bc3?w=400' },
-  { id: '4', album: 'Lieu de réception', liked: true, date: '20/01/2024', url: 'https://images.unsplash.com/photo-1478146896981-b80fe463b330?w=400' },
-  { id: '5', album: 'Décoration', liked: false, date: '25/01/2024', url: 'https://images.unsplash.com/photo-1511285560929-80b456fea0bc?w=400' },
-  { id: '6', album: 'Décoration', liked: true, date: '25/01/2024', url: 'https://images.unsplash.com/photo-1522673607200-164d1b6ce486?w=400' },
-  { id: '7', album: 'Robes & Costumes', liked: true, date: '01/02/2024', url: 'https://images.unsplash.com/photo-1594552072238-5cb96f3d0e8e?w=400' },
-  { id: '8', album: 'Nos photos', liked: true, date: '05/02/2024', url: 'https://images.unsplash.com/photo-1606800052052-a08af7148866?w=400' },
-  { id: '9', album: 'Inspiration', liked: false, date: '10/02/2024', url: 'https://images.unsplash.com/photo-1460978812857-470ed1c77af0?w=400' },
-  { id: '10', album: 'Décoration', liked: true, date: '12/02/2024', url: 'https://images.unsplash.com/photo-1525258437537-f9a5a3a8f4e7?w=400' },
-  { id: '11', album: 'Nos photos', liked: false, date: '14/02/2024', url: 'https://images.unsplash.com/photo-1537633552985-df8429e8048b?w=400' },
-  { id: '12', album: 'Lieu de réception', liked: true, date: '15/02/2024', url: 'https://images.unsplash.com/photo-1519167758481-83f29da8c2b0?w=400' },
-  { id: '13', album: 'Inspiration', liked: true, date: '16/02/2024', url: 'https://images.unsplash.com/photo-1583939003579-730e3918a45a?w=400' },
-  { id: '14', album: 'Décoration', liked: false, date: '18/02/2024', url: 'https://images.unsplash.com/photo-1530023367847-a683933f4172?w=400' },
-  { id: '15', album: 'Robes & Costumes', liked: true, date: '20/02/2024', url: 'https://images.unsplash.com/photo-1515934751635-c81c6bc9a2d8?w=400' },
-  { id: '16', album: 'Nos photos', liked: true, date: '22/02/2024', url: 'https://images.unsplash.com/photo-1591604466107-ec97de577aff?w=400' },
-];
+type PhotoWithAlbum = GalleryPhoto & {
+  albumId: string;
+  albumName: string;
+};
 
 
 export default function GaleriePage() {
-  const [selectedAlbum, setSelectedAlbum] = useState<string | null>(null);
+  const { client, event, loading: dataLoading } = useClientData();
+
+  const [loading, setLoading] = useState(true);
+  const [galleries, setGalleries] = useState<GalleryData[]>([]);
+  const [selectedAlbumId, setSelectedAlbumId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
-  const [likedPhotos, setLikedPhotos] = useState<string[]>(
-    photos.filter(p => p.liked).map(p => p.id)
-  );
+  const [likedPhotos, setLikedPhotos] = useState<string[]>([]);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
-  const [selectedUploadAlbum, setSelectedUploadAlbum] = useState('');
+  const [selectedUploadAlbumId, setSelectedUploadAlbumId] = useState('');
+  const [newAlbumName, setNewAlbumName] = useState('');
+  const [uploadFiles, setUploadFiles] = useState<File[]>([]);
+  const [uploading, setUploading] = useState(false);
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
-  const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
 
-  const handleUpload = () => {
-    setIsUploadModalOpen(false);
-    setIsSuccessModalOpen(true);
-    setSelectedUploadAlbum('');
+  const clientName = useMemo(() => {
+    const n1 = client?.name || '';
+    const n2 = client?.partner || '';
+    return `${n1}${n1 && n2 ? ' & ' : ''}${n2}`.trim() || event?.couple_names || 'Client';
+  }, [client?.name, client?.partner, event?.couple_names]);
+
+  const daysRemaining = event ? calculateDaysRemaining(event.event_date) : 0;
+
+  const allPhotos: PhotoWithAlbum[] = useMemo(() => {
+    const result: PhotoWithAlbum[] = [];
+    for (const g of galleries) {
+      const photos = (g.photos || []) as any[];
+      for (const p of photos) {
+        result.push({
+          ...(p as GalleryPhoto),
+          albumId: g.id,
+          albumName: g.name,
+        });
+      }
+    }
+    return result;
+  }, [galleries]);
+
+  useEffect(() => {
+    async function fetchGalleries() {
+      if (!event?.id) {
+        setGalleries([]);
+        setLoading(false);
+        return;
+      }
+      try {
+        setLoading(true);
+        const items = await getEventGalleries(event.id);
+        setGalleries(items);
+        const liked = items
+          .flatMap((g) => (g.photos || []).map((p: any) => (p.liked ? p.id : null)))
+          .filter(Boolean) as string[];
+        setLikedPhotos(liked);
+      } catch (e) {
+        console.error('Error fetching galleries:', e);
+        toast.error('Erreur lors du chargement de la galerie');
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    if (!dataLoading) {
+      fetchGalleries();
+    }
+  }, [event?.id, dataLoading]);
+
+  const filteredPhotos = selectedAlbumId
+    ? allPhotos.filter((p) => p.albumId === selectedAlbumId)
+    : allPhotos;
+
+  const albums = useMemo(() => {
+    return galleries
+      .map((g) => ({
+        id: g.id,
+        name: g.name,
+        count: (g.photos || []).length,
+        coverUrl: (g.photos || [])?.[0]?.thumbnail_url || (g.photos || [])?.[0]?.url || undefined,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [galleries]);
+
+  const handleUpload = async () => {
+    if (!client?.id || !event?.id) {
+      toast.error('Client / événement introuvable');
+      return;
+    }
+    if (uploadFiles.length === 0) {
+      toast.error('Sélectionnez au moins une image');
+      return;
+    }
+
+    const creatingNew = selectedUploadAlbumId === 'new';
+    if (creatingNew && !newAlbumName.trim()) {
+      toast.error("Veuillez saisir le nom du nouvel album");
+      return;
+    }
+
+    setUploading(true);
+    try {
+      let albumId = selectedUploadAlbumId;
+      if (creatingNew) {
+        const created = await addDocument('galleries', {
+          event_id: event.id,
+          client_id: client.id,
+          planner_id: client.planner_id,
+          name: newAlbumName.trim(),
+          description: '',
+          cover: '',
+          count: 0,
+          photos: [],
+          created_at: new Date().toISOString(),
+        });
+        albumId = created.id;
+      }
+
+      const albumDoc = await getDocument('galleries', albumId);
+      if (!albumDoc) {
+        toast.error('Album introuvable');
+        return;
+      }
+
+      const existingPhotos = ((albumDoc as any).photos || []) as GalleryPhoto[];
+      const newPhotos: GalleryPhoto[] = [];
+
+      for (const f of uploadFiles) {
+        const url = await uploadImage(f, 'gallery');
+        newPhotos.push({
+          id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+          url,
+          uploaded_by: 'client',
+          uploaded_at: new Date().toISOString(),
+          liked: false,
+          album: (albumDoc as any).name,
+          date: new Date().toLocaleDateString('fr-FR'),
+        });
+      }
+
+      const updatedPhotos = [...newPhotos, ...existingPhotos];
+
+      await updateDocument('galleries', albumId, {
+        photos: updatedPhotos,
+        count: updatedPhotos.length,
+        cover: updatedPhotos[0]?.url || (albumDoc as any).cover || '',
+      });
+
+      const items = await getEventGalleries(event.id);
+      setGalleries(items);
+
+      setIsUploadModalOpen(false);
+      setIsSuccessModalOpen(true);
+      setSelectedUploadAlbumId('');
+      setNewAlbumName('');
+      setUploadFiles([]);
+    } catch (e) {
+      console.error('Error uploading photos:', e);
+      toast.error("Erreur lors de l'upload des photos");
+    } finally {
+      setUploading(false);
+    }
   };
 
   const navigatePhoto = (direction: 'prev' | 'next') => {
@@ -92,20 +231,26 @@ export default function GaleriePage() {
     }
   };
 
-  const toggleLike = (photoId: string) => {
-    setLikedPhotos(prev => 
-      prev.includes(photoId) 
-        ? prev.filter(id => id !== photoId)
-        : [...prev, photoId]
-    );
+  const toggleLike = async (photoId: string) => {
+    const photo = allPhotos.find((p) => p.id === photoId);
+    if (!photo) return;
+
+    const nextLiked = !likedPhotos.includes(photoId);
+    setLikedPhotos((prev) => (nextLiked ? [...prev, photoId] : prev.filter((id) => id !== photoId)));
+
+    try {
+      const albumDoc = await getDocument('galleries', photo.albumId);
+      if (!albumDoc) return;
+      const photosArr = ((albumDoc as any).photos || []) as any[];
+      const updated = photosArr.map((p) => (p.id === photoId ? { ...p, liked: nextLiked } : p));
+      await updateDocument('galleries', photo.albumId, { photos: updated });
+    } catch (e) {
+      console.error('Error toggling like:', e);
+    }
   };
 
-  const filteredPhotos = selectedAlbum 
-    ? photos.filter(p => p.album === selectedAlbum)
-    : photos;
-
   return (
-    <ClientDashboardLayout clientName="Julie & Frédérick" daysRemaining={165}>
+    <ClientDashboardLayout clientName={clientName} daysRemaining={daysRemaining}>
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
@@ -148,32 +293,45 @@ export default function GaleriePage() {
           </div>
         </div>
 
+        {loading ? (
+          <Card className="p-10 shadow-xl border-0">
+            <div className="flex items-center justify-center gap-3 text-brand-gray">
+              <Loader2 className="h-5 w-5 animate-spin" />
+              Chargement de la galerie...
+            </div>
+          </Card>
+        ) : null}
+
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
           <Card
             className={`p-4 cursor-pointer transition-all hover:shadow-lg ${
-              !selectedAlbum ? 'ring-2 ring-brand-turquoise' : ''
+              !selectedAlbumId ? 'ring-2 ring-brand-turquoise' : ''
             }`}
-            onClick={() => setSelectedAlbum(null)}
+            onClick={() => setSelectedAlbumId(null)}
           >
             <div className="text-center">
               <div className="w-12 h-12 mx-auto mb-2 rounded-full bg-brand-turquoise/10 flex items-center justify-center">
                 <FolderOpen className="h-6 w-6 text-brand-turquoise" />
               </div>
               <p className="font-medium text-brand-purple">Tous</p>
-              <p className="text-xs text-brand-gray">{photos.length} photos</p>
+              <p className="text-xs text-brand-gray">{allPhotos.length} photos</p>
             </div>
           </Card>
           {albums.map((album) => (
             <Card
               key={album.id}
               className={`p-4 cursor-pointer transition-all hover:shadow-lg ${
-                selectedAlbum === album.name ? 'ring-2 ring-brand-turquoise' : ''
+                selectedAlbumId === album.id ? 'ring-2 ring-brand-turquoise' : ''
               }`}
-              onClick={() => setSelectedAlbum(album.name)}
+              onClick={() => setSelectedAlbumId(album.id)}
             >
               <div className="text-center">
-                <div className="w-12 h-12 mx-auto mb-2 rounded-full bg-gray-100 flex items-center justify-center text-2xl">
-                  {album.cover}
+                <div className="w-12 h-12 mx-auto mb-2 rounded-full bg-gray-100 flex items-center justify-center overflow-hidden">
+                  {album.coverUrl ? (
+                    <img src={album.coverUrl} alt={album.name} className="w-full h-full object-cover" />
+                  ) : (
+                    <ImageIcon className="h-6 w-6 text-brand-gray" />
+                  )}
                 </div>
                 <p className="font-medium text-brand-purple text-sm">{album.name}</p>
                 <p className="text-xs text-brand-gray">{album.count} photos</p>
@@ -185,7 +343,7 @@ export default function GaleriePage() {
         <Card className="p-6 shadow-xl border-0">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-xl font-bold text-brand-purple">
-              {selectedAlbum || 'Toutes les photos'}
+              {selectedAlbumId ? (albums.find((a) => a.id === selectedAlbumId)?.name || 'Album') : 'Toutes les photos'}
             </h2>
             <p className="text-sm text-brand-gray">
               {filteredPhotos.length} photos
@@ -194,7 +352,7 @@ export default function GaleriePage() {
 
           {viewMode === 'grid' ? (
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-              {filteredPhotos.map((photo, index) => (
+              {filteredPhotos.map((photo) => (
                 <div
                   key={photo.id}
                   className="relative group aspect-square rounded-lg overflow-hidden cursor-pointer"
@@ -212,7 +370,7 @@ export default function GaleriePage() {
                     className="absolute top-2 right-2 p-1"
                     onClick={(e) => {
                       e.stopPropagation();
-                      toggleLike(photo.id);
+                      void toggleLike(photo.id);
                     }}
                   >
                     <Heart
@@ -228,7 +386,7 @@ export default function GaleriePage() {
             </div>
           ) : (
             <div className="space-y-3">
-              {filteredPhotos.map((photo, index) => (
+              {filteredPhotos.map((photo) => (
                 <div
                   key={photo.id}
                   className="flex items-center gap-4 p-3 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors"
@@ -240,13 +398,13 @@ export default function GaleriePage() {
                   />
                   <div className="flex-1">
                     <p className="font-medium text-brand-purple">Photo {photo.id}</p>
-                    <p className="text-sm text-brand-gray">{photo.album} • {photo.date}</p>
+                    <p className="text-sm text-brand-gray">{photo.albumName} • {photo.date || ''}</p>
                   </div>
                   <div className="flex items-center gap-2">
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={() => toggleLike(photo.id)}
+                      onClick={() => void toggleLike(photo.id)}
                     >
                       <Heart
                         className={`h-5 w-5 ${
@@ -309,28 +467,45 @@ export default function GaleriePage() {
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
-              <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-brand-turquoise transition-colors cursor-pointer">
+              <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-brand-turquoise transition-colors">
                 <Upload className="h-10 w-10 mx-auto text-brand-gray mb-2" />
                 <p className="text-sm text-brand-gray">
                   Glissez vos photos ici ou cliquez pour parcourir
                 </p>
-                <input type="file" multiple accept="image/*" className="hidden" />
+                <input
+                  type="file"
+                  multiple
+                  accept="image/*"
+                  onChange={(e) => setUploadFiles(Array.from(e.target.files || []))}
+                  className="mt-4 w-full text-sm text-brand-gray file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-brand-turquoise file:text-white hover:file:bg-brand-turquoise-hover"
+                />
+                {uploadFiles.length ? (
+                  <p className="text-xs text-brand-gray mt-2">{uploadFiles.length} fichier(s) sélectionné(s)</p>
+                ) : null}
               </div>
               <div className="space-y-2">
                 <Label>Album de destination</Label>
-                <Select value={selectedUploadAlbum} onValueChange={setSelectedUploadAlbum}>
+                <Select value={selectedUploadAlbumId} onValueChange={setSelectedUploadAlbumId}>
                   <SelectTrigger>
                     <SelectValue placeholder="Choisir un album" />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="new">+ Nouvel album</SelectItem>
                     {albums.map((album) => (
-                      <SelectItem key={album.id} value={album.name}>
-                        {album.cover} {album.name}
+                      <SelectItem key={album.id} value={album.id}>
+                        {album.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
+
+              {selectedUploadAlbumId === 'new' ? (
+                <div className="space-y-2">
+                  <Label>Nom du nouvel album</Label>
+                  <Input value={newAlbumName} onChange={(e) => setNewAlbumName(e.target.value)} placeholder="Ex: Inspiration" />
+                </div>
+              ) : null}
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setIsUploadModalOpen(false)}>
@@ -338,10 +513,10 @@ export default function GaleriePage() {
               </Button>
               <Button 
                 className="bg-brand-turquoise hover:bg-brand-turquoise-hover"
-                onClick={handleUpload}
-                disabled={!selectedUploadAlbum}
+                onClick={() => void handleUpload()}
+                disabled={uploading || !selectedUploadAlbumId || uploadFiles.length === 0 || (selectedUploadAlbumId === 'new' && !newAlbumName.trim())}
               >
-                Télécharger
+                {uploading ? 'Upload...' : 'Télécharger'}
               </Button>
             </DialogFooter>
           </DialogContent>

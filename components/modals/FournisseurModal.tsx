@@ -9,6 +9,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Building2, Star } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
+import { addDocument, updateDocument } from '@/lib/db';
+import { toast as sonnerToast } from 'sonner';
 
 interface Fournisseur {
   id: string;
@@ -27,6 +30,7 @@ interface FournisseurModalProps {
   onClose: () => void;
   fournisseur?: Fournisseur | null;
   mode: 'create' | 'edit';
+  onFournisseurSaved?: () => void;
 }
 
 const categories = [
@@ -40,8 +44,9 @@ const categories = [
   'Autre',
 ];
 
-export function FournisseurModal({ isOpen, onClose, fournisseur, mode }: FournisseurModalProps) {
+export function FournisseurModal({ isOpen, onClose, fournisseur, mode, onFournisseurSaved }: FournisseurModalProps) {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [name, setName] = useState('');
   const [category, setCategory] = useState('');
   const [contactName, setContactName] = useState('');
@@ -51,6 +56,7 @@ export function FournisseurModal({ isOpen, onClose, fournisseur, mode }: Fournis
   const [address, setAddress] = useState('');
   const [rating, setRating] = useState(5);
   const [notes, setNotes] = useState('');
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (mode === 'edit' && fournisseur) {
@@ -75,29 +81,58 @@ export function FournisseurModal({ isOpen, onClose, fournisseur, mode }: Fournis
     }
   }, [mode, fournisseur, isOpen]);
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!name || !category || !contactName || !email || !phone || !city) {
-      toast({
-        title: 'Erreur',
-        description: 'Veuillez remplir tous les champs obligatoires',
-        variant: 'destructive',
-      });
+      sonnerToast.error('Veuillez remplir tous les champs obligatoires');
       return;
     }
 
-    if (mode === 'create') {
-      toast({
-        title: 'Fournisseur créé',
-        description: `Le fournisseur "${name}" a été ajouté avec succès`,
-      });
-    } else {
-      toast({
-        title: 'Fournisseur modifié',
-        description: `Les informations de "${name}" ont été mises à jour`,
-      });
+    if (!user) {
+      sonnerToast.error('Vous devez être connecté');
+      return;
     }
 
-    onClose();
+    setLoading(true);
+    try {
+      const data = {
+        name,
+        category,
+        contact_name: contactName,
+        email,
+        phone,
+        city,
+        address,
+        rating,
+        notes,
+        products_count: 0,
+      };
+
+      if (mode === 'create') {
+        await addDocument('vendors', {
+          ...data,
+          planner_id: user.uid,
+          created_at: new Date(),
+        });
+        sonnerToast.success(`Le fournisseur "${name}" a été ajouté avec succès`);
+      } else if (fournisseur) {
+        await updateDocument('vendors', fournisseur.id, {
+          ...data,
+          updated_at: new Date(),
+        });
+        sonnerToast.success(`Les informations de "${name}" ont été mises à jour`);
+      }
+
+      if (onFournisseurSaved) {
+        onFournisseurSaved();
+      }
+
+      onClose();
+    } catch (error) {
+      console.error('Error saving fournisseur:', error);
+      sonnerToast.error('Erreur lors de l\'enregistrement du fournisseur');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -242,8 +277,9 @@ export function FournisseurModal({ isOpen, onClose, fournisseur, mode }: Fournis
           <Button
             className="bg-brand-turquoise hover:bg-brand-turquoise-hover"
             onClick={handleSubmit}
+            disabled={loading}
           >
-            {mode === 'create' ? 'Créer le fournisseur' : 'Enregistrer'}
+            {loading ? 'Enregistrement...' : (mode === 'create' ? 'Créer le fournisseur' : 'Enregistrer')}
           </Button>
         </DialogFooter>
       </DialogContent>

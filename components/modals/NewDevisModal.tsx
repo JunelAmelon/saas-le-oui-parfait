@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -9,6 +9,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Upload, Plus, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
+import { getDocuments, addDocument } from '@/lib/db';
+import { toast as sonnerToast } from 'sonner';
+import axios from 'axios';
 
 interface DevisItem {
   id: string;
@@ -20,16 +24,19 @@ interface DevisItem {
 interface NewDevisModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onDevisCreated?: () => void;
 }
 
-const clients = [
-  { id: '1', name: 'Julie & Frédérick', email: 'julie.martin@email.com' },
-  { id: '2', name: 'Sophie & Alexandre', email: 'sophie.dubois@email.com' },
-  { id: '3', name: 'Emma & Thomas', email: 'emma.bernard@email.com' },
-];
+interface Client {
+  id: string;
+  name: string;
+  email: string;
+}
 
-export function NewDevisModal({ isOpen, onClose }: NewDevisModalProps) {
+export function NewDevisModal({ isOpen, onClose, onDevisCreated }: NewDevisModalProps) {
   const { toast } = useToast();
+  const { user } = useAuth();
+  const [clients, setClients] = useState<Client[]>([]);
   const [selectedClient, setSelectedClient] = useState('');
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [items, setItems] = useState<DevisItem[]>([
@@ -37,6 +44,44 @@ export function NewDevisModal({ isOpen, onClose }: NewDevisModalProps) {
   ]);
   const [validUntil, setValidUntil] = useState('');
   const [notes, setNotes] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  // Fetch clients
+  useEffect(() => {
+    if (isOpen && user) {
+      fetchClients();
+    }
+  }, [isOpen, user]);
+
+  const fetchClients = async () => {
+    if (!user) return;
+    try {
+      const data = await getDocuments('clients', [
+        { field: 'planner_id', operator: '==', value: user.uid }
+      ]);
+      const mapped = data.map((d: any) => ({
+        id: d.id,
+        name: d.partner ? `${d.name} & ${d.partner}` : d.name,
+        email: d.email || '',
+      }));
+      setClients(mapped);
+    } catch (e) {
+      console.error('Error fetching clients:', e);
+    }
+  };
+
+  const uploadPdfToCloudinary = async (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('upload_preset', process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET!);
+
+    const res = await axios.post(
+      `https://api.cloudinary.com/v1_1/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/raw/upload`,
+      formData
+    );
+
+    return res.data.secure_url;
+  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -68,24 +113,59 @@ export function NewDevisModal({ isOpen, onClose }: NewDevisModalProps) {
     return { totalHT, totalTTC };
   };
 
-  const handleSubmit = () => {
-    if (!selectedClient) {
-      toast({
-        title: 'Erreur',
-        description: 'Veuillez sélectionner un client',
-        variant: 'destructive',
-      });
+  const handleSubmit = async () => {
+    if (!user || !selectedClient) {
+      sonnerToast.error('Veuillez sélectionner un client');
       return;
     }
 
-    const { totalHT, totalTTC } = calculateTotal();
-    
-    toast({
-      title: 'Devis créé',
-      description: `Devis de ${totalTTC.toLocaleString()}€ TTC créé pour ${clients.find(c => c.id === selectedClient)?.name}`,
-    });
-    
-    onClose();
+    setLoading(true);
+    try {
+      const { totalHT, totalTTC } = calculateTotal();
+      const client = clients.find(c => c.id === selectedClient);
+      
+      let pdfUrl = '';
+      if (pdfFile) {
+        pdfUrl = await uploadPdfToCloudinary(pdfFile);
+      }
+
+      const devisData = {
+        planner_id: user.uid,
+        reference: `DEVIS-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`,
+        client: client?.name || '',
+        client_email: client?.email || '',
+        date: new Date().toLocaleDateString('fr-FR'),
+        montant_ht: totalHT,
+        montant_ttc: totalTTC,
+        tva: 20,
+        status: 'draft',
+        valid_until: validUntil,
+        description: notes,
+        items: items.map(item => ({
+          description: item.description,
+          quantity: item.quantity,
+          unit_price: item.unitPrice,
+          total: item.quantity * item.unitPrice,
+        })),
+        pdf_url: pdfUrl,
+        created_at: new Date(),
+      };
+
+      await addDocument('devis', devisData);
+      
+      sonnerToast.success(`Devis de ${totalTTC.toLocaleString()}€ TTC créé pour ${client?.name}`);
+      
+      if (onDevisCreated) {
+        onDevisCreated();
+      }
+      
+      onClose();
+    } catch (e) {
+      console.error('Error creating devis:', e);
+      sonnerToast.error('Erreur lors de la création du devis');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const { totalHT, totalTTC } = calculateTotal();
@@ -249,8 +329,9 @@ export function NewDevisModal({ isOpen, onClose }: NewDevisModalProps) {
           <Button
             className="bg-brand-turquoise hover:bg-brand-turquoise-hover"
             onClick={handleSubmit}
+            disabled={!selectedClient || loading}
           >
-            Créer le devis
+            {loading ? 'Création...' : 'Créer le devis'}
           </Button>
         </DialogFooter>
       </DialogContent>

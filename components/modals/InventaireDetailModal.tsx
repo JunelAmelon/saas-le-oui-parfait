@@ -20,6 +20,7 @@ interface InventaireDetailModalProps {
   isOpen: boolean;
   onClose: () => void;
   inventaire: Inventaire | null;
+  onInventaireUpdated?: () => void;
 }
 
 const statusConfig = {

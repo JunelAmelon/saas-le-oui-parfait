@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -9,6 +9,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Plus, Trash2, Flower2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Checkbox } from '@/components/ui/checkbox';
+import { useAuth } from '@/contexts/AuthContext';
+import { getDocuments, addDocument } from '@/lib/db';
+import { toast as sonnerToast } from 'sonner';
 
 interface FlowerItem {
   id: string;
@@ -20,13 +23,13 @@ interface FlowerItem {
 interface NewCompositionModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onCompositionCreated?: () => void;
 }
 
-const clients = [
-  { id: '1', name: 'Julie & Frédérick' },
-  { id: '2', name: 'Sophie & Alexandre' },
-  { id: '3', name: 'Emma & Thomas' },
-];
+interface Client {
+  id: string;
+  name: string;
+}
 
 const flowersCatalog = [
   { name: 'Roses blanches', unit: 'tige', price: 2.5 },
@@ -37,15 +40,40 @@ const flowersCatalog = [
   { name: 'Feuillage', unit: 'kg', price: 15 },
 ];
 
-export function NewCompositionModal({ isOpen, onClose }: NewCompositionModalProps) {
+export function NewCompositionModal({ isOpen, onClose, onCompositionCreated }: NewCompositionModalProps) {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [compositionName, setCompositionName] = useState('');
   const [selectedClient, setSelectedClient] = useState('');
+  const [clients, setClients] = useState<Client[]>([]);
   const [items, setItems] = useState<FlowerItem[]>([
     { id: '1', name: '', quantity: 1, unitPrice: 0 }
   ]);
   const [sellingPrice, setSellingPrice] = useState('');
   const [sendToClient, setSendToClient] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (isOpen && user) {
+      fetchClients();
+    }
+  }, [isOpen, user]);
+
+  const fetchClients = async () => {
+    if (!user) return;
+    try {
+      const data = await getDocuments('clients', [
+        { field: 'planner_id', operator: '==', value: user.uid }
+      ]);
+      const mapped = data.map((d: any) => ({
+        id: d.id,
+        name: d.partner ? `${d.name} & ${d.partner}` : d.name,
+      }));
+      setClients(mapped as Client[]);
+    } catch (error) {
+      console.error('Error fetching clients:', error);
+    }
+  };
 
   const addItem = () => {
     setItems([...items, { id: Date.now().toString(), name: '', quantity: 1, unitPrice: 0 }]);
@@ -83,40 +111,73 @@ export function NewCompositionModal({ isOpen, onClose }: NewCompositionModalProp
     return price - cost;
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!compositionName || !selectedClient || !sellingPrice) {
-      toast({
-        title: 'Erreur',
-        description: 'Veuillez remplir tous les champs obligatoires',
-        variant: 'destructive',
-      });
+      sonnerToast.error('Veuillez remplir tous les champs obligatoires');
       return;
     }
 
     const hasEmptyItems = items.some(item => !item.name || item.quantity <= 0);
     if (hasEmptyItems) {
-      toast({
-        title: 'Erreur',
-        description: 'Veuillez compléter toutes les fleurs',
-        variant: 'destructive',
-      });
+      sonnerToast.error('Veuillez compléter toutes les fleurs');
       return;
     }
 
-    toast({
-      title: 'Composition créée',
-      description: sendToClient 
-        ? `La composition "${compositionName}" a été créée et envoyée au client`
-        : `La composition "${compositionName}" a été créée avec succès`,
-    });
+    if (!user) {
+      sonnerToast.error('Vous devez être connecté');
+      return;
+    }
 
-    // Reset form
-    setCompositionName('');
-    setSelectedClient('');
-    setItems([{ id: '1', name: '', quantity: 1, unitPrice: 0 }]);
-    setSellingPrice('');
-    setSendToClient(false);
-    onClose();
+    setLoading(true);
+    try {
+      const selectedClientData = clients.find(c => c.id === selectedClient);
+      const flowers = items.map(item => `${item.name} (${item.quantity})`);
+      const cost = calculateTotalCost();
+      const price = parseFloat(sellingPrice);
+      const margin = price - cost;
+
+      await addDocument('compositions', {
+        name: compositionName,
+        client_id: selectedClient,
+        client_name: selectedClientData?.name || '',
+        flowers,
+        items: items.map(item => ({
+          name: item.name,
+          quantity: item.quantity,
+          unit_price: item.unitPrice
+        })),
+        cost,
+        price,
+        margin,
+        send_to_client: sendToClient,
+        planner_id: user.uid,
+        created_at: new Date(),
+      });
+
+      sonnerToast.success(
+        sendToClient 
+          ? `La composition "${compositionName}" a été créée et envoyée au client`
+          : `La composition "${compositionName}" a été créée avec succès`
+      );
+
+      // Reset form
+      setCompositionName('');
+      setSelectedClient('');
+      setItems([{ id: '1', name: '', quantity: 1, unitPrice: 0 }]);
+      setSellingPrice('');
+      setSendToClient(false);
+      
+      if (onCompositionCreated) {
+        onCompositionCreated();
+      }
+      
+      onClose();
+    } catch (error) {
+      console.error('Error creating composition:', error);
+      sonnerToast.error('Erreur lors de la création de la composition');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const totalCost = calculateTotalCost();
@@ -277,8 +338,9 @@ export function NewCompositionModal({ isOpen, onClose }: NewCompositionModalProp
           <Button
             className="bg-brand-turquoise hover:bg-brand-turquoise-hover"
             onClick={handleSubmit}
+            disabled={loading}
           >
-            Créer la composition
+            {loading ? 'Création...' : 'Créer la composition'}
           </Button>
         </DialogFooter>
       </DialogContent>

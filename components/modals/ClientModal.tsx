@@ -6,334 +6,471 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Loader2, Upload, User, X } from 'lucide-react';
-import { addDocument, updateDocument } from '@/lib/db';
+import { addDocument, updateDocument, setDocument } from '@/lib/db';
 import { toast } from 'sonner';
 import axios from 'axios';
+import { createClientAccount, generateSecurePassword, validatePassword } from '@/lib/auth-helpers';
+import { Eye, EyeOff, RefreshCw } from 'lucide-react';
 
 interface ClientModalProps {
-    open: boolean;
-    onOpenChange: (open: boolean) => void;
-    mode: 'create' | 'edit';
-    client?: {
-        id: string;
-        names: string;
-        email: string;
-        phone: string;
-        eventDate: string;
-        eventLocation: string;
-        budget: number;
-        guests: number;
-        photo?: string;
-    };
-    userId: string;
-    onSuccess: () => void;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  mode: 'create' | 'edit';
+  client?: {
+    id: string;
+    names: string;
+    email: string;
+    phone: string;
+    eventDate: string;
+    eventLocation: string;
+    budget: number;
+    guests: number;
+    photo?: string;
+  };
+  userId: string;
+  onSuccess: () => void;
 }
 
 export function ClientModal({ open, onOpenChange, mode, client, userId, onSuccess }: ClientModalProps) {
-    const [isSaving, setIsSaving] = useState(false);
-    const [photoFile, setPhotoFile] = useState<File | null>(null);
-    const [photoPreview, setPhotoPreview] = useState<string | null>(client?.photo || null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(client?.photo || null);
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [createAccount, setCreateAccount] = useState(mode === 'create');
 
-    const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (file) {
-            setPhotoFile(file);
-            setPhotoPreview(URL.createObjectURL(file));
-        }
-    };
+  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setPhotoFile(file);
+      setPhotoPreview(URL.createObjectURL(file));
+    }
+  };
 
-    const removePhoto = () => {
-        setPhotoFile(null);
-        setPhotoPreview(null);
-    };
+  const removePhoto = () => {
+    setPhotoFile(null);
+    setPhotoPreview(null);
+  };
 
-    const uploadPhotoToCloudinary = async (file: File) => {
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('upload_preset', process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET!);
+  const uploadPhotoToCloudinary = async (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('upload_preset', process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET!);
 
-        const res = await axios.post(
-            `https://api.cloudinary.com/v1_1/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/image/upload`,
-            formData
-        );
+    const res = await axios.post(
+      `https://api.cloudinary.com/v1_1/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/image/upload`,
+      formData
+    );
 
-        return res.data.secure_url;
-    };
+    return res.data.secure_url;
+  };
 
-    const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-        e.preventDefault();
-        const formData = new FormData(e.currentTarget);
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
 
-        const name = formData.get('name') as string;
-        const partner = formData.get('partner') as string;
-        const email = formData.get('email') as string;
-        const phone = formData.get('phone') as string;
-        const eventDate = formData.get('eventDate') as string;
-        const eventLocation = formData.get('eventLocation') as string;
-        const budget = formData.get('budget') as string;
-        const guests = formData.get('guests') as string;
+    const name = formData.get('name') as string;
+    const partner = formData.get('partner') as string;
+    const email = formData.get('email') as string;
+    const phone = formData.get('phone') as string;
+    const eventDate = formData.get('eventDate') as string;
+    const eventLocation = formData.get('eventLocation') as string;
+    const budget = formData.get('budget') as string;
+    const guests = formData.get('guests') as string;
 
-        if (!name || !partner || !email) {
-            toast.error('Veuillez remplir les champs obligatoires');
-            return;
-        }
+    if (!name || !partner || !email) {
+      toast.error('Veuillez remplir les champs obligatoires');
+      return;
+    }
 
-        setIsSaving(true);
+    // Validation du mot de passe si création de compte
+    if (mode === 'create' && createAccount) {
+      if (!password) {
+        toast.error('Veuillez définir un mot de passe pour le compte client');
+        return;
+      }
 
-        try {
-            let photoUrl = client?.photo || '';
-            if (photoFile) {
-                photoUrl = await uploadPhotoToCloudinary(photoFile);
-            } else if (!photoPreview) {
-                photoUrl = '';
-            }
+      const passwordValidation = validatePassword(password);
+      if (!passwordValidation.valid) {
+        toast.error(passwordValidation.error || 'Mot de passe invalide');
+        return;
+      }
+    }
 
-            const data = {
-                name,
-                partner,
-                email,
-                phone: phone || '',
-                event_date: eventDate || '',
-                event_location: eventLocation || '',
-                budget: budget || '0',
-                guests: guests || '0',
-                photo: photoUrl,
-            };
+    setIsSaving(true);
 
-            if (mode === 'create') {
-                await addDocument('clients', {
-                    ...data,
-                    status: 'En cours',
-                    planner_id: userId,
-                    created_at: new Date().toISOString(),
-                });
-                toast.success('Client créé avec succès');
-            } else if (client) {
-                await updateDocument('clients', client.id, data);
-                toast.success('Client mis à jour');
-            }
+    try {
+      let photoUrl = client?.photo || '';
+      if (photoFile) {
+        photoUrl = await uploadPhotoToCloudinary(photoFile);
+      } else if (!photoPreview) {
+        photoUrl = '';
+      }
 
-            onSuccess();
-            onOpenChange(false);
-        } catch (error) {
-            console.error(error);
-            toast.error(`Erreur lors de ${mode === 'create' ? 'la création' : 'la mise à jour'}`);
-        } finally {
+      const data = {
+        name,
+        partner,
+        email,
+        phone: phone || '',
+        event_date: eventDate || '',
+        event_location: eventLocation || '',
+        budget: budget || '0',
+        guests: guests || '0',
+        photo: photoUrl,
+      };
+
+      if (mode === 'create') {
+        let clientUserId = '';
+
+        // Créer le compte Firebase Auth si demandé
+        if (createAccount && password) {
+          toast.info('Création du compte utilisateur...');
+          const accountResult = await createClientAccount(email, password);
+
+          if (!accountResult.success) {
+            toast.error(accountResult.error || 'Erreur lors de la création du compte');
             setIsSaving(false);
+            return;
+          }
+
+          clientUserId = accountResult.uid!;
+
+          // Créer le document profile dans Firestore (nécessaire pour la connexion)
+          // IMPORTANT : Utiliser setDocument avec l'UID comme ID du document
+          await setDocument('profiles', clientUserId, {
+            uid: clientUserId,
+            email: email,
+            role: 'client',
+            full_name: `${name} & ${partner}`,
+            created_at: new Date().toISOString(),
+          });
+
+          toast.success('Compte utilisateur créé avec succès');
         }
-    };
 
-    const [name1, name2] = client?.names.split(' & ') || ['', ''];
+        // Créer le document client dans Firestore
+        const clientDoc = await addDocument('clients', {
+          ...data,
+          status: 'En cours',
+          planner_id: userId,
+          client_user_id: clientUserId, // UID Firebase Auth
+          created_at: new Date().toISOString(),
+        });
 
-    return (
-        <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-2xl w-[95vw] sm:w-full max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                    <DialogTitle className="text-2xl text-brand-purple font-semibold">
-                        {mode === 'create' ? 'Nouvelle fiche client' : 'Modifier la fiche'}
-                    </DialogTitle>
-                    <DialogDescription className="text-base">
-                        {mode === 'create' ? 'Créez une nouvelle fiche pour vos mariés' : 'Modifiez les informations du client'}
-                    </DialogDescription>
-                </DialogHeader>
+        // Créer automatiquement un document event pour l'espace client
+        await addDocument('events', {
+          client_id: clientDoc.id,
+          planner_id: userId,
+          couple_names: `${name} & ${partner}`,
+          event_date: eventDate || '',
+          location: eventLocation || '',
+          guest_count: parseInt(guests) || 0,
+          budget: parseFloat(budget) || 0,
+          client_email: email,
+          created_at: new Date().toISOString(),
+        });
 
-                <form onSubmit={handleSubmit}>
-                    <div className="space-y-6 py-6">
-                        {/* Photo Section - Améliorée */}
-                        <div className="space-y-3">
-                            <Label className="text-sm font-medium text-gray-700">Photo du couple</Label>
+        if (createAccount) {
+          toast.success(`Client créé avec succès ! Identifiants : ${email} / ${password}`);
+        } else {
+          toast.success('Client créé avec succès');
+        }
+      } else if (client) {
+        await updateDocument('clients', client.id, data);
+        toast.success('Client mis à jour');
+      }
 
-                            <div className="flex flex-col items-center gap-4">
-                                {/* Photo Preview ou Placeholder */}
-                                <div className="relative group">
-                                    <div className="w-40 h-40 rounded-2xl overflow-hidden border-2 border-dashed border-gray-300 bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center transition-all duration-200 hover:border-brand-turquoise hover:shadow-lg">
-                                        {photoPreview ? (
-                                            <>
-                                                <img
-                                                    src={photoPreview}
-                                                    alt="Preview"
-                                                    className="w-full h-full object-cover"
-                                                />
-                                                <button
-                                                    type="button"
-                                                    onClick={removePhoto}
-                                                    className="absolute top-2 right-2 p-1.5 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:bg-red-600 shadow-lg"
-                                                >
-                                                    <X className="h-4 w-4" />
-                                                </button>
-                                            </>
-                                        ) : (
-                                            <div className="flex flex-col items-center gap-3 text-gray-400">
-                                                <div className="w-16 h-16 rounded-full bg-white shadow-inner flex items-center justify-center">
-                                                    <User className="h-8 w-8 text-gray-300" />
-                                                </div>
-                                                <p className="text-xs font-medium text-gray-500">Aucune photo</p>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
+      onSuccess();
+      onOpenChange(false);
+    } catch (error) {
+      console.error(error);
+      toast.error(`Erreur lors de ${mode === 'create' ? 'la création' : 'la mise à jour'}`);
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
-                                {/* Upload Button */}
-                                <div className="flex flex-col items-center gap-2">
-                                    <input
-                                        type="file"
-                                        id="photo-upload"
-                                        accept="image/*"
-                                        onChange={handlePhotoChange}
-                                        className="hidden"
-                                    />
-                                    <Button
-                                        type="button"
-                                        variant="outline"
-                                        onClick={() => document.getElementById('photo-upload')?.click()}
-                                        className="border-brand-turquoise text-brand-turquoise hover:bg-brand-turquoise hover:text-white transition-colors duration-200"
-                                    >
-                                        <Upload className="h-4 w-4 mr-2" />
-                                        {photoPreview ? 'Changer la photo' : 'Télécharger une photo'}
-                                    </Button>
-                                    <p className="text-xs text-gray-500">JPG, PNG ou WEBP (max. 5MB)</p>
-                                </div>
-                            </div>
-                        </div>
+  const [name1, name2] = client?.names.split(' & ') || ['', ''];
 
-                        {/* Divider */}
-                        <div className="border-t border-gray-200"></div>
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>{mode === 'create' ? 'Nouvelle fiche client' : 'Modifier la fiche'}</DialogTitle>
+          <DialogDescription>
+            {mode === 'create' ? 'Créez une nouvelle fiche pour vos mariés' : 'Modifiez les informations du client'}
+          </DialogDescription>
+        </DialogHeader>
 
-                        {/* Informations des partenaires */}
-                        <div className="space-y-4">
-                            <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Informations du couple</h3>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <Label className="text-sm font-medium text-gray-700">
-                                        Partenaire 1 <span className="text-red-500">*</span>
-                                    </Label>
-                                    <Input
-                                        name="name"
-                                        placeholder="Prénom Nom"
-                                        className="border-gray-300 focus:border-brand-purple focus:ring-brand-purple"
-                                        required
-                                        defaultValue={mode === 'edit' ? name1 : ''}
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label className="text-sm font-medium text-gray-700">
-                                        Partenaire 2 <span className="text-red-500">*</span>
-                                    </Label>
-                                    <Input
-                                        name="partner"
-                                        placeholder="Prénom Nom"
-                                        className="border-gray-300 focus:border-brand-purple focus:ring-brand-purple"
-                                        required
-                                        defaultValue={mode === 'edit' ? name2 : ''}
-                                    />
-                                </div>
-                            </div>
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Photo Section - Améliorée */}
+          <div className="space-y-4">
+            <Label className="text-base font-semibold">Photo du couple</Label>
+            
+            {/* Photo Preview ou Placeholder */}
+            <div className="flex items-center gap-4">
+              {photoPreview ? (
+                <div className="relative">
+                  <img
+                    src={photoPreview}
+                    alt="Couple"
+                    className="w-24 h-24 rounded-full object-cover border-2 border-brand-turquoise"
+                  />
+                  <button
+                    type="button"
+                    onClick={removePhoto}
+                    className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition-colors"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              ) : (
+                <div className="w-24 h-24 rounded-full bg-gray-100 flex items-center justify-center border-2 border-dashed border-gray-300">
+                  <User className="w-8 h-8 text-gray-400" />
+                </div>
+              )}
 
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <Label className="text-sm font-medium text-gray-700">
-                                        Email <span className="text-red-500">*</span>
-                                    </Label>
-                                    <Input
-                                        name="email"
-                                        type="email"
-                                        placeholder="email@example.com"
-                                        className="border-gray-300 focus:border-brand-purple focus:ring-brand-purple"
-                                        required
-                                        defaultValue={client?.email || ''}
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label className="text-sm font-medium text-gray-700">Téléphone</Label>
-                                    <Input
-                                        name="phone"
-                                        type="tel"
-                                        placeholder="+33 6 12 34 56 78"
-                                        className="border-gray-300 focus:border-brand-purple focus:ring-brand-purple"
-                                        defaultValue={client?.phone || ''}
-                                    />
-                                </div>
-                            </div>
-                        </div>
+              {/* Upload Button */}
+              <div className="flex-1 space-y-2">
+                <input
+                  type="file"
+                  id="photo-upload"
+                  accept="image/*"
+                  onChange={handlePhotoChange}
+                  className="hidden"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => document.getElementById('photo-upload')?.click()}
+                  className="border-brand-turquoise text-brand-turquoise hover:bg-brand-turquoise hover:text-white transition-colors duration-200"
+                >
+                  <Upload className="w-4 h-4 mr-2" />
+                  {photoPreview ? 'Changer la photo' : 'Télécharger une photo'}
+                </Button>
+                <p className="text-xs text-gray-500">JPG, PNG ou WEBP (max. 5MB)</p>
+              </div>
+            </div>
+          </div>
 
-                        {/* Divider */}
-                        <div className="border-t border-gray-200"></div>
+          {/* Divider */}
+          <div className="border-t border-gray-200"></div>
 
-                        {/* Détails de l'événement */}
-                        <div className="space-y-4">
-                            <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Détails de l'événement</h3>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <Label className="text-sm font-medium text-gray-700">Date de l'événement</Label>
-                                    <Input
-                                        name="eventDate"
-                                        type="date"
-                                        className="border-gray-300 focus:border-brand-purple focus:ring-brand-purple"
-                                        defaultValue={client?.eventDate ? new Date(client.eventDate.split('/').reverse().join('-')).toISOString().split('T')[0] : ''}
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label className="text-sm font-medium text-gray-700">Nombre d'invités</Label>
-                                    <Input
-                                        name="guests"
-                                        type="number"
-                                        placeholder="100"
-                                        className="border-gray-300 focus:border-brand-purple focus:ring-brand-purple"
-                                        defaultValue={client?.guests || ''}
-                                    />
-                                </div>
-                            </div>
+          {/* Informations des partenaires */}
+          <div className="space-y-4">
+            <Label className="text-base font-semibold">Informations du couple</Label>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="name">Partenaire 1 *</Label>
+                <Input
+                  id="name"
+                  name="name"
+                  defaultValue={name1}
+                  placeholder="Prénom Nom"
+                  required
+                  className="border-gray-300 focus:border-brand-purple focus:ring-brand-purple"
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="partner">Partenaire 2 *</Label>
+                <Input
+                  id="partner"
+                  name="partner"
+                  defaultValue={name2}
+                  placeholder="Prénom Nom"
+                  required
+                  className="border-gray-300 focus:border-brand-purple focus:ring-brand-purple"
+                />
+              </div>
+            </div>
 
-                            <div className="space-y-2">
-                                <Label className="text-sm font-medium text-gray-700">Lieu de réception</Label>
-                                <Input
-                                    name="eventLocation"
-                                    placeholder="Nom du lieu, Ville"
-                                    className="border-gray-300 focus:border-brand-purple focus:ring-brand-purple"
-                                    defaultValue={client?.eventLocation || ''}
-                                />
-                            </div>
+            <div className="space-y-2">
+              <Label htmlFor="email">Email *</Label>
+              <Input
+                id="email"
+                name="email"
+                type="email"
+                defaultValue={client?.email}
+                placeholder="email@example.com"
+                required
+                className="border-gray-300 focus:border-brand-purple focus:ring-brand-purple"
+              />
+            </div>
 
-                            <div className="space-y-2">
-                                <Label className="text-sm font-medium text-gray-700">Budget estimé (€)</Label>
-                                <Input
-                                    name="budget"
-                                    type="number"
-                                    placeholder="25 000"
-                                    className="border-gray-300 focus:border-brand-purple focus:ring-brand-purple"
-                                    defaultValue={client?.budget || ''}
-                                />
-                            </div>
-                        </div>
+            <div className="space-y-2">
+              <Label htmlFor="phone">Téléphone</Label>
+              <Input
+                id="phone"
+                name="phone"
+                type="tel"
+                defaultValue={client?.phone}
+                placeholder="+33 6 12 34 56 78"
+                className="border-gray-300 focus:border-brand-purple focus:ring-brand-purple"
+              />
+            </div>
+          </div>
+
+          {/* Divider */}
+          <div className="border-t border-gray-200"></div>
+
+          {/* Création de compte utilisateur - Seulement en mode création */}
+          {mode === 'create' && (
+            <>
+              <div className="space-y-4">
+                <Label className="text-base font-semibold">Compte utilisateur</Label>
+                <p className="text-sm text-gray-600">
+                  Créer un compte pour que le client puisse accéder à l'espace client
+                </p>
+                
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="createAccount"
+                    checked={createAccount}
+                    onChange={(e) => setCreateAccount(e.target.checked)}
+                    className="w-4 h-4 text-brand-turquoise border-gray-300 rounded focus:ring-brand-turquoise"
+                  />
+                  <Label htmlFor="createAccount" className="cursor-pointer">
+                    Créer le compte
+                  </Label>
+                </div>
+
+                {createAccount && (
+                  <div className="space-y-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                    <div className="space-y-2">
+                      <Label htmlFor="password">Mot de passe *</Label>
+                      <div className="relative">
+                        <Input
+                          id="password"
+                          name="password"
+                          type={showPassword ? 'text' : 'password'}
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          className="border-gray-300 focus:border-brand-purple focus:ring-brand-purple pr-10"
+                          required={createAccount}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                        >
+                          {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
                     </div>
 
-                    <DialogFooter className="gap-2 sm:gap-0">
-                        <Button
-                            type="button"
-                            variant="outline"
-                            onClick={() => onOpenChange(false)}
-                            disabled={isSaving}
-                            className="border-gray-300 hover:bg-gray-50"
-                        >
-                            Annuler
-                        </Button>
-                        <Button
-                            type="submit"
-                            className="bg-brand-turquoise hover:bg-brand-turquoise-hover text-white shadow-md hover:shadow-lg transition-all duration-200"
-                            disabled={isSaving}
-                        >
-                            {isSaving ? (
-                                <>
-                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                    {mode === 'create' ? 'Création...' : 'Mise à jour...'}
-                                </>
-                            ) : (
-                                mode === 'create' ? 'Créer la fiche' : 'Enregistrer'
-                            )}
-                        </Button>
-                    </DialogFooter>
-                </form>
-            </DialogContent>
-        </Dialog>
-    );
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setPassword(generateSecurePassword())}
+                      className="border-brand-turquoise text-brand-turquoise hover:bg-brand-turquoise hover:text-white"
+                      title="Générer un mot de passe sécurisé"
+                    >
+                      <RefreshCw className="w-4 h-4 mr-2" />
+                      Générer un mot de passe
+                    </Button>
+
+                    <div className="bg-blue-50 border border-blue-200 rounded p-3 space-y-2">
+                      <p className="text-xs text-blue-800">
+                        💡 Ce mot de passe sera communiqué au client pour qu'il puisse se connecter à l'espace client
+                      </p>
+                      <div className="text-xs text-blue-900 space-y-1">
+                        <p className="font-semibold">📧 Identifiants de connexion :</p>
+                        <p>Email : {client?.email || 'email@example.com'}</p>
+                        <p>Mot de passe : {password || '******'}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Divider */}
+              <div className="border-t border-gray-200"></div>
+            </>
+          )}
+
+          {/* Détails de l'événement */}
+          <div className="space-y-4">
+            <Label className="text-base font-semibold">Détails de l'événement</Label>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="eventDate">Date de l'événement</Label>
+                <Input
+                  id="eventDate"
+                  name="eventDate"
+                  type="date"
+                  defaultValue={client?.eventDate}
+                  className="border-gray-300 focus:border-brand-purple focus:ring-brand-purple"
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="guests">Nombre d'invités</Label>
+                <Input
+                  id="guests"
+                  name="guests"
+                  type="number"
+                  defaultValue={client?.guests}
+                  placeholder="100"
+                  className="border-gray-300 focus:border-brand-purple focus:ring-brand-purple"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="eventLocation">Lieu de réception</Label>
+              <Input
+                id="eventLocation"
+                name="eventLocation"
+                defaultValue={client?.eventLocation}
+                placeholder="Château de..."
+                className="border-gray-300 focus:border-brand-purple focus:ring-brand-purple"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="budget">Budget estimé (€)</Label>
+              <Input
+                id="budget"
+                name="budget"
+                type="number"
+                defaultValue={client?.budget}
+                placeholder="20000"
+                className="border-gray-300 focus:border-brand-purple focus:ring-brand-purple"
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              disabled={isSaving}
+              className="border-gray-300 hover:bg-gray-50"
+            >
+              Annuler
+            </Button>
+            <Button
+              type="submit"
+              disabled={isSaving}
+              className="bg-brand-purple hover:bg-brand-purple/90"
+            >
+              {isSaving ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  {mode === 'create' ? 'Création...' : 'Mise à jour...'}
+                </>
+              ) : (
+                mode === 'create' ? 'Créer la fiche' : 'Enregistrer'
+              )}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
 }

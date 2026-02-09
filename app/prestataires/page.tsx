@@ -34,8 +34,15 @@ import {
   Edit,
   MessageSquare,
   ExternalLink,
+  Loader2,
+  Trash2,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
+import { getDocuments, addDocument, updateDocument, deleteDocument } from '@/lib/db';
+import { toast } from 'sonner';
 
 interface Vendor {
   id: string;
@@ -48,58 +55,9 @@ interface Vendor {
   rating: number;
   isFavorite: boolean;
   website: string;
+  notes?: string;
 }
 
-const vendors: Vendor[] = [
-  {
-    id: '1',
-    name: 'Château d\'Apigné',
-    category: 'venue',
-    contactName: 'Marie Dupont',
-    email: 'contact@chateau-apigne.fr',
-    phone: '02 99 00 00 00',
-    city: 'Rennes',
-    rating: 5,
-    isFavorite: true,
-    website: 'www.chateau-apigne.fr',
-  },
-  {
-    id: '2',
-    name: 'Fleurs de Bretagne',
-    category: 'flowers',
-    contactName: 'Sophie Martin',
-    email: 'contact@fleursdebreatagne.fr',
-    phone: '02 99 11 11 11',
-    city: 'Rennes',
-    rating: 4,
-    isFavorite: true,
-    website: 'www.fleursdebreatagne.fr',
-  },
-  {
-    id: '3',
-    name: 'PhotoMagie',
-    category: 'photography',
-    contactName: 'Pierre Durand',
-    email: 'contact@photomagie.fr',
-    phone: '06 12 34 56 78',
-    city: 'Nantes',
-    rating: 5,
-    isFavorite: false,
-    website: 'www.photomagie.fr',
-  },
-  {
-    id: '4',
-    name: 'Traiteur Gourmet',
-    category: 'catering',
-    contactName: 'Luc Bernard',
-    email: 'contact@traiteur-gourmet.fr',
-    phone: '02 99 22 22 22',
-    city: 'Vannes',
-    rating: 4,
-    isFavorite: false,
-    website: 'www.traiteur-gourmet.fr',
-  },
-];
 
 const categoryConfig = {
   venue: { label: 'Lieu', color: 'bg-purple-500' },
@@ -114,10 +72,143 @@ const categoryConfig = {
 };
 
 export default function VendorsPage() {
+  const { user } = useAuth();
+  const [vendors, setVendors] = useState<Vendor[]>([]);
+  const [loading, setLoading] = useState(true);
   const [selectedVendor, setSelectedVendor] = useState<Vendor | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isNewVendorOpen, setIsNewVendorOpen] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 3;
+  
+  // Form state
+  const [formData, setFormData] = useState({
+    name: '',
+    category: '',
+    contactName: '',
+    email: '',
+    phone: '',
+    city: '',
+    website: '',
+    rating: 5,
+    notes: '',
+    isFavorite: false,
+  });
+
+  // Fetch vendors
+  const fetchVendors = async () => {
+    if (!user) return;
+    setLoading(true);
+    try {
+      const data = await getDocuments('vendors', [
+        { field: 'planner_id', operator: '==', value: user.uid }
+      ]);
+      const mapped = data.map((d: any) => ({
+        id: d.id,
+        name: d.name,
+        category: d.category,
+        contactName: d.contact_name,
+        email: d.email,
+        phone: d.phone,
+        city: d.city,
+        rating: d.rating,
+        isFavorite: d.is_favorite || false,
+        website: d.website,
+        notes: d.notes || '',
+      }));
+      setVendors(mapped);
+    } catch (e) {
+      console.error('Error fetching vendors:', e);
+      toast.error('Erreur lors du chargement des prestataires');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchVendors();
+  }, [user]);
+
+  const resetForm = () => {
+    setFormData({
+      name: '',
+      category: '',
+      contactName: '',
+      email: '',
+      phone: '',
+      city: '',
+      website: '',
+      rating: 5,
+      notes: '',
+      isFavorite: false,
+    });
+  };
+
+  const handleSubmit = async () => {
+    if (!user || !formData.name || !formData.category || !formData.contactName || !formData.email) {
+      toast.error('Veuillez remplir tous les champs obligatoires');
+      return;
+    }
+
+    try {
+      const data = {
+        planner_id: user.uid,
+        name: formData.name,
+        category: formData.category,
+        contact_name: formData.contactName,
+        email: formData.email,
+        phone: formData.phone,
+        city: formData.city,
+        website: formData.website,
+        rating: formData.rating,
+        notes: formData.notes,
+        is_favorite: formData.isFavorite,
+        created_at: new Date(),
+      };
+
+      if (isEditMode && selectedVendor) {
+        await updateDocument('vendors', selectedVendor.id, data);
+        toast.success('Prestataire modifié avec succès');
+      } else {
+        await addDocument('vendors', data);
+        toast.success('Prestataire créé avec succès');
+      }
+
+      setIsNewVendorOpen(false);
+      resetForm();
+      fetchVendors();
+    } catch (e) {
+      console.error('Error saving vendor:', e);
+      toast.error('Erreur lors de l\'enregistrement');
+    }
+  };
+
+  const handleDelete = async (vendorId: string) => {
+    if (!confirm('Êtes-vous sûr de vouloir supprimer ce prestataire ?')) return;
+    
+    try {
+      await deleteDocument('vendors', vendorId);
+      toast.success('Prestataire supprimé');
+      setIsDetailOpen(false);
+      fetchVendors();
+    } catch (e) {
+      toast.error('Erreur lors de la suppression');
+    }
+  };
+
+  const toggleFavorite = async (vendor: Vendor) => {
+    try {
+      await updateDocument('vendors', vendor.id, {
+        is_favorite: !vendor.isFavorite
+      });
+      fetchVendors();
+    } catch (e) {
+      toast.error('Erreur lors de la mise à jour');
+    }
+  };
 
   const handleViewDetail = (vendor: Vendor) => {
     setSelectedVendor(vendor);
@@ -126,15 +217,47 @@ export default function VendorsPage() {
 
   const handleEdit = (vendor: Vendor) => {
     setSelectedVendor(vendor);
+    setFormData({
+      name: vendor.name,
+      category: vendor.category,
+      contactName: vendor.contactName,
+      email: vendor.email,
+      phone: vendor.phone,
+      city: vendor.city,
+      website: vendor.website,
+      rating: vendor.rating,
+      notes: vendor.notes || '',
+      isFavorite: vendor.isFavorite,
+    });
     setIsEditMode(true);
     setIsNewVendorOpen(true);
   };
 
   const handleNewVendor = () => {
     setSelectedVendor(null);
+    resetForm();
     setIsEditMode(false);
     setIsNewVendorOpen(true);
   };
+
+  // Filtering and pagination
+  const filteredVendors = vendors.filter(vendor => {
+    const matchesSearch = vendor.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         vendor.contactName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         vendor.city.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesCategory = categoryFilter === 'all' || vendor.category === categoryFilter;
+    return matchesSearch && matchesCategory;
+  });
+
+  const totalPages = Math.ceil(filteredVendors.length / itemsPerPage);
+  const paginatedVendors = filteredVendors.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, categoryFilter]);
 
   return (
     <DashboardLayout>
@@ -165,20 +288,54 @@ export default function VendorsPage() {
               <Input
                 placeholder="Rechercher un prestataire..."
                 className="pl-10 border-[#E5E5E5] focus-visible:ring-brand-turquoise"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
-            <Button
-              variant="outline"
-              className="border-2 border-brand-turquoise text-brand-gray hover:bg-brand-turquoise hover:text-white gap-2"
-            >
-              <Filter className="h-4 w-4" />
-              Filtrer par catégorie
-            </Button>
+            <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+              <SelectTrigger className="w-full sm:w-[200px] border-2 border-brand-turquoise">
+                <Filter className="h-4 w-4 mr-2" />
+                <SelectValue placeholder="Catégorie" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Toutes</SelectItem>
+                <SelectItem value="venue">Lieu</SelectItem>
+                <SelectItem value="catering">Traiteur</SelectItem>
+                <SelectItem value="photography">Photographe</SelectItem>
+                <SelectItem value="video">Vidéo</SelectItem>
+                <SelectItem value="music">Musique</SelectItem>
+                <SelectItem value="flowers">Fleuriste</SelectItem>
+                <SelectItem value="decoration">Décoration</SelectItem>
+                <SelectItem value="transport">Transport</SelectItem>
+                <SelectItem value="other">Autre</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {vendors.map((vendor) => {
-              const config = categoryConfig[vendor.category as keyof typeof categoryConfig];
+          {loading ? (
+            <div className="flex justify-center py-20">
+              <Loader2 className="h-10 w-10 animate-spin text-brand-turquoise" />
+            </div>
+          ) : paginatedVendors.length === 0 ? (
+            <div className="text-center py-20">
+              <Globe className="h-16 w-16 text-brand-gray mx-auto mb-4" />
+              <h3 className="text-xl font-bold text-brand-purple mb-2">
+                {searchTerm || categoryFilter !== 'all' ? 'Aucun résultat' : 'Aucun prestataire'}
+              </h3>
+              <p className="text-brand-gray mb-6">
+                {searchTerm || categoryFilter !== 'all' ? 'Essayez avec d\'autres critères' : 'Ajoutez votre premier prestataire'}
+              </p>
+              {!searchTerm && categoryFilter === 'all' && (
+                <Button onClick={handleNewVendor} className="bg-brand-turquoise hover:bg-brand-turquoise-hover">
+                  <Plus className="h-4 w-4 mr-2" /> Ajouter un prestataire
+                </Button>
+              )}
+            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+                {paginatedVendors.map((vendor) => {
+              const config = categoryConfig[vendor.category as keyof typeof categoryConfig] || categoryConfig.other;
               return (
                 <Card key={vendor.id} className="p-5 border border-[#E5E5E5] shadow-md hover:shadow-lg transition-shadow">
                   <div className="mb-3 flex items-start justify-between">
@@ -190,9 +347,13 @@ export default function VendorsPage() {
                         {config.label}
                       </Badge>
                     </div>
-                    {vendor.isFavorite && (
-                      <Star className="h-5 w-5 fill-yellow-400 text-yellow-400" />
-                    )}
+                    <button onClick={() => toggleFavorite(vendor)}>
+                      <Star className={`h-5 w-5 transition-colors ${
+                        vendor.isFavorite 
+                          ? 'fill-yellow-400 text-yellow-400' 
+                          : 'text-gray-300 hover:text-yellow-400'
+                      }`} />
+                    </button>
                   </div>
 
                   <div className="space-y-2 mb-4 text-sm">
@@ -239,9 +400,36 @@ export default function VendorsPage() {
                     Voir les détails
                   </Button>
                 </Card>
-              );
-            })}
-          </div>
+                );
+              })}
+              </div>
+              
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-center gap-2 mt-6">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <span className="text-sm text-brand-gray">
+                    Page {currentPage} sur {totalPages}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                    disabled={currentPage === totalPages}
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
+            </>
+          )}
         </Card>
       </div>
 
@@ -313,12 +501,21 @@ export default function VendorsPage() {
               </div>
             </div>
           )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsDetailOpen(false)}>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button 
+              variant="destructive" 
+              onClick={() => selectedVendor && handleDelete(selectedVendor.id)}
+              className="w-full sm:w-auto"
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Supprimer
+            </Button>
+            <div className="flex-1" />
+            <Button variant="outline" onClick={() => setIsDetailOpen(false)} className="w-full sm:w-auto">
               Fermer
             </Button>
             <Button 
-              className="bg-brand-turquoise hover:bg-brand-turquoise-hover gap-2"
+              className="bg-brand-turquoise hover:bg-brand-turquoise-hover gap-2 w-full sm:w-auto"
               onClick={() => {
                 if (selectedVendor) {
                   setIsDetailOpen(false);
@@ -350,12 +547,13 @@ export default function VendorsPage() {
               <Input 
                 placeholder="Nom de l'entreprise" 
                 className="mt-1"
-                defaultValue={isEditMode && selectedVendor ? selectedVendor.name : ''}
+                value={formData.name}
+                onChange={(e) => setFormData({...formData, name: e.target.value})}
               />
             </div>
             <div>
               <Label>Catégorie *</Label>
-              <Select defaultValue={isEditMode && selectedVendor ? selectedVendor.category : undefined}>
+              <Select value={formData.category} onValueChange={(v) => setFormData({...formData, category: v})}>
                 <SelectTrigger className="mt-1">
                   <SelectValue placeholder="Sélectionner une catégorie" />
                 </SelectTrigger>
@@ -378,7 +576,8 @@ export default function VendorsPage() {
                 <Input 
                   placeholder="Prénom Nom" 
                   className="mt-1"
-                  defaultValue={isEditMode && selectedVendor ? selectedVendor.contactName : ''}
+                  value={formData.contactName}
+                  onChange={(e) => setFormData({...formData, contactName: e.target.value})}
                 />
               </div>
               <div>
@@ -386,7 +585,8 @@ export default function VendorsPage() {
                 <Input 
                   placeholder="Rennes" 
                   className="mt-1"
-                  defaultValue={isEditMode && selectedVendor ? selectedVendor.city : ''}
+                  value={formData.city}
+                  onChange={(e) => setFormData({...formData, city: e.target.value})}
                 />
               </div>
             </div>
@@ -397,7 +597,8 @@ export default function VendorsPage() {
                   type="email" 
                   placeholder="contact@exemple.fr" 
                   className="mt-1"
-                  defaultValue={isEditMode && selectedVendor ? selectedVendor.email : ''}
+                  value={formData.email}
+                  onChange={(e) => setFormData({...formData, email: e.target.value})}
                 />
               </div>
               <div>
@@ -405,7 +606,8 @@ export default function VendorsPage() {
                 <Input 
                   placeholder="02 99 00 00 00" 
                   className="mt-1"
-                  defaultValue={isEditMode && selectedVendor ? selectedVendor.phone : ''}
+                  value={formData.phone}
+                  onChange={(e) => setFormData({...formData, phone: e.target.value})}
                 />
               </div>
             </div>
@@ -414,14 +616,15 @@ export default function VendorsPage() {
               <Input 
                 placeholder="www.exemple.fr" 
                 className="mt-1"
-                defaultValue={isEditMode && selectedVendor ? selectedVendor.website : ''}
+                value={formData.website}
+                onChange={(e) => setFormData({...formData, website: e.target.value})}
               />
             </div>
             <div>
               <Label>Note (1-5 étoiles)</Label>
-              <Select defaultValue={isEditMode && selectedVendor ? selectedVendor.rating.toString() : '5'}>
+              <Select value={formData.rating?.toString() || '5'} onValueChange={(v) => setFormData({...formData, rating: parseInt(v)})}>
                 <SelectTrigger className="mt-1">
-                  <SelectValue />
+                  <SelectValue placeholder="Sélectionner une note" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="1">⭐ 1 étoile</SelectItem>
@@ -434,16 +637,25 @@ export default function VendorsPage() {
             </div>
             <div>
               <Label>Notes internes</Label>
-              <Textarea placeholder="Notes sur ce prestataire..." className="mt-1" rows={3} />
+              <Textarea 
+                placeholder="Notes sur ce prestataire..." 
+                className="mt-1" 
+                rows={3}
+                value={formData.notes}
+                onChange={(e) => setFormData({...formData, notes: e.target.value})}
+              />
             </div>
           </div>
           <DialogFooter className="flex-col sm:flex-row gap-2">
-            <Button variant="outline" onClick={() => setIsNewVendorOpen(false)} className="w-full sm:w-auto">
+            <Button variant="outline" onClick={() => {
+              setIsNewVendorOpen(false);
+              resetForm();
+            }} className="w-full sm:w-auto">
               Annuler
             </Button>
             <Button 
               className="bg-brand-turquoise hover:bg-brand-turquoise-hover w-full sm:w-auto"
-              onClick={() => setIsNewVendorOpen(false)}
+              onClick={handleSubmit}
             >
               {isEditMode ? 'Enregistrer les modifications' : 'Créer le prestataire'}
             </Button>

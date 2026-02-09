@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -8,7 +8,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Plus, Trash2 } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
+import { getDocuments, addDocument } from '@/lib/db';
+import { toast as sonnerToast } from 'sonner';
 
 interface InvoiceItem {
   id: string;
@@ -22,20 +24,48 @@ interface NewInvoiceModalProps {
   onClose: () => void;
 }
 
-const clients = [
-  { id: '1', name: 'Julie & Frédérick', email: 'julie.martin@email.com' },
-  { id: '2', name: 'Sophie & Alexandre', email: 'sophie.dubois@email.com' },
-  { id: '3', name: 'Emma & Thomas', email: 'emma.bernard@email.com' },
-];
+interface Client {
+  id: string;
+  name: string;
+  email: string;
+}
 
 export function NewInvoiceModal({ isOpen, onClose }: NewInvoiceModalProps) {
-  const { toast } = useToast();
+  const { user } = useAuth();
+  const [clients, setClients] = useState<Client[]>([]);
+  const [loading, setLoading] = useState(false);
   const [selectedClient, setSelectedClient] = useState('');
   const [items, setItems] = useState<InvoiceItem[]>([
     { id: '1', description: '', quantity: 1, unitPrice: 0 }
   ]);
   const [dueDate, setDueDate] = useState('');
   const [notes, setNotes] = useState('');
+  const [invoiceType, setInvoiceType] = useState<'invoice' | 'deposit'>('invoice');
+
+  // Fetch clients from Firebase
+  useEffect(() => {
+    if (isOpen && user) {
+      fetchClients();
+    }
+  }, [isOpen, user]);
+
+  const fetchClients = async () => {
+    if (!user) return;
+    try {
+      const data = await getDocuments('clients', [
+        { field: 'planner_id', operator: '==', value: user.uid }
+      ]);
+      const mapped = data.map((c: any) => ({
+        id: c.id,
+        name: c.partner ? `${c.name} & ${c.partner}` : c.name,
+        email: c.email || '',
+      }));
+      setClients(mapped);
+    } catch (e) {
+      console.error('Error fetching clients:', e);
+      sonnerToast.error('Erreur lors du chargement des clients');
+    }
+  };
 
   const addItem = () => {
     setItems([...items, { id: Date.now().toString(), description: '', quantity: 1, unitPrice: 0 }]);
@@ -57,24 +87,62 @@ export function NewInvoiceModal({ isOpen, onClose }: NewInvoiceModalProps) {
     return { totalHT, totalTTC };
   };
 
-  const handleSubmit = () => {
-    if (!selectedClient) {
-      toast({
-        title: 'Erreur',
-        description: 'Veuillez sélectionner un client',
-        variant: 'destructive',
-      });
+  const handleSubmit = async () => {
+    if (!user || !selectedClient) {
+      sonnerToast.error('Veuillez sélectionner un client');
       return;
     }
 
-    const { totalTTC } = calculateTotal();
-    
-    toast({
-      title: 'Facture créée',
-      description: `Facture de ${totalTTC.toLocaleString()}€ TTC créée pour ${clients.find(c => c.id === selectedClient)?.name}`,
-    });
-    
-    onClose();
+    if (!dueDate) {
+      sonnerToast.error('Veuillez indiquer une date d\'échéance');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const { totalHT, totalTTC } = calculateTotal();
+      const client = clients.find(c => c.id === selectedClient);
+      
+      const invoiceData = {
+        planner_id: user.uid,
+        reference: `${invoiceType === 'deposit' ? 'ACOMPTE' : 'FACT'}-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`,
+        client: client?.name || '',
+        client_email: client?.email || '',
+        date: new Date().toLocaleDateString('fr-FR'),
+        due_date: dueDate,
+        montant_ht: totalHT,
+        montant_ttc: totalTTC,
+        paid: 0,
+        status: 'pending',
+        type: invoiceType,
+        items: items.map(item => ({
+          description: item.description,
+          quantity: item.quantity,
+          unit_price: item.unitPrice,
+          total: item.quantity * item.unitPrice,
+        })),
+        notes: notes,
+        created_at: new Date(),
+      };
+
+      await addDocument('invoices', invoiceData);
+      
+      sonnerToast.success(`Facture de ${totalTTC.toLocaleString()}€ TTC créée pour ${client?.name}`);
+      
+      // Reset form
+      setSelectedClient('');
+      setItems([{ id: '1', description: '', quantity: 1, unitPrice: 0 }]);
+      setDueDate('');
+      setNotes('');
+      setInvoiceType('invoice');
+      
+      onClose();
+    } catch (e) {
+      console.error('Error creating invoice:', e);
+      sonnerToast.error('Erreur lors de la création de la facture');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const { totalHT, totalTTC } = calculateTotal();
@@ -88,7 +156,7 @@ export function NewInvoiceModal({ isOpen, onClose }: NewInvoiceModalProps) {
         </DialogHeader>
         
         <div className="space-y-6 py-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <Label htmlFor="client">Client *</Label>
               <Select value={selectedClient} onValueChange={setSelectedClient}>
@@ -109,7 +177,20 @@ export function NewInvoiceModal({ isOpen, onClose }: NewInvoiceModalProps) {
             </div>
             
             <div>
-              <Label htmlFor="dueDate">Date d'échéance</Label>
+              <Label htmlFor="type">Type *</Label>
+              <Select value={invoiceType} onValueChange={(v: any) => setInvoiceType(v)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="invoice">Facture</SelectItem>
+                  <SelectItem value="deposit">Acompte</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div>
+              <Label htmlFor="dueDate">Date d'échéance *</Label>
               <Input
                 id="dueDate"
                 type="date"
@@ -219,8 +300,9 @@ export function NewInvoiceModal({ isOpen, onClose }: NewInvoiceModalProps) {
           <Button
             className="bg-brand-turquoise hover:bg-brand-turquoise-hover"
             onClick={handleSubmit}
+            disabled={loading}
           >
-            Créer la facture
+            {loading ? 'Création...' : 'Créer la facture'}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -1,11 +1,14 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ClientDashboardLayout } from '@/components/layout/ClientDashboardLayout';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { useClientData } from '@/contexts/ClientDataContext';
+import { getClientPayments, getClientBudgetSummary, calculateDaysRemaining, PaymentData } from '@/lib/client-helpers';
 import {
   Dialog,
   DialogContent,
@@ -30,8 +33,8 @@ import {
   Download,
   TrendingUp,
   Calendar,
+  Loader2,
 } from 'lucide-react';
-import { useState } from 'react';
 
 interface Payment {
   id: string;
@@ -45,14 +48,7 @@ interface Payment {
   invoice: boolean;
 }
 
-const budgetSummary = {
-  total: 25000,
-  paid: 18500,
-  pending: 4500,
-  remaining: 2000,
-};
-
-const payments = [
+const mockPayments = [
   {
     id: '1',
     description: 'Acompte Château d\'Apigné',
@@ -135,13 +131,46 @@ const payments = [
   },
 ];
 
-const upcomingPayments = payments.filter(p => p.status === 'pending' || p.status === 'upcoming');
-
 export default function PaiementsPage() {
+  const { client, event, loading: dataLoading } = useClientData();
+  const [payments, setPayments] = useState<PaymentData[]>([]);
+  const [budgetSummary, setBudgetSummary] = useState({ total: 0, paid: 0, pending: 0, remaining: 0 });
+  const [loading, setLoading] = useState(true);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null);
   const [paymentMethod, setPaymentMethod] = useState('');
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
+
+  useEffect(() => {
+    async function fetchPayments() {
+      if (client?.id) {
+        try {
+          const paymentsList = await getClientPayments(client.id);
+          setPayments(paymentsList);
+          const summary = await getClientBudgetSummary(client.id);
+          setBudgetSummary(summary);
+        } catch (error) {
+          console.error('Error fetching payments:', error);
+        } finally {
+          setLoading(false);
+        }
+      }
+    }
+    if (!dataLoading && client) {
+      fetchPayments();
+    }
+  }, [client, dataLoading]);
+
+  const upcomingPayments = payments.filter(p => p.status === 'pending' || p.status === 'overdue');
+  const daysRemaining = event ? calculateDaysRemaining(event.event_date) : 0;
+
+  if (dataLoading || loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="animate-spin h-12 w-12 text-brand-turquoise" />
+      </div>
+    );
+  }
 
   const handlePayClick = (payment: Payment) => {
     setSelectedPayment(payment);
@@ -187,7 +216,7 @@ export default function PaiementsPage() {
   const progressPercentage = (budgetSummary.paid / budgetSummary.total) * 100;
 
   return (
-    <ClientDashboardLayout clientName="Julie & Frédérick" daysRemaining={165}>
+    <ClientDashboardLayout clientName={event?.couple_names || 'Client'} daysRemaining={daysRemaining}>
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
@@ -286,7 +315,7 @@ export default function PaiementsPage() {
                       <p className="text-xs text-brand-gray mt-1">
                         {payment.status === 'paid' 
                           ? `Payé le ${payment.date}`
-                          : `Échéance: ${payment.dueDate}`
+                          : `Échéance: ${payment.due_date || 'Non définie'}`
                         }
                       </p>
                     </div>
@@ -327,8 +356,8 @@ export default function PaiementsPage() {
                     </p>
                   </div>
                   <div className="flex items-center justify-between mt-3">
-                    <p className="text-xs text-orange-600">
-                      Échéance: {payment.dueDate}
+                    <p className="text-xs text-gray-500">
+                      Échéance: {payment.due_date ? new Date(payment.due_date).toLocaleDateString() : 'Non définie'}
                     </p>
                     <Button 
                       size="sm" 

@@ -5,78 +5,90 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Plus, Search, MapPin, Phone, Mail, Star, Package } from 'lucide-react';
-import { useState } from 'react';
+import { Plus, Search, MapPin, Phone, Mail, Star, Package, Loader2 } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
+import { getDocuments, addDocument, updateDocument, deleteDocument } from '@/lib/db';
+import { toast } from 'sonner';
 import { FournisseurModal } from '@/components/modals/FournisseurModal';
 import { FournisseurDetailModal } from '@/components/modals/FournisseurDetailModal';
 
-const fournisseursDemo = [
-  {
-    id: '1',
-    name: 'Mobilier Pro Bretagne',
-    category: 'Mobilier',
-    contactName: 'Jean Dupont',
-    email: 'contact@mobilier-pro.fr',
-    phone: '02 99 00 00 00',
-    city: 'Rennes',
-    rating: 5,
-    productsCount: 45,
-  },
-  {
-    id: '2',
-    name: 'Textiles & Nappes',
-    category: 'Linge',
-    contactName: 'Marie Bernard',
-    email: 'info@textiles-nappes.fr',
-    phone: '02 99 11 11 11',
-    city: 'Nantes',
-    rating: 4,
-    productsCount: 32,
-  },
-  {
-    id: '3',
-    name: 'Déco Événements',
-    category: 'Décoration',
-    contactName: 'Pierre Martin',
-    email: 'contact@deco-events.fr',
-    phone: '02 99 22 22 22',
-    city: 'Vannes',
-    rating: 5,
-    productsCount: 67,
-  },
-  {
-    id: '4',
-    name: 'Lumière & Éclairage',
-    category: 'Éclairage',
-    contactName: 'Sophie Laurent',
-    email: 'info@lumiere-eclairage.fr',
-    phone: '02 99 33 33 33',
-    city: 'Rennes',
-    rating: 4,
-    productsCount: 28,
-  },
-];
+interface Fournisseur {
+  id: string;
+  name: string;
+  category: string;
+  contactName: string;
+  email: string;
+  phone: string;
+  city: string;
+  rating: number;
+  productsCount: number;
+}
 
 export default function FournisseursPage() {
+  const { user } = useAuth();
+  const [fournisseurs, setFournisseurs] = useState<Fournisseur[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
   const [isFournisseurModalOpen, setIsFournisseurModalOpen] = useState(false);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
-  const [selectedFournisseur, setSelectedFournisseur] = useState<typeof fournisseursDemo[0] | null>(null);
+  const [selectedFournisseur, setSelectedFournisseur] = useState<Fournisseur | null>(null);
   const [modalMode, setModalMode] = useState<'create' | 'edit'>('create');
 
-  const handleViewDetail = (fournisseur: typeof fournisseursDemo[0]) => {
+  // Fetch fournisseurs
+  const fetchFournisseurs = async () => {
+    if (!user) return;
+    setLoading(true);
+    try {
+      const data = await getDocuments('fournisseurs', [
+        { field: 'owner_id', operator: '==', value: user.uid }
+      ]);
+      const mapped = data.map((d: any) => ({
+        id: d.id,
+        name: d.name,
+        category: d.category,
+        contactName: d.contact_name || '',
+        email: d.email || '',
+        phone: d.phone || '',
+        city: d.city || '',
+        rating: d.rating || 0,
+        productsCount: d.products_count || 0,
+      }));
+      setFournisseurs(mapped);
+    } catch (e) {
+      console.error('Error fetching fournisseurs:', e);
+      toast.error('Erreur lors du chargement des fournisseurs');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchFournisseurs();
+  }, [user]);
+
+  const handleViewDetail = (fournisseur: Fournisseur) => {
     setSelectedFournisseur(fournisseur);
     setIsDetailOpen(true);
   };
 
-  const handleEdit = (fournisseur: typeof fournisseursDemo[0]) => {
+  const handleEdit = (fournisseur: Fournisseur) => {
     setSelectedFournisseur(fournisseur);
     setModalMode('edit');
     setIsFournisseurModalOpen(true);
   };
 
-  const handleDelete = (id: string) => {
-    // Logic to delete fournisseur
-    console.log('Delete fournisseur:', id);
+  const handleDelete = async (id: string) => {
+    if (!confirm('Êtes-vous sûr de vouloir supprimer ce fournisseur ?')) return;
+    
+    try {
+      await deleteDocument('fournisseurs', id);
+      toast.success('Fournisseur supprimé');
+      setIsDetailOpen(false);
+      fetchFournisseurs();
+    } catch (e) {
+      toast.error('Erreur lors de la suppression');
+    }
   };
 
   const handleCreate = () => {
@@ -84,6 +96,12 @@ export default function FournisseursPage() {
     setModalMode('create');
     setIsFournisseurModalOpen(true);
   };
+
+  const filteredFournisseurs = fournisseurs.filter(f =>
+    f.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    f.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    f.city.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   return (
     <DashboardLayout>
@@ -110,25 +128,25 @@ export default function FournisseursPage() {
           <Card className="p-6 shadow-xl border-0 bg-gradient-to-br from-brand-beige to-white">
             <p className="text-sm text-brand-gray uppercase tracking-label mb-1">Total fournisseurs</p>
             <p className="text-3xl font-bold text-brand-purple">
-              {fournisseursDemo.length}
+              {fournisseurs.length}
             </p>
           </Card>
           <Card className="p-6 shadow-xl border-0 bg-gradient-to-br from-blue-50 to-white">
             <p className="text-sm text-brand-gray uppercase tracking-label mb-1">Produits référencés</p>
             <p className="text-3xl font-bold text-brand-purple">
-              {fournisseursDemo.reduce((acc, f) => acc + f.productsCount, 0)}
+              {fournisseurs.reduce((acc, f) => acc + f.productsCount, 0)}
             </p>
           </Card>
           <Card className="p-6 shadow-xl border-0 bg-gradient-to-br from-yellow-50 to-white">
             <p className="text-sm text-brand-gray uppercase tracking-label mb-1">Note moyenne</p>
             <p className="text-3xl font-bold text-brand-purple">
-              {(fournisseursDemo.reduce((acc, f) => acc + f.rating, 0) / fournisseursDemo.length).toFixed(1)}/5
+              {fournisseurs.length > 0 ? (fournisseurs.reduce((acc, f) => acc + f.rating, 0) / fournisseurs.length).toFixed(1) : '0'}/5
             </p>
           </Card>
           <Card className="p-6 shadow-xl border-0 bg-gradient-to-br from-green-50 to-white">
             <p className="text-sm text-brand-gray uppercase tracking-label mb-1">Catégories</p>
             <p className="text-3xl font-bold text-brand-purple">
-              {new Set(fournisseursDemo.map(f => f.category)).size}
+              {new Set(fournisseurs.map(f => f.category)).size}
             </p>
           </Card>
         </div>
@@ -140,6 +158,8 @@ export default function FournisseursPage() {
               <Input
                 placeholder="Rechercher un fournisseur..."
                 className="pl-10 border-[#E5E5E5] focus-visible:ring-brand-turquoise"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
             <Button variant="outline" className="border-2 border-brand-turquoise text-brand-gray hover:bg-brand-turquoise hover:text-white">
@@ -148,8 +168,28 @@ export default function FournisseursPage() {
           </div>
         </Card>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {fournisseursDemo.map((fournisseur) => (
+        {loading ? (
+          <div className="flex justify-center py-20">
+            <Loader2 className="h-10 w-10 animate-spin text-brand-turquoise" />
+          </div>
+        ) : filteredFournisseurs.length === 0 ? (
+          <Card className="p-12 text-center">
+            <Package className="h-16 w-16 text-brand-gray mx-auto mb-4" />
+            <h3 className="text-xl font-bold text-brand-purple mb-2">
+              {searchTerm ? 'Aucun résultat' : 'Aucun fournisseur'}
+            </h3>
+            <p className="text-brand-gray mb-6">
+              {searchTerm ? 'Essayez avec d\'autres mots-clés' : 'Ajoutez votre premier fournisseur'}
+            </p>
+            {!searchTerm && (
+              <Button onClick={handleCreate} className="bg-brand-turquoise hover:bg-brand-turquoise-hover">
+                <Plus className="h-4 w-4 mr-2" /> Ajouter un fournisseur
+              </Button>
+            )}
+          </Card>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredFournisseurs.map((fournisseur) => (
             <Card key={fournisseur.id} className="p-6 shadow-xl border-0 hover:shadow-2xl transition-shadow">
               <div className="flex items-start justify-between mb-4">
                 <div className="flex-1">
@@ -209,9 +249,10 @@ export default function FournisseursPage() {
                   Voir les détails
                 </Button>
               </div>
-            </Card>
-          ))}
-        </div>
+              </Card>
+            ))}
+          </div>
+        )}
       </div>
 
       <FournisseurModal
@@ -219,6 +260,7 @@ export default function FournisseursPage() {
         onClose={() => setIsFournisseurModalOpen(false)}
         fournisseur={selectedFournisseur}
         mode={modalMode}
+        onFournisseurSaved={fetchFournisseurs}
       />
 
       <FournisseurDetailModal

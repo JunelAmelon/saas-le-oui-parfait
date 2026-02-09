@@ -5,63 +5,24 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Plus, Search, Package, AlertTriangle, CheckCircle } from 'lucide-react';
-import { useState } from 'react';
+import { Plus, Search, Package, AlertTriangle, CheckCircle, Loader2 } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
+import { getDocuments, addDocument, updateDocument, deleteDocument } from '@/lib/db';
+import { toast } from 'sonner';
 import { NewArticleModal } from '@/components/modals/NewArticleModal';
 import { EditArticleModal } from '@/components/modals/EditArticleModal';
 
-const articlesDemo = [
-  {
-    id: '1',
-    name: 'Chaises Napoleon III - Dorées',
-    category: 'Mobilier',
-    quantity: 150,
-    minQuantity: 100,
-    price: 8.5,
-    location: 'Entrepôt A - Allée 3',
-    status: 'available',
-  },
-  {
-    id: '2',
-    name: 'Nappes blanches 3x3m',
-    category: 'Linge',
-    quantity: 45,
-    minQuantity: 50,
-    price: 12,
-    location: 'Entrepôt B - Rayon 2',
-    status: 'low_stock',
-  },
-  {
-    id: '3',
-    name: 'Arche florale blanche',
-    category: 'Décoration',
-    quantity: 8,
-    minQuantity: 5,
-    price: 150,
-    location: 'Entrepôt A - Zone déco',
-    status: 'available',
-  },
-  {
-    id: '4',
-    name: 'Lanternes LED',
-    category: 'Éclairage',
-    quantity: 2,
-    minQuantity: 20,
-    price: 15,
-    location: 'Entrepôt C',
-    status: 'critical',
-  },
-  {
-    id: '5',
-    name: 'Tables rondes 8 personnes',
-    category: 'Mobilier',
-    quantity: 35,
-    minQuantity: 30,
-    price: 25,
-    location: 'Entrepôt A - Allée 1',
-    status: 'available',
-  },
-];
+interface Article {
+  id: string;
+  name: string;
+  category: string;
+  quantity: number;
+  minQuantity: number;
+  price: number;
+  location: string;
+  status: string;
+}
 
 const statusConfig = {
   available: {
@@ -82,14 +43,62 @@ const statusConfig = {
 };
 
 export default function ArticlesPage() {
+  const { user } = useAuth();
+  const [articles, setArticles] = useState<Article[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
   const [isNewArticleOpen, setIsNewArticleOpen] = useState(false);
   const [isEditArticleOpen, setIsEditArticleOpen] = useState(false);
-  const [selectedArticle, setSelectedArticle] = useState<typeof articlesDemo[0] | null>(null);
+  const [selectedArticle, setSelectedArticle] = useState<Article | null>(null);
 
-  const handleEdit = (article: typeof articlesDemo[0]) => {
+  // Fetch articles
+  const fetchArticles = async () => {
+    if (!user) return;
+    setLoading(true);
+    try {
+      const data = await getDocuments('articles', [
+        { field: 'owner_id', operator: '==', value: user.uid }
+      ]);
+      const mapped = data.map((d: any) => {
+        const quantity = d.quantity || 0;
+        const minQuantity = d.min_quantity || 0;
+        let status = 'available';
+        if (quantity === 0) status = 'critical';
+        else if (quantity < minQuantity) status = 'low_stock';
+        
+        return {
+          id: d.id,
+          name: d.name,
+          category: d.category,
+          quantity: quantity,
+          minQuantity: minQuantity,
+          price: d.price || 0,
+          location: d.location || '',
+          status: status,
+        };
+      });
+      setArticles(mapped);
+    } catch (e) {
+      console.error('Error fetching articles:', e);
+      toast.error('Erreur lors du chargement des articles');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchArticles();
+  }, [user]);
+
+  const handleEdit = (article: Article) => {
     setSelectedArticle(article);
     setIsEditArticleOpen(true);
   };
+
+  const filteredArticles = articles.filter(article =>
+    article.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    article.category.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   return (
     <DashboardLayout>
@@ -116,25 +125,25 @@ export default function ArticlesPage() {
           <Card className="p-6 shadow-xl border-0 bg-gradient-to-br from-brand-beige to-white">
             <p className="text-sm text-brand-gray uppercase tracking-label mb-1">Total articles</p>
             <p className="text-3xl font-bold text-brand-purple">
-              {articlesDemo.length}
+              {articles.length}
             </p>
           </Card>
           <Card className="p-6 shadow-xl border-0 bg-gradient-to-br from-green-50 to-white">
             <p className="text-sm text-brand-gray uppercase tracking-label mb-1">Disponibles</p>
             <p className="text-3xl font-bold text-brand-purple">
-              {articlesDemo.filter(a => a.status === 'available').length}
+              {articles.filter(a => a.status === 'available').length}
             </p>
           </Card>
           <Card className="p-6 shadow-xl border-0 bg-gradient-to-br from-orange-50 to-white">
             <p className="text-sm text-brand-gray uppercase tracking-label mb-1">Stock faible</p>
             <p className="text-3xl font-bold text-brand-purple">
-              {articlesDemo.filter(a => a.status === 'low_stock').length}
+              {articles.filter(a => a.status === 'low_stock').length}
             </p>
           </Card>
           <Card className="p-6 shadow-xl border-0 bg-gradient-to-br from-red-50 to-white">
             <p className="text-sm text-brand-gray uppercase tracking-label mb-1">Stock critique</p>
             <p className="text-3xl font-bold text-brand-purple">
-              {articlesDemo.filter(a => a.status === 'critical').length}
+              {articles.filter(a => a.status === 'critical').length}
             </p>
           </Card>
         </div>
@@ -146,6 +155,8 @@ export default function ArticlesPage() {
               <Input
                 placeholder="Rechercher un article..."
                 className="pl-10 border-[#E5E5E5] focus-visible:ring-brand-turquoise"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
             <Button variant="outline" className="border-2 border-brand-turquoise text-brand-gray hover:bg-brand-turquoise hover:text-white">
@@ -155,33 +166,53 @@ export default function ArticlesPage() {
         </Card>
 
         <Card className="p-6 shadow-xl border-0">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="border-b border-[#E5E5E5]">
-                <tr>
-                  <th className="pb-3 text-left text-xs font-medium uppercase tracking-label text-brand-gray">
-                    Article
-                  </th>
-                  <th className="pb-3 text-left text-xs font-medium uppercase tracking-label text-brand-gray">
-                    Catégorie
-                  </th>
-                  <th className="pb-3 text-left text-xs font-medium uppercase tracking-label text-brand-gray">
-                    Stock
-                  </th>
-                  <th className="pb-3 text-left text-xs font-medium uppercase tracking-label text-brand-gray">
-                    Prix unitaire
-                  </th>
-                  <th className="pb-3 text-left text-xs font-medium uppercase tracking-label text-brand-gray">
-                    Emplacement
-                  </th>
-                  <th className="pb-3 text-left text-xs font-medium uppercase tracking-label text-brand-gray">
-                    Statut
-                  </th>
-                  <th className="pb-3"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {articlesDemo.map((article) => {
+          {loading ? (
+            <div className="flex justify-center py-20">
+              <Loader2 className="h-10 w-10 animate-spin text-brand-turquoise" />
+            </div>
+          ) : filteredArticles.length === 0 ? (
+            <div className="text-center py-20">
+              <Package className="h-16 w-16 text-brand-gray mx-auto mb-4" />
+              <h3 className="text-xl font-bold text-brand-purple mb-2">
+                {searchTerm ? 'Aucun résultat' : 'Aucun article'}
+              </h3>
+              <p className="text-brand-gray mb-6">
+                {searchTerm ? 'Essayez avec d\'autres mots-clés' : 'Ajoutez votre premier article'}
+              </p>
+              {!searchTerm && (
+                <Button onClick={() => setIsNewArticleOpen(true)} className="bg-brand-turquoise hover:bg-brand-turquoise-hover">
+                  <Plus className="h-4 w-4 mr-2" /> Ajouter un article
+                </Button>
+              )}
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="border-b border-[#E5E5E5]">
+                  <tr>
+                    <th className="pb-3 text-left text-xs font-medium uppercase tracking-label text-brand-gray">
+                      Article
+                    </th>
+                    <th className="pb-3 text-left text-xs font-medium uppercase tracking-label text-brand-gray">
+                      Catégorie
+                    </th>
+                    <th className="pb-3 text-left text-xs font-medium uppercase tracking-label text-brand-gray">
+                      Stock
+                    </th>
+                    <th className="pb-3 text-left text-xs font-medium uppercase tracking-label text-brand-gray">
+                      Prix unitaire
+                    </th>
+                    <th className="pb-3 text-left text-xs font-medium uppercase tracking-label text-brand-gray">
+                      Emplacement
+                    </th>
+                    <th className="pb-3 text-left text-xs font-medium uppercase tracking-label text-brand-gray">
+                      Statut
+                    </th>
+                    <th className="pb-3"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredArticles.map((article) => {
                   const config = statusConfig[article.status as keyof typeof statusConfig];
                   const StatusIcon = config.icon;
                   return (
@@ -228,23 +259,26 @@ export default function ArticlesPage() {
                         </Button>
                       </td>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </Card>
       </div>
 
       <NewArticleModal
         isOpen={isNewArticleOpen}
         onClose={() => setIsNewArticleOpen(false)}
+        onArticleCreated={fetchArticles}
       />
 
       <EditArticleModal
         isOpen={isEditArticleOpen}
         onClose={() => setIsEditArticleOpen(false)}
         article={selectedArticle}
+        onArticleUpdated={fetchArticles}
       />
     </DashboardLayout>
   );

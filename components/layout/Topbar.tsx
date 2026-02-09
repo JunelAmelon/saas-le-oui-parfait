@@ -11,7 +11,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { TimerWidget } from '@/components/timer/TimerWidget';
 import { QuickAddModal } from '@/components/modals/QuickAddModal';
 import { MessagesModal } from '@/components/modals/MessagesModal';
@@ -82,13 +82,14 @@ export function Topbar() {
             <DropdownMenuTrigger asChild>
               <button className="ml-1 md:ml-2 flex items-center gap-2 md:gap-3 rounded-lg p-1 hover:bg-gray-100">
                 <Avatar className="h-8 w-8 md:h-9 md:w-9">
+                  <AvatarImage src="https://api.dicebear.com/7.x/avataaars/svg?seed=Kathy" alt="Kathy" />
                   <AvatarFallback className="bg-brand-turquoise text-white font-medium text-sm">
-                    {user?.email?.substring(0, 2).toUpperCase() || 'CA'}
+                    KA
                   </AvatarFallback>
                 </Avatar>
                 <div className="text-left hidden lg:block">
                   <p className="text-sm font-medium text-brand-purple">
-                    {user?.email?.split('@')[0] || 'Caroline'}
+                    Kathy
                   </p>
                   <p className="text-xs text-brand-gray">Wedding Planner</p>
                 </div>
@@ -97,7 +98,7 @@ export function Topbar() {
             <DropdownMenuContent align="end" className="w-56">
               <DropdownMenuLabel>Mon compte</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => router.push('/profile')}>
+              <DropdownMenuItem onClick={() => router.push('/agence')}>
                 <User className="mr-2 h-4 w-4" />
                 Profil
               </DropdownMenuItem>

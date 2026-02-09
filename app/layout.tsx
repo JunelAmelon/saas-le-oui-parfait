@@ -4,6 +4,7 @@ import { Inter, Libre_Baskerville } from 'next/font/google';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { TimerProvider } from '@/contexts/TimerContext';
 import { Toaster } from '@/components/ui/toaster';
+import { Toaster as SonnerToaster } from 'sonner';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -50,6 +51,7 @@ export default function RootLayout({
           <TimerProvider>
             {children}
             <Toaster />
+            <SonnerToaster position="top-right" richColors closeButton />
           </TimerProvider>
         </AuthProvider>
       </body>

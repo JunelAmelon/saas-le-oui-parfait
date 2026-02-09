@@ -17,7 +17,11 @@ import {
   Plus,
   Users,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { useAuth } from '@/contexts/AuthContext';
+import { getDocuments } from '@/lib/db';
+import { toast } from 'sonner';
 
 interface Conversation {
   id: string;
