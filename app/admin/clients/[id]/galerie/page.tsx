@@ -31,7 +31,7 @@ export default function ClientGalleryAdminPage() {
           { field: 'client_id', operator: '==', value: clientId },
         ]);
 
-        const ev = (events?.[0] as any) || null;
+        const ev = ((events as any[]) || []).find((x) => Boolean(x?.event_date)) || (events?.[0] as any) || null;
         const evId = ev?.id || null;
         setEventId(evId);
 
@@ -79,14 +79,16 @@ export default function ClientGalleryAdminPage() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div className="flex items-center gap-4">
-          <Button variant="outline" onClick={() => router.back()} className="gap-2">
-            <ArrowLeft className="h-4 w-4" />
-            Retour
-          </Button>
+        <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-brand-purple">Galerie</h1>
+            <h1 className="text-3xl font-bold text-brand-purple mb-2">Galerie</h1>
             <p className="text-brand-gray">Albums et photos envoyés par le client et/ou la wedding planner</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={() => router.back()} className="gap-2">
+              <ArrowLeft className="h-4 w-4" />
+              Retour
+            </Button>
           </div>
         </div>
 

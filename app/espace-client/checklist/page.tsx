@@ -8,7 +8,7 @@ import { ClientDashboardLayout } from '@/components/layout/ClientDashboardLayout
 import { Checkbox } from '@/components/ui/checkbox';
 import { Progress } from '@/components/ui/progress';
 import { useClientData } from '@/contexts/ClientDataContext';
-import { getClientChecklist, calculateDaysRemaining, ChecklistItem as ChecklistItemType } from '@/lib/client-helpers';
+import { calculateDaysRemaining } from '@/lib/client-helpers';
 import {
   CheckCircle,
   Circle,
@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { ChecklistManager } from '@/components/checklist/ChecklistManager';
 import { Loader2 } from 'lucide-react';
+import { getDocuments, updateDocument } from '@/lib/db';
 
 interface Task {
   id: string;
@@ -63,28 +64,60 @@ interface ChecklistItem {
   completedAt?: string;
 }
 
+type Step = {
+  id: string;
+  kind?: 'milestone';
+  event_id: string;
+  title: string;
+  description?: string;
+  deadline?: string;
+  admin_confirmed?: boolean;
+  client_confirmed?: boolean;
+};
+
 export default function ChecklistPage() {
   const { client, event, loading: dataLoading } = useClientData();
   const [checklistItems, setChecklistItems] = useState<ChecklistItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function fetchChecklist() {
-      if (event?.id) {
-        try {
-          const items = await getClientChecklist(event.id);
-          setChecklistItems(items as unknown as ChecklistItem[]);
-        } catch (error) {
-          console.error('Error fetching checklist:', error);
-        } finally {
-          setLoading(false);
-        }
+    async function fetchStepsAsChecklist() {
+      if (!event?.id) {
+        setChecklistItems([]);
+        setLoading(false);
+        return;
+      }
+      try {
+        setLoading(true);
+        const items = await getDocuments('tasks', [
+          { field: 'event_id', operator: '==', value: event.id },
+        ]);
+        const steps = (items as any[]).filter((t) => t?.kind === 'milestone') as Step[];
+
+        const mapped: ChecklistItem[] = steps.map((s) => ({
+          id: s.id,
+          title: s.title,
+          deadline: s.deadline,
+          completed: Boolean(s.client_confirmed),
+          category: 'Étapes',
+          priority: 'high',
+          eventId: event.id,
+          completedAt: undefined,
+        }));
+
+        setChecklistItems(mapped);
+      } catch (error) {
+        console.error('Error fetching steps for checklist:', error);
+        setChecklistItems([]);
+      } finally {
+        setLoading(false);
       }
     }
-    if (!dataLoading && event) {
-      fetchChecklist();
+
+    if (!dataLoading) {
+      fetchStepsAsChecklist();
     }
-  }, [event, dataLoading]);
+  }, [event?.id, dataLoading]);
 
   const daysRemaining = event ? calculateDaysRemaining(event.event_date) : 0;
 
@@ -112,8 +145,17 @@ export default function ChecklistPage() {
         <ChecklistManager
           eventId={event?.id || ''}
           isAdmin={false}
+          canCreate={false}
           items={checklistItems}
           onUpdate={(items) => setChecklistItems(items as unknown as ChecklistItem[])}
+          onToggleItem={async (item, nextCompleted) => {
+            if (!item?.id) return;
+            try {
+              await updateDocument('tasks', item.id, { client_confirmed: nextCompleted });
+            } catch (e) {
+              console.error('Error updating client_confirmed:', e);
+            }
+          }}
         />
       </div>
     </ClientDashboardLayout>

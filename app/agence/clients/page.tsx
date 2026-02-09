@@ -23,7 +23,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import { useAuth } from '@/contexts/AuthContext';
 import { getDocuments } from '@/lib/db';
@@ -47,6 +47,7 @@ interface Client {
 
 export default function ClientFilesPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user, loading: authLoading } = useAuth();
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
@@ -107,6 +108,18 @@ export default function ClientFilesPage() {
     }
   }, [user, authLoading]);
 
+  useEffect(() => {
+    const clientId = searchParams.get('clientId');
+    if (!clientId) return;
+    if (loading) return;
+
+    const found = clients.find((c) => c.id === clientId);
+    if (!found) return;
+
+    setSelectedClient(found);
+    setIsDetailOpen(true);
+  }, [searchParams, clients, loading]);
+
   const handleViewDetail = (client: Client) => {
     setSelectedClient(client);
     setIsDetailOpen(true);
@@ -134,7 +147,7 @@ export default function ClientFilesPage() {
   const handleGoToPlanning = () => {
     if (selectedClient) {
       setIsDetailOpen(false);
-      router.push(`/planning?clientId=${selectedClient.id}`);
+      router.push(`/admin/clients/${selectedClient.id}/planning`);
     }
   };
 
@@ -269,7 +282,7 @@ export default function ClientFilesPage() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6 pb-4">
+      <div className="space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold text-brand-purple mb-1 sm:mb-2">
@@ -324,10 +337,10 @@ export default function ClientFilesPage() {
           <>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {currentClients.map((client) => (
-                <Card key={client.id} className="p-4 md:p-6 shadow-xl border-0 hover:shadow-2xl transition-shadow cursor-pointer group">
-                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                <Card key={client.id} className="p-3 shadow-xl border-0 hover:shadow-2xl transition-shadow cursor-pointer group">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
                     <div
-                      className="relative h-24 w-full sm:w-24 overflow-hidden rounded-lg bg-gray-100 flex-shrink-0"
+                      className="relative h-20 w-full sm:w-20 overflow-hidden rounded-lg bg-gray-100 flex-shrink-0"
                       onClick={() => handleViewDetail(client)}
                     >
                       {client.photo ? (

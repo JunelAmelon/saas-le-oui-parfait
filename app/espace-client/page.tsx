@@ -46,31 +46,20 @@ export default function ClientPortalPage() {
     );
   }
 
-  if (!event) {
-    return (
-      <div className="min-h-screen flex items-center justify-center p-4">
-        <Card className="p-8 max-w-md w-full text-center">
-          <Heart className="h-12 w-12 text-brand-turquoise mx-auto mb-4" />
-          <h2 className="text-2xl font-bold text-brand-purple mb-2">Bienvenue</h2>
-          <p className="text-brand-gray mb-6">
-            Aucun événement n'est associé à votre compte pour le moment.
-            Veuillez contacter votre Wedding Planner.
-          </p>
-          <Button onClick={() => window.location.reload()}>Actualiser</Button>
-        </Card>
-      </div>
-    )
-  }
-
-  const daysRemaining = calculateDaysRemaining(event.event_date);
+  const displayDate = event?.event_date || client?.event_date || '';
+  const displayLocation = event?.location || client?.event_location || '';
+  const displayGuests = event?.guest_count ?? (client as any)?.guests ?? 0;
+  const displayBudget = event?.budget ?? (client as any)?.budget ?? 0;
+  const coupleNames = event?.couple_names || `${client?.name || ''}${client?.name && client?.partner ? ' & ' : ''}${client?.partner || ''}`.trim() || 'Client';
+  const daysRemaining = displayDate ? calculateDaysRemaining(displayDate) : 0;
 
   return (
-    <ClientDashboardLayout clientName={event.couple_names} daysRemaining={daysRemaining}>
+    <ClientDashboardLayout clientName={coupleNames} daysRemaining={daysRemaining}>
       <div>
         <div className="mb-8">
           <h2 className="text-3xl font-bold text-brand-purple mb-2 flex items-center gap-3">
             <Heart className="h-8 w-8 text-red-500 fill-red-500" />
-            Bienvenue {event.couple_names}
+            Bienvenue {coupleNames}
           </h2>
           <p className="text-brand-gray">
             Suivez l'avancement des préparatifs de votre mariage
@@ -82,7 +71,7 @@ export default function ClientPortalPage() {
             <Calendar className="h-8 w-8 text-brand-turquoise mb-3" />
             <p className="text-sm text-brand-gray mb-1">Date du mariage</p>
             <p className="text-xl font-bold text-brand-purple">
-              {new Date(event.event_date).toLocaleDateString('fr-FR')}
+              {displayDate ? new Date(displayDate).toLocaleDateString('fr-FR') : 'À définir'}
             </p>
             <p className="text-xs text-brand-turquoise font-medium mt-1">
               J-{daysRemaining}
@@ -92,30 +81,40 @@ export default function ClientPortalPage() {
           <Card className="p-6 shadow-xl border-0">
             <MapPin className="h-8 w-8 text-brand-turquoise mb-3" />
             <p className="text-sm text-brand-gray mb-1">Lieu</p>
-            <p className="text-sm font-bold text-brand-purple">{event.location || 'À définir'}</p>
+            <p className="text-sm font-bold text-brand-purple">{displayLocation || 'À définir'}</p>
           </Card>
 
           <Card className="p-6 shadow-xl border-0">
             <Users className="h-8 w-8 text-brand-turquoise mb-3" />
             <p className="text-sm text-brand-gray mb-1">Invités</p>
-            <p className="text-2xl font-bold text-brand-purple">{event.guest_count || 0}</p>
+            <p className="text-2xl font-bold text-brand-purple">{displayGuests || 0}</p>
           </Card>
 
           <Card className="p-6 shadow-xl border-0">
             <Euro className="h-8 w-8 text-brand-turquoise mb-3" />
             <p className="text-sm text-brand-gray mb-1">Budget</p>
             <p className="text-xl font-bold text-brand-purple">
-              {event.budget?.toLocaleString('fr-FR') || '0'} €
+              {Number(displayBudget || 0).toLocaleString('fr-FR')} €
             </p>
             <p className="text-xs text-brand-gray">estimé</p>
           </Card>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 my-8">
-          <ClientDocuments eventId={event.id} clientId={client?.id} />
-          <ClientPayments eventId={event.id} clientId={client?.id} />
-        </div>
-        <ClientTimeline eventId={event.id} />
+        {event?.id ? (
+          <>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 my-8">
+              <ClientDocuments eventId={event.id} clientId={client?.id} />
+              <ClientPayments eventId={event.id} clientId={client?.id} />
+            </div>
+            <ClientTimeline eventId={event.id} />
+          </>
+        ) : (
+          <Card className="p-6 shadow-xl border-0">
+            <p className="text-brand-gray">
+              Certaines sections (documents, paiements, timeline) seront disponibles une fois que votre wedding planner aura associé votre événement.
+            </p>
+          </Card>
+        )}
       </div>
     </ClientDashboardLayout>
   );

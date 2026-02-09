@@ -50,19 +50,22 @@ export default function MariagePage() {
   const [themeColors, setThemeColors] = useState<string[]>([]);
   const [notes, setNotes] = useState('');
 
-  const daysRemaining = event ? calculateDaysRemaining(event.event_date) : 0;
+  const displayDate = event?.event_date || client?.event_date || '';
+  const displayLocation = event?.location || client?.event_location || '';
+  const displayGuests = event?.guest_count ?? (client as any)?.guests ?? 0;
+  const displayBudget = event?.budget ?? (client as any)?.budget ?? 0;
+  const daysRemaining = displayDate ? calculateDaysRemaining(displayDate) : 0;
 
   useEffect(() => {
-    if (!event) return;
-    setEventDate(event.event_date || '');
-    setLocation(event.location || '');
-    setGuestCount(event.guest_count || 0);
-    setBudget(event.budget || 0);
-    setThemeStyle(event.theme?.style || '');
-    setThemeDescription(event.theme?.description || '');
-    setThemeColors(event.theme?.colors || []);
-    setNotes(event.notes || '');
-  }, [event]);
+    setEventDate((event?.event_date || client?.event_date || '') as string);
+    setLocation((event?.location || client?.event_location || '') as string);
+    setGuestCount((event?.guest_count ?? (client as any)?.guests ?? 0) as number);
+    setBudget((event?.budget ?? (client as any)?.budget ?? 0) as number);
+    setThemeStyle(event?.theme?.style || '');
+    setThemeDescription(event?.theme?.description || '');
+    setThemeColors(event?.theme?.colors || []);
+    setNotes(event?.notes || '');
+  }, [event, client]);
 
   if (dataLoading) {
     return (
@@ -77,7 +80,14 @@ export default function MariagePage() {
   };
 
   const handleSave = async () => {
-    if (!event?.id) return;
+    if (!event?.id) {
+      toast({
+        title: 'Impossible de sauvegarder',
+        description: "Votre wedding planner doit d'abord associer votre événement.",
+        variant: 'destructive',
+      });
+      return;
+    }
     setSaving(true);
     try {
       await updateDocument('events', event.id, {

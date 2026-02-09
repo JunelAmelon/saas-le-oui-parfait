@@ -27,8 +27,10 @@ interface ChecklistItem {
 interface ChecklistManagerProps {
   eventId: string;
   isAdmin?: boolean;
+  canCreate?: boolean;
   items: ChecklistItem[];
   onUpdate?: (items: ChecklistItem[]) => void;
+  onToggleItem?: (item: ChecklistItem, nextCompleted: boolean) => void;
 }
 
 const categories = [
@@ -67,7 +69,7 @@ const defaultChecklist: Omit<ChecklistItem, 'id' | 'eventId' | 'completed' | 'co
   { title: 'Prévoir la liste de mariage', category: 'Autre', priority: 'low', deadline: '' },
 ];
 
-export function ChecklistManager({ eventId, isAdmin = false, items: initialItems, onUpdate }: ChecklistManagerProps) {
+export function ChecklistManager({ eventId, isAdmin = false, canCreate, items: initialItems, onUpdate, onToggleItem }: ChecklistManagerProps) {
   const [items, setItems] = useState<ChecklistItem[]>(initialItems);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [filter, setFilter] = useState<'all' | 'pending' | 'completed'>('all');
@@ -80,20 +82,27 @@ export function ChecklistManager({ eventId, isAdmin = false, items: initialItems
   });
   const { toast } = useToast();
 
+  const allowCreate = typeof canCreate === 'boolean' ? canCreate : isAdmin;
+
   const handleToggleItem = (id: string) => {
+    const item = items.find((i) => i.id === id);
+    if (!item) return;
+    const nextCompleted = !item.completed;
+
     const updated = items.map(item =>
       item.id === id
         ? {
             ...item,
-            completed: !item.completed,
-            completedAt: !item.completed ? new Date().toISOString() : undefined,
+            completed: nextCompleted,
+            completedAt: nextCompleted ? new Date().toISOString() : undefined,
           }
         : item
     );
     setItems(updated);
     onUpdate?.(updated);
 
-    const item = items.find(i => i.id === id);
+    onToggleItem?.(item, nextCompleted);
+
     toast({
       title: item?.completed ? 'Tâche marquée comme non complétée' : 'Tâche complétée',
       description: item?.title,
@@ -206,13 +215,15 @@ export function ChecklistManager({ eventId, isAdmin = false, items: initialItems
               Charger checklist type
             </Button>
           )}
-          <Button
-            className="bg-brand-turquoise hover:bg-brand-turquoise-hover"
-            onClick={() => setIsAddModalOpen(true)}
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Ajouter une tâche
-          </Button>
+          {allowCreate ? (
+            <Button
+              className="bg-brand-turquoise hover:bg-brand-turquoise-hover"
+              onClick={() => setIsAddModalOpen(true)}
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Ajouter une tâche
+            </Button>
+          ) : null}
         </div>
       </div>
 
@@ -326,72 +337,74 @@ export function ChecklistManager({ eventId, isAdmin = false, items: initialItems
         )}
       </Card>
 
-      <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Ajouter une tâche</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="title">Titre de la tâche *</Label>
-              <Input
-                id="title"
-                value={newItem.title}
-                onChange={(e) => setNewItem({ ...newItem, title: e.target.value })}
-                placeholder="Ex: Réserver le photographe"
-              />
-            </div>
-            <div>
-              <Label htmlFor="category">Catégorie *</Label>
-              <Select value={newItem.category} onValueChange={(value) => setNewItem({ ...newItem, category: value })}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Sélectionner..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {categories.map((cat) => (
-                    <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
+      {allowCreate ? (
+        <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Ajouter une tâche</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
               <div>
-                <Label htmlFor="priority">Priorité</Label>
-                <Select value={newItem.priority} onValueChange={(value: any) => setNewItem({ ...newItem, priority: value })}>
+                <Label htmlFor="title">Titre de la tâche *</Label>
+                <Input
+                  id="title"
+                  value={newItem.title}
+                  onChange={(e) => setNewItem({ ...newItem, title: e.target.value })}
+                  placeholder="Ex: Réserver le photographe"
+                />
+              </div>
+              <div>
+                <Label htmlFor="category">Catégorie *</Label>
+                <Select value={newItem.category} onValueChange={(value) => setNewItem({ ...newItem, category: value })}>
                   <SelectTrigger>
-                    <SelectValue />
+                    <SelectValue placeholder="Sélectionner..." />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="low">Normal</SelectItem>
-                    <SelectItem value="medium">Important</SelectItem>
-                    <SelectItem value="high">Urgent</SelectItem>
+                    {categories.map((cat) => (
+                      <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
-              <div>
-                <Label htmlFor="deadline">Échéance</Label>
-                <Input
-                  id="deadline"
-                  type="date"
-                  value={newItem.deadline}
-                  onChange={(e) => setNewItem({ ...newItem, deadline: e.target.value })}
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="priority">Priorité</Label>
+                  <Select value={newItem.priority} onValueChange={(value: any) => setNewItem({ ...newItem, priority: value })}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="low">Normal</SelectItem>
+                      <SelectItem value="medium">Important</SelectItem>
+                      <SelectItem value="high">Urgent</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="deadline">Échéance</Label>
+                  <Input
+                    id="deadline"
+                    type="date"
+                    value={newItem.deadline}
+                    onChange={(e) => setNewItem({ ...newItem, deadline: e.target.value })}
+                  />
+                </div>
               </div>
             </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsAddModalOpen(false)}>
-              Annuler
-            </Button>
-            <Button
-              className="bg-brand-turquoise hover:bg-brand-turquoise-hover"
-              onClick={handleAddItem}
-            >
-              Ajouter
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsAddModalOpen(false)}>
+                Annuler
+              </Button>
+              <Button
+                className="bg-brand-turquoise hover:bg-brand-turquoise-hover"
+                onClick={handleAddItem}
+              >
+                Ajouter
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      ) : null}
     </div>
   );
 }

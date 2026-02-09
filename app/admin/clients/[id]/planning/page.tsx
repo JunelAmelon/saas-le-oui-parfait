@@ -50,7 +50,7 @@ export default function ClientPlanningPage() {
       const events = await getDocuments('events', [
         { field: 'client_id', operator: '==', value: clientId },
       ]);
-      const ev = (events?.[0] as any) || null;
+      const ev = ((events as any[]) || []).find((x) => Boolean(x?.event_date)) || (events?.[0] as any) || null;
       const evId = ev?.id || null;
       setEventId(evId);
       setPlannerId(ev?.planner_id || null);
@@ -137,17 +137,23 @@ export default function ClientPlanningPage() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
-          <Button variant="outline" onClick={() => router.back()} className="w-full sm:w-auto">
-            ← Retour
-          </Button>
-          <div className="min-w-0">
-            <h1 className="text-2xl sm:text-3xl font-bold text-brand-purple break-words">
-              Planning - Client #{params.id}
-            </h1>
-            <p className="text-brand-gray">
-              Gérez le planning et les rendez-vous du client
-            </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-brand-purple mb-2">Planning</h1>
+            <p className="text-brand-gray">Planning du client</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={() => router.back()}>
+              ← Retour
+            </Button>
+            <Button
+              className="bg-brand-turquoise hover:bg-brand-turquoise-hover gap-2"
+              onClick={() => setIsAddOpen(true)}
+              disabled={loading || !eventId}
+            >
+              <Plus className="h-4 w-4" />
+              Ajouter un RDV
+            </Button>
           </div>
         </div>
 
@@ -169,10 +175,6 @@ export default function ClientPlanningPage() {
                 <h2 className="text-xl font-bold text-brand-purple">Rendez-vous</h2>
                 <p className="text-sm text-brand-gray">{appointments.length} rendez-vous</p>
               </div>
-              <Button className="bg-brand-turquoise hover:bg-brand-turquoise-hover gap-2 w-full sm:w-auto" onClick={() => setIsAddOpen(true)}>
-                <Plus className="h-4 w-4" />
-                Ajouter un RDV
-              </Button>
             </div>
 
             {sortedAppointments.length === 0 ? (

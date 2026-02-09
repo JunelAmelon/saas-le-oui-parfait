@@ -184,11 +184,11 @@ export default function Home() {
 
   // Handlers pour les actions client
   const handleViewDetail = (client: Client) => {
-    router.push(`/clients/${client.id}`);
+    router.push(`/agence/clients?clientId=${encodeURIComponent(client.id)}`);
   };
 
   const handleEdit = (client: Client) => {
-    router.push(`/clients/${client.id}/edit`);
+    router.push(`/agence/clients?clientId=${encodeURIComponent(client.id)}`);
   };
 
   //  Loader global

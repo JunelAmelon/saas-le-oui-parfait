@@ -13,6 +13,24 @@ export interface ClientData {
   created_at?: any;
 }
 
+function pickWeddingEvent(events: any[]): EventData | null {
+  if (!events || events.length === 0) return null;
+
+  const scored = events
+    .map((e) => {
+      let score = 0;
+      if (e?.event_date) score += 5;
+      if (e?.couple_names) score += 2;
+      if (typeof e?.guest_count === 'number') score += 1;
+      if (typeof e?.budget === 'number') score += 1;
+      if (e?.theme) score += 1;
+      return { e, score };
+    })
+    .sort((a, b) => b.score - a.score);
+
+  return (scored[0]?.e as EventData) || (events[0] as EventData);
+}
+
 export interface EventData {
   id: string;
   client_id: string;
@@ -175,7 +193,7 @@ export async function getClientEvent(clientId: string): Promise<EventData | null
     const events = await getDocuments('events', [
       { field: 'client_id', operator: '==', value: clientId }
     ]);
-    return events.length > 0 ? events[0] as EventData : null;
+    return pickWeddingEvent(events as any[]);
   } catch (error) {
     console.error('Error fetching client event:', error);
     return null;
@@ -190,7 +208,7 @@ export async function getClientEventByEmail(email: string): Promise<EventData | 
     const events = await getDocuments('events', [
       { field: 'client_email', operator: '==', value: email }
     ]);
-    return events.length > 0 ? events[0] as EventData : null;
+    return pickWeddingEvent(events as any[]);
   } catch (error) {
     console.error('Error fetching client event by email:', error);
     return null;
