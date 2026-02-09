@@ -13,6 +13,7 @@ interface PostIt {
   id: string;
   title: string;
   content: string;
+  //content: string;
   color: 'yellow' | 'pink' | 'blue' | 'green' | 'purple';
 }
 
