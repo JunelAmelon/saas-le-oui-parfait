@@ -16,6 +16,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Search, Plus, Heart, MapPin, Calendar, Euro, Phone, Mail, FileText, Image as ImageIcon, X, Users, CheckCircle, Clock, Edit, MessageSquare, Eye, MoreVertical, ChevronLeft, ChevronRight } from 'lucide-react';
+
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -42,6 +43,12 @@ interface Client {
   phone: string;
   email: string;
   status: string;
+  theme?: {
+    style?: string;
+    description?: string;
+    colors?: string[];
+  };
+  notes?: string;
   createdAt?: any; // Pour le tri
 }
 
@@ -83,6 +90,8 @@ export default function ClientFilesPage() {
             phone: c.phone || '',
             email: c.email || '',
             status: c.status || 'En cours',
+            theme: c.theme || undefined,
+            notes: c.notes || '',
             createdAt: c.created_at || c.createdAt || new Date()
           }));
 
@@ -184,6 +193,8 @@ export default function ClientFilesPage() {
         phone: c.phone || '',
         email: c.email || '',
         status: c.status || 'En cours',
+        theme: c.theme || undefined,
+        notes: c.notes || '',
         createdAt: c.created_at || c.createdAt || new Date()
       }));
 
@@ -541,6 +552,41 @@ export default function ClientFilesPage() {
                 <div className="flex items-center gap-3 text-sm">
                   <Mail className="h-4 w-4 text-brand-turquoise" />
                   <span>{selectedClient.email}</span>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <h4 className="font-medium text-brand-purple">Thème & Décoration</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 bg-gray-50 rounded-lg">
+                  <div>
+                    <p className="text-xs text-brand-gray">Style</p>
+                    <p className="font-medium text-brand-purple">{selectedClient.theme?.style || '—'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-brand-gray">Palette de couleurs</p>
+                    <div className="pt-1 flex gap-2 flex-wrap">
+                      {(selectedClient.theme?.colors || []).length === 0 ? (
+                        <span className="text-sm text-brand-purple">—</span>
+                      ) : (
+                        (selectedClient.theme?.colors || []).map((c) => (
+                          <span
+                            key={c}
+                            className="inline-block h-6 w-6 rounded-full border border-white shadow"
+                            style={{ backgroundColor: c }}
+                            title={c}
+                          />
+                        ))
+                      )}
+                    </div>
+                  </div>
+                  <div className="sm:col-span-2">
+                    <p className="text-xs text-brand-gray">Description</p>
+                    <p className="text-sm text-brand-purple">{selectedClient.theme?.description || '—'}</p>
+                  </div>
+                  <div className="sm:col-span-2">
+                    <p className="text-xs text-brand-gray">Notes & Déroulement</p>
+                    <p className="text-sm text-brand-purple">{selectedClient.notes || '—'}</p>
+                  </div>
                 </div>
               </div>
 

@@ -106,6 +106,7 @@ export function NewInvoiceModal({ isOpen, onClose }: NewInvoiceModalProps) {
       const invoiceData = {
         planner_id: user.uid,
         reference: `${invoiceType === 'deposit' ? 'ACOMPTE' : 'FACT'}-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`,
+        client_id: selectedClient,
         client: client?.name || '',
         client_email: client?.email || '',
         date: new Date().toLocaleDateString('fr-FR'),

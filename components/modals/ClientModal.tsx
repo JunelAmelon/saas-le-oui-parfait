@@ -1,16 +1,17 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Loader2, Upload, User, X } from 'lucide-react';
-import { addDocument, updateDocument, setDocument } from '@/lib/db';
+import { addDocument, getDocuments, updateDocument, setDocument } from '@/lib/db';
 import { toast } from 'sonner';
 import axios from 'axios';
 import { createClientAccount, generateSecurePassword, validatePassword } from '@/lib/auth-helpers';
 import { Eye, EyeOff, RefreshCw } from 'lucide-react';
+import { ColorPalette } from '@/components/wedding/ColorPalette';
 
 interface ClientModalProps {
   open: boolean;
@@ -26,6 +27,12 @@ interface ClientModalProps {
     budget: number;
     guests: number;
     photo?: string;
+    theme?: {
+      style?: string;
+      description?: string;
+      colors?: string[];
+    };
+    notes?: string;
   };
   userId: string;
   onSuccess: () => void;
@@ -38,6 +45,44 @@ export function ClientModal({ open, onOpenChange, mode, client, userId, onSucces
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [createAccount, setCreateAccount] = useState(mode === 'create');
+
+  const [themeStyle, setThemeStyle] = useState(client?.theme?.style || '');
+  const [themeDescription, setThemeDescription] = useState(client?.theme?.description || '');
+  const [themeColors, setThemeColors] = useState<string[]>(client?.theme?.colors || []);
+  const [notes, setNotes] = useState(client?.notes || '');
+
+  const normalizeDateInputValue = (v?: string) => {
+    if (!v) return '';
+    if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return v;
+    const m = v.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (m) {
+      const dd = m[1].padStart(2, '0');
+      const mm = m[2].padStart(2, '0');
+      const yyyy = m[3];
+      return `${yyyy}-${mm}-${dd}`;
+    }
+    const d = new Date(v);
+    if (!Number.isNaN(d.getTime())) {
+      const yyyy = String(d.getFullYear());
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      return `${yyyy}-${mm}-${dd}`;
+    }
+    return '';
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    setPhotoFile(null);
+    setPhotoPreview(client?.photo || null);
+    setThemeStyle(client?.theme?.style || '');
+    setThemeDescription(client?.theme?.description || '');
+    setThemeColors(client?.theme?.colors || []);
+    setNotes(client?.notes || '');
+    setPassword('');
+    setShowPassword(false);
+    setCreateAccount(mode === 'create');
+  }, [open, client, mode]);
 
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -117,6 +162,12 @@ export function ClientModal({ open, onOpenChange, mode, client, userId, onSucces
         budget: budget || '0',
         guests: guests || '0',
         photo: photoUrl,
+        theme: {
+          style: themeStyle || '',
+          description: themeDescription || '',
+          colors: themeColors || [],
+        },
+        notes: notes || '',
       };
 
       if (mode === 'create') {
@@ -167,6 +218,12 @@ export function ClientModal({ open, onOpenChange, mode, client, userId, onSucces
           guest_count: parseInt(guests) || 0,
           budget: parseFloat(budget) || 0,
           client_email: email,
+          theme: {
+            style: themeStyle || '',
+            description: themeDescription || '',
+            colors: themeColors || [],
+          },
+          notes: notes || '',
           created_at: new Date().toISOString(),
         });
 
@@ -177,6 +234,31 @@ export function ClientModal({ open, onOpenChange, mode, client, userId, onSucces
         }
       } else if (client) {
         await updateDocument('clients', client.id, data);
+
+        try {
+          const events = await getDocuments('events', [
+            { field: 'client_id', operator: '==', value: client.id },
+          ]);
+          const ev = (events as any[])?.[0];
+          if (ev?.id) {
+            await updateDocument('events', ev.id, {
+              couple_names: `${name} & ${partner}`,
+              event_date: eventDate || '',
+              location: eventLocation || '',
+              guest_count: parseInt(guests) || 0,
+              budget: parseFloat(budget) || 0,
+              client_email: email,
+              theme: {
+                style: themeStyle || '',
+                description: themeDescription || '',
+                colors: themeColors || [],
+              },
+              notes: notes || '',
+            });
+          }
+        } catch (err) {
+          console.error('Error updating related event:', err);
+        }
         toast.success('Client mis à jour');
       }
 
@@ -206,7 +288,7 @@ export function ClientModal({ open, onOpenChange, mode, client, userId, onSucces
           {/* Photo Section - Améliorée */}
           <div className="space-y-4">
             <Label className="text-base font-semibold">Photo du couple</Label>
-            
+
             {/* Photo Preview ou Placeholder */}
             <div className="flex items-center gap-4">
               {photoPreview ? (
@@ -259,7 +341,7 @@ export function ClientModal({ open, onOpenChange, mode, client, userId, onSucces
           {/* Informations des partenaires */}
           <div className="space-y-4">
             <Label className="text-base font-semibold">Informations du couple</Label>
-            
+
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="name">Partenaire 1 *</Label>
@@ -272,7 +354,7 @@ export function ClientModal({ open, onOpenChange, mode, client, userId, onSucces
                   className="border-gray-300 focus:border-brand-purple focus:ring-brand-purple"
                 />
               </div>
-              
+
               <div className="space-y-2">
                 <Label htmlFor="partner">Partenaire 2 *</Label>
                 <Input
@@ -323,7 +405,7 @@ export function ClientModal({ open, onOpenChange, mode, client, userId, onSucces
                 <p className="text-sm text-gray-600">
                   Créer un compte pour que le client puisse accéder à l'espace client
                 </p>
-                
+
                 <div className="flex items-center space-x-2">
                   <input
                     type="checkbox"
@@ -394,7 +476,7 @@ export function ClientModal({ open, onOpenChange, mode, client, userId, onSucces
           {/* Détails de l'événement */}
           <div className="space-y-4">
             <Label className="text-base font-semibold">Détails de l'événement</Label>
-            
+
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="eventDate">Date de l'événement</Label>
@@ -402,11 +484,11 @@ export function ClientModal({ open, onOpenChange, mode, client, userId, onSucces
                   id="eventDate"
                   name="eventDate"
                   type="date"
-                  defaultValue={client?.eventDate}
+                  defaultValue={normalizeDateInputValue(client?.eventDate)}
                   className="border-gray-300 focus:border-brand-purple focus:ring-brand-purple"
                 />
               </div>
-              
+
               <div className="space-y-2">
                 <Label htmlFor="guests">Nombre d'invités</Label>
                 <Input
@@ -439,6 +521,51 @@ export function ClientModal({ open, onOpenChange, mode, client, userId, onSucces
                 type="number"
                 defaultValue={client?.budget}
                 placeholder="20000"
+                className="border-gray-300 focus:border-brand-purple focus:ring-brand-purple"
+              />
+            </div>
+          </div>
+
+          {/* Divider */}
+          <div className="border-t border-gray-200"></div>
+
+          <div className="space-y-4">
+            <Label className="text-base font-semibold">Thème & Décoration</Label>
+
+            <div className="space-y-2">
+              <Label htmlFor="themeStyle">Style</Label>
+              <Input
+                id="themeStyle"
+                value={themeStyle}
+                onChange={(e) => setThemeStyle(e.target.value)}
+                placeholder="Ex: Bohème, Chic, Champêtre..."
+                className="border-gray-300 focus:border-brand-purple focus:ring-brand-purple"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Palette de couleurs</Label>
+              <ColorPalette selectedColors={themeColors} onColorsChange={setThemeColors} maxColors={6} />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="themeDescription">Description</Label>
+              <Input
+                id="themeDescription"
+                value={themeDescription}
+                onChange={(e) => setThemeDescription(e.target.value)}
+                placeholder="Décrivez l'univers souhaité..."
+                className="border-gray-300 focus:border-brand-purple focus:ring-brand-purple"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="notes">Notes & Déroulement</Label>
+              <Input
+                id="notes"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="Notes importantes, déroulement, idées..."
                 className="border-gray-300 focus:border-brand-purple focus:ring-brand-purple"
               />
             </div>

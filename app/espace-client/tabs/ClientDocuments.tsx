@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Card } from '@/components/ui/card';
-import { FileText, Download } from 'lucide-react';
+import { FileText, Download, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { getClientDocuments, DocumentData } from '@/lib/client-helpers';
 import { Loader2 } from 'lucide-react';
@@ -75,14 +75,26 @@ export function ClientDocuments({ eventId, clientId }: DocumentsProps) {
                             </div>
                         </div>
                         {doc.file_url && (
-                            <Button
-                                size="sm"
-                                variant="ghost"
-                                className="text-brand-turquoise hover:text-brand-turquoise-hover"
-                                onClick={() => window.open(doc.file_url, '_blank')}
-                            >
-                                <Download className="h-4 w-4" />
-                            </Button>
+                            <div className="flex items-center gap-1">
+                                <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="text-brand-turquoise hover:text-brand-turquoise-hover"
+                                    onClick={() => window.open(doc.file_url, '_blank')}
+                                    title="Visualiser"
+                                >
+                                    <Eye className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="text-brand-turquoise hover:text-brand-turquoise-hover"
+                                    onClick={() => window.open(doc.file_url, '_blank')}
+                                    title="Télécharger"
+                                >
+                                    <Download className="h-4 w-4" />
+                                </Button>
+                            </div>
                         )}
                     </div>
                 ))}

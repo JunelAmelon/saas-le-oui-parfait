@@ -6,6 +6,20 @@ import { ClientDashboardLayout } from '@/components/layout/ClientDashboardLayout
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -25,11 +39,12 @@ import {
   CheckCircle,
   Upload,
   Loader2,
+  MoreVertical,
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useClientData } from '@/contexts/ClientDataContext';
-import { calculateDaysRemaining } from '@/lib/client-helpers';
-import { addDocument, getDocuments } from '@/lib/db';
+import { calculateDaysRemaining, getClientDevis } from '@/lib/client-helpers';
+import { addDocument, getDocument, getDocuments, updateDocument } from '@/lib/db';
 import { uploadFile } from '@/lib/storage';
 import { toast } from 'sonner';
 
@@ -43,6 +58,9 @@ interface DocumentItem {
   uploaded_at?: string;
   uploaded_by?: 'client' | 'planner' | string;
   status?: string;
+  contract_id?: string | null;
+  devis_id?: string | null;
+  source?: 'documents' | 'devis';
 }
 
 const docTypeLabels: Record<string, string> = {
@@ -65,10 +83,13 @@ export default function DocumentsPage() {
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const [signingContractId, setSigningContractId] = useState<string | null>(null);
+  const [savingDevisId, setSavingDevisId] = useState<string | null>(null);
+
   const [uploading, setUploading] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [docName, setDocName] = useState('');
-  const [docType, setDocType] = useState<'contrat' | 'devis' | 'facture' | 'planning' | 'photo' | 'autre'>('contrat');
+  const [docType, setDocType] = useState<'contrat' | 'facture' | 'planning' | 'photo' | 'autre'>('contrat');
 
   const clientName = useMemo(() => {
     const n1 = client?.name || '';
@@ -87,10 +108,36 @@ export default function DocumentsPage() {
       }
       try {
         setLoading(true);
-        const items = await getDocuments('documents', [
-          { field: 'client_id', operator: '==', value: client.id },
+        const [docItems, devisItems] = await Promise.all([
+          getDocuments('documents', [{ field: 'client_id', operator: '==', value: client.id }]),
+          getClientDevis(client.id, client.email),
         ]);
-        setDocuments(items as unknown as DocumentItem[]);
+
+        const mappedDocs = (docItems as any[]).map((d) => ({
+          ...(d as any),
+          source: 'documents' as const,
+        })) as DocumentItem[];
+
+        const mappedDevis = (devisItems as any[])
+          .filter((dv) => Boolean(dv?.pdf_url) && (dv?.status || 'draft') !== 'draft')
+          .map((dv) => {
+            const reference = dv.reference || 'Devis';
+            return {
+              id: `devis:${dv.id}`,
+              name: `Devis - ${reference}`,
+              type: 'devis',
+              file_url: dv.pdf_url,
+              file_type: 'application/pdf',
+              uploaded_by: 'planner',
+              uploaded_at: dv.sent_at || dv.date || dv.created_at || '',
+              status: dv.status || 'sent',
+              devis_id: dv.id,
+              source: 'devis' as const,
+            } as DocumentItem;
+          });
+
+        const all = [...mappedDocs, ...mappedDevis];
+        setDocuments(all);
       } catch (e) {
         console.error('Error fetching client documents:', e);
         toast.error('Erreur lors du chargement des documents');
@@ -109,9 +156,109 @@ export default function DocumentsPage() {
     setIsPreviewOpen(true);
   };
 
+  const handleSignContract = async (doc: DocumentItem) => {
+    if (doc.source !== 'documents') {
+      toast.error('Contrat introuvable');
+      return;
+    }
+
+    if (!doc.contract_id) {
+      toast.error('Contrat introuvable');
+      return;
+    }
+
+    setSigningContractId(doc.contract_id);
+    try {
+      await updateDocument('contracts', doc.contract_id, {
+        status: 'signed',
+        signed_at: new Date().toLocaleDateString('fr-FR'),
+      });
+
+      await updateDocument('documents', doc.id, {
+        status: 'signed',
+      });
+
+      setDocuments((prev) => prev.map((d) => (d.id === doc.id ? { ...d, status: 'signed' } : d)));
+      toast.success('Contrat validé');
+    } catch (e) {
+      console.error('Error signing contract:', e);
+      toast.error('Impossible de valider le contrat');
+    } finally {
+      setSigningContractId(null);
+    }
+  };
+
   const handleDownload = (doc: DocumentItem) => {
     setSelectedDocument(doc);
     setIsDownloadSuccess(true);
+  };
+
+  const acceptDevisFromDoc = async (doc: DocumentItem) => {
+    if (!client?.id || !doc.devis_id) {
+      toast.error('Devis introuvable');
+      return;
+    }
+    setSavingDevisId(doc.devis_id);
+    try {
+      const devis = (await getDocument('devis', doc.devis_id)) as any;
+      if (!devis) {
+        toast.error('Devis introuvable');
+        return;
+      }
+
+      await updateDocument('devis', doc.devis_id, {
+        status: 'accepted',
+        accepted_at: new Date().toISOString(),
+      });
+
+      const montantTTC = Number(devis.montant_ttc ?? 0);
+      await addDocument('invoices', {
+        planner_id: devis.planner_id,
+        client_id: client.id,
+        reference: `FACT-${devis.reference || doc.devis_id}`,
+        client: devis.client || '',
+        client_email: devis.client_email || client.email || '',
+        date: new Date().toLocaleDateString('fr-FR'),
+        due_date: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toLocaleDateString('fr-FR'),
+        montant_ht: Number(devis.montant_ht ?? 0),
+        montant_ttc: montantTTC,
+        paid: 0,
+        status: 'pending',
+        type: 'invoice',
+        source: 'devis',
+        devis_id: doc.devis_id,
+        created_at: new Date(),
+      });
+
+      setDocuments((prev) => prev.map((d) => (d.id === doc.id ? { ...d, status: 'accepted' } : d)));
+      toast.success('Devis validé');
+    } catch (e) {
+      console.error('Error accepting devis:', e);
+      toast.error('Impossible de valider le devis');
+    } finally {
+      setSavingDevisId(null);
+    }
+  };
+
+  const rejectDevisFromDoc = async (doc: DocumentItem) => {
+    if (!doc.devis_id) {
+      toast.error('Devis introuvable');
+      return;
+    }
+    setSavingDevisId(doc.devis_id);
+    try {
+      await updateDocument('devis', doc.devis_id, {
+        status: 'rejected',
+        rejected_at: new Date().toISOString(),
+      });
+      setDocuments((prev) => prev.map((d) => (d.id === doc.id ? { ...d, status: 'rejected' } : d)));
+      toast.success('Devis refusé');
+    } catch (e) {
+      console.error('Error rejecting devis:', e);
+      toast.error('Impossible de refuser le devis');
+    } finally {
+      setSavingDevisId(null);
+    }
   };
 
   const filteredDocuments = documents.filter((doc) => {
@@ -120,6 +267,12 @@ export default function DocumentsPage() {
     const matchesCategory = selectedCategory === 'all' || docCategory === selectedCategory;
     return matchesSearch && matchesCategory;
   });
+
+  const formatDocDate = (v?: string) => {
+    if (!v) return '—';
+    if (typeof v === 'string') return v;
+    return String(v);
+  };
 
   const categories = useMemo(() => {
     const getCount = (type: string) => documents.filter((d) => (d.type || '').toLowerCase() === type).length;
@@ -277,47 +430,96 @@ export default function DocumentsPage() {
               <Loader2 className="animate-spin h-8 w-8 text-brand-turquoise" />
             </div>
           ) : (
-            <div className="space-y-3">
-              {filteredDocuments.map((doc) => (
-                <div
-                  key={doc.id}
-                  className="flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors gap-3"
-                >
-                  <div className="flex items-center gap-3 sm:gap-4">
-                    <div className="p-2 bg-white rounded-lg shadow-sm">
-                      {getTypeIcon(doc.type)}
-                    </div>
-                    <div>
-                      <h3 className="font-medium text-brand-purple text-sm sm:text-base">{doc.name}</h3>
-                      <div className="flex flex-wrap items-center gap-1 sm:gap-3 mt-1 text-xs sm:text-sm text-brand-gray">
-                        <span>{docTypeLabels[(doc.type || '').toLowerCase()] || doc.type}</span>
-                        <span className="hidden sm:inline">•</span>
-                        <span>{doc.uploaded_at || 'Date inconnue'}</span>
-                        <span className="hidden sm:inline">•</span>
-                        <span>{doc.uploaded_by === 'client' ? 'Ajouté par vous' : 'Ajouté par votre planner'}</span>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between sm:justify-end gap-2 sm:gap-3 pl-11 sm:pl-0">
-                    <div className="flex gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handlePreview(doc)}
-                      >
-                        <Eye className="h-4 w-4 text-brand-gray" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleDownload(doc)}
-                      >
-                        <Download className="h-4 w-4 text-brand-turquoise" />
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              ))}
+            <div className="w-full overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Document</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Ajouté par</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredDocuments.map((doc) => {
+                    const isContract = doc.type?.toLowerCase() === 'contrat' && Boolean(doc.contract_id);
+                    const canSign = isContract && doc.status !== 'signed' && signingContractId !== doc.contract_id;
+                    const isSigning = isContract && signingContractId === doc.contract_id;
+                    const isDevis = doc.type?.toLowerCase() === 'devis' && Boolean(doc.devis_id);
+                    const devisBusy = isDevis && savingDevisId === doc.devis_id;
+                    const devisCanDecide = isDevis && (doc.status === 'sent' || !doc.status);
+                    return (
+                      <TableRow key={doc.id}>
+                        <TableCell>
+                          <div className="flex items-center gap-3">
+                            <div className="p-2 bg-white rounded-lg shadow-sm">
+                              {getTypeIcon(doc.type)}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="font-medium text-brand-purple text-sm sm:text-base truncate">{doc.name}</p>
+                              {doc.status ? (
+                                <p className="text-xs text-brand-gray">{doc.status}</p>
+                              ) : null}
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-brand-gray">
+                          {docTypeLabels[(doc.type || '').toLowerCase()] || doc.type}
+                        </TableCell>
+                        <TableCell className="text-brand-gray">{formatDocDate(doc.uploaded_at)}</TableCell>
+                        <TableCell className="text-brand-gray">
+                          {doc.uploaded_by === 'client' ? 'Vous' : 'Votre planner'}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon">
+                                <MoreVertical className="h-4 w-4 text-brand-gray" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => handlePreview(doc)}>
+                                Aperçu
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleOpenFile(doc)}>
+                                Ouvrir
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleDownload(doc)}>
+                                Télécharger
+                              </DropdownMenuItem>
+                              {isDevis ? (
+                                <>
+                                  <DropdownMenuItem
+                                    onClick={() => void acceptDevisFromDoc(doc)}
+                                    disabled={!devisCanDecide || devisBusy}
+                                  >
+                                    {devisBusy ? 'Validation...' : 'Valider'}
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    onClick={() => void rejectDevisFromDoc(doc)}
+                                    disabled={!devisCanDecide || devisBusy}
+                                  >
+                                    {devisBusy ? 'Refus...' : 'Refuser'}
+                                  </DropdownMenuItem>
+                                </>
+                              ) : null}
+                              {isContract ? (
+                                <DropdownMenuItem
+                                  onClick={() => void handleSignContract(doc)}
+                                  disabled={!canSign || isSigning}
+                                >
+                                  {doc.status === 'signed' ? 'Déjà signé' : (isSigning ? 'Validation...' : 'Signer / Valider')}
+                                </DropdownMenuItem>
+                              ) : null}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
             </div>
           )}
 
@@ -413,7 +615,7 @@ export default function DocumentsPage() {
               <div className="space-y-2">
                 <Label>Type</Label>
                 <div className="grid grid-cols-2 gap-2">
-                  {(['contrat', 'devis', 'facture', 'planning', 'photo', 'autre'] as const).map((t) => (
+                  {(['contrat', 'facture', 'planning', 'photo', 'autre'] as const).map((t) => (
                     <Button
                       key={t}
                       type="button"

@@ -26,6 +26,7 @@ import { NewDevisModal } from '@/components/modals/NewDevisModal';
 interface Devis {
   id: string;
   reference: string;
+  clientId?: string;
   client: string;
   date: string;
   montantHT: number;
@@ -69,6 +70,10 @@ export default function DevisPage() {
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isNewDevisOpen, setIsNewDevisOpen] = useState(false);
   const [isSendOpen, setIsSendOpen] = useState(false);
+  const [sendEmail, setSendEmail] = useState('');
+  const [sendMessage, setSendMessage] = useState(
+    "Bonjour, veuillez trouver ci-joint notre devis pour votre mariage. N'hésitez pas à nous contacter pour toute question."
+  );
   const [isDownloadSuccess, setIsDownloadSuccess] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -83,6 +88,7 @@ export default function DevisPage() {
       const mapped = data.map((d: any) => ({
         id: d.id,
         reference: d.reference,
+        clientId: d.client_id,
         client: d.client,
         date: d.date,
         montantHT: d.montant_ht,
@@ -134,7 +140,29 @@ export default function DevisPage() {
 
   const handleSend = (devis: Devis) => {
     setSelectedDevis(devis);
+    setSendEmail('');
+    setSendMessage(
+      "Bonjour, veuillez trouver ci-joint notre devis pour votre mariage. N'hésitez pas à nous contacter pour toute question."
+    );
     setIsSendOpen(true);
+  };
+
+  const confirmSend = async () => {
+    if (!selectedDevis) return;
+    try {
+      await updateDocument('devis', selectedDevis.id, {
+        status: 'sent',
+        sent_at: new Date().toISOString(),
+        sent_to_email: sendEmail || null,
+        sent_message: sendMessage || null,
+      });
+      toast.success('Devis marqué comme envoyé');
+      setIsSendOpen(false);
+      await fetchDevis();
+    } catch (e) {
+      console.error('Error sending devis:', e);
+      toast.error("Impossible d'envoyer le devis");
+    }
   };
 
   const handleDownload = (devis: Devis) => {
@@ -458,7 +486,13 @@ export default function DevisPage() {
           <div className="space-y-4 py-4">
             <div>
               <Label>Email du destinataire</Label>
-              <Input type="email" placeholder="client@exemple.com" className="mt-1" />
+              <Input
+                type="email"
+                placeholder="client@exemple.com"
+                className="mt-1"
+                value={sendEmail}
+                onChange={(e) => setSendEmail(e.target.value)}
+              />
             </div>
             <div>
               <Label>Message personnalisé (optionnel)</Label>
@@ -466,7 +500,8 @@ export default function DevisPage() {
                 placeholder="Ajoutez un message personnalisé..." 
                 className="mt-1" 
                 rows={3}
-                defaultValue="Bonjour, veuillez trouver ci-joint notre devis pour votre mariage. N'hésitez pas à nous contacter pour toute question."
+                value={sendMessage}
+                onChange={(e) => setSendMessage(e.target.value)}
               />
             </div>
           </div>
@@ -476,7 +511,7 @@ export default function DevisPage() {
             </Button>
             <Button 
               className="bg-blue-600 hover:bg-blue-700 gap-2"
-              onClick={() => setIsSendOpen(false)}
+              onClick={() => void confirmSend()}
             >
               <Send className="h-4 w-4" />
               Envoyer

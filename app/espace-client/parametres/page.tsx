@@ -7,7 +7,7 @@ import { ClientDashboardLayout } from '@/components/layout/ClientDashboardLayout
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
 import {
   Settings,
@@ -23,8 +23,11 @@ import {
   EyeOff,
 } from 'lucide-react';
 import { useState } from 'react';
+import { useClientData } from '@/contexts/ClientDataContext';
+import { calculateDaysRemaining } from '@/lib/client-helpers';
 
 export default function ParametresPage() {
+  const { client, event } = useClientData();
   const [showPassword, setShowPassword] = useState(false);
   const [notifications, setNotifications] = useState({
     email: true,
@@ -35,8 +38,12 @@ export default function ParametresPage() {
     marketing: false,
   });
 
+  const clientName = `${client?.name || ''}${client?.partner ? ' & ' + client.partner : ''}`.trim() || event?.couple_names || 'Client';
+  const daysRemaining = event?.event_date ? calculateDaysRemaining(event.event_date) : 0;
+  const weddingDateLabel = event?.event_date ? new Date(event.event_date).toLocaleDateString('fr-FR') : '';
+
   return (
-    <ClientDashboardLayout clientName="Julie & Frédérick" daysRemaining={165}>
+    <ClientDashboardLayout clientName={clientName} daysRemaining={daysRemaining}>
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-brand-purple flex items-center gap-2 sm:gap-3">
@@ -59,8 +66,15 @@ export default function ParametresPage() {
               <div className="flex items-center gap-6 mb-6">
                 <div className="relative">
                   <Avatar className="h-20 w-20">
+                    {client?.photo ? <AvatarImage src={client.photo} alt={clientName} /> : null}
                     <AvatarFallback className="bg-brand-turquoise text-white text-2xl">
-                      JF
+                      {(clientName || 'CL')
+                        .split(' ')
+                        .filter(Boolean)
+                        .map((x) => x[0])
+                        .slice(0, 2)
+                        .join('')
+                        .toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
                   <button className="absolute bottom-0 right-0 p-1.5 bg-brand-turquoise rounded-full text-white hover:bg-brand-turquoise-hover">
@@ -68,25 +82,25 @@ export default function ParametresPage() {
                   </button>
                 </div>
                 <div>
-                  <p className="font-bold text-brand-purple">Julie & Frédérick</p>
-                  <p className="text-sm text-brand-gray">Mariage le 23 août 2024</p>
+                  <p className="font-bold text-brand-purple">{clientName}</p>
+                  <p className="text-sm text-brand-gray">{weddingDateLabel ? `Mariage le ${weddingDateLabel}` : ''}</p>
                 </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="partner1">Partenaire 1</Label>
-                  <Input id="partner1" defaultValue="Julie Martin" className="mt-1" />
+                  <Input id="partner1" defaultValue={client?.name || ''} className="mt-1" />
                 </div>
                 <div>
                   <Label htmlFor="partner2">Partenaire 2</Label>
-                  <Input id="partner2" defaultValue="Frédérick Dubois" className="mt-1" />
+                  <Input id="partner2" defaultValue={client?.partner || ''} className="mt-1" />
                 </div>
                 <div>
                   <Label htmlFor="email">Email</Label>
                   <div className="relative mt-1">
                     <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-brand-gray" />
-                    <Input id="email" type="email" defaultValue="julie.frederick@email.com" className="pl-10" />
+                    <Input id="email" type="email" defaultValue={client?.email || ''} className="pl-10" />
                   </div>
                 </div>
                 <div>

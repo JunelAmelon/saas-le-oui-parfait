@@ -132,6 +132,7 @@ export function NewDevisModal({ isOpen, onClose, onDevisCreated }: NewDevisModal
       const devisData = {
         planner_id: user.uid,
         reference: `DEVIS-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`,
+        client_id: selectedClient,
         client: client?.name || '',
         client_email: client?.email || '',
         date: new Date().toLocaleDateString('fr-FR'),

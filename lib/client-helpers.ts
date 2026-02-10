@@ -7,10 +7,31 @@ export interface ClientData {
   name: string;
   partner: string;
   email: string;
+  photo?: string;
   phone?: string;
   event_date?: string;
   event_location?: string;
   created_at?: any;
+}
+
+export interface DevisData {
+  id: string;
+  planner_id: string;
+  client_id?: string;
+  client?: string;
+  client_email?: string;
+  reference: string;
+  status: 'draft' | 'sent' | 'accepted' | 'rejected' | string;
+  date?: string;
+  valid_until?: string;
+  description?: string;
+  montant_ht?: number;
+  montant_ttc?: number;
+  tva?: number;
+  pdf_url?: string;
+  sent_at?: any;
+  accepted_at?: any;
+  rejected_at?: any;
 }
 
 function pickWeddingEvent(events: any[]): EventData | null {
@@ -250,6 +271,28 @@ export async function getClientDocuments(clientId: string): Promise<DocumentData
   }
 }
 
+export async function getClientDevis(clientId: string, clientEmail?: string): Promise<DevisData[]> {
+  try {
+    const byClientId = clientId
+      ? await getDocuments('devis', [{ field: 'client_id', operator: '==', value: clientId }])
+      : [];
+
+    let byEmail: any[] = [];
+    if (clientEmail) {
+      byEmail = await getDocuments('devis', [{ field: 'client_email', operator: '==', value: clientEmail }]);
+    }
+
+    const all = [...(byClientId as any[]), ...(byEmail as any[])];
+    const unique = new Map<string, any>();
+    all.forEach((d) => unique.set(d.id, d));
+
+    return Array.from(unique.values()) as DevisData[];
+  } catch (error) {
+    console.error('Error fetching client devis:', error);
+    return [];
+  }
+}
+
 /**
  * Récupère la checklist d'un événement
  */
@@ -302,10 +345,25 @@ export async function getConversationMessages(conversationId: string): Promise<M
 export async function getClientPayments(clientId: string): Promise<PaymentData[]> {
   try {
     // Utilise la collection 'invoices' existante au lieu de 'payments'
-    const payments = await getDocuments('invoices', [
+    const invoices = await getDocuments('invoices', [
       { field: 'client_id', operator: '==', value: clientId }
     ]);
-    return payments as PaymentData[];
+
+    return (invoices as any[]).map((inv: any) => ({
+      id: inv.id,
+      client_id: inv.client_id,
+      invoice_id: inv.id,
+      description: inv.reference || inv.description || 'Facture',
+      vendor: inv.vendor || 'Le Oui Parfait',
+      amount: Number(inv.montant_ttc ?? inv.amount ?? 0),
+      status: inv.status || 'pending',
+      method: inv.method || '-',
+      date: inv.date,
+      due_date: inv.due_date,
+      paid_at: inv.paid_at,
+      invoice: true,
+      created_at: inv.created_at,
+    })) as PaymentData[];
   } catch (error) {
     console.error('Error fetching client payments:', error);
     return [];
@@ -365,13 +423,13 @@ export async function getClientBudgetSummary(clientId: string) {
     const payments = await getClientPayments(clientId);
     const invoices = await getClientInvoices(clientId);
     
-    const total = invoices.reduce((sum: number, inv: any) => sum + (inv.amount || 0), 0);
+    const total = invoices.reduce((sum: number, inv: any) => sum + (Number(inv.montant_ttc ?? inv.amount ?? 0) || 0), 0);
     const paid = payments
       .filter((p: PaymentData) => p.status === 'paid' || p.status === 'completed')
       .reduce((sum, p) => sum + p.amount, 0);
     const pending = invoices
       .filter((inv: any) => inv.status === 'pending')
-      .reduce((sum: number, inv: any) => sum + (inv.amount || 0), 0);
+      .reduce((sum: number, inv: any) => sum + (Number(inv.montant_ttc ?? inv.amount ?? 0) || 0), 0);
     
     return {
       total,

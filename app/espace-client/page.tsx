@@ -19,6 +19,8 @@ import { calculateDaysRemaining } from '@/lib/client-helpers';
 import { ClientTimeline } from './tabs/ClientTimeline';
 import { ClientDocuments } from './tabs/ClientDocuments';
 import { ClientPayments } from './tabs/ClientPayments';
+import { ClientSteps } from './tabs/ClientSteps';
+import { ClientDevis } from './tabs/ClientDevis';
 
 export default function ClientPortalPage() {
   const { user, loading: authLoading } = useAuth();
@@ -105,6 +107,14 @@ export default function ClientPortalPage() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 my-8">
               <ClientDocuments eventId={event.id} clientId={client?.id} />
               <ClientPayments eventId={event.id} clientId={client?.id} />
+            </div>
+            {client?.id ? (
+              <div className="my-8">
+                <ClientDevis clientId={client.id} clientEmail={client.email} />
+              </div>
+            ) : null}
+            <div className="my-8">
+              <ClientSteps eventId={event.id} />
             </div>
             <ClientTimeline eventId={event.id} />
           </>

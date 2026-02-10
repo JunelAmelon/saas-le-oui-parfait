@@ -149,6 +149,7 @@ export function ColorPalette({ selectedColors, onColorsChange, maxColors = 4 }: 
           })}
           {selectedColors.length < maxColors && (
             <Button
+              type="button"
               variant="outline"
               className="w-12 h-12 rounded-full border-2 border-dashed"
               onClick={() => setIsOpen(true)}
@@ -162,7 +163,7 @@ export function ColorPalette({ selectedColors, onColorsChange, maxColors = 4 }: 
         </p>
       </div>
 
-      <Dialog open={isOpen} onOpenChange={setIsOpen}>
+      <Dialog open={isOpen} onOpenChange={setIsOpen} modal={false}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-2xl font-bold text-brand-purple">
@@ -216,10 +217,11 @@ export function ColorPalette({ selectedColors, onColorsChange, maxColors = 4 }: 
           </div>
 
           <div className="flex justify-end gap-2 pt-4 border-t">
-            <Button variant="outline" onClick={() => setIsOpen(false)}>
+            <Button type="button" variant="outline" onClick={() => setIsOpen(false)}>
               Annuler
             </Button>
             <Button 
+              type="button"
               className="bg-brand-turquoise hover:bg-brand-turquoise-hover"
               onClick={() => setIsOpen(false)}
             >

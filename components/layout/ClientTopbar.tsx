@@ -11,11 +11,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { QuickAddModal } from '@/components/modals/QuickAddModal';
 import { MessagesModal } from '@/components/modals/MessagesModal';
 import { NotificationsModal } from '@/components/modals/NotificationsModal';
 import { useAuth } from '@/contexts/AuthContext';
+import { useClientData } from '@/contexts/ClientDataContext';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
@@ -30,6 +31,7 @@ export function ClientTopbar({ clientName = 'Julie & Frédérick', daysRemaining
   const [showMessages, setShowMessages] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const { signOut, user } = useAuth();
+  const { client } = useClientData();
   const router = useRouter();
   const { toast } = useToast();
 
@@ -76,8 +78,16 @@ export function ClientTopbar({ clientName = 'Julie & Frédérick', daysRemaining
             <DropdownMenuTrigger asChild>
               <button className="ml-1 md:ml-2 flex items-center gap-2 md:gap-3 rounded-lg p-1 hover:bg-gray-100">
                 <Avatar className="h-8 w-8 md:h-9 md:w-9">
+                  {client?.photo ? <AvatarImage src={client.photo} alt={clientName} /> : null}
                   <AvatarFallback className="bg-brand-turquoise text-white font-medium text-sm">
-                    {user?.email?.substring(0, 2).toUpperCase() || 'JF'}
+                    {(clientName || user?.email || 'CL')
+                      .toString()
+                      .split(' ')
+                      .filter(Boolean)
+                      .map((x) => x[0])
+                      .slice(0, 2)
+                      .join('')
+                      .toUpperCase() || 'CL'}
                   </AvatarFallback>
                 </Avatar>
                 <div className="text-left hidden lg:block">

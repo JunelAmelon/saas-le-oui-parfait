@@ -8,6 +8,7 @@ import {
   Heart,
   Calendar,
   FileText,
+  Flower2,
   MessageSquare,
   Euro,
   Image as ImageIcon,
@@ -52,6 +53,11 @@ const clientMenuItems: MenuItem[] = [
     label: 'Messages',
     icon: MessageSquare,
     href: '/espace-client/messages',
+  },
+  {
+    label: 'Fleurs',
+    icon: Flower2,
+    href: '/espace-client/fleurs',
   },
   {
     label: 'Paiements',

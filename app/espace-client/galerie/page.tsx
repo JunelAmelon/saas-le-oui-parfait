@@ -39,7 +39,7 @@ import {
 import { useEffect, useMemo, useState } from 'react';
 import { useClientData } from '@/contexts/ClientDataContext';
 import { calculateDaysRemaining, getEventGalleries, GalleryData } from '@/lib/client-helpers';
-import { addDocument, getDocument, updateDocument } from '@/lib/db';
+import { addDocument, getDocument, getDocuments, updateDocument } from '@/lib/db';
 import { uploadImage } from '@/lib/storage';
 import { toast } from 'sonner';
 
@@ -57,11 +57,15 @@ type GalleryPhoto = {
 type PhotoWithAlbum = GalleryPhoto & {
   albumId: string;
   albumName: string;
+  displayUrl: string;
+  displayThumbUrl?: string;
 };
 
 
 export default function GaleriePage() {
   const { client, event, loading: dataLoading } = useClientData();
+
+  const [effectiveEventId, setEffectiveEventId] = useState<string | null>(null);
 
   const [loading, setLoading] = useState(true);
   const [galleries, setGalleries] = useState<GalleryData[]>([]);
@@ -84,15 +88,41 @@ export default function GaleriePage() {
 
   const daysRemaining = event ? calculateDaysRemaining(event.event_date) : 0;
 
+  const getPhotoUrls = (p: any) => {
+    const url =
+      p?.url ||
+      p?.file_url ||
+      p?.fileUrl ||
+      p?.secure_url ||
+      p?.secureUrl ||
+      p?.photo_url ||
+      p?.photoUrl ||
+      p?.image_url ||
+      p?.imageUrl ||
+      '';
+    const thumb =
+      p?.thumbnail_url ||
+      p?.thumbnailUrl ||
+      p?.thumb_url ||
+      p?.thumbUrl ||
+      '';
+    return { url: String(url || ''), thumb: String(thumb || '') };
+  };
+
   const allPhotos: PhotoWithAlbum[] = useMemo(() => {
     const result: PhotoWithAlbum[] = [];
     for (const g of galleries) {
       const photos = (g.photos || []) as any[];
       for (const p of photos) {
+        const u = getPhotoUrls(p);
+        const displayUrl = u.url || u.thumb;
+        if (!displayUrl) continue;
         result.push({
           ...(p as GalleryPhoto),
           albumId: g.id,
           albumName: g.name,
+          displayUrl,
+          displayThumbUrl: u.thumb || undefined,
         });
       }
     }
@@ -100,15 +130,51 @@ export default function GaleriePage() {
   }, [galleries]);
 
   useEffect(() => {
+    setEffectiveEventId(event?.id || null);
+  }, [event?.id]);
+
+  useEffect(() => {
+    async function fetchFallbackEventId() {
+      if (event?.id) return;
+      if (!client?.id) return;
+      try {
+        const items = await getDocuments('events', [
+          { field: 'client_id', operator: '==', value: client.id },
+        ]);
+        const ev = (items as any[])?.find((x) => Boolean(x?.event_date)) || (items as any[])?.[0] || null;
+        setEffectiveEventId(ev?.id || null);
+      } catch {
+        setEffectiveEventId(null);
+      }
+    }
+
+    if (!dataLoading) {
+      void fetchFallbackEventId();
+    }
+  }, [client?.id, dataLoading, event?.id]);
+
+  useEffect(() => {
     async function fetchGalleries() {
-      if (!event?.id) {
+      const evId = effectiveEventId;
+      if (!evId) {
         setGalleries([]);
         setLoading(false);
         return;
       }
       try {
         setLoading(true);
-        const items = await getEventGalleries(event.id);
+        const itemsByEvent = await getEventGalleries(evId);
+        const itemsByClient = client?.id
+          ? ((await getDocuments('galleries', [{ field: 'client_id', operator: '==', value: client.id }])) as GalleryData[])
+          : ([] as GalleryData[]);
+
+        const merged = new Map<string, GalleryData>();
+        (itemsByEvent || []).forEach((g) => merged.set(g.id, g));
+        (itemsByClient || []).forEach((g) => {
+          if (!merged.has(g.id)) merged.set(g.id, g);
+        });
+
+        const items = Array.from(merged.values());
         setGalleries(items);
         const liked = items
           .flatMap((g) => (g.photos || []).map((p: any) => (p.liked ? p.id : null)))
@@ -125,7 +191,7 @@ export default function GaleriePage() {
     if (!dataLoading) {
       fetchGalleries();
     }
-  }, [event?.id, dataLoading]);
+  }, [effectiveEventId, dataLoading, client?.id]);
 
   const filteredPhotos = selectedAlbumId
     ? allPhotos.filter((p) => p.albumId === selectedAlbumId)
@@ -137,7 +203,12 @@ export default function GaleriePage() {
         id: g.id,
         name: g.name,
         count: (g.photos || []).length,
-        coverUrl: (g.photos || [])?.[0]?.thumbnail_url || (g.photos || [])?.[0]?.url || undefined,
+        coverUrl: (() => {
+          const first = (g.photos || [])?.[0] as any;
+          if (!first) return undefined;
+          const u = getPhotoUrls(first);
+          return u.thumb || u.url || undefined;
+        })(),
       }))
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [galleries]);
@@ -328,7 +399,17 @@ export default function GaleriePage() {
               <div className="text-center">
                 <div className="w-12 h-12 mx-auto mb-2 rounded-full bg-gray-100 flex items-center justify-center overflow-hidden">
                   {album.coverUrl ? (
-                    <img src={album.coverUrl} alt={album.name} className="w-full h-full object-cover" />
+                    <img
+                      src={album.coverUrl}
+                      alt={album.name}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        const img = e.currentTarget as HTMLImageElement;
+                        const fallback = img.dataset.fallback || '';
+                        if (fallback && img.src !== fallback) img.src = fallback;
+                      }}
+                      data-fallback={album.coverUrl}
+                    />
                   ) : (
                     <ImageIcon className="h-6 w-6 text-brand-gray" />
                   )}
@@ -359,9 +440,15 @@ export default function GaleriePage() {
                   onClick={() => setSelectedPhoto(photo.id)}
                 >
                   <img 
-                    src={photo.url} 
+                    src={photo.displayThumbUrl || photo.displayUrl} 
                     alt={`Photo ${photo.id}`}
                     className="w-full h-full object-cover"
+                    data-fallback={photo.displayUrl}
+                    onError={(e) => {
+                      const img = e.currentTarget as HTMLImageElement;
+                      const fallback = img.dataset.fallback || '';
+                      if (fallback && img.src !== fallback) img.src = fallback;
+                    }}
                   />
                   <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
                     <ZoomIn className="h-6 w-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -392,9 +479,15 @@ export default function GaleriePage() {
                   className="flex items-center gap-4 p-3 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors"
                 >
                   <img 
-                    src={photo.url} 
+                    src={photo.displayThumbUrl || photo.displayUrl} 
                     alt={`Photo ${photo.id}`}
                     className="w-16 h-16 rounded-lg object-cover"
+                    data-fallback={photo.displayUrl}
+                    onError={(e) => {
+                      const img = e.currentTarget as HTMLImageElement;
+                      const fallback = img.dataset.fallback || '';
+                      if (fallback && img.src !== fallback) img.src = fallback;
+                    }}
                   />
                   <div className="flex-1">
                     <p className="font-medium text-brand-purple">Photo {photo.id}</p>
@@ -443,7 +536,7 @@ export default function GaleriePage() {
               <ChevronLeft className="h-8 w-8" />
             </Button>
             <img 
-              src={filteredPhotos.find(p => p.id === selectedPhoto)?.url} 
+              src={filteredPhotos.find(p => p.id === selectedPhoto)?.displayUrl} 
               alt="Photo agrandie"
               className="w-[80vw] h-[80vh] rounded-lg object-contain"
             />

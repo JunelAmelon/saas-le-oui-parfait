@@ -36,12 +36,25 @@ export default function ClientGalleryAdminPage() {
         setEventId(evId);
 
         if (!evId) {
-          setGalleries([]);
+          const fallback = await getDocuments('galleries', [
+            { field: 'client_id', operator: '==', value: clientId },
+          ]).catch(() => []);
+          setGalleries((fallback as any) as GalleryData[]);
           return;
         }
 
-        const items = await getEventGalleries(evId);
-        setGalleries(items);
+        const itemsByEvent = await getEventGalleries(evId);
+        const itemsByClient = await getDocuments('galleries', [
+          { field: 'client_id', operator: '==', value: clientId },
+        ]).catch(() => []);
+
+        const merged = new Map<string, GalleryData>();
+        (itemsByEvent || []).forEach((g) => merged.set(g.id, g));
+        (itemsByClient as any[]).forEach((g: any) => {
+          if (g?.id && !merged.has(g.id)) merged.set(g.id, g as GalleryData);
+        });
+
+        setGalleries(Array.from(merged.values()));
       } catch (e) {
         console.error('Error fetching admin client gallery:', e);
         setGalleries([]);
@@ -54,23 +67,79 @@ export default function ClientGalleryAdminPage() {
   }, [clientId]);
 
   const albums = useMemo(() => {
+    const getPhotoUrls = (p: any) => {
+      const url =
+        p?.url ||
+        p?.file_url ||
+        p?.fileUrl ||
+        p?.secure_url ||
+        p?.secureUrl ||
+        p?.photo_url ||
+        p?.photoUrl ||
+        p?.image_url ||
+        p?.imageUrl ||
+        '';
+      const thumb =
+        p?.thumbnail_url ||
+        p?.thumbnailUrl ||
+        p?.thumb_url ||
+        p?.thumbUrl ||
+        '';
+      return { url: String(url || ''), thumb: String(thumb || '') };
+    };
+
     return galleries
       .map((g) => ({
         id: g.id,
         name: g.name,
         count: (g.photos || []).length,
-        coverUrl: (g.photos || [])?.[0]?.thumbnail_url || (g.photos || [])?.[0]?.url || undefined,
+        coverUrl: (() => {
+          const first = (g.photos || [])?.[0] as any;
+          if (!first) return undefined;
+          const u = getPhotoUrls(first);
+          return u.thumb || u.url || undefined;
+        })(),
       }))
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [galleries]);
 
   const photos = useMemo(() => {
+    const getPhotoUrls = (p: any) => {
+      const url =
+        p?.url ||
+        p?.file_url ||
+        p?.fileUrl ||
+        p?.secure_url ||
+        p?.secureUrl ||
+        p?.photo_url ||
+        p?.photoUrl ||
+        p?.image_url ||
+        p?.imageUrl ||
+        '';
+      const thumb =
+        p?.thumbnail_url ||
+        p?.thumbnailUrl ||
+        p?.thumb_url ||
+        p?.thumbUrl ||
+        '';
+      return { url: String(url || ''), thumb: String(thumb || '') };
+    };
+
     const all = galleries.flatMap((g) =>
-      (g.photos || []).map((p) => ({
-        ...p,
-        albumId: g.id,
-        albumName: g.name,
-      }))
+      (g.photos || [])
+        .map((p: any) => {
+          const u = getPhotoUrls(p);
+          const displayUrl = u.url || u.thumb;
+          if (!displayUrl) return null;
+          return {
+            ...p,
+            albumId: g.id,
+            albumName: g.name,
+            displayUrl,
+            displayThumbUrl: u.thumb || undefined,
+          };
+        })
+        .filter(Boolean)
     );
 
     return selectedAlbumId ? all.filter((p: any) => p.albumId === selectedAlbumId) : all;
@@ -134,7 +203,17 @@ export default function ClientGalleryAdminPage() {
                   <div className="text-center">
                     <div className="w-12 h-12 mx-auto mb-2 rounded-full bg-gray-100 flex items-center justify-center overflow-hidden">
                       {album.coverUrl ? (
-                        <img src={album.coverUrl} alt={album.name} className="w-full h-full object-cover" />
+                        <img
+                          src={album.coverUrl}
+                          alt={album.name}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            const img = e.currentTarget as HTMLImageElement;
+                            const fallback = img.dataset.fallback || '';
+                            if (fallback && img.src !== fallback) img.src = fallback;
+                          }}
+                          data-fallback={album.coverUrl}
+                        />
                       ) : (
                         <ImageIcon className="h-6 w-6 text-brand-gray" />
                       )}
@@ -164,7 +243,17 @@ export default function ClientGalleryAdminPage() {
                 <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
                   {photos.map((p: any) => (
                     <div key={p.id} className="group relative aspect-square rounded-lg overflow-hidden bg-gray-100">
-                      <img src={p.url} alt={p.id} className="w-full h-full object-cover" />
+                      <img
+                        src={p.displayThumbUrl || p.displayUrl}
+                        alt={p.id}
+                        className="w-full h-full object-cover"
+                        data-fallback={p.displayUrl}
+                        onError={(e) => {
+                          const img = e.currentTarget as HTMLImageElement;
+                          const fallback = img.dataset.fallback || '';
+                          if (fallback && img.src !== fallback) img.src = fallback;
+                        }}
+                      />
                       <div className="absolute inset-x-0 bottom-0 bg-black/50 text-white p-2 opacity-0 group-hover:opacity-100 transition-opacity">
                         <div className="flex items-center justify-between gap-2">
                           <div className="min-w-0">

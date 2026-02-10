@@ -5,8 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ClientDashboardLayout } from '@/components/layout/ClientDashboardLayout';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
   MessageSquare,
   Send,
@@ -16,98 +15,225 @@ import {
   Check,
   CheckCheck,
 } from 'lucide-react';
-import { useState } from 'react';
 
-const conversations = [
-  {
-    id: '1',
-    name: 'Caroline - Wedding Planner',
-    role: 'Wedding Planner',
-    avatar: 'CA',
-    lastMessage: 'J\'ai confirmé votre RDV avec le fleuriste pour le 20 février',
-    time: 'Il y a 2h',
-    unread: 2,
-    online: true,
-  },
-  {
-    id: '2',
-    name: 'Château d\'Apigné',
-    role: 'Lieu de réception',
-    avatar: 'CH',
-    lastMessage: 'Merci pour votre confirmation. À bientôt !',
-    time: 'Hier',
-    unread: 0,
-    online: false,
-  },
-  {
-    id: '3',
-    name: 'Studio Photo Lumière',
-    role: 'Photographe',
-    avatar: 'SP',
-    lastMessage: 'Voici quelques exemples de notre travail',
-    time: '3 jours',
-    unread: 0,
-    online: false,
-  },
-];
+import { useEffect, useMemo, useState } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
+import { useClientData } from '@/contexts/ClientDataContext';
+import { addDocument, getDocument, getDocuments, updateDocument } from '@/lib/db';
+import { uploadFile } from '@/lib/storage';
+import { toast } from 'sonner';
+import { useSearchParams } from 'next/navigation';
 
-const messages = [
-  {
-    id: '1',
-    sender: 'Caroline',
-    content: 'Bonjour Julie et Frédérick ! J\'espère que vous allez bien. Je voulais faire le point avec vous sur les préparatifs.',
-    time: '10:30',
-    isMe: false,
-    read: true,
-  },
-  {
-    id: '2',
-    sender: 'Moi',
-    content: 'Bonjour Caroline ! Oui très bien merci. On est très excités par les préparatifs !',
-    time: '10:35',
-    isMe: true,
-    read: true,
-  },
-  {
-    id: '3',
-    sender: 'Caroline',
-    content: 'Super ! J\'ai une bonne nouvelle : le fleuriste a confirmé la date du rendez-vous pour la dégustation. Ce sera le 20 février à 14h.',
-    time: '10:40',
-    isMe: false,
-    read: true,
-  },
-  {
-    id: '4',
-    sender: 'Moi',
-    content: 'Parfait ! On sera là. Est-ce qu\'on doit amener quelque chose de particulier ?',
-    time: '10:45',
-    isMe: true,
-    read: true,
-  },
-  {
-    id: '5',
-    sender: 'Caroline',
-    content: 'Non, rien de spécial. Juste vos idées et inspirations si vous en avez. J\'ai aussi mis à jour votre planning avec ce nouveau RDV.',
-    time: '11:00',
-    isMe: false,
-    read: true,
-  },
-  {
-    id: '6',
-    sender: 'Caroline',
-    content: 'J\'ai confirmé votre RDV avec le fleuriste pour le 20 février. N\'hésitez pas si vous avez des questions !',
-    time: '14:30',
-    isMe: false,
-    read: false,
-  },
-];
+interface Conversation {
+  id: string;
+  client_id: string;
+  planner_id: string;
+  name: string;
+  avatar: string;
+  lastMessage: string;
+  time: string;
+  unread: number;
+  online: boolean;
+}
+
+interface MessageItem {
+  id: string;
+  sender: string;
+  content: string;
+  attachments?: Array<{ url: string; name?: string; type?: string }>;
+  time: string;
+  isMe: boolean;
+  read: boolean;
+}
 
 export default function MessagesPage() {
-  const [selectedConversation, setSelectedConversation] = useState(conversations[0]);
+  const { user } = useAuth();
+  const { client, event } = useClientData();
+  const searchParams = useSearchParams();
+  const conversationIdParam = searchParams.get('conversationId');
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
+  const [messages, setMessages] = useState<MessageItem[]>([]);
   const [newMessage, setNewMessage] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
+
+  const [plannerPhotoUrl, setPlannerPhotoUrl] = useState<string | null>(null);
+  const [uploadingAttachment, setUploadingAttachment] = useState(false);
+  const fileInputId = 'client-chat-attachment-input';
+
+  const clientName = useMemo(() => {
+    const n1 = client?.name || '';
+    const n2 = client?.partner || '';
+    return `${n1}${n1 && n2 ? ' & ' : ''}${n2}`.trim() || event?.couple_names || 'Client';
+  }, [client?.name, client?.partner, event?.couple_names]);
+
+  const daysRemaining = event?.event_date ? 0 : 0;
+
+  const fetchMessages = async (conversationId: string) => {
+    const items = await getDocuments('messages', [{ field: 'conversation_id', operator: '==', value: conversationId }]);
+    const mapped = (items as any[])
+      .sort((a, b) => {
+        const da = a?.created_at?.toDate?.()?.getTime?.() || 0;
+        const db = b?.created_at?.toDate?.()?.getTime?.() || 0;
+        return da - db;
+      })
+      .map((m) => {
+        const created = m?.created_at?.toDate?.() || null;
+        return {
+          id: m.id,
+          sender: m.sender_name || (m.sender_role === 'client' ? 'Moi' : 'Wedding Planner'),
+          content: m.content || '',
+          attachments: (m.attachments || []) as Array<{ url: string; name?: string; type?: string }>,
+          time: created ? created.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '',
+          isMe: m.sender_id === user?.uid,
+          read: true,
+        } as MessageItem;
+      });
+    setMessages(mapped);
+  };
+
+  const fetchPlannerPhoto = async () => {
+    if (!client?.planner_id) return;
+    try {
+      const p = (await getDocument('profiles', client.planner_id)) as any;
+      const url = p?.photo || p?.photoUrl || p?.avatar_url || null;
+      setPlannerPhotoUrl(url);
+    } catch {
+      setPlannerPhotoUrl(null);
+    }
+  };
+
+  const ensureConversation = async () => {
+    if (!user?.uid || !client?.id || !client?.planner_id) return null;
+    const existing = await getDocuments('conversations', [{ field: 'client_id', operator: '==', value: client.id }]);
+    const conv0 = (existing as any[])?.find((c) => c?.planner_id === client.planner_id) || (existing as any[])?.[0] || null;
+    if (conv0?.id) {
+      return conv0;
+    }
+
+    const created = await addDocument('conversations', {
+      planner_id: client.planner_id,
+      client_id: client.id,
+      type: 'client',
+      client_name: clientName,
+      participants: [client.planner_id, user.uid],
+      last_message: '',
+      last_message_at: new Date(),
+      unread_count_client: 0,
+      unread_count_planner: 0,
+      created_at: new Date(),
+    });
+    return { id: created.id };
+  };
+
+  useEffect(() => {
+    if (!user?.uid || !client?.id) return;
+    void (async () => {
+      setLoading(true);
+      try {
+        void fetchPlannerPhoto();
+        const conv = await ensureConversation();
+        if (!conv?.id) {
+          setLoading(false);
+          return;
+        }
+        const convDoc = await getDocuments('conversations', [{ field: '__name__', operator: '==', value: conv.id }]).catch(() => []);
+        const c0 = (convDoc as any[])?.[0] || null;
+        const name = c0?.client_name || 'Wedding Planner';
+        const mapped: Conversation = {
+          id: conv.id,
+          client_id: client.id,
+          planner_id: client.planner_id,
+          name: 'Votre Wedding Planner',
+          avatar: 'WP',
+          lastMessage: c0?.last_message || '',
+          time: c0?.last_message_at?.toDate?.()?.toLocaleString('fr-FR') || '',
+          unread: Number(c0?.unread_count_client ?? 0),
+          online: false,
+        };
+        setConversations([mapped]);
+        setSelectedConversation(mapped);
+        await fetchMessages(conv.id);
+      } catch (e) {
+        console.error('Error loading conversations:', e);
+        toast.error('Erreur lors du chargement des messages');
+      } finally {
+        setLoading(false);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.uid, client?.id]);
+
+  useEffect(() => {
+    if (!conversationIdParam) return;
+    const match = conversations.find((c) => c.id === conversationIdParam) || null;
+    if (match) {
+      setSelectedConversation(match);
+      void fetchMessages(match.id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversationIdParam, conversations.length]);
+
+  const handleSend = async () => {
+    if (!user?.uid || !selectedConversation?.id) return;
+    if (!newMessage.trim()) return;
+    setSending(true);
+    try {
+      const content = newMessage.trim();
+      setNewMessage('');
+      await addDocument('messages', {
+        conversation_id: selectedConversation.id,
+        sender_id: user.uid,
+        sender_role: 'client',
+        sender_name: 'Moi',
+        content,
+        created_at: new Date(),
+      });
+      await updateDocument('conversations', selectedConversation.id, {
+        last_message: content,
+        last_message_at: new Date(),
+        unread_count_planner: 1,
+      });
+      await fetchMessages(selectedConversation.id);
+    } catch (e) {
+      console.error('Error sending message:', e);
+      toast.error("Impossible d'envoyer le message");
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const handleSendAttachment = async (file: File) => {
+    if (!user?.uid || !selectedConversation?.id) return;
+    setUploadingAttachment(true);
+    try {
+      const url = await uploadFile(file, 'chat');
+      await addDocument('messages', {
+        conversation_id: selectedConversation.id,
+        sender_id: user.uid,
+        sender_role: 'client',
+        sender_name: 'Moi',
+        content: '',
+        attachments: [{ url, name: file.name, type: file.type }],
+        created_at: new Date(),
+      });
+      await updateDocument('conversations', selectedConversation.id, {
+        last_message: `📎 ${file.name}`,
+        last_message_at: new Date(),
+        unread_count_planner: 1,
+      });
+      await fetchMessages(selectedConversation.id);
+    } catch (e) {
+      console.error('Error sending attachment:', e);
+      toast.error("Impossible d'envoyer le document");
+    } finally {
+      setUploadingAttachment(false);
+    }
+  };
 
   return (
-    <ClientDashboardLayout clientName="Julie & Frédérick" daysRemaining={165}>
+    <ClientDashboardLayout clientName={clientName} daysRemaining={daysRemaining}>
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-brand-purple flex items-center gap-2 sm:gap-3">
@@ -128,12 +254,17 @@ export default function MessagesPage() {
               </div>
             </div>
             <div className="flex-1 overflow-y-auto space-y-2">
-              {conversations.map((conv) => (
+              {loading ? null : conversations.length === 0 ? (
+                <div className="text-center text-brand-gray py-10">
+                  <p className="font-medium text-brand-purple">Aucune conversation</p>
+                  <p className="text-sm mt-1">Démarrez une conversation en envoyant un premier message.</p>
+                </div>
+              ) : conversations.map((conv) => (
                 <div
                   key={conv.id}
                   onClick={() => setSelectedConversation(conv)}
                   className={`p-3 rounded-lg cursor-pointer transition-colors ${
-                    selectedConversation.id === conv.id
+                    selectedConversation?.id === conv.id
                       ? 'bg-brand-turquoise/10 border-l-4 border-brand-turquoise'
                       : 'hover:bg-gray-50'
                   }`}
@@ -156,7 +287,6 @@ export default function MessagesPage() {
                         </p>
                         <span className="text-xs text-brand-gray">{conv.time}</span>
                       </div>
-                      <p className="text-xs text-brand-gray">{conv.role}</p>
                       <p className="text-sm text-brand-gray truncate mt-1">
                         {conv.lastMessage}
                       </p>
@@ -177,15 +307,15 @@ export default function MessagesPage() {
               <div className="flex items-center gap-3">
                 <Avatar className="h-10 w-10">
                   <AvatarFallback className="bg-brand-turquoise text-white">
-                    {selectedConversation.avatar}
+                    {selectedConversation?.avatar || '—'}
                   </AvatarFallback>
                 </Avatar>
                 <div>
                   <p className="font-medium text-brand-purple">
-                    {selectedConversation.name}
+                    {selectedConversation?.name || 'Sélectionnez une conversation'}
                   </p>
                   <p className="text-xs text-brand-gray">
-                    {selectedConversation.online ? 'En ligne' : 'Hors ligne'}
+                    {selectedConversation?.online ? 'En ligne' : ''}
                   </p>
                 </div>
               </div>
@@ -195,30 +325,64 @@ export default function MessagesPage() {
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              {!loading && selectedConversation?.id && messages.length === 0 ? (
+                <div className="h-full min-h-[200px] flex items-center justify-center">
+                  <div className="text-center text-brand-gray max-w-md">
+                    <p className="font-medium text-brand-purple">Aucun message pour le moment</p>
+                    <p className="text-sm mt-1">Envoyez un message pour démarrer la conversation.</p>
+                  </div>
+                </div>
+              ) : null}
+
               {messages.map((message) => (
                 <div
                   key={message.id}
                   className={`flex ${message.isMe ? 'justify-end' : 'justify-start'}`}
                 >
-                  <div
-                    className={`max-w-[85%] sm:max-w-[70%] p-3 rounded-lg ${
-                      message.isMe
-                        ? 'bg-brand-turquoise text-white rounded-br-none'
-                        : 'bg-gray-100 text-brand-purple rounded-bl-none'
-                    }`}
-                  >
-                    <p className="text-sm">{message.content}</p>
-                    <div className={`flex items-center justify-end gap-1 mt-1 ${
-                      message.isMe ? 'text-white/70' : 'text-brand-gray'
-                    }`}>
-                      <span className="text-xs">{message.time}</span>
-                      {message.isMe && (
-                        message.read ? (
-                          <CheckCheck className="h-3 w-3" />
-                        ) : (
-                          <Check className="h-3 w-3" />
-                        )
-                      )}
+                  <div className={`flex items-end gap-2 ${message.isMe ? 'flex-row-reverse' : 'flex-row'}`}>
+                    <Avatar className="h-8 w-8">
+                      {message.isMe && client?.photo ? <AvatarImage src={client.photo} alt="Moi" /> : null}
+                      {!message.isMe && plannerPhotoUrl ? <AvatarImage src={plannerPhotoUrl} alt="Wedding Planner" /> : null}
+                      <AvatarFallback className="bg-brand-turquoise text-white text-xs">
+                        {message.isMe ? 'ME' : 'WP'}
+                      </AvatarFallback>
+                    </Avatar>
+
+                    <div
+                      className={`max-w-[85%] sm:max-w-[70%] p-3 rounded-lg ${
+                        message.isMe
+                          ? 'bg-brand-turquoise text-white rounded-br-none'
+                          : 'bg-gray-100 text-brand-purple rounded-bl-none'
+                      }`}
+                    >
+                      {message.content ? <p className="text-sm">{message.content}</p> : null}
+                      {message.attachments && message.attachments.length > 0 ? (
+                        <div className="space-y-1">
+                          {message.attachments.map((a, idx) => (
+                            <a
+                              key={`${message.id}:att:${idx}`}
+                              href={a.url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className={`text-sm underline ${message.isMe ? 'text-white' : 'text-brand-purple'}`}
+                            >
+                              {a.name || 'Document'}
+                            </a>
+                          ))}
+                        </div>
+                      ) : null}
+                      <div className={`flex items-center justify-end gap-1 mt-1 ${
+                        message.isMe ? 'text-white/70' : 'text-brand-gray'
+                      }`}>
+                        <span className="text-xs">{message.time}</span>
+                        {message.isMe && (
+                          message.read ? (
+                            <CheckCheck className="h-3 w-3" />
+                          ) : (
+                            <Check className="h-3 w-3" />
+                          )
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -227,7 +391,22 @@ export default function MessagesPage() {
 
             <div className="p-4 border-t border-gray-100">
               <div className="flex items-center gap-2">
-                <Button variant="ghost" size="icon">
+                <input
+                  id={fileInputId}
+                  type="file"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0] || null;
+                    e.target.value = '';
+                    if (f) void handleSendAttachment(f);
+                  }}
+                />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  disabled={!selectedConversation?.id || uploadingAttachment}
+                  onClick={() => document.getElementById(fileInputId)?.click()}
+                >
                   <Paperclip className="h-4 w-4 text-brand-gray" />
                 </Button>
                 <Input
@@ -237,13 +416,14 @@ export default function MessagesPage() {
                   className="flex-1"
                   onKeyPress={(e) => {
                     if (e.key === 'Enter' && newMessage.trim()) {
-                      setNewMessage('');
+                      void handleSend();
                     }
                   }}
                 />
                 <Button 
                   className="bg-brand-turquoise hover:bg-brand-turquoise-hover"
-                  disabled={!newMessage.trim()}
+                  disabled={!newMessage.trim() || !selectedConversation?.id || sending || uploadingAttachment}
+                  onClick={() => void handleSend()}
                 >
                   <Send className="h-4 w-4" />
                 </Button>

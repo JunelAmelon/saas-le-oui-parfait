@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -306,6 +306,7 @@ export function NewContractModal({ isOpen, onClose, onContractCreated }: NewCont
   const [contractContent, setContractContent] = useState(contractTemplate);
   const [activeTab, setActiveTab] = useState('form');
   const [loading, setLoading] = useState(false);
+  const previewRef = useRef<HTMLDivElement | null>(null);
 
   // Fetch clients and agency info
   useEffect(() => {
@@ -458,45 +459,49 @@ export function NewContractModal({ isOpen, onClose, onContractCreated }: NewCont
   };
 
   const generatePdf = async (reference: string): Promise<Blob> => {
-    const doc = new jsPDF();
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const margin = 20;
-    let y = 20;
-
-    // Titre principal
-    doc.setFontSize(20);
-    doc.setFont('helvetica', 'bold');
-    doc.text('CONTRAT DE PRESTATION DE SERVICES', pageWidth / 2, y, { align: 'center' });
-    y += 10;
-    doc.setFontSize(12);
-    doc.text('ORGANISATION ET COORDINATION D\'ÉVÉNEMENT MATRIMONIAL', pageWidth / 2, y, { align: 'center' });
-    y += 15;
-
-    // Contenu du contrat avec formatage
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'normal');
-    const lines = contractContent.split('\n');
-    
-    for (let line of lines) {
-      if (y > 270) {
-        doc.addPage();
-        y = 20;
-      }
-      
-      if (line.startsWith('ARTICLE')) {
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(10);
-      } else {
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(9);
-      }
-      
-      const splitLines = doc.splitTextToSize(line, pageWidth - 2 * margin);
-      doc.text(splitLines, margin, y);
-      y += splitLines.length * 5;
+    if (!previewRef.current) {
+      throw new Error('Preview introuvable pour la génération PDF');
     }
 
-    return doc.output('blob');
+    const { default: html2canvas } = await import('html2canvas');
+
+    const pdf = new jsPDF({ unit: 'pt', format: 'a4' });
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const padding = 24;
+
+    const node = previewRef.current;
+
+    const canvas = await html2canvas(node, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: '#ffffff',
+      logging: false,
+      width: node.scrollWidth,
+      height: node.scrollHeight,
+      windowWidth: node.scrollWidth,
+      windowHeight: node.scrollHeight,
+    });
+
+    const imgData = canvas.toDataURL('image/png');
+
+    const imgWidth = pageWidth - padding * 2;
+    const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+    let heightLeft = imgHeight;
+    let position = padding;
+
+    pdf.addImage(imgData, 'PNG', padding, position, imgWidth, imgHeight);
+    heightLeft -= pageHeight - padding * 2;
+
+    while (heightLeft > 0) {
+      pdf.addPage();
+      position = padding - (imgHeight - heightLeft);
+      pdf.addImage(imgData, 'PNG', padding, position, imgWidth, imgHeight);
+      heightLeft -= pageHeight - padding * 2;
+    }
+
+    return pdf.output('blob');
   };
 
   const handleSubmit = async () => {
@@ -507,6 +512,8 @@ export function NewContractModal({ isOpen, onClose, onContractCreated }: NewCont
 
     setLoading(true);
     try {
+      generateContract();
+
       const client = clients.find(c => c.id === selectedClient);
       const montantTotal = calculerMontantTotal();
       const reference = `CONT-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`;
@@ -534,14 +541,16 @@ export function NewContractModal({ isOpen, onClose, onContractCreated }: NewCont
         planner_id: user.uid,
         reference,
         title: `Contrat de prestation - ${client?.name}`,
+        client_id: selectedClient,
         client: client?.name || '',
         client_email: client?.email || '',
         client_phone: client?.phone || '',
         client_address: client?.address || '',
         type: 'service_contract',
         amount: montantTotal,
-        status: 'draft',
+        status: 'sent',
         created_at: new Date().toLocaleDateString('fr-FR'),
+        sent_at: new Date().toLocaleDateString('fr-FR'),
         signed_at: null,
         event_date: eventDate,
         event_location: eventLocation,
@@ -556,7 +565,29 @@ export function NewContractModal({ isOpen, onClose, onContractCreated }: NewCont
         created_timestamp: new Date(),
       };
 
-      await addDocument('contracts', contractData);
+      const createdContract = await addDocument('contracts', contractData);
+
+      // Publier aussi dans la collection documents pour visibilité côté client
+      try {
+        const evts = await getDocuments('events', [{ field: 'client_id', operator: '==', value: selectedClient }]);
+        const weddingEvt = ((evts as any[]) || []).find((x) => Boolean(x?.event_date)) || (evts as any[])?.[0] || null;
+        await addDocument('documents', {
+          planner_id: user.uid,
+          client_id: selectedClient,
+          event_id: weddingEvt?.id || null,
+          name: `Contrat - ${reference}`,
+          type: 'contrat',
+          file_url: pdfUrl,
+          file_type: 'application/pdf',
+          uploaded_by: 'planner',
+          uploaded_at: new Date().toLocaleDateString('fr-FR'),
+          created_timestamp: new Date(),
+          contract_id: createdContract?.id || null,
+          status: 'sent',
+        });
+      } catch (e) {
+        console.error('Error creating documents entry for contract:', e);
+      }
       
       sonnerToast.success(`Contrat créé avec PDF pour ${client?.name}`);
       
@@ -806,37 +837,45 @@ export function NewContractModal({ isOpen, onClose, onContractCreated }: NewCont
           </TabsContent>
 
           <TabsContent value="preview" className="mt-4">
-            <div className="bg-white border-2 border-gray-200 rounded-lg p-8 shadow-lg">
-              <div className="flex justify-center mb-6">
-                <Image 
-                  src="/logo-horizontal.png" 
-                  alt="Le Oui Parfait" 
-                  width={200} 
-                  height={60}
-                  className="object-contain"
-                />
-              </div>
-              
-              <div className="prose prose-sm max-w-none">
-                <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed text-gray-800">
-                  {contractContent}
-                </pre>
-              </div>
+            <div className="w-full overflow-x-auto">
+              <div
+                ref={previewRef}
+                className="bg-white border-2 border-gray-200 rounded-lg shadow-lg mx-auto"
+                style={{ width: 794, minHeight: 1123 }}
+              >
+                <div className="p-10">
+                  <div className="flex justify-center mb-6">
+                    <Image
+                      src="/logo-horizontal.png"
+                      alt="Le Oui Parfait"
+                      width={200}
+                      height={60}
+                      className="object-contain"
+                    />
+                  </div>
 
-              <div className="mt-8 pt-8 border-t-2 border-gray-300 grid grid-cols-2 gap-8">
-                <div className="text-center">
-                  <p className="font-bold text-brand-purple mb-4">Signature du Prestataire</p>
-                  <div className="border-2 border-dashed border-gray-300 h-24 rounded flex items-center justify-center">
-                    <p className="text-xs text-gray-400">Zone de signature</p>
+                  <div className="prose prose-sm max-w-none">
+                    <div className="whitespace-pre-wrap font-sans text-sm leading-relaxed text-gray-800">
+                      {contractContent}
+                    </div>
                   </div>
-                  <p className="text-xs text-gray-500 mt-2">Le Oui Parfait</p>
-                </div>
-                <div className="text-center">
-                  <p className="font-bold text-brand-purple mb-4">Signature du Client</p>
-                  <div className="border-2 border-dashed border-gray-300 h-24 rounded flex items-center justify-center">
-                    <p className="text-xs text-gray-400">Zone de signature</p>
+
+                  <div className="mt-8 pt-8 border-t-2 border-gray-300 grid grid-cols-2 gap-8">
+                    <div className="text-center">
+                      <p className="font-bold text-brand-purple mb-4">Signature du Prestataire</p>
+                      <div className="border-2 border-dashed border-gray-300 h-24 rounded flex items-center justify-center">
+                        <p className="text-xs text-gray-400">Zone de signature</p>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-2">Le Oui Parfait</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="font-bold text-brand-purple mb-4">Signature du Client</p>
+                      <div className="border-2 border-dashed border-gray-300 h-24 rounded flex items-center justify-center">
+                        <p className="text-xs text-gray-400">Zone de signature</p>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-2">{selectedClientData?.name}</p>
+                    </div>
                   </div>
-                  <p className="text-xs text-gray-500 mt-2">{selectedClientData?.name}</p>
                 </div>
               </div>
             </div>
