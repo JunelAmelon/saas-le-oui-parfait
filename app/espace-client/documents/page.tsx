@@ -40,6 +40,8 @@ import {
   Upload,
   Loader2,
   MoreVertical,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useClientData } from '@/contexts/ClientDataContext';
@@ -76,6 +78,8 @@ export default function DocumentsPage() {
   const { client, event, loading: dataLoading } = useClientData();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 5;
   const [selectedDocument, setSelectedDocument] = useState<DocumentItem | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
@@ -268,6 +272,14 @@ export default function DocumentsPage() {
     return matchesSearch && matchesCategory;
   });
 
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, selectedCategory, documents.length]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredDocuments.length / itemsPerPage));
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedDocuments = filteredDocuments.slice(startIndex, startIndex + itemsPerPage);
+
   const formatDocDate = (v?: string) => {
     if (!v) return '—';
     if (typeof v === 'string') return v;
@@ -442,7 +454,7 @@ export default function DocumentsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredDocuments.map((doc) => {
+                  {paginatedDocuments.map((doc) => {
                     const isContract = doc.type?.toLowerCase() === 'contrat' && Boolean(doc.contract_id);
                     const canSign = isContract && doc.status !== 'signed' && signingContractId !== doc.contract_id;
                     const isSigning = isContract && signingContractId === doc.contract_id;
@@ -520,6 +532,30 @@ export default function DocumentsPage() {
                   })}
                 </TableBody>
               </Table>
+
+              {filteredDocuments.length > itemsPerPage ? (
+                <div className="flex items-center justify-center gap-2 mt-4">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <span className="text-sm text-brand-gray">
+                    Page {currentPage} sur {totalPages}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={currentPage === totalPages}
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              ) : null}
             </div>
           )}
 

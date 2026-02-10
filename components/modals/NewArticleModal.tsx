@@ -97,7 +97,7 @@ export function NewArticleModal({ isOpen, onClose, onArticleCreated }: NewArticl
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg w-[95vw] sm:w-full max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-brand-purple flex items-center gap-2">
             <Package className="h-5 w-5 text-brand-turquoise" />

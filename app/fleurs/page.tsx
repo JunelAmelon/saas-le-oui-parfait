@@ -8,6 +8,8 @@ import { Input } from '@/components/ui/input';
 import { Plus, Search, Flower2, Calculator, Loader2 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { NewCompositionModal } from '@/components/modals/NewCompositionModal';
+import { EditCompositionModal, CompositionDoc } from '@/components/modals/EditCompositionModal';
+import { FlowerCatalogModal } from '@/components/modals/FlowerCatalogModal';
 import { useAuth } from '@/contexts/AuthContext';
 import { getDocuments, deleteDocument } from '@/lib/db';
 import { toast } from 'sonner';
@@ -64,11 +66,14 @@ interface Composition {
   id: string;
   name: string;
   flowers: string[];
+  items?: Array<{ name: string; quantity: number; unit_price: number }>;
   cost: number;
   price: number;
   margin: number;
   client_id: string;
   client_name?: string;
+  planner_id?: string;
+  send_to_client?: boolean;
   created_at: any;
 }
 
@@ -79,10 +84,14 @@ export default function FleursPage() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedComposition, setSelectedComposition] = useState<Composition | null>(null);
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [isCatalogOpen, setIsCatalogOpen] = useState(false);
+  const [catalogItems, setCatalogItems] = useState<Array<{ name: string; unit: string; price: number }>>(fleursCatalog);
 
   useEffect(() => {
     if (user) {
       fetchCompositions();
+      fetchCatalog();
     }
   }, [user]);
 
@@ -99,6 +108,26 @@ export default function FleursPage() {
       toast.error('Erreur lors du chargement des compositions');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchCatalog = async () => {
+    if (!user?.uid) return;
+    try {
+      const data = await getDocuments('flowers_catalog', [
+        { field: 'planner_id', operator: '==', value: user.uid },
+      ]);
+      const mapped = (data as any[])
+        .map((d: any) => ({
+          name: d?.name || '',
+          unit: d?.unit || '',
+          price: Number(d?.price ?? 0) || 0,
+        }))
+        .filter((x) => Boolean(x.name));
+      setCatalogItems(mapped.length > 0 ? mapped : fleursCatalog);
+    } catch (e) {
+      console.error('Error fetching flower catalog:', e);
+      setCatalogItems(fleursCatalog);
     }
   };
 
@@ -243,6 +272,16 @@ export default function FleursPage() {
                   </div>
 
                   <div className="flex gap-2 mt-4">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setSelectedComposition(composition);
+                        setIsEditOpen(true);
+                      }}
+                    >
+                      Modifier
+                    </Button>
                     <Button 
                       size="sm" 
                       variant="destructive"
@@ -264,7 +303,7 @@ export default function FleursPage() {
                 Catalogue Fleurs
               </h3>
               <div className="space-y-3">
-                {fleursCatalog.map((fleur, idx) => (
+                {catalogItems.map((fleur, idx) => (
                   <div key={idx} className="flex items-center justify-between p-3 rounded-lg bg-gray-50">
                     <div>
                       <p className="font-medium text-brand-purple text-sm">{fleur.name}</p>
@@ -274,7 +313,10 @@ export default function FleursPage() {
                   </div>
                 ))}
               </div>
-              <Button className="w-full mt-4 bg-brand-turquoise hover:bg-brand-turquoise-hover">
+              <Button
+                className="w-full mt-4 bg-brand-turquoise hover:bg-brand-turquoise-hover"
+                onClick={() => setIsCatalogOpen(true)}
+              >
                 Gérer le catalogue
               </Button>
             </Card>
@@ -285,7 +327,28 @@ export default function FleursPage() {
       <NewCompositionModal
         isOpen={isNewCompositionOpen}
         onClose={() => setIsNewCompositionOpen(false)}
-        onCompositionCreated={fetchCompositions}
+        onCompositionCreated={() => {
+          fetchCompositions();
+          fetchCatalog();
+        }}
+      />
+
+      <EditCompositionModal
+        isOpen={isEditOpen}
+        onClose={() => setIsEditOpen(false)}
+        onUpdated={() => {
+          fetchCompositions();
+          fetchCatalog();
+        }}
+        composition={(selectedComposition as unknown as CompositionDoc) || null}
+      />
+
+      <FlowerCatalogModal
+        isOpen={isCatalogOpen}
+        onClose={() => setIsCatalogOpen(false)}
+        onUpdated={() => {
+          fetchCatalog();
+        }}
       />
     </DashboardLayout>
   );

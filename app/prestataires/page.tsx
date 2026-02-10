@@ -43,6 +43,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { getDocuments, addDocument, updateDocument, deleteDocument } from '@/lib/db';
 import { toast } from 'sonner';
+import axios from 'axios';
 
 interface Vendor {
   id: string;
@@ -56,6 +57,7 @@ interface Vendor {
   isFavorite: boolean;
   website: string;
   notes?: string;
+  logoUrl?: string | null;
 }
 
 
@@ -83,6 +85,9 @@ export default function VendorsPage() {
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 3;
+
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
   
   // Form state
   const [formData, setFormData] = useState({
@@ -118,6 +123,7 @@ export default function VendorsPage() {
         isFavorite: d.is_favorite || false,
         website: d.website,
         notes: d.notes || '',
+        logoUrl: d.logo || d.logo_url || d.logoUrl || d.logoURL || null,
       }));
       setVendors(mapped);
     } catch (e) {
@@ -145,6 +151,21 @@ export default function VendorsPage() {
       notes: '',
       isFavorite: false,
     });
+    setLogoFile(null);
+    setLogoPreview(null);
+  };
+
+  const uploadLogoToCloudinary = async (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('upload_preset', process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET!);
+
+    const res = await axios.post(
+      `https://api.cloudinary.com/v1_1/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/image/upload`,
+      formData
+    );
+
+    return res.data.secure_url as string;
   };
 
   const handleSubmit = async () => {
@@ -154,6 +175,13 @@ export default function VendorsPage() {
     }
 
     try {
+      let logoUrl = selectedVendor?.logoUrl || null;
+      if (logoFile) {
+        logoUrl = await uploadLogoToCloudinary(logoFile);
+      } else if (logoPreview === null && isEditMode) {
+        logoUrl = null;
+      }
+
       const data = {
         planner_id: user.uid,
         name: formData.name,
@@ -166,6 +194,7 @@ export default function VendorsPage() {
         rating: formData.rating,
         notes: formData.notes,
         is_favorite: formData.isFavorite,
+        logo: logoUrl,
         created_at: new Date(),
       };
 
@@ -229,6 +258,8 @@ export default function VendorsPage() {
       notes: vendor.notes || '',
       isFavorite: vendor.isFavorite,
     });
+    setLogoFile(null);
+    setLogoPreview(vendor.logoUrl || null);
     setIsEditMode(true);
     setIsNewVendorOpen(true);
   };
@@ -339,13 +370,20 @@ export default function VendorsPage() {
               return (
                 <Card key={vendor.id} className="p-5 border border-[#E5E5E5] shadow-md hover:shadow-lg transition-shadow">
                   <div className="mb-3 flex items-start justify-between">
-                    <div className="flex-1">
-                      <h3 className="text-lg font-bold text-brand-purple mb-1">
-                        {vendor.name}
-                      </h3>
-                      <Badge className={`${config.color} hover:${config.color} text-white border-0`}>
-                        {config.label}
-                      </Badge>
+                    <div className="flex-1 flex items-start gap-3 min-w-0">
+                      <div className="h-12 w-12 rounded-full bg-white border border-gray-200 overflow-hidden flex-shrink-0">
+                        {vendor.logoUrl ? (
+                          <img src={vendor.logoUrl} alt={vendor.name} className="h-full w-full object-cover" />
+                        ) : null}
+                      </div>
+                      <div className="min-w-0">
+                        <h3 className="text-lg font-bold text-brand-purple mb-1 truncate">
+                          {vendor.name}
+                        </h3>
+                        <Badge className={`${config.color} hover:${config.color} text-white border-0`}>
+                          {config.label}
+                        </Badge>
+                      </div>
                     </div>
                     <button onClick={() => toggleFavorite(vendor)}>
                       <Star className={`h-5 w-5 transition-colors ${
@@ -542,6 +580,44 @@ export default function VendorsPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
+            <div>
+              <Label>Logo (optionnel)</Label>
+              <div className="mt-2 flex items-center gap-4">
+                <div className="h-16 w-16 rounded-full overflow-hidden border border-gray-200 bg-white flex items-center justify-center">
+                  {logoPreview ? (
+                    <img src={logoPreview} alt="Logo" className="h-full w-full object-cover" />
+                  ) : null}
+                </div>
+                <div className="flex-1">
+                  <Input
+                    type="file"
+                    accept="image/*"
+                    className="text-sm"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0] || null;
+                      if (f) {
+                        setLogoFile(f);
+                        setLogoPreview(URL.createObjectURL(f));
+                      }
+                    }}
+                  />
+                  {logoPreview ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="mt-2"
+                      onClick={() => {
+                        setLogoFile(null);
+                        setLogoPreview(null);
+                      }}
+                    >
+                      Retirer le logo
+                    </Button>
+                  ) : null}
+                </div>
+              </div>
+            </div>
             <div>
               <Label>Nom du prestataire *</Label>
               <Input 

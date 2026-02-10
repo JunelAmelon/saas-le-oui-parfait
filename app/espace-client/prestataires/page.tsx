@@ -9,7 +9,8 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { useClientData } from '@/contexts/ClientDataContext';
-import { getEventVendors, calculateDaysRemaining } from '@/lib/client-helpers';
+import { calculateDaysRemaining } from '@/lib/client-helpers';
+import { getDocuments } from '@/lib/db';
 import {
   Dialog,
   DialogContent,
@@ -31,6 +32,8 @@ import {
   Calendar,
   Send,
   Loader2,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 
 interface Prestataire {
@@ -38,6 +41,7 @@ interface Prestataire {
   name: string;
   category: string;
   avatar: string;
+  logoUrl?: string | null;
   contact: string;
   phone: string;
   email: string;
@@ -46,6 +50,15 @@ interface Prestataire {
   status: string;
   rating: number;
   nextRdv: string | null;
+}
+
+interface AssignedVendorLink {
+  id: string;
+  client_id: string;
+  vendor_id: string;
+  planner_id: string;
+  vendor_name?: string;
+  vendor_category?: string;
 }
 
 const prestataires = [
@@ -143,26 +156,88 @@ export default function PrestatairesPage() {
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isMessageOpen, setIsMessageOpen] = useState(false);
   const [message, setMessage] = useState('');
-  const [isContactModalOpen, setIsContactModalOpen] = useState(false);
-  const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 2;
 
   useEffect(() => {
     async function fetchPrestataires() {
-      if (event?.id) {
-        try {
-          const vendors = await getEventVendors(event.id);
-          setPrestataires(vendors as Prestataire[]);
-        } catch (error) {
-          console.error('Error fetching vendors:', error);
-        } finally {
-          setLoading(false);
+      if (!client?.id) return;
+      try {
+        setLoading(true);
+
+        const links = await getDocuments('client_vendors', [
+          { field: 'client_id', operator: '==', value: client.id },
+        ]);
+        const assigned = (links as any[]).map((l: any) => ({
+          id: l.id,
+          client_id: l.client_id,
+          vendor_id: l.vendor_id,
+          planner_id: l.planner_id,
+          vendor_name: l.vendor_name,
+          vendor_category: l.vendor_category,
+        })) as AssignedVendorLink[];
+
+        if (assigned.length === 0) {
+          setPrestataires([]);
+          return;
         }
+
+        const plannerId = client.planner_id || assigned[0]?.planner_id;
+        const allVendors = plannerId
+          ? await getDocuments('vendors', [{ field: 'planner_id', operator: '==', value: plannerId }])
+          : [];
+
+        const byId = new Map<string, any>((allVendors as any[]).map((v: any) => [v.id, v] as const));
+
+        const mapped = assigned
+          .map((l) => {
+            const v = byId.get(l.vendor_id);
+            const name = v?.name || l.vendor_name || 'Prestataire';
+            const category = v?.category || l.vendor_category || 'other';
+            const initials = (String(name)
+              .split(' ')
+              .filter(Boolean)
+              .slice(0, 2)
+              .map((x) => x[0]?.toUpperCase())
+              .join('') || 'PR')
+              .slice(0, 2);
+
+            return {
+              id: l.vendor_id,
+              name,
+              category,
+              avatar: initials,
+              logoUrl: v?.logo || v?.logo_url || v?.logoUrl || v?.logoURL || null,
+              contact: v?.contact_name || v?.contact || '',
+              phone: v?.phone || '',
+              email: v?.email || '',
+              address: v?.address || v?.city || '',
+              website: v?.website || null,
+              status: 'confirmed',
+              rating: Number(v?.rating ?? 5) || 5,
+              nextRdv: v?.next_appointment?.description
+                ? `${v?.next_appointment?.date || ''}${v?.next_appointment?.description ? ' - ' + v?.next_appointment?.description : ''}`.trim()
+                : null,
+            } as Prestataire;
+          })
+          .sort((a, b) => a.name.localeCompare(b.name, 'fr'));
+
+        setPrestataires(mapped);
+      } catch (error) {
+        console.error('Error fetching assigned vendors:', error);
+        setPrestataires([]);
+      } finally {
+        setLoading(false);
       }
     }
-    if (!dataLoading && event) {
+    if (!dataLoading && client) {
       fetchPrestataires();
     }
-  }, [event, dataLoading]);
+  }, [client, dataLoading]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [prestataires.length]);
 
   const daysRemaining = event ? calculateDaysRemaining(event.event_date) : 0;
 
@@ -174,16 +249,9 @@ export default function PrestatairesPage() {
     );
   }
 
-  const handleContact = (presta: Prestataire) => {
-    setSelectedPrestataire(presta);
-    setIsContactModalOpen(true);
-  };
-
-  const handleSendMessage = () => {
-    setIsContactModalOpen(false);
-    setIsSuccessModalOpen(true);
-    setMessage('');
-  };
+  const totalPages = Math.ceil(prestataires.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedPrestataires = prestataires.slice(startIndex, startIndex + itemsPerPage);
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -243,15 +311,19 @@ export default function PrestatairesPage() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {prestataires.map((presta) => (
+          {paginatedPrestataires.map((presta) => (
             <Card key={presta.id} className="p-6 shadow-xl border-0">
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center gap-4">
-                  <Avatar className="h-14 w-14">
-                    <AvatarFallback className="bg-brand-turquoise text-white text-lg">
-                      {presta.avatar}
-                    </AvatarFallback>
-                  </Avatar>
+                  <div className="h-14 w-14 rounded-full bg-white border border-gray-200 overflow-hidden flex items-center justify-center flex-shrink-0">
+                    {presta.logoUrl ? (
+                      <img src={presta.logoUrl} alt={presta.name} className="h-full w-full object-cover" />
+                    ) : (
+                      <span className="text-white text-lg font-semibold bg-brand-turquoise h-full w-full flex items-center justify-center">
+                        {presta.avatar}
+                      </span>
+                    )}
+                  </div>
                   <div>
                     <h3 className="font-bold text-brand-purple text-lg">{presta.name}</h3>
                     <p className="text-sm text-brand-gray">{presta.category}</p>
@@ -294,15 +366,6 @@ export default function PrestatairesPage() {
               </div>
 
               <div className="flex items-center gap-2 pt-4 border-t border-gray-100">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="flex-1 gap-2"
-                  onClick={() => handleContact(presta as Prestataire)}
-                >
-                  <MessageSquare className="h-4 w-4" />
-                  Contacter
-                </Button>
                 {presta.website && (
                   <Button
                     variant="ghost"
@@ -318,77 +381,31 @@ export default function PrestatairesPage() {
             </Card>
           ))}
         </div>
+
+        {totalPages > 1 && (
+          <div className="flex items-center justify-center gap-2 mt-6">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <span className="text-sm text-brand-gray">
+              Page {currentPage} sur {totalPages}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        )}
       </div>
-
-        <Dialog open={isContactModalOpen} onOpenChange={setIsContactModalOpen}>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle className="text-brand-purple">Contacter {selectedPrestataire?.name}</DialogTitle>
-              <DialogDescription>
-                Envoyez un message à {selectedPrestataire?.contact}
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
-              {selectedPrestataire && (
-                <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                  <Avatar className="h-10 w-10">
-                    <AvatarFallback className="bg-brand-turquoise text-white">
-                      {selectedPrestataire.avatar}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <p className="font-medium text-brand-purple">{selectedPrestataire.name}</p>
-                    <p className="text-xs text-brand-gray">{selectedPrestataire.email}</p>
-                  </div>
-                </div>
-              )}
-              <div className="space-y-2">
-                <Label>Votre message</Label>
-                <Textarea 
-                  placeholder="Écrivez votre message ici..."
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value)}
-                  rows={4}
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsContactModalOpen(false)}>
-                Annuler
-              </Button>
-              <Button 
-                className="bg-brand-turquoise hover:bg-brand-turquoise-hover gap-2"
-                onClick={handleSendMessage}
-                disabled={!message.trim()}
-              >
-                <Send className="h-4 w-4" />
-                Envoyer
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        <Dialog open={isSuccessModalOpen} onOpenChange={setIsSuccessModalOpen}>
-          <DialogContent className="sm:max-w-md text-center">
-            <div className="flex flex-col items-center py-6">
-              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
-                <CheckCircle className="h-8 w-8 text-green-600" />
-              </div>
-              <DialogTitle className="text-brand-purple text-xl">Message envoyé !</DialogTitle>
-              <DialogDescription className="mt-2">
-                Votre message a été envoyé à {selectedPrestataire?.name}. Vous recevrez une réponse prochainement.
-              </DialogDescription>
-            </div>
-            <DialogFooter className="justify-center">
-              <Button 
-                className="bg-brand-turquoise hover:bg-brand-turquoise-hover"
-                onClick={() => setIsSuccessModalOpen(false)}
-              >
-                Fermer
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
     </ClientDashboardLayout>
   );
 }

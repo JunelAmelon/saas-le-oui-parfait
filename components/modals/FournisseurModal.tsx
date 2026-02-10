@@ -12,6 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { addDocument, updateDocument } from '@/lib/db';
 import { toast as sonnerToast } from 'sonner';
+import axios from 'axios';
 
 interface Fournisseur {
   id: string;
@@ -23,6 +24,7 @@ interface Fournisseur {
   city: string;
   rating: number;
   productsCount: number;
+  logoUrl?: string | null;
 }
 
 interface FournisseurModalProps {
@@ -57,6 +59,8 @@ export function FournisseurModal({ isOpen, onClose, fournisseur, mode, onFournis
   const [rating, setRating] = useState(5);
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
 
   useEffect(() => {
     if (mode === 'edit' && fournisseur) {
@@ -67,6 +71,8 @@ export function FournisseurModal({ isOpen, onClose, fournisseur, mode, onFournis
       setPhone(fournisseur.phone);
       setCity(fournisseur.city);
       setRating(fournisseur.rating);
+      setLogoFile(null);
+      setLogoPreview(fournisseur.logoUrl || null);
     } else if (mode === 'create') {
       // Reset form for create mode
       setName('');
@@ -78,8 +84,23 @@ export function FournisseurModal({ isOpen, onClose, fournisseur, mode, onFournis
       setAddress('');
       setRating(5);
       setNotes('');
+      setLogoFile(null);
+      setLogoPreview(null);
     }
   }, [mode, fournisseur, isOpen]);
+
+  const uploadLogoToCloudinary = async (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('upload_preset', process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET!);
+
+    const res = await axios.post(
+      `https://api.cloudinary.com/v1_1/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/image/upload`,
+      formData
+    );
+
+    return res.data.secure_url as string;
+  };
 
   const handleSubmit = async () => {
     if (!name || !category || !contactName || !email || !phone || !city) {
@@ -94,6 +115,13 @@ export function FournisseurModal({ isOpen, onClose, fournisseur, mode, onFournis
 
     setLoading(true);
     try {
+      let logoUrl = fournisseur?.logoUrl || null;
+      if (logoFile) {
+        logoUrl = await uploadLogoToCloudinary(logoFile);
+      } else if (logoPreview === null && mode === 'edit') {
+        logoUrl = null;
+      }
+
       const data = {
         name,
         category,
@@ -105,17 +133,18 @@ export function FournisseurModal({ isOpen, onClose, fournisseur, mode, onFournis
         rating,
         notes,
         products_count: 0,
+        logo: logoUrl,
       };
 
       if (mode === 'create') {
-        await addDocument('vendors', {
+        await addDocument('fournisseurs', {
           ...data,
-          planner_id: user.uid,
+          owner_id: user.uid,
           created_at: new Date(),
         });
         sonnerToast.success(`Le fournisseur "${name}" a été ajouté avec succès`);
       } else if (fournisseur) {
-        await updateDocument('vendors', fournisseur.id, {
+        await updateDocument('fournisseurs', fournisseur.id, {
           ...data,
           updated_at: new Date(),
         });
@@ -137,7 +166,7 @@ export function FournisseurModal({ isOpen, onClose, fournisseur, mode, onFournis
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-2xl w-[95vw] sm:w-full max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-brand-purple flex items-center gap-2">
             <Building2 className="h-5 w-5 text-brand-turquoise" />
@@ -152,6 +181,45 @@ export function FournisseurModal({ isOpen, onClose, fournisseur, mode, onFournis
         </DialogHeader>
 
         <div className="space-y-4 py-4">
+          <div>
+            <Label>Logo (optionnel)</Label>
+            <div className="mt-2 flex items-center gap-4">
+              <div className="h-16 w-16 rounded-full overflow-hidden border border-gray-200 bg-white flex items-center justify-center">
+                {logoPreview ? (
+                  <img src={logoPreview} alt="Logo" className="h-full w-full object-cover" />
+                ) : null}
+              </div>
+              <div className="flex-1">
+                <Input
+                  type="file"
+                  accept="image/*"
+                  className="text-sm"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0] || null;
+                    if (f) {
+                      setLogoFile(f);
+                      setLogoPreview(URL.createObjectURL(f));
+                    }
+                  }}
+                />
+                {logoPreview ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="mt-2"
+                    onClick={() => {
+                      setLogoFile(null);
+                      setLogoPreview(null);
+                    }}
+                  >
+                    Retirer le logo
+                  </Button>
+                ) : null}
+              </div>
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <Label>Nom du fournisseur *</Label>
@@ -270,7 +338,7 @@ export function FournisseurModal({ isOpen, onClose, fournisseur, mode, onFournis
           </div>
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="flex-col sm:flex-row gap-2">
           <Button variant="outline" onClick={onClose}>
             Annuler
           </Button>

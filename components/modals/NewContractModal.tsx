@@ -12,7 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 import Image from 'next/image';
 import { FileText, Eye } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { getDocuments, addDocument } from '@/lib/db';
+import { getDocument, getDocuments, addDocument, updateDocument } from '@/lib/db';
 import { toast as sonnerToast } from 'sonner';
 import jsPDF from 'jspdf';
 import { uploadPdf } from '@/lib/storage';
@@ -29,6 +29,15 @@ interface Client {
   email: string;
   phone: string;
   address: string;
+}
+
+interface Prospect {
+  id: string;
+  name: string;
+  partner?: string;
+  email?: string;
+  phone?: string;
+  address?: string;
 }
 
 const prestationsDisponibles = [
@@ -294,8 +303,19 @@ export function NewContractModal({ isOpen, onClose, onContractCreated }: NewCont
   const { toast } = useToast();
   const { user } = useAuth();
   const [clients, setClients] = useState<Client[]>([]);
+  const [prospects, setProspects] = useState<Prospect[]>([]);
   const [agencyInfo, setAgencyInfo] = useState<any>(null);
+
+  const [recipientType, setRecipientType] = useState<'client' | 'prospect'>('client');
   const [selectedClient, setSelectedClient] = useState('');
+  const [selectedProspect, setSelectedProspect] = useState('');
+  const [prospectDraft, setProspectDraft] = useState({
+    name: '',
+    partner: '',
+    email: '',
+    phone: '',
+    address: '',
+  });
   const [selectedPrestations, setSelectedPrestations] = useState<string[]>([]);
   const [prestationsPersonnalisees, setPrestationsPersonnalisees] = useState<Array<{nom: string, prix: number}>>([]);
   const [nouvellePrestationNom, setNouvellePrestationNom] = useState('');
@@ -312,6 +332,7 @@ export function NewContractModal({ isOpen, onClose, onContractCreated }: NewCont
   useEffect(() => {
     if (isOpen && user) {
       fetchClients();
+      fetchProspects();
       fetchAgencyInfo();
     }
   }, [isOpen, user]);
@@ -338,11 +359,24 @@ export function NewContractModal({ isOpen, onClose, onContractCreated }: NewCont
   const fetchAgencyInfo = async () => {
     if (!user) return;
     try {
-      const data = await getDocuments('agencies', [
-        { field: 'planner_id', operator: '==', value: user.uid }
-      ]);
+      const agencyDoc = await getDocument('agency', 'leOuiParfait').catch(() => null);
+      if (agencyDoc) {
+        const agency: any = agencyDoc;
+        setAgencyInfo(agency);
+        setAdminInfo({
+          nomRepresentant: agency.representative_name || agency.representativeName || agency.name || adminInfoDefault.nomRepresentant,
+          adresseAgence: agency.address || adminInfoDefault.adresseAgence,
+          siret: agency.siret || adminInfoDefault.siret,
+          ville: agency.city || adminInfoDefault.ville,
+          email: agency.email || adminInfoDefault.email,
+          telephone: agency.phone || adminInfoDefault.telephone,
+        });
+        return;
+      }
+
+      const data = await getDocuments('agencies', [{ field: 'planner_id', operator: '==', value: user.uid }]);
       if (data.length > 0) {
-        const agency = data[0];
+        const agency = data[0] as any;
         setAgencyInfo(agency);
         setAdminInfo({
           nomRepresentant: agency.representative_name || agency.name || adminInfoDefault.nomRepresentant,
@@ -355,6 +389,26 @@ export function NewContractModal({ isOpen, onClose, onContractCreated }: NewCont
       }
     } catch (e) {
       console.error('Error fetching agency info:', e);
+    }
+  };
+
+  const fetchProspects = async () => {
+    try {
+      const data = await getDocuments('prospects', [{ field: 'archived', operator: '==', value: false }]);
+      const mapped = (data as any[])
+        .map((p) => ({
+          id: p.id,
+          name: p.name || '',
+          partner: p.partner || '',
+          email: p.email || '',
+          phone: p.phone || '',
+          address: p.address || '',
+        }))
+        .sort((a, b) => `${a.name} ${a.partner}`.trim().localeCompare(`${b.name} ${b.partner}`.trim(), 'fr')) as Prospect[];
+      setProspects(mapped);
+    } catch (e) {
+      console.error('Error fetching prospects:', e);
+      setProspects([]);
     }
   };
 
@@ -385,18 +439,60 @@ export function NewContractModal({ isOpen, onClose, onContractCreated }: NewCont
   };
 
   useEffect(() => {
-    if (selectedClient && eventDate && eventLocation) {
-      generateContract();
+    if (recipientType === 'prospect') {
+      const p = prospects.find((x) => x.id === selectedProspect) || null;
+      if (p) {
+        setProspectDraft({
+          name: p.name || '',
+          partner: p.partner || '',
+          email: p.email || '',
+          phone: p.phone || '',
+          address: p.address || '',
+        });
+      }
     }
-  }, [selectedClient, eventDate, eventLocation, selectedPrestations, prestationsPersonnalisees, adminInfo]);
+  }, [recipientType, selectedProspect, prospects]);
 
-  const generateContract = () => {
-    if (!selectedClient || !eventDate || !eventLocation) {
-      return;
+  useEffect(() => {
+    if (recipientType === 'client') {
+      if (selectedClient && eventDate && eventLocation) generateContract();
+    } else {
+      if (selectedProspect && eventDate && eventLocation) generateContract();
+    }
+  }, [recipientType, selectedClient, selectedProspect, prospectDraft, eventDate, eventLocation, selectedPrestations, prestationsPersonnalisees, adminInfo]);
+
+  const generateContract = (): string | null => {
+    if (!eventDate || !eventLocation) {
+      return null;
     }
 
-    const client = clients.find(c => c.id === selectedClient);
-    if (!client) return;
+    const party = (() => {
+      if (recipientType === 'client') {
+        const client = clients.find((c) => c.id === selectedClient) || null;
+        if (!client) return null;
+        return {
+          id: client.id,
+          name: client.name,
+          email: client.email,
+          phone: client.phone,
+          address: client.address,
+          kind: 'client' as const,
+        };
+      }
+
+      if (!selectedProspect) return null;
+      const fullName = `${prospectDraft.name || ''}${prospectDraft.partner ? ' & ' + prospectDraft.partner : ''}`.trim();
+      return {
+        id: selectedProspect,
+        name: fullName || 'Prospect',
+        email: prospectDraft.email || '',
+        phone: prospectDraft.phone || '',
+        address: prospectDraft.address || '',
+        kind: 'prospect' as const,
+      };
+    })();
+
+    if (!party) return null;
 
     const montantTotal = calculerMontantTotal();
     const acompte = (montantTotal * 0.3).toFixed(2);
@@ -437,10 +533,10 @@ export function NewContractModal({ isOpen, onClose, onContractCreated }: NewCont
       .replace(/\[SIRET_AGENCE\]/g, adminInfo.siret)
       .replace(/\[EMAIL_AGENCE\]/g, adminInfo.email)
       .replace(/\[TELEPHONE_AGENCE\]/g, adminInfo.telephone)
-      .replace(/\[NOM_CLIENT\]/g, client.name)
-      .replace(/\[EMAIL_CLIENT\]/g, client.email)
-      .replace(/\[TELEPHONE_CLIENT\]/g, client.phone)
-      .replace(/\[ADRESSE_CLIENT\]/g, client.address)
+      .replace(/\[NOM_CLIENT\]/g, party.name)
+      .replace(/\[EMAIL_CLIENT\]/g, party.email)
+      .replace(/\[TELEPHONE_CLIENT\]/g, party.phone)
+      .replace(/\[ADRESSE_CLIENT\]/g, party.address)
       .replace(/\[DATE_MARIAGE\]/g, eventDateObj.toLocaleDateString('fr-FR'))
       .replace(/\[LIEU_MARIAGE\]/g, eventLocation)
       .replace(/\[PRESTATIONS\]/g, prestationsText)
@@ -456,6 +552,7 @@ export function NewContractModal({ isOpen, onClose, onContractCreated }: NewCont
       .replace(/\[NOM_ASSURANCE\]/g, 'AXA Assurances Professionnelles');
 
     setContractContent(generated);
+    return generated;
   };
 
   const generatePdf = async (reference: string): Promise<Blob> => {
@@ -465,56 +562,74 @@ export function NewContractModal({ isOpen, onClose, onContractCreated }: NewCont
 
     const { default: html2canvas } = await import('html2canvas');
 
-    const pdf = new jsPDF({ unit: 'pt', format: 'a4' });
+    const pdf = new jsPDF({ unit: 'pt', format: 'a4', compress: true });
     const pageWidth = pdf.internal.pageSize.getWidth();
     const pageHeight = pdf.internal.pageSize.getHeight();
     const padding = 24;
 
     const node = previewRef.current;
 
-    const canvas = await html2canvas(node, {
-      scale: 2,
-      useCORS: true,
-      backgroundColor: '#ffffff',
-      logging: false,
-      width: node.scrollWidth,
-      height: node.scrollHeight,
-      windowWidth: node.scrollWidth,
-      windowHeight: node.scrollHeight,
-    });
-
-    const imgData = canvas.toDataURL('image/png');
-
+    const scale = 1.25;
+    const quality = 0.75;
+    const totalHeight = node.scrollHeight;
+    const sliceHeight = node.clientHeight || 1123;
     const imgWidth = pageWidth - padding * 2;
-    const imgHeight = (canvas.height * imgWidth) / canvas.width;
 
-    let heightLeft = imgHeight;
-    let position = padding;
+    let y = 0;
+    let isFirstPage = true;
 
-    pdf.addImage(imgData, 'PNG', padding, position, imgWidth, imgHeight);
-    heightLeft -= pageHeight - padding * 2;
+    while (y < totalHeight) {
+      const canvas = await html2canvas(node, {
+        scale,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+        logging: false,
+        width: node.scrollWidth,
+        height: Math.min(sliceHeight, totalHeight - y),
+        windowWidth: node.scrollWidth,
+        windowHeight: sliceHeight,
+        y,
+      } as any);
 
-    while (heightLeft > 0) {
-      pdf.addPage();
-      position = padding - (imgHeight - heightLeft);
-      pdf.addImage(imgData, 'PNG', padding, position, imgWidth, imgHeight);
-      heightLeft -= pageHeight - padding * 2;
+      const imgData = canvas.toDataURL('image/jpeg', quality);
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+      if (!isFirstPage) pdf.addPage();
+      pdf.addImage(imgData, 'JPEG', padding, padding, imgWidth, imgHeight, undefined, 'FAST');
+      isFirstPage = false;
+      y += sliceHeight;
     }
 
     return pdf.output('blob');
   };
 
   const handleSubmit = async () => {
-    if (!user || !selectedClient || !eventDate || !eventLocation) {
+    if (!user || !eventDate || !eventLocation) {
       sonnerToast.error('Veuillez remplir tous les champs obligatoires');
+      return;
+    }
+
+    if (recipientType === 'client' && !selectedClient) {
+      sonnerToast.error('Veuillez sélectionner un client');
+      return;
+    }
+    if (recipientType === 'prospect' && (!selectedProspect || !prospectDraft.name.trim())) {
+      sonnerToast.error('Veuillez sélectionner un prospect et renseigner son nom');
       return;
     }
 
     setLoading(true);
     try {
-      generateContract();
+      const generatedContent = generateContract();
+      if (!generatedContent) {
+        sonnerToast.error('Impossible de générer le contrat');
+        return;
+      }
 
-      const client = clients.find(c => c.id === selectedClient);
+      const client = recipientType === 'client' ? clients.find((c) => c.id === selectedClient) : null;
+      const prospectName = recipientType === 'prospect'
+        ? `${prospectDraft.name || ''}${prospectDraft.partner ? ' & ' + prospectDraft.partner : ''}`.trim()
+        : '';
       const montantTotal = calculerMontantTotal();
       const reference = `CONT-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`;
       
@@ -535,17 +650,41 @@ export function NewContractModal({ isOpen, onClose, onContractCreated }: NewCont
       
       // Upload vers Cloudinary
       sonnerToast.info('Upload du PDF vers le cloud...');
-      const pdfUrl = await uploadPdf(pdfBlob, reference);
+      let pdfUrl = '';
+      try {
+        pdfUrl = await uploadPdf(pdfBlob, reference);
+      } catch (e: any) {
+        console.error('Error uploading PDF:', e);
+        sonnerToast.error(`Erreur upload PDF: ${e?.message || 'upload impossible'}`);
+        return;
+      }
+
+      if (recipientType === 'prospect' && selectedProspect) {
+        try {
+          await updateDocument('prospects', selectedProspect, {
+            name: prospectDraft.name,
+            partner: prospectDraft.partner,
+            email: prospectDraft.email,
+            phone: prospectDraft.phone,
+            address: prospectDraft.address,
+            updatedAt: new Date(),
+          });
+        } catch (e) {
+          console.error('Error updating prospect:', e);
+        }
+      }
 
       const contractData = {
         planner_id: user.uid,
         reference,
-        title: `Contrat de prestation - ${client?.name}`,
-        client_id: selectedClient,
-        client: client?.name || '',
-        client_email: client?.email || '',
-        client_phone: client?.phone || '',
-        client_address: client?.address || '',
+        title: `Contrat de prestation - ${recipientType === 'client' ? (client?.name || '') : prospectName}`,
+        client_id: recipientType === 'client' ? selectedClient : null,
+        prospect_id: recipientType === 'prospect' ? selectedProspect : null,
+        recipient_type: recipientType,
+        client: recipientType === 'client' ? (client?.name || '') : prospectName,
+        client_email: recipientType === 'client' ? (client?.email || '') : (prospectDraft.email || ''),
+        client_phone: recipientType === 'client' ? (client?.phone || '') : (prospectDraft.phone || ''),
+        client_address: recipientType === 'client' ? (client?.address || '') : (prospectDraft.address || ''),
         type: 'service_contract',
         amount: montantTotal,
         status: 'sent',
@@ -555,7 +694,7 @@ export function NewContractModal({ isOpen, onClose, onContractCreated }: NewCont
         event_date: eventDate,
         event_location: eventLocation,
         prestations: prestationsList,
-        contract_content: contractContent,
+        contract_content: generatedContent,
         pdf_url: pdfUrl,
         agency_name: adminInfo.nomRepresentant,
         agency_address: adminInfo.adresseAgence,
@@ -568,28 +707,30 @@ export function NewContractModal({ isOpen, onClose, onContractCreated }: NewCont
       const createdContract = await addDocument('contracts', contractData);
 
       // Publier aussi dans la collection documents pour visibilité côté client
-      try {
-        const evts = await getDocuments('events', [{ field: 'client_id', operator: '==', value: selectedClient }]);
-        const weddingEvt = ((evts as any[]) || []).find((x) => Boolean(x?.event_date)) || (evts as any[])?.[0] || null;
-        await addDocument('documents', {
-          planner_id: user.uid,
-          client_id: selectedClient,
-          event_id: weddingEvt?.id || null,
-          name: `Contrat - ${reference}`,
-          type: 'contrat',
-          file_url: pdfUrl,
-          file_type: 'application/pdf',
-          uploaded_by: 'planner',
-          uploaded_at: new Date().toLocaleDateString('fr-FR'),
-          created_timestamp: new Date(),
-          contract_id: createdContract?.id || null,
-          status: 'sent',
-        });
-      } catch (e) {
-        console.error('Error creating documents entry for contract:', e);
+      if (recipientType === 'client') {
+        try {
+          const evts = await getDocuments('events', [{ field: 'client_id', operator: '==', value: selectedClient }]);
+          const weddingEvt = ((evts as any[]) || []).find((x) => Boolean(x?.event_date)) || (evts as any[])?.[0] || null;
+          await addDocument('documents', {
+            planner_id: user.uid,
+            client_id: selectedClient,
+            event_id: weddingEvt?.id || null,
+            name: `Contrat - ${reference}`,
+            type: 'contrat',
+            file_url: pdfUrl,
+            file_type: 'application/pdf',
+            uploaded_by: 'planner',
+            uploaded_at: new Date().toLocaleDateString('fr-FR'),
+            created_timestamp: new Date(),
+            contract_id: createdContract?.id || null,
+            status: 'sent',
+          });
+        } catch (e) {
+          console.error('Error creating documents entry for contract:', e);
+        }
       }
       
-      sonnerToast.success(`Contrat créé avec PDF pour ${client?.name}`);
+      sonnerToast.success(`Contrat créé avec PDF pour ${recipientType === 'client' ? (client?.name || '') : prospectName}`);
       
       // Fermer le modal d'abord
       onClose();
@@ -608,7 +749,9 @@ export function NewContractModal({ isOpen, onClose, onContractCreated }: NewCont
     }
   };
 
-  const selectedClientData = clients.find(c => c.id === selectedClient);
+  const selectedClientData = recipientType === 'client'
+    ? clients.find((c) => c.id === selectedClient)
+    : undefined;
 
   const montantTotal = calculerMontantTotal();
 
@@ -691,26 +834,109 @@ export function NewContractModal({ isOpen, onClose, onContractCreated }: NewCont
               </div>
             </div>
 
-            {/* Informations Client et Événement */}
+            {/* Informations Client/Prospect et Événement */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-gray-50 rounded-lg">
             <div>
-              <Label htmlFor="client">Client *</Label>
-              <Select value={selectedClient} onValueChange={setSelectedClient}>
+              <Label>Destinataire *</Label>
+              <Select
+                value={recipientType}
+                onValueChange={(v) => {
+                  const next = (v === 'prospect' ? 'prospect' : 'client') as 'client' | 'prospect';
+                  setRecipientType(next);
+                }}
+              >
                 <SelectTrigger>
-                  <SelectValue placeholder="Sélectionner un client..." />
+                  <SelectValue placeholder="Sélectionner..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {clients.map((client) => (
-                    <SelectItem key={client.id} value={client.id}>
-                      {client.name}
-                    </SelectItem>
-                  ))}
+                  <SelectItem value="client">Client</SelectItem>
+                  <SelectItem value="prospect">Prospect</SelectItem>
                 </SelectContent>
               </Select>
-              {selectedClientData && (
-                <p className="text-xs text-brand-gray mt-1">Email: {selectedClientData.email}</p>
-              )}
             </div>
+
+            {recipientType === 'client' ? (
+              <div>
+                <Label htmlFor="client">Client *</Label>
+                <Select value={selectedClient} onValueChange={setSelectedClient}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sélectionner un client..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {clients.map((client) => (
+                      <SelectItem key={client.id} value={client.id}>
+                        {client.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {selectedClientData && (
+                  <p className="text-xs text-brand-gray mt-1">Email: {selectedClientData.email}</p>
+                )}
+              </div>
+            ) : (
+              <div>
+                <Label>Prospect *</Label>
+                <Select value={selectedProspect} onValueChange={setSelectedProspect}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sélectionner un prospect..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {prospects.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {`${p.name || ''}${p.partner ? ' & ' + p.partner : ''}`.trim() || 'Prospect'}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {recipientType === 'prospect' ? (
+              <>
+                <div>
+                  <Label>Nom *</Label>
+                  <Input
+                    value={prospectDraft.name}
+                    onChange={(e) => setProspectDraft({ ...prospectDraft, name: e.target.value })}
+                    className="mt-1"
+                  />
+                </div>
+                <div>
+                  <Label>Nom du/de la partenaire</Label>
+                  <Input
+                    value={prospectDraft.partner}
+                    onChange={(e) => setProspectDraft({ ...prospectDraft, partner: e.target.value })}
+                    className="mt-1"
+                  />
+                </div>
+                <div>
+                  <Label>Email</Label>
+                  <Input
+                    type="email"
+                    value={prospectDraft.email}
+                    onChange={(e) => setProspectDraft({ ...prospectDraft, email: e.target.value })}
+                    className="mt-1"
+                  />
+                </div>
+                <div>
+                  <Label>Téléphone</Label>
+                  <Input
+                    value={prospectDraft.phone}
+                    onChange={(e) => setProspectDraft({ ...prospectDraft, phone: e.target.value })}
+                    className="mt-1"
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <Label>Adresse</Label>
+                  <Input
+                    value={prospectDraft.address}
+                    onChange={(e) => setProspectDraft({ ...prospectDraft, address: e.target.value })}
+                    className="mt-1"
+                  />
+                </div>
+              </>
+            ) : null}
             
             <div>
               <Label htmlFor="eventDate">Date du mariage *</Label>
@@ -828,7 +1054,11 @@ export function NewContractModal({ isOpen, onClose, onContractCreated }: NewCont
                   generateContract();
                   setActiveTab('preview');
                 }}
-                disabled={!selectedClient || !eventDate || !eventLocation}
+                disabled={
+                  recipientType === 'client'
+                    ? !selectedClient || !eventDate || !eventLocation
+                    : !selectedProspect || !eventDate || !eventLocation || !prospectDraft.name.trim()
+                }
               >
                 <Eye className="h-4 w-4" />
                 Voir la prévisualisation
@@ -889,7 +1119,14 @@ export function NewContractModal({ isOpen, onClose, onContractCreated }: NewCont
           <Button
             className="bg-brand-turquoise hover:bg-brand-turquoise-hover"
             onClick={handleSubmit}
-            disabled={!selectedClient || !eventDate || !eventLocation || loading}
+            disabled={
+              loading ||
+              !eventDate ||
+              !eventLocation ||
+              (recipientType === 'client'
+                ? !selectedClient
+                : !selectedProspect || !prospectDraft.name.trim())
+            }
           >
             {loading ? 'Création...' : 'Créer et envoyer au client'}
           </Button>

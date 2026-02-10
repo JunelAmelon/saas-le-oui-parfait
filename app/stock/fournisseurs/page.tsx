@@ -23,6 +23,7 @@ interface Fournisseur {
   city: string;
   rating: number;
   productsCount: number;
+  logoUrl?: string | null;
 }
 
 export default function FournisseursPage() {
@@ -53,6 +54,7 @@ export default function FournisseursPage() {
         city: d.city || '',
         rating: d.rating || 0,
         productsCount: d.products_count || 0,
+        logoUrl: d.logo || d.logo_url || d.logoUrl || d.logoURL || null,
       }));
       setFournisseurs(mapped);
     } catch (e) {
@@ -192,13 +194,20 @@ export default function FournisseursPage() {
             {filteredFournisseurs.map((fournisseur) => (
             <Card key={fournisseur.id} className="p-6 shadow-xl border-0 hover:shadow-2xl transition-shadow">
               <div className="flex items-start justify-between mb-4">
-                <div className="flex-1">
-                  <h3 className="text-lg font-bold text-brand-purple mb-1">
-                    {fournisseur.name}
-                  </h3>
-                  <Badge className="bg-brand-turquoise text-white">
-                    {fournisseur.category}
-                  </Badge>
+                <div className="flex-1 flex items-start gap-3 min-w-0">
+                  <div className="h-12 w-12 rounded-full bg-white border border-gray-200 overflow-hidden flex-shrink-0">
+                    {fournisseur.logoUrl ? (
+                      <img src={fournisseur.logoUrl} alt={fournisseur.name} className="h-full w-full object-cover" />
+                    ) : null}
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="text-lg font-bold text-brand-purple mb-1 truncate">
+                      {fournisseur.name}
+                    </h3>
+                    <Badge className="bg-brand-turquoise text-white">
+                      {fournisseur.category}
+                    </Badge>
+                  </div>
                 </div>
               </div>
 

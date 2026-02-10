@@ -174,6 +174,13 @@ export default function ClientFilesPage() {
     }
   };
 
+  const handleGoToPrestataires = () => {
+    if (selectedClient) {
+      setIsDetailOpen(false);
+      router.push(`/admin/clients/${selectedClient.id}/prestataires`);
+    }
+  };
+
   // Refresh clients after modal save
   const handleClientSaved = async () => {
     if (!user) return;
@@ -590,7 +597,7 @@ export default function ClientFilesPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-6 gap-3">
                 <Button variant="outline" className="gap-2" onClick={handleGoToMessages}>
                   <MessageSquare className="h-4 w-4" />
                   Message
@@ -598,6 +605,10 @@ export default function ClientFilesPage() {
                 <Button variant="outline" className="gap-2" onClick={handleGoToDocuments}>
                   <FileText className="h-4 w-4" />
                   Documents
+                </Button>
+                <Button variant="outline" className="gap-2" onClick={handleGoToPrestataires}>
+                  <Users className="h-4 w-4" />
+                  Prestataires
                 </Button>
                 <Button variant="outline" className="gap-2" onClick={handleGoToPlanning}>
                   <Calendar className="h-4 w-4" />

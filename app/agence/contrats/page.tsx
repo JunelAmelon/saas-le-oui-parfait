@@ -228,7 +228,19 @@ export default function ContractsPage() {
     if (!confirm(`Êtes-vous sûr de vouloir supprimer le contrat ${contract.reference} ?`)) return;
     
     try {
-      const { deleteDocument } = await import('@/lib/db');
+      const { deleteDocument, getDocuments } = await import('@/lib/db');
+
+      try {
+        const linkedDocs = await getDocuments('documents', [
+          { field: 'contract_id', operator: '==', value: contract.id },
+        ]);
+        await Promise.all(
+          (linkedDocs as any[]).map((d) => deleteDocument('documents', d.id))
+        );
+      } catch (e) {
+        console.error('Error deleting linked documents for contract:', e);
+      }
+
       await deleteDocument('contracts', contract.id);
       toast.success('Contrat supprimé');
       fetchContracts();

@@ -27,6 +27,7 @@ interface Fournisseur {
   city: string;
   rating: number;
   productsCount: number;
+  logoUrl?: string | null;
 }
 
 interface FournisseurDetailModalProps {
@@ -67,7 +68,7 @@ export function FournisseurDetailModal({
   return (
     <>
       <Dialog open={isOpen} onOpenChange={onClose}>
-        <DialogContent className="sm:max-w-2xl">
+        <DialogContent className="sm:max-w-2xl w-[95vw] sm:w-full max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-brand-purple flex items-center gap-2">
               <Building2 className="h-5 w-5 text-brand-turquoise" />
@@ -79,14 +80,21 @@ export function FournisseurDetailModal({
           </DialogHeader>
 
           <div className="space-y-6 py-4">
-            <div className="flex items-start justify-between">
-              <div>
-                <h3 className="text-2xl font-bold text-brand-purple mb-2">
-                  {fournisseur.name}
-                </h3>
-                <Badge className="bg-brand-turquoise text-white">
-                  {fournisseur.category}
-                </Badge>
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex items-start gap-3 min-w-0">
+                <div className="h-14 w-14 rounded-full bg-white border border-gray-200 overflow-hidden flex-shrink-0">
+                  {fournisseur.logoUrl ? (
+                    <img src={fournisseur.logoUrl} alt={fournisseur.name} className="h-full w-full object-cover" />
+                  ) : null}
+                </div>
+                <div className="min-w-0">
+                  <h3 className="text-2xl font-bold text-brand-purple mb-2 truncate">
+                    {fournisseur.name}
+                  </h3>
+                  <Badge className="bg-brand-turquoise text-white">
+                    {fournisseur.category}
+                  </Badge>
+                </div>
               </div>
               <div className="flex items-center gap-1">
                 {Array.from({ length: 5 }).map((_, i) => (

@@ -14,6 +14,7 @@ import {
   MoreVertical,
   Check,
   CheckCheck,
+  ArrowLeft,
 } from 'lucide-react';
 
 import { useEffect, useMemo, useState } from 'react';
@@ -57,6 +58,8 @@ export default function MessagesPage() {
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+
+  const [showChatOnMobile, setShowChatOnMobile] = useState(false);
 
   const [plannerPhotoUrl, setPlannerPhotoUrl] = useState<string | null>(null);
   const [uploadingAttachment, setUploadingAttachment] = useState(false);
@@ -154,6 +157,7 @@ export default function MessagesPage() {
         };
         setConversations([mapped]);
         setSelectedConversation(mapped);
+        setShowChatOnMobile(true);
         await fetchMessages(conv.id);
       } catch (e) {
         console.error('Error loading conversations:', e);
@@ -170,6 +174,7 @@ export default function MessagesPage() {
     const match = conversations.find((c) => c.id === conversationIdParam) || null;
     if (match) {
       setSelectedConversation(match);
+      setShowChatOnMobile(true);
       void fetchMessages(match.id);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -246,7 +251,11 @@ export default function MessagesPage() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[calc(100vh-250px)] min-h-[400px]">
-          <Card className="p-4 shadow-xl border-0 overflow-hidden flex flex-col">
+          <Card
+            className={`p-4 shadow-xl border-0 overflow-hidden flex flex-col ${
+              showChatOnMobile ? 'hidden lg:flex' : 'flex'
+            }`}
+          >
             <div className="mb-4">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-brand-gray" />
@@ -262,7 +271,10 @@ export default function MessagesPage() {
               ) : conversations.map((conv) => (
                 <div
                   key={conv.id}
-                  onClick={() => setSelectedConversation(conv)}
+                  onClick={() => {
+                    setSelectedConversation(conv);
+                    setShowChatOnMobile(true);
+                  }}
                   className={`p-3 rounded-lg cursor-pointer transition-colors ${
                     selectedConversation?.id === conv.id
                       ? 'bg-brand-turquoise/10 border-l-4 border-brand-turquoise'
@@ -302,9 +314,23 @@ export default function MessagesPage() {
             </div>
           </Card>
 
-          <Card className="lg:col-span-2 shadow-xl border-0 flex flex-col overflow-hidden">
+          <Card
+            className={`lg:col-span-2 shadow-xl border-0 flex flex-col overflow-hidden ${
+              showChatOnMobile ? 'flex' : 'hidden lg:flex'
+            }`}
+          >
             <div className="p-4 border-b border-gray-100 flex items-center justify-between">
               <div className="flex items-center gap-3">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="lg:hidden"
+                  onClick={() => {
+                    setShowChatOnMobile(false);
+                  }}
+                >
+                  <ArrowLeft className="h-4 w-4 text-brand-gray" />
+                </Button>
                 <Avatar className="h-10 w-10">
                   <AvatarFallback className="bg-brand-turquoise text-white">
                     {selectedConversation?.avatar || '—'}

@@ -16,6 +16,7 @@ import {
   CheckCheck,
   Plus,
   Users,
+  ArrowLeft,
 } from 'lucide-react';
 import { useMemo, useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
@@ -72,6 +73,8 @@ export default function AdminMessagesPage() {
   const [filter, setFilter] = useState<'all' | 'client' | 'vendor' | 'team'>('all');
   const [loadingConvs, setLoadingConvs] = useState(true);
   const [sending, setSending] = useState(false);
+
+  const [showChatOnMobile, setShowChatOnMobile] = useState(false);
 
   const [clients, setClients] = useState<ClientListItem[]>([]);
   const [loadingClients, setLoadingClients] = useState(true);
@@ -287,6 +290,7 @@ export default function AdminMessagesPage() {
       const conv = await ensureConversationForClient(clientId);
       if (conv) {
         setSelectedConversation(conv);
+        setShowChatOnMobile(true);
         await fetchMessages(conv.id);
       }
     })();
@@ -381,7 +385,11 @@ export default function AdminMessagesPage() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[calc(100vh-250px)] min-h-[500px]">
-          <Card className="p-4 shadow-xl border-0 overflow-hidden flex flex-col">
+          <Card
+            className={`p-4 shadow-xl border-0 overflow-hidden flex flex-col ${
+              showChatOnMobile ? 'hidden lg:flex' : 'flex'
+            }`}
+          >
             <div className="space-y-3 mb-4">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-brand-gray" />
@@ -423,7 +431,10 @@ export default function AdminMessagesPage() {
                     onClick={() => {
                       void (async () => {
                         const c = await ensureConversationForClient(item.id);
-                        if (c) setSelectedConversation(c);
+                        if (c) {
+                          setSelectedConversation(c);
+                          setShowChatOnMobile(true);
+                        }
                       })();
                     }}
                     className={`p-3 rounded-lg cursor-pointer transition-colors ${
@@ -459,9 +470,23 @@ export default function AdminMessagesPage() {
             </div>
           </Card>
 
-          <Card className="lg:col-span-2 shadow-xl border-0 flex flex-col overflow-hidden">
+          <Card
+            className={`lg:col-span-2 shadow-xl border-0 flex flex-col overflow-hidden ${
+              showChatOnMobile ? 'flex' : 'hidden lg:flex'
+            }`}
+          >
             <div className="p-4 border-b border-gray-100 flex items-center justify-between">
               <div className="flex items-center gap-3">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="lg:hidden"
+                  onClick={() => {
+                    setShowChatOnMobile(false);
+                  }}
+                >
+                  <ArrowLeft className="h-4 w-4 text-brand-gray" />
+                </Button>
                 <Avatar className="h-10 w-10">
                   {selectedConversation?.photoUrl ? (
                     <AvatarImage src={selectedConversation.photoUrl} alt={selectedConversation.name} />
