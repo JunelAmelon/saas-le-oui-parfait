@@ -29,9 +29,9 @@ export default function StatistiquesPage() {
     if (!user) return;
     setLoading(true);
     try {
-      // Fetch contracts and devis for CA
-      const contracts = await getDocuments('contracts', [
-        { field: 'owner_id', operator: '==', value: user.uid }
+      // Fetch invoices and devis for CA/conversion
+      const invoices = await getDocuments('invoices', [
+        { field: 'planner_id', operator: '==', value: user.uid }
       ]);
       const devis = await getDocuments('devis', [
         { field: 'owner_id', operator: '==', value: user.uid }
@@ -44,12 +44,14 @@ export default function StatistiquesPage() {
       
       for (let i = 5; i >= 0; i--) {
         const monthIndex = (currentMonth - i + 12) % 12;
-        const monthCA = contracts
-          .filter((c: any) => {
-            const date = new Date(c.created_timestamp?.toDate?.() || c.created_timestamp);
+        const monthCA = (invoices as any[])
+          .filter((inv: any) => {
+            const raw = inv.created_at?.toDate?.() || inv.created_at || inv.created_timestamp?.toDate?.() || inv.created_timestamp || null;
+            if (!raw) return false;
+            const date = new Date(raw);
             return date.getMonth() === monthIndex;
           })
-          .reduce((sum: number, c: any) => sum + (c.amount || 0), 0);
+          .reduce((sum: number, inv: any) => sum + Number(inv.paid || 0), 0);
         
         last6Months.push({
           month: months[monthIndex],
@@ -72,7 +74,7 @@ export default function StatistiquesPage() {
         total: clients.length,
         nouveaux: currentMonthClients.length,
         actifs: clients.filter((c: any) => c.status === 'active').length,
-        tauxConversion: clients.length > 0 ? Math.round((devis.filter((d: any) => d.status === 'accepted').length / clients.length) * 100) : 0
+        tauxConversion: devis.length > 0 ? Math.round((devis.filter((d: any) => d.status === 'accepted').length / devis.length) * 100) : 0
       });
 
       // Fetch events
@@ -91,12 +93,15 @@ export default function StatistiquesPage() {
       const vendors = await getDocuments('vendors', [
         { field: 'owner_id', operator: '==', value: user.uid }
       ]);
-      
-      const vendorStats = vendors.map((v: any) => ({
-        name: v.name,
-        events: Math.floor(Math.random() * 20),
-        ca: Math.floor(Math.random() * 150000)
-      })).sort((a: any, b: any) => b.ca - a.ca).slice(0, 4);
+
+      const vendorStats = (vendors as any[])
+        .map((v: any) => ({
+          name: v.name || 'Prestataire',
+          events: Number(v.events_count || v.events || 0),
+          ca: Number(v.ca_generated || v.ca || 0),
+        }))
+        .sort((a: any, b: any) => b.ca - a.ca)
+        .slice(0, 4);
       
       setTopPrestataires(vendorStats);
 

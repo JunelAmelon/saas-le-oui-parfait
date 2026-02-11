@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+
 import {
   Dialog,
   DialogContent,
@@ -15,7 +16,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { Search, Plus, Heart, MapPin, Calendar, Euro, Phone, Mail, FileText, Image as ImageIcon, X, Users, CheckCircle, Clock, Edit, MessageSquare, Eye, MoreVertical, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, Plus, Heart, MapPin, Calendar, Euro, Phone, Mail, FileText, Image as ImageIcon, X, Users, CheckCircle, Clock, Edit, MessageSquare, Eye, MoreVertical, ChevronLeft, ChevronRight, Trash2 } from 'lucide-react';
 
 import {
   DropdownMenu,
@@ -178,6 +179,64 @@ export default function ClientFilesPage() {
     if (selectedClient) {
       setIsDetailOpen(false);
       router.push(`/admin/clients/${selectedClient.id}/prestataires`);
+    }
+  };
+
+  const handleDeleteClient = async (client: Client) => {
+    if (!user) return;
+    if (!confirm(`Êtes-vous sûr de vouloir supprimer définitivement la fiche client ${client.names} ?`)) return;
+
+    try {
+      const { deleteDocument, getDocuments } = await import('@/lib/db');
+
+      const clientId = client.id;
+
+      // Supprimer les données liées (best effort: on continue même si une sous-suppression échoue)
+      const deleteByClientId = async (collectionName: string) => {
+        try {
+          const items = await getDocuments(collectionName, [
+            { field: 'client_id', operator: '==', value: clientId },
+          ]);
+          await Promise.all((items as any[]).map((it) => deleteDocument(collectionName, it.id)));
+        } catch (e) {
+          console.error(`Error deleting related ${collectionName} for client:`, e);
+        }
+      };
+
+      // Collections les plus importantes à nettoyer
+      await Promise.all([
+        deleteByClientId('documents'),
+        deleteByClientId('events'),
+        deleteByClientId('devis'),
+        deleteByClientId('invoices'),
+        deleteByClientId('gallery'),
+        deleteByClientId('checklists'),
+        deleteByClientId('conversations'),
+      ]);
+
+      // Contracts sont liés par client_id (et parfois par documents.contract_id déjà géré ailleurs)
+      try {
+        const contracts = await getDocuments('contracts', [
+          { field: 'client_id', operator: '==', value: clientId },
+        ]);
+        await Promise.all((contracts as any[]).map((c) => deleteDocument('contracts', c.id)));
+      } catch (e) {
+        console.error('Error deleting contracts for client:', e);
+      }
+
+      await deleteDocument('clients', clientId);
+
+      setClients((prev) => prev.filter((c) => c.id !== clientId));
+      if (selectedClient?.id === clientId) {
+        setSelectedClient(null);
+        setIsDetailOpen(false);
+        setIsEditOpen(false);
+      }
+
+      toast.success('Fiche client supprimée');
+    } catch (e) {
+      console.error('Error deleting client:', e);
+      toast.error('Erreur lors de la suppression de la fiche client');
     }
   };
 
@@ -403,6 +462,13 @@ export default function ClientFilesPage() {
                             <DropdownMenuItem onClick={() => router.push('/messages')}>
                               <MessageSquare className="h-4 w-4 mr-2" />
                               Message
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => void handleDeleteClient(client)}
+                              className="text-red-600 focus:text-red-600"
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Supprimer
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>

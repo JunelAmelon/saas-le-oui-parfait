@@ -8,9 +8,6 @@ import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { CheckCircle2 } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
-import { useAuth } from '@/contexts/AuthContext';
-import { addDocument, updateDocument } from '@/lib/db';
 import { toast as sonnerToast } from 'sonner';
 
 interface Todo {
@@ -32,8 +29,6 @@ interface TodoModalProps {
 }
 
 export function TodoModal({ open, onOpenChange, todo, mode, onSave }: TodoModalProps) {
-  const { toast } = useToast();
-  const { user } = useAuth();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [status, setStatus] = useState<'todo' | 'in_progress' | 'done'>('todo');
@@ -66,40 +61,16 @@ export function TodoModal({ open, onOpenChange, todo, mode, onSave }: TodoModalP
       return;
     }
 
-    if (!user) {
-      sonnerToast.error('Vous devez être connecté');
-      return;
-    }
-
     setLoading(true);
     try {
-      const taskData = {
+      await onSave({
         title,
         description,
         status,
         priority,
-        due_date: dueDate,
+        dueDate,
         event,
-        planner_id: user.uid,
-      };
-
-      if (mode === 'create') {
-        await addDocument('tasks', {
-          ...taskData,
-          created_at: new Date(),
-        });
-        sonnerToast.success('Tâche créée avec succès');
-      } else if (todo) {
-        await updateDocument('tasks', todo.id, {
-          ...taskData,
-          updated_at: new Date(),
-        });
-        sonnerToast.success('Tâche mise à jour avec succès');
-      }
-
-      if (onSave) {
-        await onSave(taskData);
-      }
+      });
       
       onOpenChange(false);
     } catch (error) {

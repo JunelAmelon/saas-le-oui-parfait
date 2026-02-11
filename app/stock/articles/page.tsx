@@ -22,6 +22,7 @@ interface Article {
   price: number;
   location: string;
   status: string;
+  fournisseur_id?: string | null;
 }
 
 const statusConfig = {
@@ -75,6 +76,7 @@ export default function ArticlesPage() {
           price: d.price || 0,
           location: d.location || '',
           status: status,
+          fournisseur_id: d.fournisseur_id ?? null,
         };
       });
       setArticles(mapped);

@@ -92,6 +92,7 @@ const menuItems: MenuItem[] = [
       { label: 'Articles', href: '/stock/articles' },
       { label: 'Inventaire', href: '/stock/inventaire' },
       { label: 'Fournisseurs', href: '/stock/fournisseurs' },
+      { label: 'Entrepôts', href: '/stock/entrepots' },
     ],
   },
   {

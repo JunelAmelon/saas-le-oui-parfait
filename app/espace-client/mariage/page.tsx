@@ -13,7 +13,6 @@ import { calculateDaysRemaining } from '@/lib/client-helpers';
 import { updateDocument } from '@/lib/db';
 import { useToast } from '@/hooks/use-toast';
 import {
-  Heart,
   Calendar,
   MapPin,
   Users,
@@ -125,7 +124,6 @@ export default function MariagePage() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold text-brand-purple flex items-center gap-2 sm:gap-3">
-              <Heart className="h-6 w-6 sm:h-8 sm:w-8 text-red-500 fill-red-500" />
               Mon Mariage
             </h1>
             <p className="text-sm sm:text-base text-brand-gray mt-1">
@@ -161,7 +159,6 @@ export default function MariagePage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <Card className="p-6 shadow-xl border-0 lg:col-span-2">
             <h2 className="text-xl font-bold text-brand-purple mb-6 flex items-center gap-2">
-              <Heart className="h-5 w-5 text-brand-turquoise" />
               Les Mariés
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

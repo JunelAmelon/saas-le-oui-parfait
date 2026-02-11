@@ -11,6 +11,7 @@ import { getDocuments, addDocument, updateDocument, deleteDocument } from '@/lib
 import { toast } from 'sonner';
 import { NewInventaireModal } from '@/components/modals/NewInventaireModal';
 import { InventaireDetailModal } from '@/components/modals/InventaireDetailModal';
+import { EditInventaireModal } from '@/components/modals/EditInventaireModal';
 
 interface Inventaire {
   id: string;
@@ -47,6 +48,7 @@ export default function InventairePage() {
   const [loading, setLoading] = useState(true);
   const [isNewInventaireOpen, setIsNewInventaireOpen] = useState(false);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
+  const [isEditOpen, setIsEditOpen] = useState(false);
   const [selectedInventaire, setSelectedInventaire] = useState<Inventaire | null>(null);
 
   // Fetch inventaires
@@ -83,6 +85,11 @@ export default function InventairePage() {
   const handleViewDetail = (inventaire: Inventaire) => {
     setSelectedInventaire(inventaire);
     setIsDetailOpen(true);
+  };
+
+  const handleEdit = (inventaire: Inventaire) => {
+    setSelectedInventaire(inventaire);
+    setIsEditOpen(true);
   };
 
   return (
@@ -195,6 +202,14 @@ export default function InventairePage() {
                   >
                     Voir les détails
                   </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-2 border-brand-turquoise text-brand-gray hover:bg-brand-turquoise hover:text-white"
+                    onClick={() => handleEdit(inventaire)}
+                  >
+                    Modifier
+                  </Button>
                   {inventaire.status === 'in_progress' && (
                     <Button size="sm" variant="outline" className="border-2 border-green-500 text-green-600 hover:bg-green-500 hover:text-white">
                       Terminer l'inventaire
@@ -217,6 +232,13 @@ export default function InventairePage() {
       <InventaireDetailModal
         isOpen={isDetailOpen}
         onClose={() => setIsDetailOpen(false)}
+        inventaire={selectedInventaire}
+        onInventaireUpdated={fetchInventaires}
+      />
+
+      <EditInventaireModal
+        isOpen={isEditOpen}
+        onClose={() => setIsEditOpen(false)}
         inventaire={selectedInventaire}
         onInventaireUpdated={fetchInventaires}
       />

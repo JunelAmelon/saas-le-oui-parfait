@@ -11,6 +11,7 @@ import { Plus, Trash2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { getDocuments, addDocument } from '@/lib/db';
 import { toast as sonnerToast } from 'sonner';
+import { uploadFile } from '@/lib/storage';
 
 interface InvoiceItem {
   id: string;
@@ -35,6 +36,7 @@ export function NewInvoiceModal({ isOpen, onClose }: NewInvoiceModalProps) {
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedClient, setSelectedClient] = useState('');
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [items, setItems] = useState<InvoiceItem[]>([
     { id: '1', description: '', quantity: 1, unitPrice: 0 }
   ]);
@@ -102,6 +104,12 @@ export function NewInvoiceModal({ isOpen, onClose }: NewInvoiceModalProps) {
     try {
       const { totalHT, totalTTC } = calculateTotal();
       const client = clients.find(c => c.id === selectedClient);
+
+      let pdfUrl = '';
+      if (pdfFile) {
+        sonnerToast.info('Upload du PDF...');
+        pdfUrl = await uploadFile(pdfFile, 'invoices');
+      }
       
       const invoiceData = {
         planner_id: user.uid,
@@ -116,6 +124,7 @@ export function NewInvoiceModal({ isOpen, onClose }: NewInvoiceModalProps) {
         paid: 0,
         status: 'pending',
         type: invoiceType,
+        pdf_url: pdfUrl,
         items: items.map(item => ({
           description: item.description,
           quantity: item.quantity,
@@ -126,12 +135,37 @@ export function NewInvoiceModal({ isOpen, onClose }: NewInvoiceModalProps) {
         created_at: new Date(),
       };
 
-      await addDocument('invoices', invoiceData);
+      const created = await addDocument('invoices', invoiceData);
+
+      // Rendre la facture visible côté client (page Documents)
+      if (pdfUrl) {
+        try {
+          const evts = await getDocuments('events', [{ field: 'client_id', operator: '==', value: selectedClient }]);
+          const weddingEvt = ((evts as any[]) || []).find((x) => Boolean(x?.event_date)) || (evts as any[])?.[0] || null;
+          await addDocument('documents', {
+            planner_id: user.uid,
+            client_id: selectedClient,
+            event_id: weddingEvt?.id || null,
+            name: `Facture - ${invoiceData.reference}`,
+            type: 'facture',
+            file_url: pdfUrl,
+            file_type: 'application/pdf',
+            uploaded_by: 'planner',
+            uploaded_at: new Date().toLocaleDateString('fr-FR'),
+            created_timestamp: new Date(),
+            invoice_id: created?.id || null,
+            status: invoiceData.status,
+          });
+        } catch (e) {
+          console.error('Error creating documents entry for invoice:', e);
+        }
+      }
       
       sonnerToast.success(`Facture de ${totalTTC.toLocaleString()}€ TTC créée pour ${client?.name}`);
       
       // Reset form
       setSelectedClient('');
+      setPdfFile(null);
       setItems([{ id: '1', description: '', quantity: 1, unitPrice: 0 }]);
       setDueDate('');
       setNotes('');
@@ -199,6 +233,15 @@ export function NewInvoiceModal({ isOpen, onClose }: NewInvoiceModalProps) {
                 onChange={(e) => setDueDate(e.target.value)}
               />
             </div>
+          </div>
+
+          <div>
+            <Label>Importer le PDF (optionnel)</Label>
+            <Input
+              type="file"
+              accept="application/pdf"
+              onChange={(e) => setPdfFile(e.target.files?.[0] || null)}
+            />
           </div>
 
           <div>

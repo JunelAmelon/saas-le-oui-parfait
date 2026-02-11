@@ -8,7 +8,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Package } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { updateDocument } from '@/lib/db';
+import { useAuth } from '@/contexts/AuthContext';
+import { getDocuments, updateDocument } from '@/lib/db';
 import { toast as sonnerToast } from 'sonner';
 
 interface Article {
@@ -38,16 +39,6 @@ const categories = [
   'Autre',
 ];
 
-const locations = [
-  'Entrepôt A - Allée 1',
-  'Entrepôt A - Allée 2',
-  'Entrepôt A - Allée 3',
-  'Entrepôt A - Zone déco',
-  'Entrepôt B - Rayon 1',
-  'Entrepôt B - Rayon 2',
-  'Entrepôt C',
-];
-
 const statusOptions = [
   { value: 'available', label: 'Disponible' },
   { value: 'low_stock', label: 'Stock faible' },
@@ -57,6 +48,9 @@ const statusOptions = [
 
 export function EditArticleModal({ isOpen, onClose, article, onArticleUpdated }: EditArticleModalProps) {
   const { toast } = useToast();
+  const { user } = useAuth();
+  const [warehouses, setWarehouses] = useState<Array<{ id: string; name: string }>>([]);
+  const [suppliers, setSuppliers] = useState<Array<{ id: string; name: string }>>([]);
   const [name, setName] = useState('');
   const [category, setCategory] = useState('');
   const [quantity, setQuantity] = useState('');
@@ -64,6 +58,7 @@ export function EditArticleModal({ isOpen, onClose, article, onArticleUpdated }:
   const [price, setPrice] = useState('');
   const [location, setLocation] = useState('');
   const [status, setStatus] = useState('');
+  const [supplierId, setSupplierId] = useState('');
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -75,8 +70,46 @@ export function EditArticleModal({ isOpen, onClose, article, onArticleUpdated }:
       setPrice(article.price.toString());
       setLocation(article.location);
       setStatus(article.status);
+      setSupplierId((article as any)?.fournisseur_id || '');
     }
   }, [article]);
+
+  useEffect(() => {
+    const fetchWarehouses = async () => {
+      if (!user || !article || !isOpen) return;
+      try {
+        const data = await getDocuments('warehouses', [
+          { field: 'owner_id', operator: '==', value: user.uid },
+        ]);
+        const mapped = (data as any[])
+          .map((w) => ({ id: w.id, name: w.name || '' }))
+          .filter((w) => Boolean(w.name));
+        setWarehouses(mapped);
+      } catch (e) {
+        console.error('Error fetching warehouses:', e);
+        setWarehouses([]);
+      }
+    };
+
+    const fetchSuppliers = async () => {
+      if (!user || !article || !isOpen) return;
+      try {
+        const data = await getDocuments('fournisseurs', [
+          { field: 'owner_id', operator: '==', value: user.uid },
+        ]);
+        const mapped = (data as any[])
+          .map((f) => ({ id: f.id, name: f.name || '' }))
+          .filter((f) => Boolean(f.name));
+        setSuppliers(mapped);
+      } catch (e) {
+        console.error('Error fetching suppliers:', e);
+        setSuppliers([]);
+      }
+    };
+
+    fetchWarehouses();
+    fetchSuppliers();
+  }, [user, article, isOpen]);
 
   const handleSubmit = async () => {
     if (!name || !category || !quantity || !minQuantity || !price || !location || !article) {
@@ -93,6 +126,7 @@ export function EditArticleModal({ isOpen, onClose, article, onArticleUpdated }:
         min_quantity: parseInt(minQuantity),
         price: parseFloat(price),
         location,
+        fournisseur_id: supplierId || null,
         updated_at: new Date(),
       });
 
@@ -192,9 +226,25 @@ export function EditArticleModal({ isOpen, onClose, article, onArticleUpdated }:
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {locations.map((loc) => (
-                  <SelectItem key={loc} value={loc}>
-                    {loc}
+                {warehouses.map((w) => (
+                  <SelectItem key={w.id} value={w.name}>
+                    {w.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div>
+            <Label>Fournisseur (optionnel)</Label>
+            <Select value={supplierId} onValueChange={setSupplierId}>
+              <SelectTrigger className="mt-1">
+                <SelectValue placeholder="Sélectionner un fournisseur" />
+              </SelectTrigger>
+              <SelectContent>
+                {suppliers.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>
+                    {s.name}
                   </SelectItem>
                 ))}
               </SelectContent>

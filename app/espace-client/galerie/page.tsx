@@ -25,7 +25,7 @@ import {
   Image as ImageIcon,
   Upload,
   Download,
-  Heart,
+  Star,
   FolderOpen,
   Grid,
   List,
@@ -460,11 +460,11 @@ export default function GaleriePage() {
                       void toggleLike(photo.id);
                     }}
                   >
-                    <Heart
+                    <Star
                       className={`h-5 w-5 ${
                         likedPhotos.includes(photo.id)
                           ? 'text-red-500 fill-red-500'
-                          : 'text-white'
+                          : 'text-gray-400'
                       }`}
                     />
                   </button>
@@ -499,11 +499,11 @@ export default function GaleriePage() {
                       size="icon"
                       onClick={() => void toggleLike(photo.id)}
                     >
-                      <Heart
+                      <Star
                         className={`h-5 w-5 ${
                           likedPhotos.includes(photo.id)
                             ? 'text-red-500 fill-red-500'
-                            : 'text-brand-gray'
+                            : 'text-gray-400'
                         }`}
                       />
                     </Button>

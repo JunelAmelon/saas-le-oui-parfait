@@ -8,10 +8,19 @@ import { Button } from '@/components/ui/button';
 import { FileText, Loader2, Eye, Download, CheckCircle, XCircle } from 'lucide-react';
 import { addDocument, updateDocument } from '@/lib/db';
 import { DevisData, getClientDevis } from '@/lib/client-helpers';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 
 interface ClientDevisProps {
   clientId: string;
   clientEmail?: string;
+  variant?: 'list' | 'table';
 }
 
 const statusBadge: Record<string, string> = {
@@ -21,7 +30,7 @@ const statusBadge: Record<string, string> = {
   rejected: 'bg-red-100 text-red-700',
 };
 
-export function ClientDevis({ clientId, clientEmail }: ClientDevisProps) {
+export function ClientDevis({ clientId, clientEmail, variant = 'list' }: ClientDevisProps) {
   const router = useRouter();
   const [devis, setDevis] = useState<DevisData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -139,73 +148,185 @@ export function ClientDevis({ clientId, clientEmail }: ClientDevisProps) {
       ) : visibleDevis.length === 0 ? (
         <div className="text-gray-500 italic text-center p-4">Aucun devis reçu pour le moment.</div>
       ) : (
-        <div className="space-y-3">
-          {visibleDevis.slice(0, 5).map((d) => {
-            const badgeClass = statusBadge[d.status] || 'bg-gray-100 text-gray-700';
-            const isBusy = savingId === d.id;
+        variant === 'table' ? (
+          <div className="rounded-lg border border-gray-200 overflow-x-auto">
+            <Table className="min-w-[720px]">
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Référence</TableHead>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Statut</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {visibleDevis.slice(0, 5).map((d) => {
+                  const badgeClass = statusBadge[d.status] || 'bg-gray-100 text-gray-700';
+                  const isBusy = savingId === d.id;
 
-            return (
-              <div key={d.id} className="p-4 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="min-w-0">
-                    <p className="font-medium text-brand-purple truncate">{d.reference}</p>
-                    <p className="text-xs text-brand-gray">{d.date || ''}</p>
+                  return (
+                    <TableRow key={d.id}>
+                      <TableCell className="font-medium text-brand-purple">{d.reference}</TableCell>
+                      <TableCell className="text-brand-gray">{String(d.date || '').trim() || '-'}</TableCell>
+                      <TableCell>
+                        <Badge className={badgeClass}>{d.status}</Badge>
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap w-[1%]">
+                        <div className="flex items-center justify-end gap-1 whitespace-nowrap flex-nowrap">
+                          {d.pdf_url ? (
+                            <>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="text-brand-turquoise hover:text-brand-turquoise-hover h-8 w-8"
+                                onClick={() => openPdf(d)}
+                                title="Visualiser"
+                              >
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="text-brand-turquoise hover:text-brand-turquoise-hover h-8 w-8"
+                                onClick={() => downloadPdf(d)}
+                                title="Télécharger"
+                              >
+                                <Download className="h-4 w-4" />
+                              </Button>
+                            </>
+                          ) : null}
+
+                          {d.status === 'sent' ? (
+                            <>
+                              <Button
+                                size="icon"
+                                className="sm:hidden bg-green-600 hover:bg-green-700 h-8 w-8"
+                                onClick={() => void acceptDevis(d)}
+                                disabled={isBusy}
+                                title="Valider"
+                              >
+                                <CheckCircle className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                className="hidden sm:inline-flex bg-green-600 hover:bg-green-700 gap-2"
+                                onClick={() => void acceptDevis(d)}
+                                disabled={isBusy}
+                              >
+                                <CheckCircle className="h-4 w-4" />
+                                Valider
+                              </Button>
+
+                              <Button
+                                size="icon"
+                                variant="outline"
+                                className="sm:hidden border-red-500 text-red-600 hover:bg-red-500 hover:text-white h-8 w-8"
+                                onClick={() => void rejectDevis(d)}
+                                disabled={isBusy}
+                                title="Refuser"
+                              >
+                                <XCircle className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="hidden sm:inline-flex border-red-500 text-red-600 hover:bg-red-500 hover:text-white gap-2"
+                                onClick={() => void rejectDevis(d)}
+                                disabled={isBusy}
+                              >
+                                <XCircle className="h-4 w-4" />
+                                Refuser
+                              </Button>
+                            </>
+                          ) : null}
+
+                          {d.status === 'accepted' ? (
+                            <Button
+                              size="sm"
+                              className="bg-brand-turquoise hover:bg-brand-turquoise-hover"
+                              onClick={() => router.push('/espace-client/paiements')}
+                            >
+                              <span className="sm:hidden">€</span>
+                              <span className="hidden sm:inline">Paiement</span>
+                            </Button>
+                          ) : null}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {visibleDevis.slice(0, 5).map((d) => {
+              const badgeClass = statusBadge[d.status] || 'bg-gray-100 text-gray-700';
+              const isBusy = savingId === d.id;
+
+              return (
+                <div key={d.id} className="p-4 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0">
+                      <p className="font-medium text-brand-purple truncate">{d.reference}</p>
+                      <p className="text-xs text-brand-gray">{d.date || ''}</p>
+                    </div>
+                    <Badge className={badgeClass}>{d.status}</Badge>
                   </div>
-                  <Badge className={badgeClass}>{d.status}</Badge>
-                </div>
 
-                <div className="mt-3 flex flex-wrap items-center gap-2">
-                  {d.pdf_url ? (
-                    <>
-                      <Button size="sm" variant="outline" className="gap-2" onClick={() => openPdf(d)}>
-                        <Eye className="h-4 w-4" />
-                        Visualiser
-                      </Button>
-                      <Button size="sm" variant="outline" className="gap-2" onClick={() => downloadPdf(d)}>
-                        <Download className="h-4 w-4" />
-                        Télécharger
-                      </Button>
-                    </>
-                  ) : null}
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    {d.pdf_url ? (
+                      <>
+                        <Button size="sm" variant="outline" className="gap-2" onClick={() => openPdf(d)}>
+                          <Eye className="h-4 w-4" />
+                          Visualiser
+                        </Button>
+                        <Button size="sm" variant="outline" className="gap-2" onClick={() => downloadPdf(d)}>
+                          <Download className="h-4 w-4" />
+                          Télécharger
+                        </Button>
+                      </>
+                    ) : null}
 
-                  {d.status === 'sent' ? (
-                    <>
+                    {d.status === 'sent' ? (
+                      <>
+                        <Button
+                          size="sm"
+                          className="bg-green-600 hover:bg-green-700 gap-2"
+                          onClick={() => void acceptDevis(d)}
+                          disabled={isBusy}
+                        >
+                          <CheckCircle className="h-4 w-4" />
+                          Valider
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="border-red-500 text-red-600 hover:bg-red-500 hover:text-white gap-2"
+                          onClick={() => void rejectDevis(d)}
+                          disabled={isBusy}
+                        >
+                          <XCircle className="h-4 w-4" />
+                          Refuser
+                        </Button>
+                      </>
+                    ) : null}
+
+                    {d.status === 'accepted' ? (
                       <Button
                         size="sm"
-                        className="bg-green-600 hover:bg-green-700 gap-2"
-                        onClick={() => void acceptDevis(d)}
-                        disabled={isBusy}
+                        className="bg-brand-turquoise hover:bg-brand-turquoise-hover ml-auto"
+                        onClick={() => router.push('/espace-client/paiements')}
                       >
-                        <CheckCircle className="h-4 w-4" />
-                        Valider
+                        Passer au paiement
                       </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="border-red-500 text-red-600 hover:bg-red-500 hover:text-white gap-2"
-                        onClick={() => void rejectDevis(d)}
-                        disabled={isBusy}
-                      >
-                        <XCircle className="h-4 w-4" />
-                        Refuser
-                      </Button>
-                    </>
-                  ) : null}
-
-                  {d.status === 'accepted' ? (
-                    <Button
-                      size="sm"
-                      className="bg-brand-turquoise hover:bg-brand-turquoise-hover ml-auto"
-                      onClick={() => router.push('/espace-client/paiements')}
-                    >
-                      Passer au paiement
-                    </Button>
-                  ) : null}
+                    ) : null}
+                  </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        )
       )}
     </Card>
   );

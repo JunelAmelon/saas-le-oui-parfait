@@ -4,6 +4,10 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Package, Calendar, User, AlertTriangle, CheckCircle, Clock } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
+import { getDocuments, updateDocument } from '@/lib/db';
+import { toast } from 'sonner';
 
 interface Inventaire {
   id: string;
@@ -41,19 +45,74 @@ const statusConfig = {
   },
 };
 
-// Données de démonstration pour les articles inventoriés
-const inventoryItems = [
-  { name: 'Chaises Napoleon III', expected: 150, counted: 148, difference: -2 },
-  { name: 'Nappes blanches 3x3m', expected: 45, counted: 45, difference: 0 },
-  { name: 'Arche florale blanche', expected: 8, counted: 9, difference: 1 },
-  { name: 'Tables rondes 8 personnes', expected: 35, counted: 35, difference: 0 },
-];
-
-export function InventaireDetailModal({ isOpen, onClose, inventaire }: InventaireDetailModalProps) {
+export function InventaireDetailModal({ isOpen, onClose, inventaire, onInventaireUpdated }: InventaireDetailModalProps) {
   if (!inventaire) return null;
+
+  const { user } = useAuth();
+  const [items, setItems] = useState<Array<{ id: string; name: string; expected: number; counted: number; difference: number }>>([]);
+  const [loading, setLoading] = useState(false);
+  const [finishing, setFinishing] = useState(false);
 
   const config = statusConfig[inventaire.status as keyof typeof statusConfig];
   const StatusIcon = config.icon;
+
+  useEffect(() => {
+    const fetchItems = async () => {
+      if (!isOpen || !user) return;
+      setLoading(true);
+      try {
+        const filters: any[] = [{ field: 'owner_id', operator: '==', value: user.uid }];
+        // Si l'inventaire est sur un entrepôt précis, on filtre par location.
+        if (inventaire.location) {
+          filters.push({ field: 'location', operator: '==', value: inventaire.location });
+        }
+        const articles = await getDocuments('articles', filters);
+        const mapped = (articles as any[]).map((a) => {
+          const expected = Number(a.quantity ?? 0);
+          const counted = expected;
+          const difference = counted - expected;
+          return {
+            id: a.id,
+            name: a.name || 'Article',
+            expected,
+            counted,
+            difference,
+          };
+        });
+        setItems(mapped);
+      } catch (e) {
+        console.error('Error fetching inventaire items:', e);
+        setItems([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchItems();
+  }, [isOpen, user, inventaire.location]);
+
+  const discrepancies = useMemo(() => items.reduce((acc, it) => acc + (it.difference !== 0 ? 1 : 0), 0), [items]);
+
+  const handleFinish = async () => {
+    if (!user) return;
+    setFinishing(true);
+    try {
+      await updateDocument('inventaires', inventaire.id, {
+        status: 'completed',
+        items_count: items.length,
+        discrepancies,
+        completed_at: new Date(),
+      });
+      toast.success("Inventaire terminé");
+      onInventaireUpdated?.();
+      onClose();
+    } catch (e) {
+      console.error('Error finishing inventaire:', e);
+      toast.error("Erreur lors de la finalisation");
+    } finally {
+      setFinishing(false);
+    }
+  };
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -115,7 +174,7 @@ export function InventaireDetailModal({ isOpen, onClose, inventaire }: Inventair
 
           <div>
             <h3 className="text-lg font-bold text-brand-purple mb-4">
-              Articles comptés ({inventaire.itemsCount})
+              Articles comptés ({loading ? '...' : items.length})
             </h3>
 
             <div className="border border-gray-200 rounded-lg overflow-hidden">
@@ -137,8 +196,8 @@ export function InventaireDetailModal({ isOpen, onClose, inventaire }: Inventair
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
-                  {inventoryItems.map((item, index) => (
-                    <tr key={index} className="hover:bg-gray-50">
+                  {(loading ? [] : items).map((item) => (
+                    <tr key={item.id} className="hover:bg-gray-50">
                       <td className="px-4 py-3 text-sm font-medium text-brand-purple">
                         {item.name}
                       </td>
@@ -188,8 +247,8 @@ export function InventaireDetailModal({ isOpen, onClose, inventaire }: Inventair
             Fermer
           </Button>
           {inventaire.status === 'in_progress' && (
-            <Button className="bg-green-600 hover:bg-green-700 text-white">
-              Terminer l'inventaire
+            <Button className="bg-green-600 hover:bg-green-700 text-white" onClick={() => void handleFinish()} disabled={finishing}>
+              {finishing ? 'Finalisation...' : "Terminer l'inventaire"}
             </Button>
           )}
           {inventaire.status === 'completed' && inventaire.discrepancies > 0 && (

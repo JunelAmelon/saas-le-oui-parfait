@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Package, Calendar, AlertCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { addDocument } from '@/lib/db';
+import { addDocument, getDocuments } from '@/lib/db';
 import { toast as sonnerToast } from 'sonner';
 
 interface NewInventaireModalProps {
@@ -19,21 +19,35 @@ interface NewInventaireModalProps {
   onInventaireCreated?: () => void;
 }
 
-const locations = [
-  'Entrepôt A',
-  'Entrepôt B',
-  'Entrepôt C',
-  'Tous les entrepôts',
-];
-
 export function NewInventaireModal({ isOpen, onClose, onInventaireCreated }: NewInventaireModalProps) {
   const { toast } = useToast();
   const { user } = useAuth();
+  const [warehouses, setWarehouses] = useState<Array<{ id: string; name: string }>>([]);
   const [location, setLocation] = useState('');
   const [date, setDate] = useState('');
   const [responsiblePerson, setResponsiblePerson] = useState('');
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const fetchWarehouses = async () => {
+      if (!user || !isOpen) return;
+      try {
+        const data = await getDocuments('warehouses', [
+          { field: 'owner_id', operator: '==', value: user.uid },
+        ]);
+        const mapped = (data as any[])
+          .map((w) => ({ id: w.id, name: w.name || '' }))
+          .filter((w) => Boolean(w.name));
+        setWarehouses(mapped);
+      } catch (e) {
+        console.error('Error fetching warehouses:', e);
+        setWarehouses([]);
+      }
+    };
+
+    fetchWarehouses();
+  }, [user, isOpen]);
 
   const handleSubmit = async () => {
     if (!location || !date || !responsiblePerson) {
@@ -119,9 +133,9 @@ export function NewInventaireModal({ isOpen, onClose, onInventaireCreated }: New
                 <SelectValue placeholder="Sélectionner un emplacement" />
               </SelectTrigger>
               <SelectContent>
-                {locations.map((loc) => (
-                  <SelectItem key={loc} value={loc}>
-                    {loc}
+                {warehouses.map((w) => (
+                  <SelectItem key={w.id} value={w.name}>
+                    {w.name}
                   </SelectItem>
                 ))}
               </SelectContent>

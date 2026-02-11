@@ -5,7 +5,6 @@ import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard,
-  Heart,
   Calendar,
   FileText,
   Flower2,
@@ -36,7 +35,7 @@ const clientMenuItems: MenuItem[] = [
   },
   {
     label: 'Mon mariage',
-    icon: Heart,
+    icon: Flower2,
     href: '/espace-client/mariage',
   },
   {

@@ -572,8 +572,15 @@ export function NewContractModal({ isOpen, onClose, onContractCreated }: NewCont
     const scale = 1.25;
     const quality = 0.75;
     const totalHeight = node.scrollHeight;
-    const sliceHeight = node.clientHeight || 1123;
     const imgWidth = pageWidth - padding * 2;
+
+    // Hauteur disponible dans le PDF (en points)
+    const pdfInnerHeight = pageHeight - padding * 2;
+    // Conversion px->pt basée sur la largeur : node.scrollWidth(px) -> imgWidth(pt)
+    const ptPerPx = imgWidth / Math.max(1, node.scrollWidth);
+    // Hauteur max (px) d'un slice pour rentrer dans une page PDF
+    const maxSliceHeightPx = Math.floor(pdfInnerHeight / ptPerPx);
+    const sliceHeight = Math.max(300, maxSliceHeightPx);
 
     let y = 0;
     let isFirstPage = true;

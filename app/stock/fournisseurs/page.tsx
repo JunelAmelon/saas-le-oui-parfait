@@ -41,10 +41,23 @@ export default function FournisseursPage() {
     if (!user) return;
     setLoading(true);
     try {
-      const data = await getDocuments('fournisseurs', [
+      const [data, articles] = await Promise.all([
+        getDocuments('fournisseurs', [
         { field: 'owner_id', operator: '==', value: user.uid }
+        ]),
+        getDocuments('articles', [
+          { field: 'owner_id', operator: '==', value: user.uid },
+        ]),
       ]);
-      const mapped = data.map((d: any) => ({
+
+      const counts = new Map<string, number>();
+      (articles as any[]).forEach((a) => {
+        const fid = a.fournisseur_id;
+        if (!fid) return;
+        counts.set(fid, (counts.get(fid) || 0) + 1);
+      });
+
+      const mapped = (data as any[]).map((d: any) => ({
         id: d.id,
         name: d.name,
         category: d.category,
@@ -53,7 +66,7 @@ export default function FournisseursPage() {
         phone: d.phone || '',
         city: d.city || '',
         rating: d.rating || 0,
-        productsCount: d.products_count || 0,
+        productsCount: counts.get(d.id) || 0,
         logoUrl: d.logo || d.logo_url || d.logoUrl || d.logoURL || null,
       }));
       setFournisseurs(mapped);
