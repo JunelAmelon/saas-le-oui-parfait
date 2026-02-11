@@ -3,8 +3,26 @@
  * Création de comptes Firebase Auth avec custom claims
  */
 
-import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
-import { app } from './firebase';
+import { getApp, getApps, initializeApp } from 'firebase/app';
+import { createUserWithEmailAndPassword, getAuth, signOut } from 'firebase/auth';
+
+const getSecondaryAuth = () => {
+  const firebaseConfig = {
+    apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+    authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+    projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+    storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+    appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+  };
+
+  const name = 'secondary';
+  const secondaryApp = getApps().some((a) => a.name === name)
+    ? getApp(name)
+    : initializeApp(firebaseConfig, name);
+
+  return getAuth(secondaryApp);
+};
 
 export interface CreateClientAccountResult {
   success: boolean;
@@ -23,11 +41,13 @@ export async function createClientAccount(
   password: string
 ): Promise<CreateClientAccountResult> {
   try {
-    const auth = getAuth(app);
-    
-    // Créer le compte Firebase Auth
-    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+    const secondaryAuth = getSecondaryAuth();
+
+    // Créer le compte Firebase Auth sans modifier la session admin courante
+    const userCredential = await createUserWithEmailAndPassword(secondaryAuth, email, password);
     const user = userCredential.user;
+
+    await signOut(secondaryAuth);
 
     // Note: Les custom claims doivent être définis côté serveur (Cloud Function ou Admin SDK)
     // Pour l'instant, on retourne juste l'UID
