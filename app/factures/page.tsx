@@ -63,6 +63,9 @@ export default function FacturesPage() {
   const [isNewInvoiceOpen, setIsNewInvoiceOpen] = useState(false);
   const [isRecordPaymentOpen, setIsRecordPaymentOpen] = useState(false);
 
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 3;
+
   const fetchFactures = async () => {
     if (!user) return;
     setLoading(true);
@@ -103,6 +106,14 @@ export default function FacturesPage() {
     f.reference.toLowerCase().includes(searchTerm.toLowerCase()) ||
     f.client.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, factures.length]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredFactures.length / itemsPerPage));
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedFactures = filteredFactures.slice(startIndex, startIndex + itemsPerPage);
 
   const handleViewInvoice = (facture: Facture) => {
     if (facture.pdfUrl) {
@@ -220,7 +231,7 @@ export default function FacturesPage() {
           </Card>
         ) : (
           <div className="space-y-4">
-            {filteredFactures.map((facture) => {
+            {paginatedFactures.map((facture) => {
             const config = statusConfig[facture.status as keyof typeof statusConfig];
             const StatusIcon = config.icon;
             const restant = facture.montantTTC - facture.paid;
@@ -299,6 +310,34 @@ export default function FacturesPage() {
           })}
           </div>
         )}
+
+        {filteredFactures.length > itemsPerPage ? (
+          <Card className="p-4 shadow-xl border-0">
+            <div className="flex items-center justify-between">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className="gap-2"
+              >
+                ← Précédent
+              </Button>
+              <span className="text-sm text-brand-gray">
+                Page {currentPage} sur {totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+                className="gap-2"
+              >
+                Suivant →
+              </Button>
+            </div>
+          </Card>
+        ) : null}
       </div>
 
       <NewInvoiceModal isOpen={isNewInvoiceOpen} onClose={() => { setIsNewInvoiceOpen(false); fetchFactures(); }} />

@@ -84,6 +84,35 @@ export function ClientModal({ open, onOpenChange, mode, client, userId, onSucces
     setCreateAccount(mode === 'create');
   }, [open, client, mode]);
 
+  useEffect(() => {
+    const hydrateThemeFromEvent = async () => {
+      if (!open) return;
+      if (mode !== 'edit') return;
+      if (!client?.id) return;
+
+      // If the client doc doesn't have a theme, fallback to the associated wedding event theme.
+      const clientHasTheme = Boolean(client?.theme?.style || client?.theme?.description || (client?.theme?.colors || []).length);
+      if (clientHasTheme) return;
+
+      try {
+        const events = await getDocuments('events', [
+          { field: 'client_id', operator: '==', value: client.id },
+        ]);
+        const ev = ((events as any[]) || []).find((x) => Boolean(x?.event_date)) || (events?.[0] as any) || null;
+        const t = ev?.theme;
+        if (t) {
+          setThemeStyle(t.style || '');
+          setThemeDescription(t.description || '');
+          setThemeColors(t.colors || []);
+        }
+      } catch (e) {
+        console.error('Error hydrating theme from event:', e);
+      }
+    };
+
+    void hydrateThemeFromEvent();
+  }, [open, mode, client?.id, client?.theme?.style, client?.theme?.description]);
+
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {

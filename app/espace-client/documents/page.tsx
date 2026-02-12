@@ -2,6 +2,7 @@
 
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { ClientDashboardLayout } from '@/components/layout/ClientDashboardLayout';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -160,6 +161,24 @@ export default function DocumentsPage() {
     setIsPreviewOpen(true);
   };
 
+  const getTypeBadgeClass = (type: string) => {
+    const t = (type || '').toLowerCase();
+    switch (t) {
+      case 'contrat':
+        return 'bg-brand-turquoise/15 text-brand-turquoise';
+      case 'devis':
+        return 'bg-blue-100 text-blue-700';
+      case 'facture':
+        return 'bg-green-100 text-green-700';
+      case 'planning':
+        return 'bg-purple-100 text-purple-700';
+      case 'photo':
+        return 'bg-pink-100 text-pink-700';
+      default:
+        return 'bg-gray-100 text-gray-700';
+    }
+  };
+
   const handleSignContract = async (doc: DocumentItem) => {
     if (doc.source !== 'documents') {
       toast.error('Contrat introuvable');
@@ -272,13 +291,31 @@ export default function DocumentsPage() {
     return matchesSearch && matchesCategory;
   });
 
+  const parseDocDate = (doc: DocumentItem) => {
+    const raw = (doc.uploaded_at || '').trim();
+    if (!raw) return 0;
+    const iso = new Date(raw);
+    if (!Number.isNaN(iso.getTime())) return iso.getTime();
+    const m = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (m) {
+      const dd = m[1].padStart(2, '0');
+      const mm = m[2].padStart(2, '0');
+      const yyyy = m[3];
+      const d = new Date(`${yyyy}-${mm}-${dd}T00:00:00`);
+      return Number.isNaN(d.getTime()) ? 0 : d.getTime();
+    }
+    return 0;
+  };
+
+  const sortedDocuments = filteredDocuments.slice().sort((a, b) => parseDocDate(b) - parseDocDate(a));
+
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm, selectedCategory, documents.length]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredDocuments.length / itemsPerPage));
+  const totalPages = Math.max(1, Math.ceil(sortedDocuments.length / itemsPerPage));
   const startIndex = (currentPage - 1) * itemsPerPage;
-  const paginatedDocuments = filteredDocuments.slice(startIndex, startIndex + itemsPerPage);
+  const paginatedDocuments = sortedDocuments.slice(startIndex, startIndex + itemsPerPage);
 
   const formatDocDate = (v?: string) => {
     if (!v) return '—';
@@ -477,7 +514,9 @@ export default function DocumentsPage() {
                           </div>
                         </TableCell>
                         <TableCell className="text-brand-gray">
-                          {docTypeLabels[(doc.type || '').toLowerCase()] || doc.type}
+                          <Badge className={getTypeBadgeClass(doc.type)}>
+                            {docTypeLabels[(doc.type || '').toLowerCase()] || doc.type}
+                          </Badge>
                         </TableCell>
                         <TableCell className="text-brand-gray">{formatDocDate(doc.uploaded_at)}</TableCell>
                         <TableCell className="text-brand-gray">
@@ -533,7 +572,7 @@ export default function DocumentsPage() {
                 </TableBody>
               </Table>
 
-              {filteredDocuments.length > itemsPerPage ? (
+              {sortedDocuments.length > itemsPerPage ? (
                 <div className="flex items-center justify-center gap-2 mt-4">
                   <Button
                     variant="outline"

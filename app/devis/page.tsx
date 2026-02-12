@@ -15,7 +15,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { Plus, Search, FileText, Eye, Download, Send, Clock, CheckCircle, Euro, Calendar, Edit, Loader2, Trash2 } from 'lucide-react';
+import { Plus, Search, FileText, Eye, Download, Send, Clock, CheckCircle, Euro, Calendar, Edit, Loader2, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { getDocuments, addDocument, updateDocument, deleteDocument } from '@/lib/db';
@@ -70,12 +70,19 @@ export default function DevisPage() {
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isNewDevisOpen, setIsNewDevisOpen] = useState(false);
   const [isSendOpen, setIsSendOpen] = useState(false);
+  const [isEditOpen, setIsEditOpen] = useState(false);
   const [sendEmail, setSendEmail] = useState('');
   const [sendMessage, setSendMessage] = useState(
     "Bonjour, veuillez trouver ci-joint notre devis pour votre mariage. N'hésitez pas à nous contacter pour toute question."
   );
   const [isDownloadSuccess, setIsDownloadSuccess] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 3;
+
+  const [editValidUntil, setEditValidUntil] = useState('');
+  const [editDescription, setEditDescription] = useState('');
 
   // Fetch devis
   const fetchDevis = async () => {
@@ -235,6 +242,37 @@ export default function DevisPage() {
     devis.client.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, devisList.length]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredDevis.length / itemsPerPage));
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedDevis = filteredDevis.slice(startIndex, startIndex + itemsPerPage);
+
+  const openEdit = (devis: Devis) => {
+    setSelectedDevis(devis);
+    setEditValidUntil(devis.validUntil || '');
+    setEditDescription(devis.description || '');
+    setIsEditOpen(true);
+  };
+
+  const saveEdit = async () => {
+    if (!selectedDevis?.id) return;
+    try {
+      await updateDocument('devis', selectedDevis.id, {
+        valid_until: editValidUntil,
+        description: editDescription,
+      });
+      toast.success('Devis modifié');
+      setIsEditOpen(false);
+      await fetchDevis();
+    } catch (e) {
+      console.error('Error updating devis:', e);
+      toast.error('Erreur lors de la modification');
+    }
+  };
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -317,7 +355,7 @@ export default function DevisPage() {
           </Card>
         ) : (
           <div className="space-y-4">
-            {filteredDevis.map((devis) => {
+            {paginatedDevis.map((devis) => {
             const config = statusConfig[devis.status as keyof typeof statusConfig];
             const StatusIcon = config.icon;
 
@@ -388,12 +426,51 @@ export default function DevisPage() {
                       Envoyer
                     </Button>
                   )}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-2 border-brand-purple text-brand-purple hover:bg-brand-purple hover:text-white gap-2"
+                    onClick={() => openEdit(devis)}
+                  >
+                    <Edit className="h-3 w-3" />
+                    Modifier
+                  </Button>
                 </div>
               </Card>
               );
             })}
           </div>
         )}
+
+        {filteredDevis.length > itemsPerPage ? (
+          <Card className="p-4 shadow-xl border-0">
+            <div className="flex items-center justify-between">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className="gap-2"
+              >
+                <ChevronLeft className="h-4 w-4" />
+                Précédent
+              </Button>
+              <span className="text-sm text-brand-gray">
+                Page {currentPage} sur {totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+                className="gap-2"
+              >
+                Suivant
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          </Card>
+        ) : null}
       </div>
 
       {/* Modal Détail Devis */}
@@ -462,6 +539,38 @@ export default function DevisPage() {
             >
               <Download className="h-4 w-4" />
               Télécharger PDF
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-brand-purple">Modifier le devis</DialogTitle>
+            <DialogDescription>{selectedDevis?.reference}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div>
+              <Label>Valide jusqu'au</Label>
+              <Input value={editValidUntil} onChange={(e) => setEditValidUntil(e.target.value)} className="mt-1" />
+            </div>
+            <div>
+              <Label>Description</Label>
+              <Textarea
+                value={editDescription}
+                onChange={(e) => setEditDescription(e.target.value)}
+                className="mt-1"
+                rows={4}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEditOpen(false)}>
+              Annuler
+            </Button>
+            <Button className="bg-brand-turquoise hover:bg-brand-turquoise-hover" onClick={() => void saveEdit()}>
+              Enregistrer
             </Button>
           </DialogFooter>
         </DialogContent>

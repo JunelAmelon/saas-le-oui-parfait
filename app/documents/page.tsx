@@ -41,7 +41,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { getDocuments } from '@/lib/db';
+import { getDocuments, updateDocument } from '@/lib/db';
 import { toast } from 'sonner';
 
 export default function DocumentsPage() {
@@ -59,7 +59,12 @@ export default function DocumentsPage() {
   const [docName, setDocName] = useState('');
   const [docType, setDocType] = useState('contrat');
   const [currentPage, setCurrentPage] = useState(1);
-  const documentsPerPage = 10;
+  const documentsPerPage = 5;
+
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [editingDoc, setEditingDoc] = useState<any | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editType, setEditType] = useState('contrat');
 
   useEffect(() => {
     if (user) {
@@ -85,6 +90,34 @@ export default function DocumentsPage() {
     }
   };
 
+  const openEdit = (doc: any) => {
+    setEditingDoc(doc);
+    setEditName(doc?.name || '');
+    setEditType(doc?.type || 'contrat');
+    setIsEditOpen(true);
+  };
+
+  const saveEdit = async () => {
+    if (!editingDoc?.id) return;
+    if (!editName.trim()) {
+      toast.error('Nom obligatoire');
+      return;
+    }
+    try {
+      await updateDocument('documents', editingDoc.id, {
+        name: editName.trim(),
+        type: editType,
+      });
+      toast.success('Document modifié');
+      setIsEditOpen(false);
+      setEditingDoc(null);
+      await fetchDocuments();
+    } catch (e) {
+      console.error('Error updating document:', e);
+      toast.error('Erreur lors de la modification');
+    }
+  };
+
   const fetchDocuments = async () => {
     if (!user) return;
     setLoading(true);
@@ -107,10 +140,31 @@ export default function DocumentsPage() {
     }
   };
 
-  const filteredDocuments = documents.filter(doc =>
+  const parseDocDate = (doc: any) => {
+    const raw = doc?.created_timestamp || doc?.uploaded_at || '';
+    if (!raw) return 0;
+    if (raw?.toDate) return raw.toDate().getTime();
+    const s = String(raw);
+    const iso = new Date(s);
+    if (!Number.isNaN(iso.getTime())) return iso.getTime();
+    const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (m) {
+      const dd = m[1].padStart(2, '0');
+      const mm = m[2].padStart(2, '0');
+      const yyyy = m[3];
+      const d = new Date(`${yyyy}-${mm}-${dd}T00:00:00`);
+      return Number.isNaN(d.getTime()) ? 0 : d.getTime();
+    }
+    return 0;
+  };
+
+  const filteredDocuments = documents
+    .filter(doc =>
     doc.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     doc.type?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+    )
+    .slice()
+    .sort((a, b) => parseDocDate(b) - parseDocDate(a));
 
   const totalPages = Math.ceil(filteredDocuments.length / documentsPerPage);
   const startIndex = (currentPage - 1) * documentsPerPage;
@@ -330,6 +384,15 @@ export default function DocumentsPage() {
                           <Button
                             size="sm"
                             variant="ghost"
+                            className="text-brand-gray hover:text-brand-purple hover:bg-gray-100"
+                            onClick={() => openEdit(doc)}
+                            title="Modifier"
+                          >
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
                             className="text-red-500 hover:text-red-600 hover:bg-red-50"
                             onClick={() => handleDeleteDocument(doc.id)}
                           >
@@ -449,6 +512,51 @@ export default function DocumentsPage() {
                   Uploader
                 </>
               )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="text-brand-purple">Modifier un document</DialogTitle>
+            <DialogDescription>Modifiez le nom et le type.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div>
+              <Label>Nom du document</Label>
+              <Input value={editName} onChange={(e) => setEditName(e.target.value)} className="mt-1" />
+            </div>
+            <div>
+              <Label>Type de document</Label>
+              <Select value={editType} onValueChange={setEditType}>
+                <SelectTrigger className="mt-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="contrat">Contrat</SelectItem>
+                  <SelectItem value="devis">Devis</SelectItem>
+                  <SelectItem value="facture">Facture</SelectItem>
+                  <SelectItem value="photo">Photo</SelectItem>
+                  <SelectItem value="planning">Planning</SelectItem>
+                  <SelectItem value="autre">Autre</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsEditOpen(false);
+                setEditingDoc(null);
+              }}
+            >
+              Annuler
+            </Button>
+            <Button className="bg-brand-turquoise hover:bg-brand-turquoise-hover" onClick={() => void saveEdit()}>
+              Enregistrer
             </Button>
           </DialogFooter>
         </DialogContent>

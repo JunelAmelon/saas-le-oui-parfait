@@ -411,20 +411,14 @@ export default function PlanningPage() {
                               </div>
                             </div>
 
-                            <div className="mt-3 flex flex-wrap items-center gap-2">
-                              <Badge className={s.admin_confirmed ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}>
-                                Admin : {s.admin_confirmed ? 'confirmé' : 'en attente'}
-                              </Badge>
-                              <Badge className={s.client_confirmed ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}>
-                                Vous : {s.client_confirmed ? 'confirmé' : 'en attente'}
-                              </Badge>
+                            <div className="mt-3 flex items-center justify-end">
                               <Button
                                 size="sm"
-                                variant="outline"
-                                className="ml-auto"
+                                variant={s.client_confirmed ? 'outline' : 'default'}
+                                className={s.client_confirmed ? '' : 'bg-brand-turquoise hover:bg-brand-turquoise-hover'}
                                 onClick={() => void toggleClientConfirm(s)}
                               >
-                                {s.client_confirmed ? 'Annuler ma confirmation' : 'Je confirme'}
+                                {s.client_confirmed ? 'Annuler ma confirmation' : 'Valider cette étape'}
                               </Button>
                             </div>
                           </div>

@@ -7,11 +7,11 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
-import { Calendar, Clock, MapPin, Loader2, Plus, Trash2 } from 'lucide-react';
+import { Calendar, Clock, MapPin, Loader2, Plus, Trash2, Pencil } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 
-import { addDocument, deleteDocument, getDocuments } from '@/lib/db';
+import { addDocument, deleteDocument, getDocuments, updateDocument } from '@/lib/db';
 import { toast } from 'sonner';
 
 type AppointmentTask = {
@@ -41,6 +41,8 @@ export default function ClientPlanningPage() {
   const [appointments, setAppointments] = useState<AppointmentTask[]>([]);
 
   const [isAddOpen, setIsAddOpen] = useState(false);
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [editing, setEditing] = useState<AppointmentTask | null>(null);
   const [form, setForm] = useState({ title: '', date: '', time: '', location: '', notes: '' });
 
   const fetchAll = async () => {
@@ -73,6 +75,59 @@ export default function ClientPlanningPage() {
       setAppointments([]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const openEdit = (apt: AppointmentTask) => {
+    setEditing(apt);
+    setForm({
+      title: apt.title || '',
+      date: apt.confirmed_date || '',
+      time: apt.confirmed_time || '',
+      location: apt.location || '',
+      notes: apt.notes || '',
+    });
+    setIsEditOpen(true);
+  };
+
+  const saveEdit = async () => {
+    if (!editing?.id) return;
+    if (!form.title.trim() || !form.date || !form.time) {
+      toast.error('Titre, date et heure obligatoires');
+      return;
+    }
+
+    try {
+      await updateDocument('tasks', editing.id, {
+        title: form.title.trim(),
+        confirmed_date: form.date,
+        confirmed_time: form.time,
+        location: form.location.trim(),
+        notes: form.notes.trim(),
+      });
+
+      setAppointments((prev) =>
+        prev.map((x) =>
+          x.id === editing.id
+            ? {
+                ...x,
+                title: form.title.trim(),
+                confirmed_date: form.date,
+                confirmed_time: form.time,
+                location: form.location.trim(),
+                notes: form.notes.trim(),
+              }
+            : x
+        )
+      );
+
+      setIsEditOpen(false);
+      setEditing(null);
+      setForm({ title: '', date: '', time: '', location: '', notes: '' });
+      toast.success('Rendez-vous mis à jour');
+    } catch (e) {
+      console.error('Error updating appointment:', e);
+      toast.error("Impossible de modifier le rendez-vous");
     }
   };
 
@@ -206,6 +261,15 @@ export default function ClientPlanningPage() {
                       </div>
                       <div className="flex items-center gap-2">
                         <Badge className="bg-green-100 text-green-700">Confirmé</Badge>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => openEdit(a)}
+                          title="Modifier"
+                        >
+                          <Pencil className="h-4 w-4 text-brand-gray" />
+                        </Button>
                         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => void removeAppointment(a)}>
                           <Trash2 className="h-4 w-4 text-red-500" />
                         </Button>
@@ -254,6 +318,53 @@ export default function ClientPlanningPage() {
               </Button>
               <Button className="bg-brand-turquoise hover:bg-brand-turquoise-hover" onClick={() => void addAppointment()}>
                 Ajouter
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="text-brand-purple">Modifier le rendez-vous</DialogTitle>
+              <DialogDescription>Ces modifications seront visibles côté client.</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label>Titre *</Label>
+                <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Date *</Label>
+                  <Input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Heure *</Label>
+                  <Input type="time" value={form.time} onChange={(e) => setForm({ ...form, time: e.target.value })} />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Lieu</Label>
+                <Input value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <Label>Notes</Label>
+                <Input value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setIsEditOpen(false);
+                  setEditing(null);
+                }}
+              >
+                Annuler
+              </Button>
+              <Button className="bg-brand-turquoise hover:bg-brand-turquoise-hover" onClick={() => void saveEdit()}>
+                Enregistrer
               </Button>
             </DialogFooter>
           </DialogContent>

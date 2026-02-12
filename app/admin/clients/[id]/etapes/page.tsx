@@ -17,7 +17,7 @@ import {
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { addDocument, deleteDocument, getDocuments, updateDocument } from '@/lib/db';
-import { ArrowLeft, CheckCircle, Circle, Loader2, Plus, Trash2 } from 'lucide-react';
+import { ArrowLeft, CheckCircle, Circle, Loader2, Plus, Trash2, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
 
 type Step = {
@@ -47,6 +47,10 @@ export default function ClientStepsAdminPage() {
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [newStep, setNewStep] = useState({ title: '', description: '', deadline: '' });
 
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [editing, setEditing] = useState<Step | null>(null);
+  const [editForm, setEditForm] = useState({ title: '', description: '', deadline: '' });
+
   const fetchAll = async () => {
     if (!clientId) return;
     try {
@@ -75,6 +79,52 @@ export default function ClientStepsAdminPage() {
       setSteps([]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const openEdit = (step: Step) => {
+    setEditing(step);
+    setEditForm({
+      title: step.title || '',
+      description: step.description || '',
+      deadline: step.deadline || '',
+    });
+    setIsEditOpen(true);
+  };
+
+  const saveEdit = async () => {
+    if (!editing?.id) return;
+    if (!editForm.title.trim()) {
+      toast.error('Titre obligatoire');
+      return;
+    }
+
+    try {
+      await updateDocument('tasks', editing.id, {
+        title: editForm.title.trim(),
+        description: editForm.description.trim(),
+        deadline: editForm.deadline,
+      });
+
+      setSteps((prev) =>
+        prev.map((s) =>
+          s.id === editing.id
+            ? {
+                ...s,
+                title: editForm.title.trim(),
+                description: editForm.description.trim(),
+                deadline: editForm.deadline,
+              }
+            : s
+        )
+      );
+
+      setIsEditOpen(false);
+      setEditing(null);
+      toast.success('Étape mise à jour');
+    } catch (e) {
+      console.error('Error updating step:', e);
+      toast.error("Impossible de modifier l'étape");
     }
   };
 
@@ -215,6 +265,15 @@ export default function ClientStepsAdminPage() {
                           <Badge className={done ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'}>
                             {done ? 'Validée' : 'En cours'}
                           </Badge>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => openEdit(s)}
+                            title="Modifier"
+                          >
+                            <Pencil className="h-4 w-4 text-brand-gray" />
+                          </Button>
                           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => void removeStep(s)}>
                             <Trash2 className="h-4 w-4 text-red-500" />
                           </Button>
@@ -269,6 +328,43 @@ export default function ClientStepsAdminPage() {
               <Button variant="outline" onClick={() => setIsAddOpen(false)}>Annuler</Button>
               <Button className="bg-brand-turquoise hover:bg-brand-turquoise-hover" onClick={() => void addStep()}>
                 Ajouter
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="text-brand-purple">Modifier une étape</DialogTitle>
+              <DialogDescription>Ces modifications seront visibles côté client.</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label>Titre *</Label>
+                <Input value={editForm.title} onChange={(e) => setEditForm({ ...editForm, title: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <Label>Description</Label>
+                <Input value={editForm.description} onChange={(e) => setEditForm({ ...editForm, description: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <Label>Échéance</Label>
+                <Input type="date" value={editForm.deadline} onChange={(e) => setEditForm({ ...editForm, deadline: e.target.value })} />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setIsEditOpen(false);
+                  setEditing(null);
+                }}
+              >
+                Annuler
+              </Button>
+              <Button className="bg-brand-turquoise hover:bg-brand-turquoise-hover" onClick={() => void saveEdit()}>
+                Enregistrer
               </Button>
             </DialogFooter>
           </DialogContent>
