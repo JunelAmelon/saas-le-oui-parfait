@@ -38,8 +38,7 @@ export function Topbar() {
     void (async () => {
       try {
         const { registerPushToken } = await import('@/lib/push');
-        const res = await registerPushToken(user.uid);
-        console.log('push register status (admin):', res);
+        await registerPushToken(user.uid);
       } catch (e) {
         console.warn('Unable to register push token:', e);
       }
