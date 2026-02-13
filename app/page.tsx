@@ -249,7 +249,7 @@ export default function Home() {
           {/* Colonne 1 : Dernier client (60%) */}
           <div className="lg:col-span-7">
             {lastClient ? (
-              <Card className="p-4 md:p-6 shadow-xl border-0 hover:shadow-2xl transition-shadow cursor-pointer group h-full">
+              <Card className="p-4 md:p-6 shadow-xl border-0 hover:shadow-2xl transition-shadow cursor-pointer group">
                 <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
                   <div
                     className="relative h-24 w-full sm:w-24 overflow-hidden rounded-lg bg-gray-100 flex-shrink-0"
@@ -323,7 +323,7 @@ export default function Home() {
                 </div>
               </Card>
             ) : (
-              <Card className="p-6 flex flex-col items-center justify-center border-dashed border-2 border-gray-300 h-full">
+              <Card className="p-6 flex flex-col items-center justify-center border-dashed border-2 border-gray-300">
                 <p className="text-gray-500 mb-4">Aucun client disponible</p>
                 <Button
                   size="sm"

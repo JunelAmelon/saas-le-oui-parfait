@@ -277,8 +277,18 @@ export default function GaleriePage() {
         cover: updatedPhotos[0]?.url || (albumDoc as any).cover || '',
       });
 
-      const items = await getEventGalleries(event.id);
-      setGalleries(items);
+      const [itemsByEvent, itemsByClient] = await Promise.all([
+        getEventGalleries(event.id),
+        getDocuments('galleries', [{ field: 'client_id', operator: '==', value: client.id }]).catch(() => []),
+      ]);
+
+      const merged = new Map<string, GalleryData>();
+      (itemsByEvent || []).forEach((g) => merged.set(g.id, g));
+      (itemsByClient as any[]).forEach((g: any) => {
+        if (g?.id && !merged.has(g.id)) merged.set(g.id, g as GalleryData);
+      });
+
+      setGalleries(Array.from(merged.values()));
 
       setIsUploadModalOpen(false);
       setIsSuccessModalOpen(true);

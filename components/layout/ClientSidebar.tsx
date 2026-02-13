@@ -137,18 +137,33 @@ export function ClientSidebar() {
         <ul className="space-y-1">
           {clientMenuItems.map((item) => (
             <li key={item.label}>
-              <Link
-                href={item.href}
-                className={cn(
-                  'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
-                  isActive(item.href)
-                    ? 'bg-brand-turquoise text-white'
-                    : 'text-brand-gray hover:bg-gray-100'
-                )}
-              >
-                <item.icon className="h-5 w-5" />
-                <span>{item.label}</span>
-              </Link>
+              {item.href === '/espace-client/fleurs' ? (
+                <div
+                  className={cn(
+                    'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
+                    'text-brand-gray opacity-60 cursor-not-allowed'
+                  )}
+                >
+                  <item.icon className="h-5 w-5" />
+                  <span className="flex-1">{item.label}</span>
+                  <span className="text-[10px] uppercase tracking-wide bg-gray-100 text-gray-600 px-2 py-0.5 rounded">
+                    À venir
+                  </span>
+                </div>
+              ) : (
+                <Link
+                  href={item.href}
+                  className={cn(
+                    'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
+                    isActive(item.href)
+                      ? 'bg-brand-turquoise text-white'
+                      : 'text-brand-gray hover:bg-gray-100'
+                  )}
+                >
+                  <item.icon className="h-5 w-5" />
+                  <span>{item.label}</span>
+                </Link>
+              )}
             </li>
           ))}
         </ul>

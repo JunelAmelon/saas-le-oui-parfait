@@ -52,7 +52,7 @@ export function BudgetCard({ total, spent }: BudgetCardProps) {
             x="100"
             y="88"
             textAnchor="middle"
-            className="text-lg sm:text-2xl font-bold fill-brand-purple"
+            className="text-base sm:text-xl font-bold fill-brand-purple"
           >
             {spent.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €
           </text>

@@ -25,6 +25,7 @@ interface Facture {
   status: 'paid' | 'pending' | 'partial' | 'overdue';
   type: 'invoice' | 'deposit';
   pdfUrl?: string;
+  createdAt?: any;
 }
 
 const statusConfig = {
@@ -85,8 +86,36 @@ export default function FacturesPage() {
         status: f.status,
         type: f.type,
         pdfUrl: f.pdf_url || '',
+        createdAt: f.created_at || null,
       }));
-      setFactures(mapped);
+
+      const parseCreatedAt = (v: any) => {
+        if (!v) return 0;
+        const d = v?.toDate?.() || new Date(v);
+        return Number.isNaN(d.getTime()) ? 0 : d.getTime();
+      };
+
+      const parseDateFallback = (v?: string) => {
+        if (!v) return 0;
+        const iso = new Date(v);
+        if (!Number.isNaN(iso.getTime())) return iso.getTime();
+        const m = v.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+        if (m) {
+          const d = new Date(parseInt(m[3], 10), parseInt(m[2], 10) - 1, parseInt(m[1], 10));
+          return d.getTime();
+        }
+        return 0;
+      };
+
+      const sorted = mapped
+        .slice()
+        .sort((a, b) => {
+          const aTime = parseCreatedAt(a.createdAt) || parseDateFallback(a.date);
+          const bTime = parseCreatedAt(b.createdAt) || parseDateFallback(b.date);
+          return bTime - aTime;
+        });
+
+      setFactures(sorted);
     } catch (e) {
       console.error('Error fetching invoices:', e);
       toast.error('Erreur lors du chargement des factures');

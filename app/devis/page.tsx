@@ -18,10 +18,11 @@ import {
 import { Plus, Search, FileText, Eye, Download, Send, Clock, CheckCircle, Euro, Calendar, Edit, Loader2, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { getDocuments, addDocument, updateDocument, deleteDocument } from '@/lib/db';
+import { getDocument, getDocuments, addDocument, updateDocument, deleteDocument } from '@/lib/db';
 import { toast } from 'sonner';
 import jsPDF from 'jspdf';
 import { NewDevisModal } from '@/components/modals/NewDevisModal';
+import { uploadPdf } from '@/lib/storage';
 
 interface Devis {
   id: string;
@@ -36,6 +37,7 @@ interface Devis {
   description?: string;
   tva: number;
   pdfUrl?: string;
+  createdAt?: any;
 }
 
 
@@ -84,6 +86,112 @@ export default function DevisPage() {
   const [editValidUntil, setEditValidUntil] = useState('');
   const [editDescription, setEditDescription] = useState('');
 
+  const [isBonCommandeOpen, setIsBonCommandeOpen] = useState(false);
+  const [bonCommandeVendors, setBonCommandeVendors] = useState<any[]>([]);
+  const [bonCommandeVendorId, setBonCommandeVendorId] = useState('');
+  const [bonCommandeLoading, setBonCommandeLoading] = useState(false);
+
+  const generateBonCommandePdf = async (params: {
+    reference: string;
+    devis: any;
+    vendor: any;
+  }): Promise<Blob> => {
+    const { reference, devis, vendor } = params;
+    const doc = new jsPDF({ unit: 'pt', format: 'a4', compress: true });
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const marginX = 40;
+    let y = 48;
+
+    const addLine = (text: string, fontSize = 10, gap = 14) => {
+      doc.setFontSize(fontSize);
+      const lines = doc.splitTextToSize(text, pageWidth - marginX * 2);
+      doc.text(lines, marginX, y);
+      y += lines.length * gap;
+    };
+
+    doc.setFontSize(18);
+    doc.text('BON DE COMMANDE', pageWidth / 2, y, { align: 'center' });
+    y += 22;
+
+    doc.setFontSize(11);
+    doc.text(reference, pageWidth / 2, y, { align: 'center' });
+    y += 20;
+
+    addLine(`Date : ${new Date().toLocaleDateString('fr-FR')}`, 10, 14);
+    addLine(`Devis lié : ${String(devis?.reference || '')}`, 10, 14);
+    y += 8;
+
+    addLine(`Prestataire : ${String(vendor?.name || vendor?.vendorName || vendor?.title || '')}`, 11, 16);
+    if (vendor?.email) addLine(`Email : ${String(vendor.email)}`, 10, 14);
+    if (vendor?.phone) addLine(`Téléphone : ${String(vendor.phone)}`, 10, 14);
+    y += 8;
+
+    addLine(`Client : ${String(devis?.client || '')}`, 11, 16);
+    if (devis?.client_email) addLine(`Email client : ${String(devis.client_email)}`, 10, 14);
+    y += 12;
+
+    doc.setFontSize(11);
+    doc.text('Prestations commandées', marginX, y);
+    y += 14;
+
+    doc.setFontSize(9);
+    doc.setTextColor(80);
+    doc.text('Description', marginX, y);
+    doc.text('Qté', pageWidth - marginX - 140, y, { align: 'right' });
+    doc.text('PU', pageWidth - marginX - 80, y, { align: 'right' });
+    doc.text('Total', pageWidth - marginX, y, { align: 'right' });
+    y += 8;
+    doc.setDrawColor(220);
+    doc.line(marginX, y, pageWidth - marginX, y);
+    y += 14;
+    doc.setTextColor(30);
+
+    const items = Array.isArray(devis?.items) ? devis.items : [];
+    for (const it of items) {
+      const desc = String(it?.description || '');
+      const qty = Number(it?.quantity || 0);
+      const pu = Number(it?.unit_price || 0);
+      const total = Number(it?.total || qty * pu);
+
+      const descLines = doc.splitTextToSize(desc, pageWidth - marginX * 2 - 170);
+      const rowHeight = Math.max(14, descLines.length * 12);
+
+      if (y + rowHeight > 760) {
+        doc.addPage();
+        y = 48;
+      }
+
+      doc.setFontSize(10);
+      doc.text(descLines, marginX, y);
+      doc.text(String(qty), pageWidth - marginX - 140, y, { align: 'right' });
+      doc.text(`${pu.toFixed(2)} €`, pageWidth - marginX - 80, y, { align: 'right' });
+      doc.text(`${total.toFixed(2)} €`, pageWidth - marginX, y, { align: 'right' });
+      y += rowHeight;
+      doc.setDrawColor(240);
+      doc.line(marginX, y, pageWidth - marginX, y);
+      y += 10;
+    }
+
+    y += 10;
+    const totalHT = Number(devis?.montant_ht || 0);
+    const totalTTC = Number(devis?.montant_ttc || 0);
+    doc.setFontSize(11);
+    doc.text(`Total HT : ${totalHT.toFixed(2)} €`, pageWidth - marginX, y, { align: 'right' });
+    y += 16;
+    doc.text(`Total TTC : ${totalTTC.toFixed(2)} €`, pageWidth - marginX, y, { align: 'right' });
+
+    y += 24;
+    doc.setFontSize(9);
+    doc.setTextColor(90);
+    addLine(
+      "Merci d'émettre une facture conforme à ce bon de commande (mêmes intitulés, quantités et montants) afin de permettre le règlement.",
+      9,
+      12
+    );
+
+    return doc.output('blob');
+  };
+
   // Fetch devis
   const fetchDevis = async () => {
     if (!user) return;
@@ -105,13 +213,178 @@ export default function DevisPage() {
         description: d.description || '',
         tva: d.tva,
         pdfUrl: d.pdf_url || '',
+        createdAt: d.created_at || null,
       }));
-      setDevisList(mapped);
+
+      const parseCreatedAt = (v: any) => {
+        if (!v) return 0;
+        const d = v?.toDate?.() || new Date(v);
+        return Number.isNaN(d.getTime()) ? 0 : d.getTime();
+      };
+
+      const parseDateFallback = (v?: string) => {
+        if (!v) return 0;
+        const iso = new Date(v);
+        if (!Number.isNaN(iso.getTime())) return iso.getTime();
+        const m = v.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+        if (m) {
+          const d = new Date(parseInt(m[3], 10), parseInt(m[2], 10) - 1, parseInt(m[1], 10));
+          return d.getTime();
+        }
+        return 0;
+      };
+
+      const sorted = mapped
+        .slice()
+        .sort((a, b) => {
+          const aTime = parseCreatedAt(a.createdAt) || parseDateFallback(a.date);
+          const bTime = parseCreatedAt(b.createdAt) || parseDateFallback(b.date);
+          return bTime - aTime;
+        });
+
+      setDevisList(sorted);
     } catch (e) {
       console.error('Error fetching devis:', e);
       toast.error('Erreur lors du chargement des devis');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const openBonCommande = async (devis: Devis) => {
+    if (!user) return;
+    setSelectedDevis(devis);
+    setBonCommandeVendorId('');
+    setIsBonCommandeOpen(true);
+    try {
+      const vendors = await getDocuments('vendors', [{ field: 'planner_id', operator: '==', value: user.uid }]);
+      setBonCommandeVendors(vendors as any[]);
+    } catch (e) {
+      console.error('Error fetching vendors for bon de commande:', e);
+      setBonCommandeVendors([]);
+    }
+  };
+
+  const confirmBonCommande = async () => {
+    if (!user || !selectedDevis) return;
+    if (!bonCommandeVendorId) {
+      toast.error('Veuillez sélectionner un prestataire');
+      return;
+    }
+
+    const pdfWindow = window.open('', '_blank');
+
+    setBonCommandeLoading(true);
+    try {
+      const devisDoc = (await getDocument('devis', selectedDevis.id)) as any;
+      if (!devisDoc) {
+        toast.error('Devis introuvable');
+        return;
+      }
+
+      const vendor = (bonCommandeVendors || []).find((v: any) => v?.id === bonCommandeVendorId);
+      const reference = `BC-${devisDoc.reference || selectedDevis.reference || selectedDevis.id}`;
+      const lines = Array.isArray(devisDoc.items) ? devisDoc.items : [];
+
+      // Évite de créer un nouveau bon de commande à chaque clic: réutilise l'existant si présent.
+      try {
+        const existingDocs = await getDocuments('documents', [
+          { field: 'planner_id', operator: '==', value: user.uid },
+          { field: 'devis_id', operator: '==', value: selectedDevis.id },
+        ]);
+
+        const existing = (existingDocs as any[])
+          .slice()
+          .find((d: any) =>
+            d?.type === 'bon_de_commande' &&
+            String(d?.vendor_id || '') === String(vendor?.id || bonCommandeVendorId) &&
+            Boolean(d?.file_url)
+          );
+
+        if (existing?.file_url) {
+          toast.message('Bon de commande déjà généré', {
+            description: 'Ouverture de la dernière version enregistrée.',
+          });
+          setIsBonCommandeOpen(false);
+
+          if (pdfWindow && !pdfWindow.closed) {
+            pdfWindow.location.href = existing.file_url;
+            pdfWindow.focus();
+          } else {
+            const link = document.createElement('a');
+            link.href = existing.file_url;
+            link.target = '_blank';
+            link.rel = 'noopener noreferrer';
+            link.download = `${reference}.pdf`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+          }
+          return;
+        }
+      } catch (e) {
+        // Best effort: si la recherche échoue, on continue sur la génération standard.
+        console.warn('Unable to check existing bon de commande documents:', e);
+      }
+
+      const pdfBlob = await generateBonCommandePdf({ reference, devis: devisDoc, vendor });
+      const pdfUrl = await uploadPdf(pdfBlob, reference);
+
+      await addDocument('documents', {
+        type: 'bon_de_commande',
+        name: `Bon de commande - ${reference}`,
+        status: 'generated',
+        source: 'devis',
+        planner_id: user.uid,
+        client_id: devisDoc.client_id || selectedDevis.clientId || '',
+        client: devisDoc.client || selectedDevis.client || '',
+        client_email: devisDoc.client_email || null,
+        devis_id: selectedDevis.id,
+        vendor_id: vendor?.id || bonCommandeVendorId,
+        vendor_name: vendor?.name || vendor?.vendorName || vendor?.title || '',
+        reference,
+        file_url: pdfUrl,
+        file_type: 'application/pdf',
+        uploaded_by: 'planner',
+        uploaded_at: new Date().toLocaleDateString('fr-FR'),
+        created_timestamp: new Date(),
+        lines: lines.map((it: any) => ({
+          description: String(it?.description || ''),
+          quantity: Number(it?.quantity || 0),
+          unit_price: Number(it?.unit_price || 0),
+          total: Number(it?.total || (Number(it?.quantity || 0) * Number(it?.unit_price || 0))),
+        })),
+        created_at: new Date(),
+      });
+
+      toast.success('Bon de commande créé');
+      setIsBonCommandeOpen(false);
+
+      if (pdfWindow && !pdfWindow.closed) {
+        pdfWindow.location.href = pdfUrl;
+        pdfWindow.focus();
+      } else {
+        // Popup bloquée: on déclenche un téléchargement / ouverture via un lien.
+        const link = document.createElement('a');
+        link.href = pdfUrl;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        link.download = `${reference}.pdf`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        toast.message('Le PDF est prêt', {
+          description: "Votre navigateur a bloqué l'ouverture automatique. Le téléchargement a été déclenché.",
+        });
+      }
+    } catch (e) {
+      console.error('Error creating bon de commande:', e);
+      if (pdfWindow && !pdfWindow.closed) {
+        pdfWindow.close();
+      }
+      toast.error('Impossible de créer le bon de commande');
+    } finally {
+      setBonCommandeLoading(false);
     }
   };
 
@@ -435,6 +708,18 @@ export default function DevisPage() {
                     <Edit className="h-3 w-3" />
                     Modifier
                   </Button>
+
+                  {devis.status === 'accepted' ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-2 border-green-600 text-green-700 hover:bg-green-600 hover:text-white gap-2"
+                      onClick={() => void openBonCommande(devis)}
+                    >
+                      <FileText className="h-3 w-3" />
+                      Bon de commande
+                    </Button>
+                  ) : null}
                 </div>
               </Card>
               );
@@ -647,6 +932,50 @@ export default function DevisPage() {
               onClick={() => setIsDownloadSuccess(false)}
             >
               Fermer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isBonCommandeOpen} onOpenChange={setIsBonCommandeOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-brand-purple">Créer un bon de commande</DialogTitle>
+            <DialogDescription>{selectedDevis?.reference} - {selectedDevis?.client}</DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div>
+              <Label>Prestataire *</Label>
+              <select
+                className="mt-1 w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+                value={bonCommandeVendorId}
+                onChange={(e) => setBonCommandeVendorId(e.target.value)}
+              >
+                <option value="">Sélectionner...</option>
+                {bonCommandeVendors.map((v: any) => (
+                  <option key={v.id} value={v.id}>
+                    {v.name || v.vendorName || v.title || v.id}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="p-3 rounded-lg bg-gray-50 text-xs text-brand-gray">
+              Le bon de commande contiendra les intitulés exacts des prestations du devis afin de faciliter la conformité de la facture prestataire.
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsBonCommandeOpen(false)} disabled={bonCommandeLoading}>
+              Annuler
+            </Button>
+            <Button
+              className="bg-brand-turquoise hover:bg-brand-turquoise-hover"
+              onClick={() => void confirmBonCommande()}
+              disabled={bonCommandeLoading || !bonCommandeVendorId}
+            >
+              {bonCommandeLoading ? 'Création...' : 'Créer'}
             </Button>
           </DialogFooter>
         </DialogContent>

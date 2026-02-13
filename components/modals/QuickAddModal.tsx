@@ -37,6 +37,7 @@ export function QuickAddModal({ open, onOpenChange }: QuickAddModalProps) {
     phone: '',
     website: '',
     rating: 5,
+    desc: '',
     notes: '',
   });
   
@@ -59,6 +60,7 @@ export function QuickAddModal({ open, onOpenChange }: QuickAddModalProps) {
       phone: '',
       website: '',
       rating: 5,
+      desc: '',
       notes: '',
     });
   };
@@ -95,6 +97,7 @@ export function QuickAddModal({ open, onOpenChange }: QuickAddModalProps) {
         phone: prestataireForm.phone,
         website: prestataireForm.website,
         rating: prestataireForm.rating,
+        desc: prestataireForm.desc,
         notes: prestataireForm.notes,
         status: 'active',
         planner_id: user.uid,
@@ -286,9 +289,19 @@ export function QuickAddModal({ open, onOpenChange }: QuickAddModalProps) {
                   </Select>
                 </div>
                 <div>
-                  <Label>Notes internes</Label>
+                  <Label>Description</Label>
+                  <Textarea
+                    placeholder="Décrivez le rôle de ce prestataire et ce qu'il apporte..."
+                    className="mt-1"
+                    rows={2}
+                    value={prestataireForm.desc}
+                    onChange={(e) => setPrestataireForm({ ...prestataireForm, desc: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label>Notes &amp; conditions</Label>
                   <Textarea 
-                    placeholder="Notes sur ce prestataire..." 
+                    placeholder="Conditions de paiement, contraintes spécifiques, remarques internes..." 
                     className="mt-1" 
                     rows={2}
                     value={prestataireForm.notes}

@@ -101,9 +101,10 @@ export default function PlanningPage() {
         ]);
 
         const mappedFromEvents = (planningEvents as any[])
-          // Les événements de mariage (EventData) utilisent souvent event_date/location.
+          // Les événements de mariage (EventData) utilisent souvent event_date/couple_names.
           // Les items planning créés depuis /planning utilisent date/time/location.
-          .filter((e) => Boolean(e?.date))
+          // On exclut volontairement l'événement de mariage (et assimilés) pour ne garder que les RDV.
+          .filter((e) => Boolean(e?.date) && !e?.event_date && !e?.couple_names)
           .map((e) => {
             return {
               id: e.id,
@@ -123,6 +124,7 @@ export default function PlanningPage() {
         if (event?.id) {
           const items = await getDocuments('tasks', [
             { field: 'event_id', operator: '==', value: event.id },
+            { field: 'client_id', operator: '==', value: client.id },
           ]);
 
           const appointments = (items as any[])

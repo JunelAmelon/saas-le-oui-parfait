@@ -16,7 +16,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { Search, Plus, Heart, MapPin, Calendar, Euro, Phone, Mail, FileText, Image as ImageIcon, X, Users, CheckCircle, Clock, Edit, MessageSquare, Eye, MoreVertical, ChevronLeft, ChevronRight, Trash2 } from 'lucide-react';
+import { Search, Plus, Heart, MapPin, Calendar, Euro, Phone, Mail, FileText, Image as ImageIcon, X, Users, CheckCircle, Clock, Edit, MessageSquare, Eye, MoreVertical, ChevronLeft, ChevronRight, Trash2, Loader2 } from 'lucide-react';
 
 import {
   DropdownMenu,
@@ -30,7 +30,6 @@ import Image from 'next/image';
 import { useAuth } from '@/contexts/AuthContext';
 import { getDocuments } from '@/lib/db';
 import { ClientModal } from '@/components/modals/ClientModal';
-import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface Client {
@@ -65,6 +64,9 @@ export default function ClientFilesPage() {
   const [isNewClientOpen, setIsNewClientOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+
+  const [changeRequests, setChangeRequests] = useState<any[]>([]);
+  const [changeRequestsLoading, setChangeRequestsLoading] = useState(false);
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -134,6 +136,47 @@ export default function ClientFilesPage() {
     setSelectedClient(client);
     setIsDetailOpen(true);
   };
+
+  const fetchChangeRequests = async (clientId: string) => {
+    if (!user?.uid) return;
+    setChangeRequestsLoading(true);
+    try {
+      const items = await getDocuments('change_requests', [
+        { field: 'client_id', operator: '==', value: clientId },
+        { field: 'planner_id', operator: '==', value: user.uid },
+      ]);
+
+      const sorted = (items as any[])
+        .slice()
+        .sort((a, b) => String(b?.created_at || '').localeCompare(String(a?.created_at || '')));
+      setChangeRequests(sorted);
+    } catch (e) {
+      console.error('Error fetching change_requests:', e);
+      setChangeRequests([]);
+    } finally {
+      setChangeRequestsLoading(false);
+    }
+  };
+
+  const handleDeleteChangeRequest = async (requestId: string) => {
+    if (!requestId) return;
+    if (!confirm('Supprimer définitivement cette demande de modification ?')) return;
+    try {
+      const { deleteDocument } = await import('@/lib/db');
+      await deleteDocument('change_requests', requestId);
+      setChangeRequests((prev) => prev.filter((r: any) => r?.id !== requestId));
+      toast.success('Demande supprimée');
+    } catch (e) {
+      console.error('Error deleting change_request:', e);
+      toast.error('Impossible de supprimer la demande');
+    }
+  };
+
+  useEffect(() => {
+    if (!isDetailOpen || !selectedClient?.id) return;
+    void fetchChangeRequests(selectedClient.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDetailOpen, selectedClient?.id, user?.uid]);
 
   const handleEdit = (client: Client) => {
     setSelectedClient(client);
@@ -625,6 +668,55 @@ export default function ClientFilesPage() {
                 <div className="flex items-center gap-3 text-sm">
                   <Mail className="h-4 w-4 text-brand-turquoise" />
                   <span>{selectedClient.email}</span>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <h4 className="font-medium text-brand-purple">Demandes de modification (client)</h4>
+                <div className="p-4 bg-gray-50 rounded-lg">
+                  {changeRequestsLoading ? (
+                    <div className="flex items-center gap-2 text-sm text-brand-gray">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Chargement...
+                    </div>
+                  ) : changeRequests.length === 0 ? (
+                    <div className="text-sm text-brand-gray">Aucune demande pour le moment.</div>
+                  ) : (
+                    <div className="space-y-3">
+                      {changeRequests.map((r: any) => (
+                        <div key={r.id} className="p-3 bg-white rounded-lg border border-gray-200">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium text-brand-purple">
+                                {r.type || 'Demande'}
+                              </p>
+                              <p className="text-xs text-brand-gray mt-1">
+                                {r.created_at || '—'}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Badge className={(r.status || 'pending') === 'pending' ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-700'}>
+                                {r.status || 'pending'}
+                              </Badge>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8"
+                                onClick={() => handleDeleteChangeRequest(String(r.id))}
+                                title="Supprimer"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                          {r.note ? (
+                            <p className="text-sm text-brand-gray mt-2 whitespace-pre-wrap">{r.note}</p>
+                          ) : null}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
 

@@ -21,16 +21,11 @@ import {
 } from '@/components/ui/dialog';
 import {
   Users,
-  Phone,
-  Mail,
   MapPin,
   Star,
-  ExternalLink,
-  MessageSquare,
   CheckCircle,
   Clock,
   Calendar,
-  Send,
   Loader2,
   ChevronLeft,
   ChevronRight,
@@ -42,11 +37,8 @@ interface Prestataire {
   category: string;
   avatar: string;
   logoUrl?: string | null;
-  contact: string;
-  phone: string;
-  email: string;
   address: string;
-  website: string | null;
+  desc?: string;
   status: string;
   rating: number;
   nextRdv: string | null;
@@ -208,11 +200,8 @@ export default function PrestatairesPage() {
               category,
               avatar: initials,
               logoUrl: v?.logo || v?.logo_url || v?.logoUrl || v?.logoURL || null,
-              contact: v?.contact_name || v?.contact || '',
-              phone: v?.phone || '',
-              email: v?.email || '',
               address: v?.address || v?.city || '',
-              website: v?.website || null,
+              desc: v?.desc || '',
               status: 'confirmed',
               rating: Number(v?.rating ?? 5) || 5,
               nextRdv: v?.next_appointment?.description
@@ -346,17 +335,14 @@ export default function PrestatairesPage() {
 
               <div className="space-y-3 mb-4">
                 <div className="flex items-center gap-3 text-sm">
-                  <Phone className="h-4 w-4 text-brand-turquoise" />
-                  <span className="text-brand-purple">{presta.phone}</span>
-                </div>
-                <div className="flex items-center gap-3 text-sm">
-                  <Mail className="h-4 w-4 text-brand-turquoise" />
-                  <span className="text-brand-purple">{presta.email}</span>
-                </div>
-                <div className="flex items-center gap-3 text-sm">
                   <MapPin className="h-4 w-4 text-brand-turquoise" />
                   <span className="text-brand-gray">{presta.address}</span>
                 </div>
+                {presta.desc ? (
+                  <div className="text-sm text-brand-gray whitespace-pre-wrap">
+                    {presta.desc}
+                  </div>
+                ) : null}
                 {presta.nextRdv && (
                   <div className="flex items-center gap-3 text-sm">
                     <Calendar className="h-4 w-4 text-brand-turquoise" />
@@ -365,19 +351,7 @@ export default function PrestatairesPage() {
                 )}
               </div>
 
-              <div className="flex items-center gap-2 pt-4 border-t border-gray-100">
-                {presta.website && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="gap-2 text-brand-turquoise"
-                    onClick={() => window.open(`https://${presta.website}`, '_blank')}
-                  >
-                    <ExternalLink className="h-4 w-4" />
-                    Site web
-                  </Button>
-                )}
-              </div>
+              <div className="pt-4 border-t border-gray-100" />
             </Card>
           ))}
         </div>

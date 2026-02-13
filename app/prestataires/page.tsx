@@ -56,6 +56,7 @@ interface Vendor {
   rating: number;
   isFavorite: boolean;
   website: string;
+  desc?: string;
   notes?: string;
   logoUrl?: string | null;
 }
@@ -99,6 +100,7 @@ export default function VendorsPage() {
     city: '',
     website: '',
     rating: 5,
+    desc: '',
     notes: '',
     isFavorite: false,
   });
@@ -122,6 +124,7 @@ export default function VendorsPage() {
         rating: d.rating,
         isFavorite: d.is_favorite || false,
         website: d.website,
+        desc: d.desc || '',
         notes: d.notes || '',
         logoUrl: d.logo || d.logo_url || d.logoUrl || d.logoURL || null,
       }));
@@ -148,6 +151,7 @@ export default function VendorsPage() {
       city: '',
       website: '',
       rating: 5,
+      desc: '',
       notes: '',
       isFavorite: false,
     });
@@ -192,6 +196,7 @@ export default function VendorsPage() {
         city: formData.city,
         website: formData.website,
         rating: formData.rating,
+        desc: formData.desc,
         notes: formData.notes,
         is_favorite: formData.isFavorite,
         logo: logoUrl,
@@ -255,6 +260,7 @@ export default function VendorsPage() {
       city: vendor.city,
       website: vendor.website,
       rating: vendor.rating,
+      desc: vendor.desc || '',
       notes: vendor.notes || '',
       isFavorite: vendor.isFavorite,
     });
@@ -523,6 +529,20 @@ export default function VendorsPage() {
                 </div>
               </div>
 
+              {selectedVendor.desc ? (
+                <div className="p-4 bg-white rounded-lg border border-gray-100">
+                  <p className="text-sm font-medium text-brand-purple mb-1">Description</p>
+                  <p className="text-sm text-brand-gray whitespace-pre-wrap">{selectedVendor.desc}</p>
+                </div>
+              ) : null}
+
+              {selectedVendor.notes ? (
+                <div className="p-4 bg-white rounded-lg border border-gray-100">
+                  <p className="text-sm font-medium text-brand-purple mb-1">Notes &amp; conditions</p>
+                  <p className="text-sm text-brand-gray whitespace-pre-wrap">{selectedVendor.notes}</p>
+                </div>
+              ) : null}
+
               <div className="grid grid-cols-2 gap-3">
                 <Button variant="outline" className="gap-2">
                   <MessageSquare className="h-4 w-4" />
@@ -712,9 +732,19 @@ export default function VendorsPage() {
               </Select>
             </div>
             <div>
-              <Label>Notes internes</Label>
+              <Label>Description</Label>
+              <Textarea
+                placeholder="Décrivez le rôle de ce prestataire et ce qu'il apporte..."
+                className="mt-1"
+                rows={3}
+                value={formData.desc}
+                onChange={(e) => setFormData({ ...formData, desc: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label>Notes &amp; conditions</Label>
               <Textarea 
-                placeholder="Notes sur ce prestataire..." 
+                placeholder="Conditions de paiement, contraintes spécifiques, remarques internes..." 
                 className="mt-1" 
                 rows={3}
                 value={formData.notes}

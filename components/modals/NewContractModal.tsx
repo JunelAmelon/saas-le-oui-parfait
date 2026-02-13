@@ -40,6 +40,15 @@ interface Prospect {
   address?: string;
 }
 
+interface Vendor {
+  id: string;
+  name: string;
+  email?: string;
+  phone?: string;
+  address?: string;
+  siret?: string;
+}
+
 const prestationsDisponibles = [
   { id: '1', nom: 'Coordination complète du mariage', prix: 2500 },
   { id: '2', nom: 'Coordination le jour J uniquement', prix: 1200 },
@@ -299,16 +308,67 @@ Précédée de la mention                                       Précédée de l
 [NOM_REPRESENTANT]                                           [NOM_CLIENT]
 Président de LE OUI PARFAIT`;
 
+const vendorContractTemplate = `CONTRAT PRESTATAIRE
+
+ENTRE LES SOUSSIGNÉS :
+
+D'UNE PART,
+
+La société LE OUI PARFAIT, société par actions simplifiée au capital de 10 000 euros, immatriculée sous le numéro [SIRET_AGENCE], dont le siège social est situé [ADRESSE_AGENCE], représentée par [NOM_REPRESENTANT].
+Email : [EMAIL_AGENCE]
+Téléphone : [TELEPHONE_AGENCE]
+
+Ci-après dénommée « l'Agence »
+
+D'UNE PART,
+
+ET :
+
+Le prestataire : [NOM_PRESTATAIRE]
+Adresse : [ADRESSE_PRESTATAIRE]
+Email : [EMAIL_PRESTATAIRE]
+Téléphone : [TELEPHONE_PRESTATAIRE]
+SIRET : [SIRET_PRESTATAIRE]
+
+Ci-après dénommés « le Prestataire »
+
+IL A ÉTÉ CONVENU ET ARRÊTÉ CE QUI SUIT :
+
+ARTICLE 1 - OBJET
+Le présent contrat a pour objet de définir les conditions d'intervention du Prestataire pour l'événement du [DATE_MARIAGE] au [LIEU_MARIAGE].
+
+ARTICLE 2 - PRESTATIONS
+Le Prestataire s'engage à fournir les prestations suivantes :
+[PRESTATIONS]
+
+Le détail précis de chaque prestation, ainsi que les livrables associés, sont décrits dans l'annexe technique jointe au présent contrat et en faisant partie intégrante.
+
+Le Prestataire mettra en œuvre tous les moyens nécessaires à la bonne exécution de ses obligations, dans le respect des règles de l'art et des normes professionnelles applicables.
+
+ARTICLE 3 - CONDITIONS FINANCIÈRES
+Le montant total des prestations est fixé à [MONTANT_TOTAL] euros TTC.
+
+Fait à [VILLE], le [DATE_SIGNATURE]
+En deux exemplaires originaux, dont un pour chaque Partie.
+
+Signature Agence                              Signature Prestataire
+Précédée de la mention                                       Précédée de la mention
+« Lu et approuvé, bon pour accord »                          « Lu et approuvé, bon pour accord »
+
+[NOM_REPRESENTANT]                            [NOM_PRESTATAIRE]`;
+
 export function NewContractModal({ isOpen, onClose, onContractCreated }: NewContractModalProps) {
   const { toast } = useToast();
   const { user } = useAuth();
   const [clients, setClients] = useState<Client[]>([]);
   const [prospects, setProspects] = useState<Prospect[]>([]);
+  const [vendors, setVendors] = useState<Vendor[]>([]);
   const [agencyInfo, setAgencyInfo] = useState<any>(null);
 
-  const [recipientType, setRecipientType] = useState<'client' | 'prospect'>('client');
+  const [recipientType, setRecipientType] = useState<'client' | 'prospect' | 'vendor'>('client');
   const [selectedClient, setSelectedClient] = useState('');
   const [selectedProspect, setSelectedProspect] = useState('');
+  const [selectedVendor, setSelectedVendor] = useState('');
   const [prospectDraft, setProspectDraft] = useState({
     name: '',
     partner: '',
@@ -333,6 +393,7 @@ export function NewContractModal({ isOpen, onClose, onContractCreated }: NewCont
     if (isOpen && user) {
       fetchClients();
       fetchProspects();
+      fetchVendors();
       fetchAgencyInfo();
     }
   }, [isOpen, user]);
@@ -353,6 +414,29 @@ export function NewContractModal({ isOpen, onClose, onContractCreated }: NewCont
       setClients(mapped);
     } catch (e) {
       console.error('Error fetching clients:', e);
+    }
+  };
+
+  const fetchVendors = async () => {
+    if (!user) return;
+    try {
+      const data = await getDocuments('vendors', [
+        { field: 'planner_id', operator: '==', value: user.uid },
+      ]);
+      const mapped = (data as any[])
+        .map((v) => ({
+          id: v.id,
+          name: v.name || v.vendorName || v.title || '',
+          email: v.email || '',
+          phone: v.phone || '',
+          address: v.address || '',
+          siret: v.siret || '',
+        }))
+        .sort((a, b) => (a.name || '').localeCompare((b.name || ''), 'fr')) as Vendor[];
+      setVendors(mapped);
+    } catch (e) {
+      console.error('Error fetching vendors:', e);
+      setVendors([]);
     }
   };
 
@@ -456,8 +540,10 @@ export function NewContractModal({ isOpen, onClose, onContractCreated }: NewCont
   useEffect(() => {
     if (recipientType === 'client') {
       if (selectedClient && eventDate && eventLocation) generateContract();
-    } else {
+    } else if (recipientType === 'prospect') {
       if (selectedProspect && eventDate && eventLocation) generateContract();
+    } else {
+      if (selectedVendor && eventDate && eventLocation) generateContract();
     }
   }, [recipientType, selectedClient, selectedProspect, prospectDraft, eventDate, eventLocation, selectedPrestations, prestationsPersonnalisees, adminInfo]);
 
@@ -477,6 +563,20 @@ export function NewContractModal({ isOpen, onClose, onContractCreated }: NewCont
           phone: client.phone,
           address: client.address,
           kind: 'client' as const,
+        };
+      }
+
+      if (recipientType === 'vendor') {
+        const vendor = vendors.find((v) => v.id === selectedVendor) || null;
+        if (!vendor) return null;
+        return {
+          id: vendor.id,
+          name: vendor.name,
+          email: vendor.email || '',
+          phone: vendor.phone || '',
+          address: vendor.address || '',
+          siret: vendor.siret || '',
+          kind: 'vendor' as const,
         };
       }
 
@@ -526,6 +626,29 @@ export function NewContractModal({ isOpen, onClose, onContractCreated }: NewCont
     const prestationsText = prestationsList.length > 0 
       ? prestationsList.join('\n')
       : '- Coordination complète du mariage : à définir';
+
+    if (party.kind === 'vendor') {
+      const vendorTpl = vendorContractTemplate
+        .replace(/\[NOM_REPRESENTANT\]/g, adminInfo.nomRepresentant)
+        .replace(/\[ADRESSE_AGENCE\]/g, adminInfo.adresseAgence)
+        .replace(/\[SIRET_AGENCE\]/g, adminInfo.siret)
+        .replace(/\[EMAIL_AGENCE\]/g, adminInfo.email)
+        .replace(/\[TELEPHONE_AGENCE\]/g, adminInfo.telephone)
+        .replace(/\[NOM_PRESTATAIRE\]/g, party.name)
+        .replace(/\[EMAIL_PRESTATAIRE\]/g, party.email)
+        .replace(/\[TELEPHONE_PRESTATAIRE\]/g, party.phone)
+        .replace(/\[ADRESSE_PRESTATAIRE\]/g, party.address)
+        .replace(/\[SIRET_PRESTATAIRE\]/g, String((party as any)?.siret || ''))
+        .replace(/\[DATE_MARIAGE\]/g, eventDateObj.toLocaleDateString('fr-FR'))
+        .replace(/\[LIEU_MARIAGE\]/g, eventLocation)
+        .replace(/\[PRESTATIONS\]/g, prestationsText)
+        .replace(/\[MONTANT_TOTAL\]/g, montantTotal.toLocaleString('fr-FR'))
+        .replace(/\[VILLE\]/g, adminInfo.ville)
+        .replace(/\[DATE_SIGNATURE\]/g, today);
+
+      setContractContent(vendorTpl);
+      return vendorTpl;
+    }
     
     let generated = contractTemplate
       .replace(/\[NOM_REPRESENTANT\]/g, adminInfo.nomRepresentant)
@@ -624,6 +747,10 @@ export function NewContractModal({ isOpen, onClose, onContractCreated }: NewCont
       sonnerToast.error('Veuillez sélectionner un prospect et renseigner son nom');
       return;
     }
+    if (recipientType === 'vendor' && !selectedVendor) {
+      sonnerToast.error('Veuillez sélectionner un prestataire');
+      return;
+    }
 
     setLoading(true);
     try {
@@ -634,6 +761,7 @@ export function NewContractModal({ isOpen, onClose, onContractCreated }: NewCont
       }
 
       const client = recipientType === 'client' ? clients.find((c) => c.id === selectedClient) : null;
+      const vendor = recipientType === 'vendor' ? vendors.find((v) => v.id === selectedVendor) : null;
       const prospectName = recipientType === 'prospect'
         ? `${prospectDraft.name || ''}${prospectDraft.partner ? ' & ' + prospectDraft.partner : ''}`.trim()
         : '';
@@ -684,15 +812,16 @@ export function NewContractModal({ isOpen, onClose, onContractCreated }: NewCont
       const contractData = {
         planner_id: user.uid,
         reference,
-        title: `Contrat de prestation - ${recipientType === 'client' ? (client?.name || '') : prospectName}`,
+        title: `Contrat de prestation - ${recipientType === 'client' ? (client?.name || '') : recipientType === 'vendor' ? (vendor?.name || '') : prospectName}`,
         client_id: recipientType === 'client' ? selectedClient : null,
         prospect_id: recipientType === 'prospect' ? selectedProspect : null,
+        vendor_id: recipientType === 'vendor' ? selectedVendor : null,
         recipient_type: recipientType,
-        client: recipientType === 'client' ? (client?.name || '') : prospectName,
-        client_email: recipientType === 'client' ? (client?.email || '') : (prospectDraft.email || ''),
-        client_phone: recipientType === 'client' ? (client?.phone || '') : (prospectDraft.phone || ''),
-        client_address: recipientType === 'client' ? (client?.address || '') : (prospectDraft.address || ''),
-        type: 'service_contract',
+        client: recipientType === 'client' ? (client?.name || '') : recipientType === 'vendor' ? (vendor?.name || '') : prospectName,
+        client_email: recipientType === 'client' ? (client?.email || '') : recipientType === 'vendor' ? (vendor?.email || '') : (prospectDraft.email || ''),
+        client_phone: recipientType === 'client' ? (client?.phone || '') : recipientType === 'vendor' ? (vendor?.phone || '') : (prospectDraft.phone || ''),
+        client_address: recipientType === 'client' ? (client?.address || '') : recipientType === 'vendor' ? (vendor?.address || '') : (prospectDraft.address || ''),
+        type: recipientType === 'vendor' ? 'vendor_contract' : 'service_contract',
         amount: montantTotal,
         status: 'sent',
         created_at: new Date().toLocaleDateString('fr-FR'),
@@ -737,7 +866,7 @@ export function NewContractModal({ isOpen, onClose, onContractCreated }: NewCont
         }
       }
       
-      sonnerToast.success(`Contrat créé avec PDF pour ${recipientType === 'client' ? (client?.name || '') : prospectName}`);
+      sonnerToast.success(`Contrat créé avec PDF pour ${recipientType === 'client' ? (client?.name || '') : recipientType === 'vendor' ? (vendor?.name || '') : prospectName}`);
       
       // Fermer le modal d'abord
       onClose();
@@ -848,7 +977,7 @@ export function NewContractModal({ isOpen, onClose, onContractCreated }: NewCont
               <Select
                 value={recipientType}
                 onValueChange={(v) => {
-                  const next = (v === 'prospect' ? 'prospect' : 'client') as 'client' | 'prospect';
+                  const next = (v === 'prospect' ? 'prospect' : v === 'vendor' ? 'vendor' : 'client') as 'client' | 'prospect' | 'vendor';
                   setRecipientType(next);
                 }}
               >
@@ -858,6 +987,7 @@ export function NewContractModal({ isOpen, onClose, onContractCreated }: NewCont
                 <SelectContent>
                   <SelectItem value="client">Client</SelectItem>
                   <SelectItem value="prospect">Prospect</SelectItem>
+                  <SelectItem value="vendor">Prestataire</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -880,6 +1010,22 @@ export function NewContractModal({ isOpen, onClose, onContractCreated }: NewCont
                 {selectedClientData && (
                   <p className="text-xs text-brand-gray mt-1">Email: {selectedClientData.email}</p>
                 )}
+              </div>
+            ) : recipientType === 'vendor' ? (
+              <div>
+                <Label>Prestataire *</Label>
+                <Select value={selectedVendor} onValueChange={setSelectedVendor}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sélectionner un prestataire..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {vendors.map((v) => (
+                      <SelectItem key={v.id} value={v.id}>
+                        {v.name || 'Prestataire'}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             ) : (
               <div>
@@ -1064,7 +1210,9 @@ export function NewContractModal({ isOpen, onClose, onContractCreated }: NewCont
                 disabled={
                   recipientType === 'client'
                     ? !selectedClient || !eventDate || !eventLocation
-                    : !selectedProspect || !eventDate || !eventLocation || !prospectDraft.name.trim()
+                    : recipientType === 'vendor'
+                      ? !selectedVendor || !eventDate || !eventLocation
+                      : !selectedProspect || !eventDate || !eventLocation || !prospectDraft.name.trim()
                 }
               >
                 <Eye className="h-4 w-4" />
@@ -1132,7 +1280,9 @@ export function NewContractModal({ isOpen, onClose, onContractCreated }: NewCont
               !eventLocation ||
               (recipientType === 'client'
                 ? !selectedClient
-                : !selectedProspect || !prospectDraft.name.trim())
+                : recipientType === 'vendor'
+                  ? !selectedVendor
+                  : !selectedProspect || !prospectDraft.name.trim())
             }
           >
             {loading ? 'Création...' : 'Créer et envoyer au client'}
