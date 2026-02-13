@@ -238,7 +238,7 @@ export default function DocumentsPage() {
     setUploading(true);
     try {
       const { uploadFile } = await import('@/lib/storage');
-      const { addDocument } = await import('@/lib/db');
+      const { addDocument, getDocument } = await import('@/lib/db');
       
       const fileUrl = await uploadFile(selectedFile, 'documents');
       
@@ -251,19 +251,44 @@ export default function DocumentsPage() {
         file_type: selectedFile.type,
         file_size: selectedFile.size,
         uploaded_at: new Date().toLocaleDateString('fr-FR'),
-        created_timestamp: new Date()
+        created_timestamp: new Date(),
       };
 
       await addDocument('documents', docData);
-      toast.success('Document upload\u00e9 avec succ\u00e8s');
+
+      // Notif in-app côté client (best effort)
+      try {
+        if (clientId) {
+          const clientRaw = (await getDocument('clients', clientId)) as any;
+          const clientUserId = clientRaw?.client_user_id || null;
+          const clientName = `${clientRaw?.name || ''}${clientRaw?.partner ? ' & ' + clientRaw.partner : ''}`.trim() || 'Client';
+          if (clientUserId) {
+            await addDocument('notifications', {
+              recipient_id: clientUserId,
+              type: 'document',
+              title: 'Nouveau document',
+              message: `Un nouveau document est disponible : ${docName}`,
+              link: '/espace-client/documents',
+              read: false,
+              created_at: new Date(),
+              planner_id: user.uid,
+              client_id: clientId,
+              meta: { client_name: clientName, doc_type: docType, doc_name: docName },
+            });
+          }
+        }
+      } catch (e) {
+        console.warn('Unable to create client notification for document upload:', e);
+      }
+
+      toast.success('Document uploadé avec succès');
       setIsUploadModalOpen(false);
       setSelectedFile(null);
       setDocName('');
-      setDocType('contrat');
-      fetchDocuments();
+      await fetchDocuments();
     } catch (e) {
       console.error('Error uploading document:', e);
-      toast.error('Erreur lors de l\'upload du document');
+      toast.error('Erreur lors de l\'upload');
     } finally {
       setUploading(false);
     }

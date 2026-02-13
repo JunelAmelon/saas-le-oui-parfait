@@ -99,12 +99,14 @@ export default function MariagePage() {
 
     setSending(true);
     try {
+      const plannerId = (client as any)?.planner_id || event?.planner_id || '';
+
       await addDocument('change_requests', {
         type: 'wedding_info',
         status: 'pending',
         client_id: client.id,
         event_id: event?.id || '',
-        planner_id: (client as any)?.planner_id || event?.planner_id || '',
+        planner_id: plannerId,
         note: requestNote || '',
         requested_changes: {
           event_date: eventDate,
@@ -120,6 +122,27 @@ export default function MariagePage() {
         },
         created_at: new Date().toISOString(),
       });
+
+      // Notif in-app côté admin (best effort)
+      try {
+        if (plannerId) {
+          await addDocument('notifications', {
+            recipient_id: plannerId,
+            type: 'change_request',
+            title: 'Nouvelle demande de modification',
+            message: `${coupleNames} a envoyé une demande de modification`,
+            link: `/agence/clients?clientId=${client.id}`,
+            read: false,
+            created_at: new Date(),
+            planner_id: plannerId,
+            client_id: client.id,
+            event_id: event?.id || null,
+            meta: { from: 'client', request_type: 'wedding_info' },
+          });
+        }
+      } catch (e) {
+        console.warn('Unable to create planner notification for change request:', e);
+      }
 
       toast({
         title: 'Demande envoyée',

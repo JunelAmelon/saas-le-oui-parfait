@@ -200,6 +200,30 @@ export default function MessagesPage() {
         last_message_at: new Date(),
         unread_count_planner: 1,
       });
+
+      // Notif in-app côté admin (best effort)
+      try {
+        const plannerId = client?.planner_id || null;
+        const clientId = client?.id || null;
+        if (plannerId) {
+          await addDocument('notifications', {
+            recipient_id: plannerId,
+            type: 'message',
+            title: 'Nouveau message client',
+            message: `${clientName} vous a envoyé un message${content ? ` : ${content.slice(0, 120)}` : ''}`,
+            link: clientId ? `/messages?clientId=${clientId}` : '/messages',
+            read: false,
+            created_at: new Date(),
+            planner_id: plannerId,
+            client_id: clientId,
+            conversation_id: selectedConversation.id,
+            meta: { from: 'client', client_name: clientName },
+          });
+        }
+      } catch (e) {
+        console.warn('Unable to create planner notification for message:', e);
+      }
+
       await fetchMessages(selectedConversation.id);
     } catch (e) {
       console.error('Error sending message:', e);
@@ -228,6 +252,30 @@ export default function MessagesPage() {
         last_message_at: new Date(),
         unread_count_planner: 1,
       });
+
+      // Notif in-app côté admin (best effort)
+      try {
+        const plannerId = client?.planner_id || null;
+        const clientId = client?.id || null;
+        if (plannerId) {
+          await addDocument('notifications', {
+            recipient_id: plannerId,
+            type: 'message',
+            title: 'Nouveau message client',
+            message: `${clientName} vous a envoyé un document : ${file.name}`,
+            link: clientId ? `/messages?clientId=${clientId}` : '/messages',
+            read: false,
+            created_at: new Date(),
+            planner_id: plannerId,
+            client_id: clientId,
+            conversation_id: selectedConversation.id,
+            meta: { from: 'client', client_name: clientName, attachment: file.name },
+          });
+        }
+      } catch (e) {
+        console.warn('Unable to create planner notification for attachment:', e);
+      }
+
       await fetchMessages(selectedConversation.id);
     } catch (e) {
       console.error('Error sending attachment:', e);

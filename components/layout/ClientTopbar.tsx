@@ -15,6 +15,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { QuickAddModal } from '@/components/modals/QuickAddModal';
 import { MessagesModal } from '@/components/modals/MessagesModal';
 import { NotificationsModal } from '@/components/modals/NotificationsModal';
+import { useNotifications } from '@/hooks/use-notifications';
 import { useAuth } from '@/contexts/AuthContext';
 import { useClientData } from '@/contexts/ClientDataContext';
 import { useRouter } from 'next/navigation';
@@ -32,6 +33,7 @@ export function ClientTopbar({ clientName = 'Julie & Frédérick', daysRemaining
   const [showNotifications, setShowNotifications] = useState(false);
   const { signOut, user } = useAuth();
   const { client } = useClientData();
+  const { items: notifications, unreadCount, markAllAsRead, markAsRead } = useNotifications(user?.uid);
   const router = useRouter();
   const { toast } = useToast();
 
@@ -62,7 +64,11 @@ export function ClientTopbar({ clientName = 'Julie & Frédérick', daysRemaining
             onClick={() => setShowNotifications(true)}
           >
             <Bell className="h-5 w-5 text-brand-gray" />
-            <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-red-500"></span>
+            {unreadCount > 0 ? (
+              <span className="absolute -right-1 -top-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[11px] leading-[18px] text-center">
+                {unreadCount > 99 ? '99+' : unreadCount}
+              </span>
+            ) : null}
           </Button>
 
           <Button
@@ -117,7 +123,14 @@ export function ClientTopbar({ clientName = 'Julie & Frédérick', daysRemaining
 
       <QuickAddModal open={showQuickAdd} onOpenChange={setShowQuickAdd} />
       <MessagesModal open={showMessages} onOpenChange={setShowMessages} />
-      <NotificationsModal open={showNotifications} onOpenChange={setShowNotifications} />
+      <NotificationsModal
+        open={showNotifications}
+        onOpenChange={setShowNotifications}
+        notifications={notifications}
+        unreadCount={unreadCount}
+        onMarkAllAsRead={markAllAsRead}
+        onMarkAsRead={markAsRead}
+      />
     </>
   );
 }

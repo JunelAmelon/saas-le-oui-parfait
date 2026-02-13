@@ -324,6 +324,35 @@ export default function AdminMessagesPage() {
         last_message_at: new Date(),
         unread_count_client: (selectedConversation.type === 'client') ? 1 : 0,
       });
+
+      // Notif in-app côté client (best effort)
+      try {
+        const convRaw = (await getDocument('conversations', selectedConversation.id)) as any;
+        const clientId = convRaw?.client_id || selectedConversation.client_id || null;
+        if (clientId) {
+          const clientRaw = (await getDocument('clients', clientId)) as any;
+          const clientUserId = clientRaw?.client_user_id || null;
+          const clientName = `${clientRaw?.name || ''}${clientRaw?.partner ? ' & ' + clientRaw.partner : ''}`.trim() || 'Client';
+          if (clientUserId) {
+            await addDocument('notifications', {
+              recipient_id: clientUserId,
+              type: 'message',
+              title: 'Nouveau message',
+              message: `Votre wedding planner vous a envoyé un message${content ? ` : ${content.slice(0, 120)}` : ''}`,
+              link: '/espace-client/messages',
+              read: false,
+              created_at: new Date(),
+              planner_id: user.uid,
+              client_id: clientId,
+              conversation_id: selectedConversation.id,
+              meta: { from: 'planner', client_name: clientName },
+            });
+          }
+        }
+      } catch (e) {
+        console.warn('Unable to create client notification for message:', e);
+      }
+
       await fetchMessages(selectedConversation.id);
     } catch (e) {
       console.error('Error sending message:', e);
@@ -352,6 +381,35 @@ export default function AdminMessagesPage() {
         last_message_at: new Date(),
         unread_count_client: (selectedConversation.type === 'client') ? 1 : 0,
       });
+
+      // Notif in-app côté client (best effort)
+      try {
+        const convRaw = (await getDocument('conversations', selectedConversation.id)) as any;
+        const clientId = convRaw?.client_id || selectedConversation.client_id || null;
+        if (clientId) {
+          const clientRaw = (await getDocument('clients', clientId)) as any;
+          const clientUserId = clientRaw?.client_user_id || null;
+          const clientName = `${clientRaw?.name || ''}${clientRaw?.partner ? ' & ' + clientRaw.partner : ''}`.trim() || 'Client';
+          if (clientUserId) {
+            await addDocument('notifications', {
+              recipient_id: clientUserId,
+              type: 'message',
+              title: 'Nouveau message',
+              message: `Votre wedding planner vous a envoyé un document : ${file.name}`,
+              link: '/espace-client/messages',
+              read: false,
+              created_at: new Date(),
+              planner_id: user.uid,
+              client_id: clientId,
+              conversation_id: selectedConversation.id,
+              meta: { from: 'planner', client_name: clientName, attachment: file.name },
+            });
+          }
+        }
+      } catch (e) {
+        console.warn('Unable to create client notification for attachment:', e);
+      }
+
       await fetchMessages(selectedConversation.id);
     } catch (e) {
       console.error('Error sending attachment:', e);

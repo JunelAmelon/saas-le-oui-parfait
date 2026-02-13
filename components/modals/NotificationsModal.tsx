@@ -3,72 +3,51 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Bell, Calendar, Users, MessageSquare, FileText, CheckCircle2, X } from 'lucide-react';
+import { Bell, MessageSquare, FileText, CheckCircle2, X } from 'lucide-react';
+import type { AppNotification, NotificationType } from '@/hooks/use-notifications';
+import { useRouter } from 'next/navigation';
 
 interface NotificationsModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  notifications: AppNotification[];
+  unreadCount: number;
+  onMarkAllAsRead: () => Promise<void>;
+  onMarkAsRead: (notificationId: string) => Promise<void>;
 }
 
-const notifications = [
-  {
-    id: '1',
-    icon: Calendar,
-    color: 'text-blue-500',
-    bgColor: 'bg-blue-50',
-    title: 'Nouveau rendez-vous',
-    message: 'Entretien avec Julie & Frédérick demain à 14h',
-    time: 'Il y a 10 min',
-    unread: true,
-  },
-  {
-    id: '2',
-    icon: Users,
-    color: 'text-green-500',
-    bgColor: 'bg-green-50',
-    title: 'Nouveau prospect',
-    message: 'Emma Bernard a rempli le formulaire de contact',
-    time: 'Il y a 1h',
-    unread: true,
-  },
-  {
-    id: '3',
-    icon: MessageSquare,
-    color: 'text-purple-500',
-    bgColor: 'bg-purple-50',
-    title: 'Nouveau message',
-    message: "Château d'Apigné a envoyé un message",
-    time: 'Il y a 2h',
-    unread: true,
-  },
-  {
-    id: '4',
-    icon: FileText,
-    color: 'text-orange-500',
-    bgColor: 'bg-orange-50',
-    title: 'Devis validé',
-    message: 'Sophie Martin a accepté le devis DEVIS-2024-002',
-    time: 'Il y a 3h',
-    unread: false,
-  },
-  {
-    id: '5',
-    icon: CheckCircle2,
-    color: 'text-green-500',
-    bgColor: 'bg-green-50',
-    title: 'Paiement reçu',
-    message: "Acompte de 6000€ reçu pour l'événement EM-TH-2024",
-    time: 'Hier',
-    unread: false,
-  },
-];
+const getNotifStyle = (type: NotificationType) => {
+  switch (type) {
+    case 'message':
+      return { icon: MessageSquare, color: 'text-purple-500', bgColor: 'bg-purple-50' };
+    case 'document':
+      return { icon: FileText, color: 'text-orange-500', bgColor: 'bg-orange-50' };
+    case 'change_request':
+      return { icon: CheckCircle2, color: 'text-blue-500', bgColor: 'bg-blue-50' };
+    default:
+      return { icon: Bell, color: 'text-gray-500', bgColor: 'bg-gray-50' };
+  }
+};
 
-export function NotificationsModal({ open, onOpenChange }: NotificationsModalProps) {
-  const unreadCount = notifications.filter((n) => n.unread).length;
+const formatTime = (createdAt: any) => {
+  const d: Date | null = createdAt?.toDate ? createdAt.toDate() : createdAt ? new Date(createdAt) : null;
+  if (!d || Number.isNaN(d.getTime())) return '';
+  return d.toLocaleString('fr-FR');
+};
+
+export function NotificationsModal({
+  open,
+  onOpenChange,
+  notifications,
+  unreadCount,
+  onMarkAllAsRead,
+  onMarkAsRead,
+}: NotificationsModalProps) {
+  const router = useRouter();
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="w-[95vw] sm:w-full sm:max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <div className="flex items-center justify-between">
             <DialogTitle className="text-2xl font-bold text-brand-purple flex items-center gap-2">
@@ -103,6 +82,7 @@ export function NotificationsModal({ open, onOpenChange }: NotificationsModalPro
               size="sm"
               variant="ghost"
               className="ml-auto text-brand-turquoise hover:text-brand-turquoise-hover"
+              onClick={() => void onMarkAllAsRead()}
             >
               Tout marquer comme lu
             </Button>
@@ -110,36 +90,51 @@ export function NotificationsModal({ open, onOpenChange }: NotificationsModalPro
 
           <div className="space-y-2">
             {notifications.map((notification) => {
-              const Icon = notification.icon;
+              const style = getNotifStyle(notification.type);
+              const Icon = style.icon;
+              const isUnread = !notification.read;
               return (
-                <div
+                <button
                   key={notification.id}
-                  className={`p-4 rounded-lg border transition-colors ${
-                    notification.unread
-                      ? 'border-brand-turquoise bg-brand-turquoise/5'
-                      : 'border-gray-200 bg-white'
+                  type="button"
+                  className={`w-full text-left p-4 rounded-lg border transition-colors ${
+                    isUnread ? 'border-brand-turquoise bg-brand-turquoise/5' : 'border-gray-200 bg-white'
                   }`}
+                  onClick={async () => {
+                    try {
+                      if (isUnread) await onMarkAsRead(notification.id);
+                    } finally {
+                      if (notification.link) {
+                        onOpenChange(false);
+                        router.push(notification.link);
+                      }
+                    }
+                  }}
                 >
                   <div className="flex items-start gap-3">
-                    <div className={`p-2 rounded-lg ${notification.bgColor} flex-shrink-0`}>
-                      <Icon className={`h-5 w-5 ${notification.color}`} />
+                    <div className={`p-2 rounded-lg ${style.bgColor} flex-shrink-0`}>
+                      <Icon className={`h-5 w-5 ${style.color}`} />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between gap-2 mb-1">
                         <h4 className="font-bold text-brand-purple text-sm">
                           {notification.title}
                         </h4>
-                        {notification.unread && (
+                        {isUnread && (
                           <div className="h-2 w-2 rounded-full bg-brand-turquoise flex-shrink-0 mt-1"></div>
                         )}
                       </div>
                       <p className="text-sm text-brand-gray mb-2">{notification.message}</p>
-                      <p className="text-xs text-brand-gray">{notification.time}</p>
+                      <p className="text-xs text-brand-gray">{formatTime(notification.created_at)}</p>
                     </div>
                   </div>
-                </div>
+                </button>
               );
             })}
+
+            {notifications.length === 0 ? (
+              <div className="p-6 text-sm text-brand-gray text-center">Aucune notification.</div>
+            ) : null}
           </div>
 
           <Button
