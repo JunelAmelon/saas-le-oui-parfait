@@ -347,6 +347,18 @@ export default function AdminMessagesPage() {
               conversation_id: selectedConversation.id,
               meta: { from: 'planner', client_name: clientName },
             });
+
+            try {
+              const { sendPushToRecipient } = await import('@/lib/push');
+              await sendPushToRecipient({
+                recipientId: clientUserId,
+                title: 'Nouveau message',
+                body: `Votre wedding planner vous a envoyé un message${content ? ` : ${content.slice(0, 120)}` : ''}`,
+                link: '/espace-client/messages',
+              });
+            } catch (e) {
+              console.warn('Unable to send push:', e);
+            }
           }
         }
       } catch (e) {
@@ -404,6 +416,18 @@ export default function AdminMessagesPage() {
               conversation_id: selectedConversation.id,
               meta: { from: 'planner', client_name: clientName, attachment: file.name },
             });
+
+            try {
+              const { sendPushToRecipient } = await import('@/lib/push');
+              await sendPushToRecipient({
+                recipientId: clientUserId,
+                title: 'Nouveau message',
+                body: `Votre wedding planner vous a envoyé un document : ${file.name}`,
+                link: '/espace-client/messages',
+              });
+            } catch (e) {
+              console.warn('Unable to send push:', e);
+            }
           }
         }
       } catch (e) {

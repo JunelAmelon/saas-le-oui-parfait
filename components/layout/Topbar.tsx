@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Bell, Settings, Plus, LogOut, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -27,8 +27,23 @@ export function Topbar() {
   const [showNotifications, setShowNotifications] = useState(false);
   const { signOut, user } = useAuth();
   const { items: notifications, unreadCount, markAllAsRead, markAsRead } = useNotifications(user?.uid);
+  const pushInitRef = useRef(false);
   const router = useRouter();
   const { toast } = useToast();
+
+  useEffect(() => {
+    if (!user?.uid) return;
+    if (pushInitRef.current) return;
+    pushInitRef.current = true;
+    void (async () => {
+      try {
+        const { registerPushToken } = await import('@/lib/push');
+        await registerPushToken(user.uid);
+      } catch (e) {
+        console.warn('Unable to register push token:', e);
+      }
+    })();
+  }, [user?.uid]);
 
   const handleLogout = async () => {
     try {

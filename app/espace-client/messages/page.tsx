@@ -219,6 +219,18 @@ export default function MessagesPage() {
             conversation_id: selectedConversation.id,
             meta: { from: 'client', client_name: clientName },
           });
+
+          try {
+            const { sendPushToRecipient } = await import('@/lib/push');
+            await sendPushToRecipient({
+              recipientId: plannerId,
+              title: 'Nouveau message client',
+              body: `${clientName} vous a envoyé un message${content ? ` : ${content.slice(0, 120)}` : ''}`,
+              link: clientId ? `/messages?clientId=${clientId}` : '/messages',
+            });
+          } catch (e) {
+            console.warn('Unable to send push:', e);
+          }
         }
       } catch (e) {
         console.warn('Unable to create planner notification for message:', e);
@@ -271,6 +283,18 @@ export default function MessagesPage() {
             conversation_id: selectedConversation.id,
             meta: { from: 'client', client_name: clientName, attachment: file.name },
           });
+
+          try {
+            const { sendPushToRecipient } = await import('@/lib/push');
+            await sendPushToRecipient({
+              recipientId: plannerId,
+              title: 'Nouveau message client',
+              body: `${clientName} vous a envoyé un document : ${file.name}`,
+              link: clientId ? `/messages?clientId=${clientId}` : '/messages',
+            });
+          } catch (e) {
+            console.warn('Unable to send push:', e);
+          }
         }
       } catch (e) {
         console.warn('Unable to create planner notification for attachment:', e);

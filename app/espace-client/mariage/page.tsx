@@ -139,6 +139,18 @@ export default function MariagePage() {
             event_id: event?.id || null,
             meta: { from: 'client', request_type: 'wedding_info' },
           });
+
+          try {
+            const { sendPushToRecipient } = await import('@/lib/push');
+            await sendPushToRecipient({
+              recipientId: plannerId,
+              title: 'Nouvelle demande de modification',
+              body: `${coupleNames} a envoyé une demande de modification`,
+              link: `/agence/clients?clientId=${client.id}`,
+            });
+          } catch (e) {
+            console.warn('Unable to send push:', e);
+          }
         }
       } catch (e) {
         console.warn('Unable to create planner notification for change request:', e);

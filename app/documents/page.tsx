@@ -275,6 +275,18 @@ export default function DocumentsPage() {
               client_id: clientId,
               meta: { client_name: clientName, doc_type: docType, doc_name: docName },
             });
+
+            try {
+              const { sendPushToRecipient } = await import('@/lib/push');
+              await sendPushToRecipient({
+                recipientId: clientUserId,
+                title: 'Nouveau document',
+                body: `Un nouveau document est disponible : ${docName}`,
+                link: '/espace-client/documents',
+              });
+            } catch (e) {
+              console.warn('Unable to send push:', e);
+            }
           }
         }
       } catch (e) {
