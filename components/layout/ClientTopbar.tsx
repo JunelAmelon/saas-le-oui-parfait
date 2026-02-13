@@ -45,7 +45,8 @@ export function ClientTopbar({ clientName = 'Julie & Frédérick', daysRemaining
     void (async () => {
       try {
         const { registerPushToken } = await import('@/lib/push');
-        await registerPushToken(user.uid);
+        const res = await registerPushToken(user.uid);
+        console.log('push register status (client):', res);
       } catch (e) {
         console.warn('Unable to register push token:', e);
       }

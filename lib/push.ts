@@ -67,10 +67,16 @@ export async function registerPushToken(userId: string) {
   const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
   const messaging = getMessaging(app);
 
-  const token = await getToken(messaging, {
-    vapidKey,
-    serviceWorkerRegistration: registration,
-  });
+  let token = '';
+  try {
+    token = await getToken(messaging, {
+      vapidKey,
+      serviceWorkerRegistration: registration,
+    });
+  } catch (e) {
+    console.warn('FCM getToken failed:', e);
+    return { status: 'get_token_failed' as const };
+  }
 
   if (!token) return { status: 'no_token' as const };
 
