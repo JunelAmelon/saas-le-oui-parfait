@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
 import { docusignRequest, getDocuSignEnv } from '@/lib/docusign';
 
+export const runtime = 'nodejs';
+
 type Body = {
   envelopeId: string;
   recipientRole: 'client' | 'planner';

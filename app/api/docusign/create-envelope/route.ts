@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
 import { docusignRequest, fetchPdfAsBase64, getDocuSignEnv } from '@/lib/docusign';
 
+export const runtime = 'nodejs';
+
 type Body = {
   docType: 'contract' | 'devis';
   docId: string;
