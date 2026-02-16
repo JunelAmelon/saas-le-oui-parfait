@@ -151,6 +151,17 @@ export default function MariagePage() {
           } catch (e) {
             console.warn('Unable to send push:', e);
           }
+
+          try {
+            const { sendEmailToUid } = await import('@/lib/email');
+            await sendEmailToUid({
+              recipientUid: plannerId,
+              subject: 'Nouvelle demande de modification - Le Oui Parfait',
+              text: `${coupleNames} a envoyé une demande de modification.\n\nConnectez-vous à votre espace admin pour la consulter.`,
+            });
+          } catch (e) {
+            console.warn('Unable to send email:', e);
+          }
         }
       } catch (e) {
         console.warn('Unable to create planner notification for change request:', e);

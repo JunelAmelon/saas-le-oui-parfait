@@ -3,7 +3,7 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Bell, MessageSquare, FileText, CheckCircle2, X } from 'lucide-react';
+import { Bell, MessageSquare, FileText, CheckCircle2, Calendar, CheckCircle, X } from 'lucide-react';
 import type { AppNotification, NotificationType } from '@/hooks/use-notifications';
 import { useRouter } from 'next/navigation';
 
@@ -24,6 +24,10 @@ const getNotifStyle = (type: NotificationType) => {
       return { icon: FileText, color: 'text-orange-500', bgColor: 'bg-orange-50' };
     case 'change_request':
       return { icon: CheckCircle2, color: 'text-blue-500', bgColor: 'bg-blue-50' };
+    case 'planning':
+      return { icon: Calendar, color: 'text-green-600', bgColor: 'bg-green-50' };
+    case 'step':
+      return { icon: CheckCircle, color: 'text-blue-600', bgColor: 'bg-blue-50' };
     default:
       return { icon: Bell, color: 'text-gray-500', bgColor: 'bg-gray-50' };
   }

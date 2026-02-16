@@ -374,7 +374,7 @@ export function NewDevisModal({ isOpen, onClose, onDevisCreated }: NewDevisModal
         montant_ht: totalHT,
         montant_ttc: totalTTC,
         tva: 20,
-        status: 'draft',
+        status: 'sent',
         valid_until: validUntil,
         title: devisTitle,
         intro: devisIntro,
@@ -387,9 +387,79 @@ export function NewDevisModal({ isOpen, onClose, onDevisCreated }: NewDevisModal
         })),
         pdf_url: pdfUrl,
         created_at: new Date(),
+        sent_at: new Date().toLocaleDateString('fr-FR'),
       };
 
-      await addDocument('devis', devisData);
+      const createdDevis = await addDocument('devis', devisData);
+
+      // Publier aussi dans la collection documents pour visibilité côté admin (onglet Documents fiche client)
+      if (pdfUrl) {
+        try {
+          const evts = await getDocuments('events', [{ field: 'client_id', operator: '==', value: selectedClient }]);
+          const weddingEvt = ((evts as any[]) || []).find((x) => Boolean(x?.event_date)) || (evts as any[])?.[0] || null;
+          await addDocument('documents', {
+            planner_id: user.uid,
+            client_id: selectedClient,
+            event_id: weddingEvt?.id || null,
+            name: `Devis - ${reference}`,
+            type: 'devis',
+            file_url: pdfUrl,
+            file_type: 'application/pdf',
+            uploaded_by: 'planner',
+            uploaded_at: new Date().toLocaleDateString('fr-FR'),
+            created_timestamp: new Date(),
+            devis_id: (createdDevis as any)?.id || null,
+            status: devisData.status,
+          });
+        } catch (e) {
+          console.error('Error creating documents entry for devis:', e);
+        }
+      }
+
+      // Notif + push + email côté client (best effort)
+      try {
+        const clientRaw = (await getDocument('clients', selectedClient)) as any;
+        const clientUserId = clientRaw?.client_user_id || null;
+        if (clientUserId) {
+          await addDocument('notifications', {
+            recipient_id: clientUserId,
+            type: 'document',
+            title: 'Nouveau devis',
+            message: `Un nouveau devis est disponible : ${reference}`,
+            link: '/espace-client/documents',
+            read: false,
+            created_at: new Date(),
+            planner_id: user.uid,
+            client_id: selectedClient,
+            meta: { doc_type: 'devis', reference },
+          });
+
+          try {
+            const { sendPushToRecipient } = await import('@/lib/push');
+            await sendPushToRecipient({
+              recipientId: clientUserId,
+              title: 'Nouveau devis',
+              body: `Un nouveau devis est disponible : ${reference}`,
+              link: '/espace-client/documents',
+            });
+          } catch (e) {
+            console.warn('Unable to send push:', e);
+          }
+
+          try {
+            const { sendEmailToUid } = await import('@/lib/email');
+            await sendEmailToUid({
+              recipientUid: clientUserId,
+              subject: 'Nouveau devis - Le Oui Parfait',
+              text: `Un nouveau devis est disponible : ${reference}.\n\nConnectez-vous à votre espace client pour le consulter.`,
+            });
+          } catch (e) {
+            console.warn('Unable to send email:', e);
+          }
+        }
+      } catch (e) {
+        console.warn('Unable to notify client for devis:', e);
+      }
       
       sonnerToast.success(`Devis de ${totalTTC.toLocaleString()}€ TTC créé pour ${client?.name}`);
       

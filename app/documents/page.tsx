@@ -287,6 +287,17 @@ export default function DocumentsPage() {
             } catch (e) {
               console.warn('Unable to send push:', e);
             }
+
+            try {
+              const { sendEmailToUid } = await import('@/lib/email');
+              await sendEmailToUid({
+                recipientUid: clientUserId,
+                subject: 'Nouveau document - Le Oui Parfait',
+                text: `Un nouveau document est disponible : ${docName}.\n\nConnectez-vous à votre espace client pour le consulter.`,
+              });
+            } catch (e) {
+              console.warn('Unable to send email:', e);
+            }
           }
         }
       } catch (e) {

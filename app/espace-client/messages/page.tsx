@@ -231,6 +231,17 @@ export default function MessagesPage() {
           } catch (e) {
             console.warn('Unable to send push:', e);
           }
+
+          try {
+            const { sendEmailToUid } = await import('@/lib/email');
+            await sendEmailToUid({
+              recipientUid: plannerId,
+              subject: 'Nouveau message client - Le Oui Parfait',
+              text: `${clientName} vous a envoyé un nouveau message.\n\n${content}\n\nOuvrez la conversation dans Le Oui Parfait.`,
+            });
+          } catch (e) {
+            console.warn('Unable to send email:', e);
+          }
         }
       } catch (e) {
         console.warn('Unable to create planner notification for message:', e);
@@ -294,6 +305,17 @@ export default function MessagesPage() {
             });
           } catch (e) {
             console.warn('Unable to send push:', e);
+          }
+
+          try {
+            const { sendEmailToUid } = await import('@/lib/email');
+            await sendEmailToUid({
+              recipientUid: plannerId,
+              subject: 'Nouveau message client - Le Oui Parfait',
+              text: `${clientName} vous a envoyé un message avec une pièce jointe : ${file.name}.\n\nOuvrez la conversation dans Le Oui Parfait.`,
+            });
+          } catch (e) {
+            console.warn('Unable to send email:', e);
           }
         }
       } catch (e) {

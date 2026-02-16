@@ -16,6 +16,24 @@ export function ClientDocuments({ eventId, clientId }: DocumentsProps) {
     const [documents, setDocuments] = useState<DocumentData[]>([]);
     const [loading, setLoading] = useState(true);
 
+    const parseDocDate = (doc: any) => {
+        const raw = doc?.created_timestamp || doc?.uploaded_at || doc?.date || '';
+        if (!raw) return 0;
+        if (raw?.toDate) return raw.toDate().getTime();
+        const s = String(raw);
+        const d = new Date(s);
+        if (!Number.isNaN(d.getTime())) return d.getTime();
+        const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+        if (m) {
+            const dd = m[1].padStart(2, '0');
+            const mm = m[2].padStart(2, '0');
+            const yyyy = m[3];
+            const d2 = new Date(`${yyyy}-${mm}-${dd}T00:00:00`);
+            return Number.isNaN(d2.getTime()) ? 0 : d2.getTime();
+        }
+        return 0;
+    };
+
     useEffect(() => {
         async function fetchDocuments() {
             if (clientId) {
@@ -58,7 +76,11 @@ export function ClientDocuments({ eventId, clientId }: DocumentsProps) {
                 Documents
             </h3>
             <div className="space-y-3">
-                {documents.slice(0, 5).map((doc) => (
+                {documents
+                    .slice()
+                    .sort((a, b) => parseDocDate(b) - parseDocDate(a))
+                    .slice(0, 5)
+                    .map((doc) => (
                     <div
                         key={doc.id}
                         className="flex items-center justify-between p-4 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors"

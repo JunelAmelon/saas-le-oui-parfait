@@ -168,6 +168,53 @@ export default function ClientPlanningPage() {
         created_at: new Date().toISOString(),
       });
 
+      // Notif + push + email côté client (best effort)
+      try {
+        const { getDocument, addDocument: addDoc2 } = await import('@/lib/db');
+        const clientRaw = (await getDocument('clients', clientId)) as any;
+        const clientUserId = clientRaw?.client_user_id || null;
+        if (clientUserId) {
+          await addDoc2('notifications', {
+            recipient_id: clientUserId,
+            type: 'planning',
+            title: 'Nouveau rendez-vous',
+            message: `Un nouveau rendez-vous a été ajouté : ${form.title.trim()} (${form.date} ${form.time})`,
+            link: '/espace-client/planning',
+            read: false,
+            created_at: new Date(),
+            planner_id: plannerId || undefined,
+            client_id: clientId,
+            event_id: eventId,
+            meta: { kind: 'appointment', task_id: (created as any)?.id || null },
+          });
+
+          try {
+            const { sendPushToRecipient } = await import('@/lib/push');
+            await sendPushToRecipient({
+              recipientId: clientUserId,
+              title: 'Nouveau rendez-vous',
+              body: `Un nouveau rendez-vous a été ajouté : ${form.title.trim()} (${form.date} ${form.time})`,
+              link: '/espace-client/planning',
+            });
+          } catch (e) {
+            console.warn('Unable to send push:', e);
+          }
+
+          try {
+            const { sendEmailToUid } = await import('@/lib/email');
+            await sendEmailToUid({
+              recipientUid: clientUserId,
+              subject: 'Nouveau rendez-vous - Le Oui Parfait',
+              text: `Un nouveau rendez-vous a été ajouté : ${form.title.trim()}\nDate : ${form.date} ${form.time}\nLieu : ${form.location.trim()}\n\nConnectez-vous à votre espace client pour le consulter.`,
+            });
+          } catch (e) {
+            console.warn('Unable to send email:', e);
+          }
+        }
+      } catch (e) {
+        console.warn('Unable to notify client for appointment:', e);
+      }
+
       setAppointments((prev) => [{ ...(created as any) }, ...prev]);
       setIsAddOpen(false);
       setForm({ title: '', date: '', time: '', location: '', notes: '' });

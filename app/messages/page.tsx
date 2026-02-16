@@ -359,6 +359,17 @@ export default function AdminMessagesPage() {
             } catch (e) {
               console.warn('Unable to send push:', e);
             }
+
+            try {
+              const { sendEmailToUid } = await import('@/lib/email');
+              await sendEmailToUid({
+                recipientUid: clientUserId,
+                subject: 'Nouveau message - Le Oui Parfait',
+                text: `Vous avez reçu un nouveau message.\n\n${content}\n\nConnectez-vous à votre espace client pour répondre.`,
+              });
+            } catch (e) {
+              console.warn('Unable to send email:', e);
+            }
           }
         }
       } catch (e) {
@@ -427,6 +438,17 @@ export default function AdminMessagesPage() {
               });
             } catch (e) {
               console.warn('Unable to send push:', e);
+            }
+
+            try {
+              const { sendEmailToUid } = await import('@/lib/email');
+              await sendEmailToUid({
+                recipientUid: clientUserId,
+                subject: 'Nouveau message - Le Oui Parfait',
+                text: `Vous avez reçu un nouveau message avec une pièce jointe : ${file.name}.\n\nConnectez-vous à votre espace client pour la consulter.`,
+              });
+            } catch (e) {
+              console.warn('Unable to send email:', e);
             }
           }
         }

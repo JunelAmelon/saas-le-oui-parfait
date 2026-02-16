@@ -196,11 +196,75 @@ export default function ContractsPage() {
 
   const handleSendContract = async (contract: Contract) => {
     try {
-      const { updateDocument } = await import('@/lib/db');
+      const { updateDocument, getDocument, addDocument } = await import('@/lib/db');
       await updateDocument('contracts', contract.id, {
         status: 'sent',
         sent_at: new Date().toLocaleDateString('fr-FR')
       });
+
+      // Notif + push + email (best effort)
+      try {
+        const contractRaw = (await getDocument('contracts', contract.id)) as any;
+        const clientId = contractRaw?.client_id || null;
+        const clientEmail = contractRaw?.client_email || null;
+        if (clientId) {
+          const clientRaw = (await getDocument('clients', clientId)) as any;
+          const clientUserId = clientRaw?.client_user_id || null;
+          const reference = contractRaw?.reference || contract.reference || 'Contrat';
+
+          if (clientUserId) {
+            await addDocument('notifications', {
+              recipient_id: clientUserId,
+              type: 'document',
+              title: 'Contrat envoyé',
+              message: `Votre contrat est disponible : ${reference}`,
+              link: '/espace-client/documents',
+              read: false,
+              created_at: new Date(),
+              planner_id: user?.uid,
+              client_id: clientId,
+              meta: { doc_type: 'contrat', reference, contract_id: contract.id },
+            });
+
+            try {
+              const { sendPushToRecipient } = await import('@/lib/push');
+              await sendPushToRecipient({
+                recipientId: clientUserId,
+                title: 'Contrat envoyé',
+                body: `Votre contrat est disponible : ${reference}`,
+                link: '/espace-client/documents',
+              });
+            } catch (e) {
+              console.warn('Unable to send push:', e);
+            }
+
+            try {
+              const { sendEmailToUid } = await import('@/lib/email');
+              await sendEmailToUid({
+                recipientUid: clientUserId,
+                subject: 'Contrat envoyé - Le Oui Parfait',
+                text: `Votre contrat est disponible : ${reference}.\n\nConnectez-vous à votre espace client pour le consulter.`,
+              });
+            } catch (e) {
+              console.warn('Unable to send email (uid):', e);
+            }
+          } else if (clientEmail) {
+            try {
+              const { sendEmailToAddress } = await import('@/lib/email');
+              await sendEmailToAddress({
+                recipientEmail: clientEmail,
+                subject: 'Contrat envoyé - Le Oui Parfait',
+                text: `Votre contrat est disponible : ${reference}.\n\nConnectez-vous à votre espace client pour le consulter.`,
+              });
+            } catch (e) {
+              console.warn('Unable to send email (address):', e);
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('Unable to notify client for contract send:', e);
+      }
+
       toast.success('Contrat envoyé au client');
       fetchContracts();
     } catch (e) {

@@ -9,9 +9,8 @@ import { Loader2, Upload, User, X } from 'lucide-react';
 import { addDocument, getDocuments, updateDocument, setDocument } from '@/lib/db';
 import { toast } from 'sonner';
 import axios from 'axios';
-import { createClientAccount, generateSecurePassword, validatePassword } from '@/lib/auth-helpers';
-import { Eye, EyeOff, RefreshCw } from 'lucide-react';
 import { ColorPalette } from '@/components/wedding/ColorPalette';
+import { auth } from '@/lib/firebase';
 
 interface ClientModalProps {
   open: boolean;
@@ -42,8 +41,6 @@ export function ClientModal({ open, onOpenChange, mode, client, userId, onSucces
   const [isSaving, setIsSaving] = useState(false);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(client?.photo || null);
-  const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
   const [createAccount, setCreateAccount] = useState(mode === 'create');
 
   const [themeStyle, setThemeStyle] = useState(client?.theme?.style || '');
@@ -79,8 +76,6 @@ export function ClientModal({ open, onOpenChange, mode, client, userId, onSucces
     setThemeDescription(client?.theme?.description || '');
     setThemeColors(client?.theme?.colors || []);
     setNotes(client?.notes || '');
-    setPassword('');
-    setShowPassword(false);
     setCreateAccount(mode === 'create');
   }, [open, client, mode]);
 
@@ -157,20 +152,6 @@ export function ClientModal({ open, onOpenChange, mode, client, userId, onSucces
       return;
     }
 
-    // Validation du mot de passe si création de compte
-    if (mode === 'create' && createAccount) {
-      if (!password) {
-        toast.error('Veuillez définir un mot de passe pour le compte client');
-        return;
-      }
-
-      const passwordValidation = validatePassword(password);
-      if (!passwordValidation.valid) {
-        toast.error(passwordValidation.error || 'Mot de passe invalide');
-        return;
-      }
-    }
-
     setIsSaving(true);
 
     try {
@@ -202,30 +183,44 @@ export function ClientModal({ open, onOpenChange, mode, client, userId, onSucces
       if (mode === 'create') {
         let clientUserId = '';
 
-        // Créer le compte Firebase Auth si demandé
-        if (createAccount && password) {
-          toast.info('Création du compte utilisateur...');
-          const accountResult = await createClientAccount(email, password);
+        // Créer / récupérer le compte Firebase Auth + envoyer un lien de réinitialisation (best effort)
+        if (createAccount) {
+          toast.info("Création de l'accès client...");
+          try {
+            const idToken = await auth.currentUser?.getIdToken().catch(() => null);
+            const res = await fetch('/api/auth/invite-client', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}),
+              },
+              body: JSON.stringify({
+                email,
+                fullName: `${name} & ${partner}`.trim(),
+              }),
+            });
 
-          if (!accountResult.success) {
-            toast.error(accountResult.error || 'Erreur lors de la création du compte');
-            setIsSaving(false);
-            return;
+            const json = await res.json().catch(() => null);
+            if (!res.ok) {
+              toast.error(json?.error || "Impossible de créer l'accès client");
+            } else {
+              clientUserId = String(json?.uid || '');
+              if (clientUserId) {
+                // Créer/mettre à jour le profile dans Firestore (nécessaire pour la connexion + emails UID)
+                await setDocument('profiles', clientUserId, {
+                  uid: clientUserId,
+                  email: email,
+                  role: 'client',
+                  full_name: `${name} & ${partner}`,
+                  created_at: new Date().toISOString(),
+                });
+                toast.success('Invitation envoyée au client');
+              }
+            }
+          } catch (e) {
+            console.error('Error inviting client:', e);
+            toast.error("Impossible d'envoyer l'invitation");
           }
-
-          clientUserId = accountResult.uid!;
-
-          // Créer le document profile dans Firestore (nécessaire pour la connexion)
-          // IMPORTANT : Utiliser setDocument avec l'UID comme ID du document
-          await setDocument('profiles', clientUserId, {
-            uid: clientUserId,
-            email: email,
-            role: 'client',
-            full_name: `${name} & ${partner}`,
-            created_at: new Date().toISOString(),
-          });
-
-          toast.success('Compte utilisateur créé avec succès');
         }
 
         // Créer le document client dans Firestore
@@ -256,11 +251,7 @@ export function ClientModal({ open, onOpenChange, mode, client, userId, onSucces
           created_at: new Date().toISOString(),
         });
 
-        if (createAccount) {
-          toast.success(`Client créé avec succès ! Identifiants : ${email} / ${password}`);
-        } else {
-          toast.success('Client créé avec succès');
-        }
+        toast.success('Client créé avec succès');
       } else if (client) {
         await updateDocument('clients', client.id, data);
 
@@ -432,7 +423,7 @@ export function ClientModal({ open, onOpenChange, mode, client, userId, onSucces
               <div className="space-y-4">
                 <Label className="text-base font-semibold">Compte utilisateur</Label>
                 <p className="text-sm text-gray-600">
-                  Créer un compte pour que le client puisse accéder à l'espace client
+                  Un email sera envoyé au client avec un lien pour définir son mot de passe.
                 </p>
 
                 <div className="flex items-center space-x-2">
@@ -448,53 +439,13 @@ export function ClientModal({ open, onOpenChange, mode, client, userId, onSucces
                   </Label>
                 </div>
 
-                {createAccount && (
-                  <div className="space-y-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
-                    <div className="space-y-2">
-                      <Label htmlFor="password">Mot de passe *</Label>
-                      <div className="relative">
-                        <Input
-                          id="password"
-                          name="password"
-                          type={showPassword ? 'text' : 'password'}
-                          value={password}
-                          onChange={(e) => setPassword(e.target.value)}
-                          className="border-gray-300 focus:border-brand-purple focus:ring-brand-purple pr-10"
-                          required={createAccount}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowPassword(!showPassword)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                        >
-                          {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                        </button>
-                      </div>
-                    </div>
-
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => setPassword(generateSecurePassword())}
-                      className="border-brand-turquoise text-brand-turquoise hover:bg-brand-turquoise hover:text-white"
-                      title="Générer un mot de passe sécurisé"
-                    >
-                      <RefreshCw className="w-4 h-4 mr-2" />
-                      Générer un mot de passe
-                    </Button>
-
-                    <div className="bg-blue-50 border border-blue-200 rounded p-3 space-y-2">
-                      <p className="text-xs text-blue-800">
-                        💡 Ce mot de passe sera communiqué au client pour qu'il puisse se connecter à l'espace client
-                      </p>
-                      <div className="text-xs text-blue-900 space-y-1">
-                        <p className="font-semibold">📧 Identifiants de connexion :</p>
-                        <p>Email : {client?.email || 'email@example.com'}</p>
-                        <p>Mot de passe : {password || '******'}</p>
-                      </div>
-                    </div>
+                {createAccount ? (
+                  <div className="bg-blue-50 border border-blue-200 rounded p-3 space-y-2">
+                    <p className="text-xs text-blue-800">
+                      Un email sera envoyé au client avec un lien pour définir son mot de passe.
+                    </p>
                   </div>
-                )}
+                ) : null}
               </div>
 
               {/* Divider */}

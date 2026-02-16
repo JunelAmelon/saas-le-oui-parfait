@@ -385,6 +385,51 @@ export function NewInvoiceModal({ isOpen, onClose }: NewInvoiceModalProps) {
             invoice_id: created?.id || null,
             status: invoiceData.status,
           });
+
+          // Notif + push + email côté client (best effort)
+          try {
+            const clientRaw = (await getDocument('clients', selectedClient)) as any;
+            const clientUserId = clientRaw?.client_user_id || null;
+            if (clientUserId) {
+              await addDocument('notifications', {
+                recipient_id: clientUserId,
+                type: 'document',
+                title: 'Nouvelle facture',
+                message: `Une nouvelle facture est disponible : ${invoiceData.reference}`,
+                link: '/espace-client/documents',
+                read: false,
+                created_at: new Date(),
+                planner_id: user.uid,
+                client_id: selectedClient,
+                meta: { doc_type: 'facture', reference: invoiceData.reference, invoice_id: created?.id || null },
+              });
+
+              try {
+                const { sendPushToRecipient } = await import('@/lib/push');
+                await sendPushToRecipient({
+                  recipientId: clientUserId,
+                  title: 'Nouvelle facture',
+                  body: `Une nouvelle facture est disponible : ${invoiceData.reference}`,
+                  link: '/espace-client/documents',
+                });
+              } catch (e) {
+                console.warn('Unable to send push:', e);
+              }
+
+              try {
+                const { sendEmailToUid } = await import('@/lib/email');
+                await sendEmailToUid({
+                  recipientUid: clientUserId,
+                  subject: 'Nouvelle facture - Le Oui Parfait',
+                  text: `Une nouvelle facture est disponible : ${invoiceData.reference}.\n\nConnectez-vous à votre espace client pour la consulter.`,
+                });
+              } catch (e) {
+                console.warn('Unable to send email:', e);
+              }
+            }
+          } catch (e) {
+            console.warn('Unable to notify client for invoice:', e);
+          }
         } catch (e) {
           console.error('Error creating documents entry for invoice:', e);
         }

@@ -11,7 +11,7 @@ import {
   doc,
 } from 'firebase/firestore';
 
-export type NotificationType = 'message' | 'document' | 'change_request';
+export type NotificationType = 'message' | 'document' | 'change_request' | 'planning' | 'step';
 
 export interface AppNotification {
   id: string;

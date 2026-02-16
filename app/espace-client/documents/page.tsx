@@ -123,8 +123,15 @@ export default function DocumentsPage() {
           source: 'documents' as const,
         })) as DocumentItem[];
 
+        const devisIdsFromDocuments = new Set(
+          mappedDocs
+            .map((d: any) => d?.devis_id)
+            .filter((x: any) => typeof x === 'string' && x.length > 0)
+        );
+
         const mappedDevis = (devisItems as any[])
           .filter((dv) => Boolean(dv?.pdf_url) && (dv?.status || 'draft') !== 'draft')
+          .filter((dv) => !devisIdsFromDocuments.has(String(dv.id || '')))
           .map((dv) => {
             const reference = dv.reference || 'Devis';
             return {
@@ -292,7 +299,10 @@ export default function DocumentsPage() {
   });
 
   const parseDocDate = (doc: DocumentItem) => {
-    const raw = (doc.uploaded_at || '').trim();
+    const rawAny: any = (doc as any)?.created_timestamp || (doc as any)?.created_at || doc.uploaded_at || '';
+    if (!rawAny) return 0;
+    if (rawAny?.toDate) return rawAny.toDate().getTime();
+    const raw = String(rawAny).trim();
     if (!raw) return 0;
     const iso = new Date(raw);
     if (!Number.isNaN(iso.getTime())) return iso.getTime();

@@ -861,6 +861,51 @@ export function NewContractModal({ isOpen, onClose, onContractCreated }: NewCont
             contract_id: createdContract?.id || null,
             status: 'sent',
           });
+
+          // Notif + push + email côté client (best effort)
+          try {
+            const clientRaw = (await getDocument('clients', selectedClient)) as any;
+            const clientUserId = clientRaw?.client_user_id || null;
+            if (clientUserId) {
+              await addDocument('notifications', {
+                recipient_id: clientUserId,
+                type: 'document',
+                title: 'Nouveau contrat',
+                message: `Un nouveau contrat est disponible : ${reference}`,
+                link: '/espace-client/documents',
+                read: false,
+                created_at: new Date(),
+                planner_id: user.uid,
+                client_id: selectedClient,
+                meta: { doc_type: 'contrat', reference, contract_id: createdContract?.id || null },
+              });
+
+              try {
+                const { sendPushToRecipient } = await import('@/lib/push');
+                await sendPushToRecipient({
+                  recipientId: clientUserId,
+                  title: 'Nouveau contrat',
+                  body: `Un nouveau contrat est disponible : ${reference}`,
+                  link: '/espace-client/documents',
+                });
+              } catch (e) {
+                console.warn('Unable to send push:', e);
+              }
+
+              try {
+                const { sendEmailToUid } = await import('@/lib/email');
+                await sendEmailToUid({
+                  recipientUid: clientUserId,
+                  subject: 'Nouveau contrat - Le Oui Parfait',
+                  text: `Un nouveau contrat est disponible : ${reference}.\n\nConnectez-vous à votre espace client pour le consulter et le signer.`,
+                });
+              } catch (e) {
+                console.warn('Unable to send email:', e);
+              }
+            }
+          } catch (e) {
+            console.warn('Unable to notify client for contract:', e);
+          }
         } catch (e) {
           console.error('Error creating documents entry for contract:', e);
         }
