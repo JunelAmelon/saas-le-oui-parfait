@@ -20,6 +20,7 @@ import { NewContractModal } from '@/components/modals/NewContractModal';
 import { useAuth } from '@/contexts/AuthContext';
 import { getDocuments } from '@/lib/db';
 import { toast } from 'sonner';
+import { auth } from '@/lib/firebase';
 
 interface Contract {
   id: string;
@@ -275,13 +276,60 @@ export default function ContractsPage() {
 
   const handleSignContract = async (contract: Contract) => {
     try {
-      const { updateDocument } = await import('@/lib/db');
-      await updateDocument('contracts', contract.id, {
-        status: 'signed',
-        signed_at: new Date().toLocaleDateString('fr-FR')
+      const idToken = await auth.currentUser?.getIdToken().catch(() => null);
+      if (!idToken) {
+        toast.error('Vous devez être connecté');
+        return;
+      }
+
+      const { getDocument } = await import('@/lib/db');
+      const contractRaw = (await getDocument('contracts', contract.id)) as any;
+      const envelopeIdExisting = String(contractRaw?.docusign?.envelope_id || '');
+      let envelopeId = envelopeIdExisting;
+
+      if (!envelopeId) {
+        const createRes = await fetch('/api/docusign/create-envelope', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${idToken}`,
+          },
+          body: JSON.stringify({ docType: 'contract', docId: contract.id }),
+        });
+        const createJson = await createRes.json().catch(() => null);
+        if (!createRes.ok) {
+          toast.error(createJson?.error || 'Impossible de préparer la signature');
+          return;
+        }
+        envelopeId = String(createJson?.envelopeId || '');
+      }
+
+      if (!envelopeId) {
+        toast.error('Impossible de préparer la signature');
+        return;
+      }
+
+      const viewRes = await fetch('/api/docusign/recipient-view', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({ envelopeId, recipientRole: 'planner' }),
       });
-      toast.success('Contrat marqué comme signé');
-      fetchContracts();
+      const viewJson = await viewRes.json().catch(() => null);
+      if (!viewRes.ok) {
+        toast.error(viewJson?.error || 'Impossible de démarrer la signature');
+        return;
+      }
+
+      const url = String(viewJson?.url || '');
+      if (!url) {
+        toast.error('URL de signature manquante');
+        return;
+      }
+
+      window.location.href = url;
     } catch (e) {
       console.error('Error signing contract:', e);
       toast.error('Erreur lors de la signature du contrat');
