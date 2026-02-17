@@ -15,13 +15,27 @@ function requireEnv(name: string, value?: string) {
 }
 
 export function getDocuSignEnv(): DocuSignEnv {
+  const rawKey = requireEnv('DOCUSIGN_PRIVATE_KEY', process.env.DOCUSIGN_PRIVATE_KEY);
+  const normalizedKey = String(rawKey)
+    .trim()
+    .replace(/^"|"$/g, '')
+    .replace(/^'|'$/g, '')
+    .replace(/\\r/g, '')
+    .replace(/\\n/g, '\n')
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n');
+
+  if (!/-----BEGIN [A-Z ]+PRIVATE KEY-----/.test(normalizedKey)) {
+    throw new Error('Invalid DOCUSIGN_PRIVATE_KEY format (expected PEM with BEGIN/END PRIVATE KEY)');
+  }
+
   return {
     integrationKey: requireEnv('DOCUSIGN_INTEGRATION_KEY', process.env.DOCUSIGN_INTEGRATION_KEY),
     userId: requireEnv('DOCUSIGN_USER_ID', process.env.DOCUSIGN_USER_ID),
     accountId: requireEnv('DOCUSIGN_ACCOUNT_ID', process.env.DOCUSIGN_ACCOUNT_ID),
     basePath: requireEnv('DOCUSIGN_BASE_PATH', process.env.DOCUSIGN_BASE_PATH),
     authServer: requireEnv('DOCUSIGN_AUTH_SERVER', process.env.DOCUSIGN_AUTH_SERVER),
-    privateKey: requireEnv('DOCUSIGN_PRIVATE_KEY', process.env.DOCUSIGN_PRIVATE_KEY)?.replace(/\\n/g, '\n'),
+    privateKey: normalizedKey,
   };
 }
 
@@ -48,7 +62,32 @@ function signJwtRs256(params: {
   const sign = crypto.createSign('RSA-SHA256');
   sign.update(data);
   sign.end();
-  const signature = sign.sign(params.privateKeyPem);
+  let keyObject: crypto.KeyObject;
+  try {
+    const pem = String(params.privateKeyPem);
+    const isPkcs1 = /BEGIN RSA PRIVATE KEY/.test(pem);
+    const isPkcs8 = /BEGIN PRIVATE KEY/.test(pem);
+
+    if (isPkcs1) {
+      keyObject = crypto.createPrivateKey({ key: pem, format: 'pem', type: 'pkcs1' });
+    } else if (isPkcs8) {
+      keyObject = crypto.createPrivateKey({ key: pem, format: 'pem', type: 'pkcs8' });
+    } else {
+      // Fallback
+      keyObject = crypto.createPrivateKey({ key: pem, format: 'pem' });
+    }
+  } catch (e: any) {
+    throw new Error(
+      `DocuSign private key parse error: ${e?.message || 'invalid_key'} (check PEM header and ensure the key is not encrypted)`
+    );
+  }
+
+  let signature: Buffer;
+  try {
+    signature = sign.sign(keyObject);
+  } catch (e: any) {
+    throw new Error(`DocuSign JWT signature error: ${e?.message || 'sign_failed'}`);
+  }
   const sigB64 = base64UrlEncode(signature);
   return `${data}.${sigB64}`;
 }
