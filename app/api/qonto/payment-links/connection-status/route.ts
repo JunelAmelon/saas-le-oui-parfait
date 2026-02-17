@@ -26,22 +26,21 @@ export async function GET(req: Request) {
     const role = await getRoleForUid(uid);
     if (role !== 'planner') return NextResponse.json({ error: 'forbidden' }, { status: 403 });
 
-    let data: any;
-    try {
-      data = await qontoRequest<any>({ method: 'GET', path: '/v2/payment_links/connections' });
-    } catch (e: any) {
-      const msg = String(e?.message || '');
-      if (msg.includes('Missing Qonto env vars (QONTO_API_LOGIN/QONTO_API_SECRET_KEY)')) {
-        return NextResponse.json(
-          {
-            error: 'qonto_payment_links_requires_oauth',
-            details: 'OAuth access token missing. Click "Connect with Qonto" and complete the consent flow.',
-          },
-          { status: 400 }
-        );
-      }
-      throw e;
+    // Payment Links endpoints require OAuth Bearer token.
+    const integrationSnap = await adminDb.collection('integrations').doc('qonto').get();
+    const integrationData = integrationSnap.exists ? (integrationSnap.data() as any) : null;
+    const storedAccessToken = String(integrationData?.access_token || '').trim();
+    if (!storedAccessToken) {
+      return NextResponse.json(
+        {
+          error: 'qonto_payment_links_requires_oauth',
+          details: 'OAuth access token missing. Run “Connect with Qonto” in this environment (prod vs local) and complete the consent flow.',
+        },
+        { status: 400 }
+      );
     }
+
+    const data = await qontoRequest<any>({ method: 'GET', path: '/v2/payment_links/connections' });
 
     const status = String(data?.status || '');
     const connectionLocation = String(data?.connection_location || data?.connectionLocation || '');

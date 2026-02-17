@@ -54,6 +54,20 @@ export async function POST(req: Request) {
     const role = await getRoleForUid(uid);
     if (role !== 'planner') return NextResponse.json({ error: 'forbidden' }, { status: 403 });
 
+    // Payment Links endpoints require OAuth Bearer token.
+    const integrationSnap = await adminDb.collection('integrations').doc('qonto').get();
+    const integrationData = integrationSnap.exists ? (integrationSnap.data() as any) : null;
+    const storedAccessToken = String(integrationData?.access_token || '').trim();
+    if (!storedAccessToken) {
+      return NextResponse.json(
+        {
+          error: 'qonto_payment_links_requires_oauth',
+          details: 'OAuth access token missing. Run “Connect with Qonto” in this environment (prod vs local) and complete the consent flow.',
+        },
+        { status: 400 }
+      );
+    }
+
     const body = (await req.json().catch(() => ({}))) as any;
 
     const partnerCallbackUrl =
@@ -164,32 +178,17 @@ export async function POST(req: Request) {
       );
     }
 
-    let data: any;
-    try {
-      data = await qontoRequest<any>({
-        method: 'POST',
-        path: '/v2/payment_links/connections',
-        body: {
-          partner_callback_url: partnerCallbackUrlStr,
-          user_bank_account_id: bankAccountIdStr,
-          user_phone_number: phoneNumber,
-          user_website_url: websiteUrlStr,
-          business_description: description,
-        },
-      });
-    } catch (e: any) {
-      const msg = String(e?.message || '');
-      if (msg.includes('Missing Qonto env vars (QONTO_API_LOGIN/QONTO_API_SECRET_KEY)')) {
-        return NextResponse.json(
-          {
-            error: 'qonto_payment_links_requires_oauth',
-            details: 'OAuth access token missing. Click "Connect with Qonto" and complete the consent flow.',
-          },
-          { status: 400 }
-        );
-      }
-      throw e;
-    }
+    const data = await qontoRequest<any>({
+      method: 'POST',
+      path: '/v2/payment_links/connections',
+      body: {
+        partner_callback_url: partnerCallbackUrlStr,
+        user_bank_account_id: bankAccountIdStr,
+        user_phone_number: phoneNumber,
+        user_website_url: websiteUrlStr,
+        business_description: description,
+      },
+    });
 
     const connectionLocation = String(data?.connection_location || data?.connectionLocation || '');
     const status = String(data?.status || '');
