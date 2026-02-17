@@ -8,6 +8,71 @@ function getQontoBaseUrl() {
   return (process.env.QONTO_API_BASE_URL || 'https://thirdparty.qonto.com').replace(/\/$/, '');
 }
 
+function envAny(names: string[]) {
+  for (const n of names) {
+    const v = (process.env[n] || '').trim();
+    if (v) return v;
+  }
+  return '';
+}
+
+async function refreshAccessTokenIfNeeded(params: {
+  oauthBaseOrigin: string;
+  refreshToken: string;
+}) {
+  const clientId = envAny(['QONTO_OAUTH_CLIENT_ID', 'QONTO_CLIENT_ID']);
+  const clientSecret = envAny(['QONTO_OAUTH_CLIENT_SECRET', 'QONTO_CLIENT_SECRET']);
+  if (!clientId || !clientSecret) {
+    throw new Error('Missing Qonto OAuth env vars (QONTO_OAUTH_CLIENT_ID/QONTO_OAUTH_CLIENT_SECRET)');
+  }
+
+  const stagingToken = (process.env.QONTO_STAGING_TOKEN || process.env.X_QONTO_STAGING_TOKEN || '').trim();
+  const isSandboxLike = /sandbox|staging/i.test(params.oauthBaseOrigin);
+
+  const tokenUrl = `${params.oauthBaseOrigin.replace(/\/$/, '')}/oauth2/token`;
+  const form = new URLSearchParams();
+  form.set('grant_type', 'refresh_token');
+  form.set('client_id', clientId);
+  form.set('client_secret', clientSecret);
+  form.set('refresh_token', params.refreshToken);
+
+  const resp = await fetch(tokenUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      Accept: 'application/json',
+      ...(stagingToken && isSandboxLike ? { 'X-Qonto-Staging-Token': stagingToken } : {}),
+    },
+    body: form.toString(),
+  });
+
+  const text = await resp.text();
+  let json: any = null;
+  try {
+    json = text ? JSON.parse(text) : null;
+  } catch {
+    // ignore
+  }
+
+  if (!resp.ok) {
+    const msg = (json && (json.error_description || json.error || json.message)) || text || `http_${resp.status}`;
+    throw new Error(`Qonto OAuth refresh failed (${resp.status}): ${msg}`);
+  }
+
+  const accessToken = String(json?.access_token || '').trim();
+  const refreshToken = String(json?.refresh_token || '').trim();
+  const scope = String(json?.scope || '').trim();
+  const expiresIn = Number(json?.expires_in || 0);
+  if (!accessToken) throw new Error('Qonto OAuth refresh returned no access_token');
+
+  return {
+    accessToken,
+    refreshToken: refreshToken || null,
+    scope: scope || null,
+    expiresIn: Number.isFinite(expiresIn) && expiresIn > 0 ? expiresIn : null,
+  };
+}
+
 async function resolveAuth(): Promise<QontoAuth> {
   const bearer = (process.env.QONTO_BEARER_TOKEN || '').trim();
   if (bearer) return { kind: 'bearer', token: bearer };
@@ -19,6 +84,39 @@ async function resolveAuth(): Promise<QontoAuth> {
     if (snap.exists) {
       const data = snap.data() as any;
       const accessToken = String(data?.access_token || '').trim();
+      const refreshToken = String(data?.refresh_token || '').trim();
+      const expiresIn = Number(data?.expires_in || 0);
+      const obtainedAtIso = String(data?.obtained_at || data?.updated_at || '').trim();
+
+      const oauthBaseRaw = (process.env.QONTO_OAUTH_BASE_URL || '').trim();
+      const oauthBaseOrigin = oauthBaseRaw ? new URL(oauthBaseRaw).origin : '';
+
+      const now = Date.now();
+      const obtainedAt = obtainedAtIso ? Date.parse(obtainedAtIso) : NaN;
+      const hasExpiry = Number.isFinite(expiresIn) && expiresIn > 0 && Number.isFinite(obtainedAt);
+      const expiresAt = hasExpiry ? obtainedAt + expiresIn * 1000 : NaN;
+      const shouldRefresh = hasExpiry ? now > expiresAt - 2 * 60 * 1000 : false; // refresh 2min early
+
+      if (accessToken && !shouldRefresh) {
+        return { kind: 'bearer', token: accessToken };
+      }
+
+      if (refreshToken && oauthBaseOrigin) {
+        const refreshed = await refreshAccessTokenIfNeeded({ oauthBaseOrigin, refreshToken });
+        await adminDb.collection('integrations').doc('qonto').set(
+          {
+            access_token: refreshed.accessToken,
+            refresh_token: refreshed.refreshToken,
+            scope: refreshed.scope,
+            expires_in: refreshed.expiresIn,
+            obtained_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          },
+          { merge: true }
+        );
+        return { kind: 'bearer', token: refreshed.accessToken };
+      }
+
       if (accessToken) return { kind: 'bearer', token: accessToken };
     }
   } catch {

@@ -210,7 +210,9 @@ export default function SettingsPage() {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         const missing = Array.isArray(data?.details?.missing) ? data.details.missing.join(', ') : '';
-        throw new Error(String(data?.error || 'qonto_connect_error') + (missing ? ` (${missing})` : ''));
+        const details = data?.details ? JSON.stringify(data.details) : '';
+        const suffix = missing ? ` (${missing})` : details ? ` (${details})` : '';
+        throw new Error(String(data?.error || `http_${res.status}`) + suffix);
       }
       const loc = String(data?.connection_location || '');
       if (!loc) throw new Error('missing_connection_location');
