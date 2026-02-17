@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useClientData } from '@/contexts/ClientDataContext';
 import { getClientPayments, getClientBudgetSummary, calculateDaysRemaining, PaymentData } from '@/lib/client-helpers';
+import { auth } from '@/lib/firebase';
 import {
   Dialog,
   DialogContent,
@@ -140,6 +141,8 @@ export default function PaiementsPage() {
   const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null);
   const [paymentMethod, setPaymentMethod] = useState('');
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
+  const [paymentActionLoading, setPaymentActionLoading] = useState(false);
+  const [paymentActionError, setPaymentActionError] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchPayments() {
@@ -174,14 +177,86 @@ export default function PaiementsPage() {
 
   const handlePayClick = (payment: Payment) => {
     setSelectedPayment(payment);
+    setPaymentActionError(null);
     setIsPaymentModalOpen(true);
   };
 
-  const handleConfirmPayment = () => {
-    setIsPaymentModalOpen(false);
-    setIsSuccessModalOpen(true);
-    setPaymentMethod('');
+  const handlePayInvoiceDirect = async (invoiceId: string) => {
+    try {
+      setPaymentActionError(null);
+      setPaymentActionLoading(true);
+
+      const user = auth.currentUser;
+      if (!user) throw new Error('missing_auth_user');
+      const idToken = await user.getIdToken();
+      if (!idToken) throw new Error('missing_id_token');
+
+      const res = await fetch('/api/qonto/payment-link', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({ invoiceId }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(String(data?.error || 'payment_link_error'));
+
+      const payUrl = String(data?.paymentLink?.url || '');
+      if (!payUrl) throw new Error('missing_payment_link_url');
+
+      window.open(payUrl, '_blank', 'noopener,noreferrer');
+    } catch (e: any) {
+      setPaymentActionError(String(e?.message || 'error'));
+    } finally {
+      setPaymentActionLoading(false);
+    }
   };
+
+  const handleConfirmPayment = async () => {
+    try {
+      setPaymentActionError(null);
+      setPaymentActionLoading(true);
+
+      const user = auth.currentUser;
+      if (!user) throw new Error('missing_auth_user');
+      const idToken = await user.getIdToken();
+      if (!idToken) throw new Error('missing_id_token');
+
+      const invoiceId = String(selectedPayment?.id || '').trim();
+      if (!invoiceId) throw new Error('missing_invoice_id');
+
+      const res = await fetch('/api/qonto/payment-link', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({ invoiceId }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(String(data?.error || 'payment_link_error'));
+      }
+
+      const payUrl = String(data?.paymentLink?.url || '');
+      if (!payUrl) throw new Error('missing_payment_link_url');
+
+      setIsPaymentModalOpen(false);
+      setIsSuccessModalOpen(true);
+      setPaymentMethod('');
+
+      window.open(payUrl, '_blank', 'noopener,noreferrer');
+    } catch (e: any) {
+      setPaymentActionError(String(e?.message || 'error'));
+    } finally {
+      setPaymentActionLoading(false);
+    }
+  };
+
+  // Note: sync is available via /api/qonto/sync but we don't call it automatically on click.
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -362,9 +437,10 @@ export default function PaiementsPage() {
                     <Button 
                       size="sm" 
                       className="bg-brand-turquoise hover:bg-brand-turquoise-hover text-xs"
-                      onClick={() => handlePayClick(payment as Payment)}
+                      onClick={() => handlePayInvoiceDirect(String((payment as any)?.id || ''))}
+                      disabled={paymentActionLoading}
                     >
-                      Payer
+                      {paymentActionLoading ? 'Ouverture...' : 'Payer'}
                     </Button>
                   </div>
                 </div>
@@ -385,6 +461,11 @@ export default function PaiementsPage() {
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
+              {paymentActionError && (
+                <div className="p-3 rounded-lg bg-red-50 border border-red-100 text-sm text-red-700">
+                  {paymentActionError}
+                </div>
+              )}
               {selectedPayment && (
                 <div className="p-4 bg-gray-50 rounded-lg">
                   <p className="font-medium text-brand-purple">{selectedPayment.description}</p>
@@ -441,9 +522,9 @@ export default function PaiementsPage() {
               <Button 
                 className="bg-brand-turquoise hover:bg-brand-turquoise-hover"
                 onClick={handleConfirmPayment}
-                disabled={!paymentMethod}
+                disabled={!paymentMethod || paymentActionLoading}
               >
-                Confirmer le paiement
+                {paymentActionLoading ? 'Redirection...' : 'Confirmer le paiement'}
               </Button>
             </DialogFooter>
           </DialogContent>
