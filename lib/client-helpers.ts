@@ -140,7 +140,9 @@ export interface PaymentData {
   description: string;
   vendor?: string;
   amount: number;
-  status: 'paid' | 'pending' | 'overdue' | 'completed' | 'failed';
+  paid_amount?: number;
+  amount_due?: number;
+  status: 'paid' | 'pending' | 'partial' | 'overdue' | 'completed' | 'failed' | string;
   method: string;
   date?: string;
   due_date?: string;
@@ -356,6 +358,8 @@ export async function getClientPayments(clientId: string): Promise<PaymentData[]
       description: inv.reference || inv.description || 'Facture',
       vendor: inv.vendor || 'Le Oui Parfait',
       amount: Number(inv.montant_ttc ?? inv.amount ?? 0),
+      paid_amount: Number(inv.paid ?? 0) || 0,
+      amount_due: Math.max(0, (Number(inv.montant_ttc ?? inv.amount ?? 0) || 0) - (Number(inv.paid ?? 0) || 0)),
       status: inv.status || 'pending',
       method: inv.method || '-',
       date: inv.date,
@@ -420,16 +424,18 @@ export async function getEventGalleries(eventId: string): Promise<GalleryData[]>
  */
 export async function getClientBudgetSummary(clientId: string) {
   try {
-    const payments = await getClientPayments(clientId);
     const invoices = await getClientInvoices(clientId);
     
     const total = invoices.reduce((sum: number, inv: any) => sum + (Number(inv.montant_ttc ?? inv.amount ?? 0) || 0), 0);
-    const paid = payments
-      .filter((p: PaymentData) => p.status === 'paid' || p.status === 'completed')
-      .reduce((sum, p) => sum + p.amount, 0);
-    const pending = invoices
-      .filter((inv: any) => inv.status === 'pending')
-      .reduce((sum: number, inv: any) => sum + (Number(inv.montant_ttc ?? inv.amount ?? 0) || 0), 0);
+    const paid = invoices.reduce((sum: number, inv: any) => sum + (Number(inv.paid ?? 0) || 0), 0);
+    const pending = invoices.reduce((sum: number, inv: any) => {
+      const totalInv = Number(inv.montant_ttc ?? inv.amount ?? 0) || 0;
+      const paidInv = Number(inv.paid ?? 0) || 0;
+      const due = Math.max(0, totalInv - paidInv);
+      const st = String(inv.status || 'pending');
+      if (st === 'paid' || due <= 0) return sum;
+      return sum + due;
+    }, 0);
     
     return {
       total,

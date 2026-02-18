@@ -35,102 +35,17 @@ import {
   TrendingUp,
   Calendar,
   Loader2,
+  Copy,
 } from 'lucide-react';
 
-interface Payment {
-  id: string;
-  description: string;
-  vendor: string;
-  amount: number;
-  status: string;
-  date?: string;
-  dueDate?: string;
-  method: string;
-  invoice: boolean;
-}
-
-const mockPayments = [
-  {
-    id: '1',
-    description: 'Acompte Château d\'Apigné',
-    vendor: 'Château d\'Apigné',
-    amount: 5000,
-    status: 'paid',
-    date: '25/01/2024',
-    method: 'Virement',
-    invoice: true,
-  },
-  {
-    id: '2',
-    description: 'Acompte traiteur - 30%',
-    vendor: 'Traiteur Le Gourmet',
-    amount: 3500,
-    status: 'paid',
-    date: '30/01/2024',
-    method: 'Carte bancaire',
-    invoice: true,
-  },
-  {
-    id: '3',
-    description: 'Acompte photographe',
-    vendor: 'Studio Photo Lumière',
-    amount: 1500,
-    status: 'paid',
-    date: '05/02/2024',
-    method: 'Virement',
-    invoice: true,
-  },
-  {
-    id: '4',
-    description: 'Prestation Wedding Planner - Acompte',
-    vendor: 'Le Oui Parfait',
-    amount: 2500,
-    status: 'paid',
-    date: '20/01/2024',
-    method: 'Virement',
-    invoice: true,
-  },
-  {
-    id: '5',
-    description: 'Acompte DJ',
-    vendor: 'DJ Ambiance',
-    amount: 500,
-    status: 'paid',
-    date: '12/02/2024',
-    method: 'Carte bancaire',
-    invoice: true,
-  },
-  {
-    id: '6',
-    description: 'Acompte fleuriste - 50%',
-    vendor: 'Atelier Floral',
-    amount: 1500,
-    status: 'pending',
-    dueDate: '28/02/2024',
-    method: '-',
-    invoice: false,
-  },
-  {
-    id: '7',
-    description: 'Solde photographe',
-    vendor: 'Studio Photo Lumière',
-    amount: 2000,
-    status: 'pending',
-    dueDate: '15/08/2024',
-    method: '-',
-    invoice: false,
-  },
-  {
-    id: '8',
-    description: 'Solde traiteur - 70%',
-    vendor: 'Traiteur Le Gourmet',
-    amount: 8500,
-    status: 'upcoming',
-    dueDate: '23/08/2024',
-    method: '-',
-    invoice: false,
-  },
-];
+type TransferInstructions = {
+  iban: string;
+  bic: string | null;
+  bankAccountName: string | null;
+  reference: string;
+  amountDue: number;
+  currency: string;
+};
 
 export default function PaiementsPage() {
   const { client, event, loading: dataLoading } = useClientData();
@@ -138,11 +53,38 @@ export default function PaiementsPage() {
   const [budgetSummary, setBudgetSummary] = useState({ total: 0, paid: 0, pending: 0, remaining: 0 });
   const [loading, setLoading] = useState(true);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
-  const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null);
-  const [paymentMethod, setPaymentMethod] = useState('');
+  const [selectedPayment, setSelectedPayment] = useState<PaymentData | null>(null);
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
-  const [paymentActionLoading, setPaymentActionLoading] = useState(false);
-  const [paymentActionError, setPaymentActionError] = useState<string | null>(null);
+  const [transferInstructions, setTransferInstructions] = useState<TransferInstructions | null>(null);
+  const [transferLoading, setTransferLoading] = useState(false);
+  const [reconcileLoading, setReconcileLoading] = useState(false);
+
+  const copyToClipboard = async (value: string) => {
+    try {
+      if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(value);
+        return;
+      }
+    } catch {
+      // ignore
+    }
+
+    try {
+      const el = document.createElement('textarea');
+      el.value = value;
+      el.style.position = 'fixed';
+      el.style.top = '0';
+      el.style.left = '0';
+      el.style.opacity = '0';
+      document.body.appendChild(el);
+      el.focus();
+      el.select();
+      document.execCommand('copy');
+      document.body.removeChild(el);
+    } catch {
+      // ignore
+    }
+  };
 
   useEffect(() => {
     async function fetchPayments() {
@@ -164,99 +106,103 @@ export default function PaiementsPage() {
     }
   }, [client, dataLoading]);
 
-  const upcomingPayments = payments.filter(p => p.status === 'pending' || p.status === 'overdue');
+  const refreshPayments = async () => {
+    if (!client?.id) return;
+    const paymentsList = await getClientPayments(client.id);
+    setPayments(paymentsList);
+    const summary = await getClientBudgetSummary(client.id);
+    setBudgetSummary(summary);
+  };
+
+  const upcomingPayments = payments.filter((p) => {
+    const st = String(p.status || 'pending');
+    const due = Number(p.amount_due ?? 0) || 0;
+    if (st === 'paid' || st === 'completed') return false;
+    if (st === 'partial') return due > 0;
+    return st === 'pending' || st === 'overdue';
+  });
   const daysRemaining = event ? calculateDaysRemaining(event.event_date) : 0;
 
-  if (dataLoading || loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="animate-spin h-12 w-12 text-brand-turquoise" />
-      </div>
-    );
-  }
-
-  const handlePayClick = (payment: Payment) => {
+  const handlePayClick = (payment: PaymentData) => {
     setSelectedPayment(payment);
-    setPaymentActionError(null);
     setIsPaymentModalOpen(true);
+    setTransferInstructions(null);
   };
 
-  const handlePayInvoiceDirect = async (invoiceId: string) => {
-    try {
-      setPaymentActionError(null);
-      setPaymentActionLoading(true);
+  const handleConfirmPayment = () => {
+    setIsPaymentModalOpen(false);
+    setIsSuccessModalOpen(true);
+  };
 
-      const user = auth.currentUser;
-      if (!user) throw new Error('missing_auth_user');
-      const idToken = await user.getIdToken();
-      if (!idToken) throw new Error('missing_id_token');
+  const fetchTransferInstructions = async (invoiceId: string) => {
+    const idToken = await auth.currentUser?.getIdToken().catch(() => null);
+    if (!idToken) throw new Error('missing_auth');
 
-      const res = await fetch('/api/qonto/payment-link', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${idToken}`,
-        },
-        body: JSON.stringify({ invoiceId }),
-      });
+    const res = await fetch('/api/qonto/transfer-instructions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${idToken}`,
+      },
+      body: JSON.stringify({ invoiceId }),
+    });
 
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(String(data?.error || 'payment_link_error'));
-
-      const payUrl = String(data?.paymentLink?.url || '');
-      if (!payUrl) throw new Error('missing_payment_link_url');
-
-      window.open(payUrl, '_blank', 'noopener,noreferrer');
-    } catch (e: any) {
-      setPaymentActionError(String(e?.message || 'error'));
-    } finally {
-      setPaymentActionLoading(false);
+    if (!res.ok) {
+      const err = await res.json().catch(() => null);
+      throw new Error(err?.error || 'transfer_instructions_error');
     }
+
+    const data = await res.json();
+    return data as { ok: true } & TransferInstructions;
   };
 
-  const handleConfirmPayment = async () => {
-    try {
-      setPaymentActionError(null);
-      setPaymentActionLoading(true);
+  const reconcileInvoice = async (invoiceId: string) => {
+    const idToken = await auth.currentUser?.getIdToken().catch(() => null);
+    if (!idToken) throw new Error('missing_auth');
 
-      const user = auth.currentUser;
-      if (!user) throw new Error('missing_auth_user');
-      const idToken = await user.getIdToken();
-      if (!idToken) throw new Error('missing_id_token');
+    const res = await fetch('/api/qonto/reconcile', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${idToken}`,
+      },
+      body: JSON.stringify({ invoiceId }),
+    });
 
-      const invoiceId = String(selectedPayment?.id || '').trim();
-      if (!invoiceId) throw new Error('missing_invoice_id');
+    if (!res.ok) {
+      const err = await res.json().catch(() => null);
+      throw new Error(err?.error || 'reconcile_error');
+    }
 
-      const res = await fetch('/api/qonto/payment-link', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${idToken}`,
-        },
-        body: JSON.stringify({ invoiceId }),
-      });
+    return (await res.json()) as any;
+  };
 
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(String(data?.error || 'payment_link_error'));
+  useEffect(() => {
+    async function run() {
+      if (!isPaymentModalOpen) return;
+      if (!selectedPayment?.invoice_id) return;
+
+      setTransferLoading(true);
+      try {
+        const data = await fetchTransferInstructions(selectedPayment.invoice_id);
+        setTransferInstructions({
+          iban: data.iban,
+          bic: data.bic,
+          bankAccountName: data.bankAccountName,
+          reference: data.reference,
+          amountDue: data.amountDue,
+          currency: data.currency,
+        });
+      } catch (e) {
+        console.error('Error fetching transfer instructions:', e);
+        setTransferInstructions(null);
+      } finally {
+        setTransferLoading(false);
       }
-
-      const payUrl = String(data?.paymentLink?.url || '');
-      if (!payUrl) throw new Error('missing_payment_link_url');
-
-      setIsPaymentModalOpen(false);
-      setIsSuccessModalOpen(true);
-      setPaymentMethod('');
-
-      window.open(payUrl, '_blank', 'noopener,noreferrer');
-    } catch (e: any) {
-      setPaymentActionError(String(e?.message || 'error'));
-    } finally {
-      setPaymentActionLoading(false);
     }
-  };
 
-  // Note: sync is available via /api/qonto/sync but we don't call it automatically on click.
+    run();
+  }, [isPaymentModalOpen, selectedPayment?.invoice_id]);
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -264,6 +210,8 @@ export default function PaiementsPage() {
         return <Badge className="bg-green-100 text-green-700">Payé</Badge>;
       case 'pending':
         return <Badge className="bg-orange-100 text-orange-700">En attente</Badge>;
+      case 'partial':
+        return <Badge className="bg-yellow-100 text-yellow-800">Partiel</Badge>;
       case 'upcoming':
         return <Badge className="bg-blue-100 text-blue-700">À venir</Badge>;
       case 'overdue':
@@ -279,6 +227,8 @@ export default function PaiementsPage() {
         return <CheckCircle className="h-5 w-5 text-green-600" />;
       case 'pending':
         return <Clock className="h-5 w-5 text-orange-500" />;
+      case 'partial':
+        return <AlertCircle className="h-5 w-5 text-yellow-600" />;
       case 'upcoming':
         return <Calendar className="h-5 w-5 text-blue-500" />;
       case 'overdue':
@@ -288,7 +238,15 @@ export default function PaiementsPage() {
     }
   };
 
-  const progressPercentage = (budgetSummary.paid / budgetSummary.total) * 100;
+  const progressPercentage = budgetSummary.total > 0 ? (budgetSummary.paid / budgetSummary.total) * 100 : 0;
+
+  if (dataLoading || loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="animate-spin h-12 w-12 text-brand-turquoise" />
+      </div>
+    );
+  }
 
   return (
     <ClientDashboardLayout clientName={event?.couple_names || 'Client'} daysRemaining={daysRemaining}>
@@ -420,15 +378,25 @@ export default function PaiementsPage() {
             </h2>
             <div className="space-y-4">
               {upcomingPayments.map((payment) => (
-                <div key={payment.id} className="p-4 rounded-lg bg-orange-50 border border-orange-100">
+                <div
+                  key={payment.id}
+                  className="bg-white p-4 rounded-lg shadow-sm border border-gray-100"
+                >
                   <div className="flex items-start justify-between">
                     <div>
                       <p className="font-medium text-brand-purple">{payment.description}</p>
                       <p className="text-sm text-brand-gray">{payment.vendor}</p>
                     </div>
-                    <p className="font-bold text-brand-purple">
-                      {payment.amount.toLocaleString()} €
-                    </p>
+                    <div className="text-right">
+                      <p className="font-bold text-brand-purple">
+                        {(Number(payment.amount_due ?? 0) > 0 ? Number(payment.amount_due) : payment.amount).toLocaleString()} €
+                      </p>
+                      {Number(payment.amount_due ?? 0) > 0 && (
+                        <p className="text-xs text-brand-gray">
+                          Reste à payer: {Number(payment.amount_due ?? 0).toLocaleString()} €
+                        </p>
+                      )}
+                    </div>
                   </div>
                   <div className="flex items-center justify-between mt-3">
                     <p className="text-xs text-gray-500">
@@ -437,10 +405,9 @@ export default function PaiementsPage() {
                     <Button 
                       size="sm" 
                       className="bg-brand-turquoise hover:bg-brand-turquoise-hover text-xs"
-                      onClick={() => handlePayInvoiceDirect(String((payment as any)?.id || ''))}
-                      disabled={paymentActionLoading}
+                      onClick={() => handlePayClick(payment)}
                     >
-                      {paymentActionLoading ? 'Ouverture...' : 'Payer'}
+                      Payer
                     </Button>
                   </div>
                 </div>
@@ -461,71 +428,96 @@ export default function PaiementsPage() {
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
-              {paymentActionError && (
-                <div className="p-3 rounded-lg bg-red-50 border border-red-100 text-sm text-red-700">
-                  {paymentActionError}
-                </div>
-              )}
               {selectedPayment && (
                 <div className="p-4 bg-gray-50 rounded-lg">
                   <p className="font-medium text-brand-purple">{selectedPayment.description}</p>
                   <p className="text-sm text-brand-gray">{selectedPayment.vendor}</p>
                   <p className="text-xl font-bold text-brand-turquoise mt-2">
-                    {selectedPayment.amount.toLocaleString()} €
+                    {(Number(selectedPayment.amount_due ?? 0) > 0 ? Number(selectedPayment.amount_due) : selectedPayment.amount).toLocaleString()} €
                   </p>
                 </div>
               )}
-              <div className="space-y-2">
-                <Label>Mode de paiement</Label>
-                <Select value={paymentMethod} onValueChange={setPaymentMethod}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Choisir un mode de paiement" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="card">Carte bancaire</SelectItem>
-                    <SelectItem value="transfer">Virement bancaire</SelectItem>
-                    <SelectItem value="check">Chèque</SelectItem>
-                  </SelectContent>
-                </Select>
+              <div className="p-4 bg-blue-50 rounded-lg text-sm">
+                <p className="font-medium text-blue-700 mb-2">Coordonnées bancaires</p>
+                {transferLoading ? (
+                  <div className="flex items-center gap-2 text-blue-600">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Chargement...
+                  </div>
+                ) : transferInstructions ? (
+                  <>
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-blue-600 break-all">IBAN: {transferInstructions.iban}</p>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => copyToClipboard(transferInstructions.iban)}
+                        aria-label="Copier l'IBAN"
+                      >
+                        <Copy className="h-4 w-4 text-blue-700" />
+                      </Button>
+                    </div>
+                    {transferInstructions.bic && (
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-blue-600 break-all">BIC: {transferInstructions.bic}</p>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => copyToClipboard(transferInstructions.bic as string)}
+                          aria-label="Copier le BIC"
+                        >
+                          <Copy className="h-4 w-4 text-blue-700" />
+                        </Button>
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between gap-3 mt-2">
+                      <p className="text-blue-600 break-all">Référence: {transferInstructions.reference}</p>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => copyToClipboard(transferInstructions.reference)}
+                        aria-label="Copier la référence"
+                      >
+                        <Copy className="h-4 w-4 text-blue-700" />
+                      </Button>
+                    </div>
+                    <p className="text-blue-700 mt-3 font-medium">
+                      Montant restant à régler : {Number(transferInstructions.amountDue || 0).toLocaleString('fr-FR')} €
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-blue-600">Impossible de récupérer les coordonnées.</p>
+                )}
               </div>
-              {paymentMethod === 'card' && (
-                <div className="space-y-3">
-                  <div>
-                    <Label>Numéro de carte</Label>
-                    <Input placeholder="1234 5678 9012 3456" className="mt-1" />
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <Label>Date d'expiration</Label>
-                      <Input placeholder="MM/AA" className="mt-1" />
-                    </div>
-                    <div>
-                      <Label>CVV</Label>
-                      <Input placeholder="123" className="mt-1" />
-                    </div>
-                  </div>
-                </div>
-              )}
-              {paymentMethod === 'transfer' && (
-                <div className="p-4 bg-blue-50 rounded-lg text-sm">
-                  <p className="font-medium text-blue-700 mb-2">Coordonnées bancaires</p>
-                  <p className="text-blue-600">IBAN: FR76 1234 5678 9012 3456 7890 123</p>
-                  <p className="text-blue-600">BIC: BNPAFRPP</p>
-                  <p className="text-blue-600 mt-2">Référence: MARIAGE-2024-{selectedPayment?.id}</p>
-                </div>
-              )}
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setIsPaymentModalOpen(false)}>
+              <Button type="button" variant="outline" onClick={() => setIsPaymentModalOpen(false)}>
                 Annuler
               </Button>
-              <Button 
-                className="bg-brand-turquoise hover:bg-brand-turquoise-hover"
-                onClick={handleConfirmPayment}
-                disabled={!paymentMethod || paymentActionLoading}
-              >
-                {paymentActionLoading ? 'Redirection...' : 'Confirmer le paiement'}
-              </Button>
+              {selectedPayment?.invoice_id && (
+                <Button
+                  type="button"
+                  className="bg-brand-turquoise hover:bg-brand-turquoise-hover"
+                  onClick={async () => {
+                    setReconcileLoading(true);
+                    try {
+                      await reconcileInvoice(selectedPayment.invoice_id as string);
+                      await refreshPayments();
+                      setIsPaymentModalOpen(false);
+                    } catch (e) {
+                      console.error('Error reconciling payment:', e);
+                    } finally {
+                      setReconcileLoading(false);
+                    }
+                  }}
+                  disabled={reconcileLoading}
+                >
+                  {reconcileLoading ? 'Vérification...' : 'Vérifier le paiement'}
+                </Button>
+              )}
             </DialogFooter>
           </DialogContent>
         </Dialog>
