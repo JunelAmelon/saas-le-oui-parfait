@@ -58,6 +58,7 @@ export default function PaiementsPage() {
   const [transferInstructions, setTransferInstructions] = useState<TransferInstructions | null>(null);
   const [transferLoading, setTransferLoading] = useState(false);
   const [reconcileLoading, setReconcileLoading] = useState(false);
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
   const copyToClipboard = async (value: string) => {
     try {
@@ -84,6 +85,14 @@ export default function PaiementsPage() {
     } catch {
       // ignore
     }
+  };
+
+  const handleCopy = async (key: string, value: string) => {
+    await copyToClipboard(value);
+    setCopiedKey(key);
+    window.setTimeout(() => {
+      setCopiedKey((prev) => (prev === key ? null : prev));
+    }, 1500);
   };
 
   useEffect(() => {
@@ -452,10 +461,14 @@ export default function PaiementsPage() {
                         type="button"
                         variant="ghost"
                         size="icon"
-                        onClick={() => copyToClipboard(transferInstructions.iban)}
+                        onClick={() => handleCopy('iban', transferInstructions.iban)}
                         aria-label="Copier l'IBAN"
                       >
-                        <Copy className="h-4 w-4 text-blue-700" />
+                        {copiedKey === 'iban' ? (
+                          <CheckCircle className="h-4 w-4 text-green-700" />
+                        ) : (
+                          <Copy className="h-4 w-4 text-blue-700" />
+                        )}
                       </Button>
                     </div>
                     {transferInstructions.bic && (
@@ -465,10 +478,14 @@ export default function PaiementsPage() {
                           type="button"
                           variant="ghost"
                           size="icon"
-                          onClick={() => copyToClipboard(transferInstructions.bic as string)}
+                          onClick={() => handleCopy('bic', transferInstructions.bic as string)}
                           aria-label="Copier le BIC"
                         >
-                          <Copy className="h-4 w-4 text-blue-700" />
+                          {copiedKey === 'bic' ? (
+                            <CheckCircle className="h-4 w-4 text-green-700" />
+                          ) : (
+                            <Copy className="h-4 w-4 text-blue-700" />
+                          )}
                         </Button>
                       </div>
                     )}
@@ -478,10 +495,14 @@ export default function PaiementsPage() {
                         type="button"
                         variant="ghost"
                         size="icon"
-                        onClick={() => copyToClipboard(transferInstructions.reference)}
+                        onClick={() => handleCopy('reference', transferInstructions.reference)}
                         aria-label="Copier la référence"
                       >
-                        <Copy className="h-4 w-4 text-blue-700" />
+                        {copiedKey === 'reference' ? (
+                          <CheckCircle className="h-4 w-4 text-green-700" />
+                        ) : (
+                          <Copy className="h-4 w-4 text-blue-700" />
+                        )}
                       </Button>
                     </div>
                     <p className="text-blue-700 mt-3 font-medium">

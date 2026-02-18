@@ -62,9 +62,8 @@ export async function POST(req: Request) {
 
     const txs = Array.isArray(txRes?.transactions) ? txRes.transactions : [];
     const candidates = txs.filter((tx) => transactionContainsRef(tx, paymentRef));
-    const matched =
-      candidates.find((tx) => String(tx?.status || '').toLowerCase() === 'completed') ||
-      candidates[0];
+    const completed = candidates.filter((tx) => String(tx?.status || '').toLowerCase() === 'completed');
+    const matched = completed[0] || candidates[0];
 
     if (!matched) {
       return NextResponse.json({ ok: true, invoiceId, status: inv?.status || 'pending', paid: alreadyPaid, matched: null });
@@ -87,8 +86,12 @@ export async function POST(req: Request) {
       });
     }
 
+    const txIds = completed
+      .map((t) => String(t?.transaction_id || t?.id || '').trim())
+      .filter(Boolean);
+    const totalReceived = completed.reduce((sum, t) => sum + (Number((t as any)?.amount ?? 0) || 0), 0);
     const received = Number(matched.amount ?? 0) || 0;
-    const newPaid = Math.min(totalTtc, alreadyPaid + received);
+    const newPaid = Math.min(totalTtc, Math.max(alreadyPaid, totalReceived));
     const newStatus = newPaid >= totalTtc ? 'paid' : 'partial';
 
     await invRef.set(
@@ -108,6 +111,8 @@ export async function POST(req: Request) {
           reference: matched.reference || null,
           matched_at: new Date().toISOString(),
         },
+        qonto_reconciled_transaction_ids: txIds,
+        qonto_total_received: totalReceived,
       },
       { merge: true }
     );

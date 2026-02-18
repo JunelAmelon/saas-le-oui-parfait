@@ -63,6 +63,7 @@ export default function FacturesPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [isNewInvoiceOpen, setIsNewInvoiceOpen] = useState(false);
   const [isRecordPaymentOpen, setIsRecordPaymentOpen] = useState(false);
+  const [recordPaymentInvoiceId, setRecordPaymentInvoiceId] = useState<string | null>(null);
 
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 3;
@@ -191,7 +192,10 @@ export default function FacturesPage() {
             <Button 
               variant="outline"
               className="gap-2 flex-1 sm:flex-none border-brand-turquoise text-brand-turquoise hover:bg-brand-turquoise hover:text-white"
-              onClick={() => setIsRecordPaymentOpen(true)}
+              onClick={() => {
+                setRecordPaymentInvoiceId(null);
+                setIsRecordPaymentOpen(true);
+              }}
             >
               <DollarSign className="h-4 w-4" />
               <span className="hidden sm:inline">Enregistrer un paiement</span>
@@ -328,7 +332,10 @@ export default function FacturesPage() {
                       size="sm" 
                       variant="outline" 
                       className="border-2 border-green-500 text-green-600 hover:bg-green-500 hover:text-white"
-                      onClick={() => setIsRecordPaymentOpen(true)}
+                      onClick={() => {
+                        setRecordPaymentInvoiceId(facture.id);
+                        setIsRecordPaymentOpen(true);
+                      }}
                     >
                       Enregistrer un paiement
                     </Button>
@@ -370,7 +377,22 @@ export default function FacturesPage() {
       </div>
 
       <NewInvoiceModal isOpen={isNewInvoiceOpen} onClose={() => { setIsNewInvoiceOpen(false); fetchFactures(); }} />
-      <RecordPaymentModal isOpen={isRecordPaymentOpen} onClose={() => { setIsRecordPaymentOpen(false); fetchFactures(); }} />
+      <RecordPaymentModal
+        isOpen={isRecordPaymentOpen}
+        onClose={() => {
+          setIsRecordPaymentOpen(false);
+          setRecordPaymentInvoiceId(null);
+          fetchFactures();
+        }}
+        invoices={factures.map((f) => ({
+          id: f.id,
+          reference: f.reference,
+          client: f.client,
+          montantTTC: f.montantTTC,
+          paid: f.paid,
+        }))}
+        defaultInvoiceId={recordPaymentInvoiceId}
+      />
     </DashboardLayout>
   );
 }
