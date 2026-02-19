@@ -54,6 +54,62 @@ export async function POST(req: Request) {
         console.warn('Unable to fetch envelope status from DocuSign:', e);
       }
 
+      // Persist per-recipient status (so UI can know if admin/client already signed)
+      try {
+        const env = getDocuSignEnv();
+        const recipients = await docusignRequest<{ signers?: Array<{ email?: string; status?: string }> }>({
+          method: 'GET',
+          path: `/v2.1/accounts/${env.accountId}/envelopes/${envelopeId}/recipients`,
+        });
+
+        const metaSnap = await adminDb.collection('docusign_envelopes').doc(envelopeId).get();
+        const meta = metaSnap.exists ? (metaSnap.data() as any) : null;
+
+        const clientEmail = String(meta?.client_email || '').trim().toLowerCase();
+        const plannerEmail = String(meta?.planner_email || '').trim().toLowerCase();
+
+        const signers = Array.isArray(recipients?.signers) ? recipients.signers : [];
+        const signerStatusByEmail = new Map<string, string>();
+        for (const s of signers) {
+          const e = String(s?.email || '').trim().toLowerCase();
+          if (!e) continue;
+          signerStatusByEmail.set(e, String(s?.status || ''));
+        }
+
+        const clientRecipientStatus = clientEmail ? signerStatusByEmail.get(clientEmail) || '' : '';
+        const plannerRecipientStatus = plannerEmail ? signerStatusByEmail.get(plannerEmail) || '' : '';
+
+        const recipientsPayload = {
+          client: { email: clientEmail || undefined, status: clientRecipientStatus || undefined },
+          planner: { email: plannerEmail || undefined, status: plannerRecipientStatus || undefined },
+        };
+
+        await adminDb
+          .collection('docusign_envelopes')
+          .doc(envelopeId)
+          .set({ recipients: recipientsPayload, updated_at: new Date().toISOString() }, { merge: true });
+
+        if (meta?.doc_type && meta?.doc_id) {
+          const targetCollection = meta.doc_type === 'contract' ? 'contracts' : 'devis';
+          await adminDb
+            .collection(targetCollection)
+            .doc(String(meta.doc_id))
+            .set(
+              {
+                docusign: {
+                  envelope_id: envelopeId,
+                  status: envelopeStatus || undefined,
+                  updated_at: new Date().toISOString(),
+                  recipients: recipientsPayload,
+                },
+              },
+              { merge: true }
+            );
+        }
+      } catch (e) {
+        console.warn('Unable to update per-recipient statuses from DocuSign:', e);
+      }
+
       try {
         await adminDb.collection('docusign_envelopes').doc(envelopeId).set(
           {

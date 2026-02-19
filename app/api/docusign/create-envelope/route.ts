@@ -105,11 +105,6 @@ export async function POST(req: Request) {
     const clientRecipientId = '1';
     const plannerRecipientId = '2';
 
-    const clientSignX = String(process.env.DOCUSIGN_CLIENT_SIGN_X || '140');
-    const clientSignY = String(process.env.DOCUSIGN_CLIENT_SIGN_Y || '640');
-    const plannerSignX = String(process.env.DOCUSIGN_PLANNER_SIGN_X || '360');
-    const plannerSignY = String(process.env.DOCUSIGN_PLANNER_SIGN_Y || '640');
-
     const envelopeDefinition = {
       emailSubject: `${docType === 'contract' ? 'Signature du contrat' : 'Signature du devis'} - ${reference}`,
       status: 'sent',
@@ -129,16 +124,6 @@ export async function POST(req: Request) {
             recipientId: clientRecipientId,
             routingOrder: '1',
             clientUserId: clientEmail,
-            tabs: {
-              signHereTabs: [
-                {
-                  documentId: '1',
-                  pageNumber: '1',
-                  xPosition: clientSignX,
-                  yPosition: clientSignY,
-                },
-              ],
-            },
           },
           {
             email: plannerEmail,
@@ -146,16 +131,6 @@ export async function POST(req: Request) {
             recipientId: plannerRecipientId,
             routingOrder: '1',
             clientUserId: plannerEmail,
-            tabs: {
-              signHereTabs: [
-                {
-                  documentId: '1',
-                  pageNumber: '1',
-                  xPosition: plannerSignX,
-                  yPosition: plannerSignY,
-                },
-              ],
-            },
           },
         ],
       },

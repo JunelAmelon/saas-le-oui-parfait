@@ -65,6 +65,7 @@ interface DocumentItem {
   contract_id?: string | null;
   devis_id?: string | null;
   source?: 'documents' | 'devis' | 'contracts';
+  docusign?: any;
 }
 
 const docTypeLabels: Record<string, string> = {
@@ -173,6 +174,7 @@ export default function DocumentsPage() {
               status,
               contract_id: c.id,
               source: 'contracts' as const,
+              docusign: c.docusign || null,
             } as DocumentItem;
           });
 
@@ -633,7 +635,16 @@ export default function DocumentsPage() {
                 <TableBody>
                   {paginatedDocuments.map((doc) => {
                     const isContract = doc.type?.toLowerCase() === 'contrat' && Boolean(doc.contract_id);
-                    const canSign = isContract && doc.status !== 'signed' && signingContractId !== doc.contract_id;
+                    const dsStatusRaw = String(doc?.docusign?.status || doc.status || '').toLowerCase();
+                    const dsRecipients = doc?.docusign?.recipients || null;
+                    const adminRecipientStatus = String(dsRecipients?.planner?.status || '').toLowerCase();
+                    const clientRecipientStatus = String(dsRecipients?.client?.status || '').toLowerCase();
+
+                    const adminSigned = adminRecipientStatus === 'completed';
+                    const clientSigned = clientRecipientStatus === 'completed';
+                    const fullySigned = doc.status === 'signed' || dsStatusRaw === 'completed' || (adminSigned && clientSigned);
+
+                    const canSign = isContract && !fullySigned && !clientSigned && signingContractId !== doc.contract_id;
                     const isSigning = isContract && signingContractId === doc.contract_id;
                     const isDevis = doc.type?.toLowerCase() === 'devis' && Boolean(doc.devis_id);
                     const devisBusy = isDevis && savingDevisId === doc.devis_id;
@@ -647,7 +658,17 @@ export default function DocumentsPage() {
                             </div>
                             <div className="min-w-0">
                               <p className="font-medium text-brand-purple text-sm sm:text-base truncate">{doc.name}</p>
-                              {doc.status ? (
+                              {isContract ? (
+                                fullySigned ? (
+                                  <p className="text-xs text-green-700 font-medium">Contrat signé</p>
+                                ) : clientSigned ? (
+                                  <p className="text-xs text-brand-gray">Vous avez signé — en attente du planner</p>
+                                ) : adminSigned ? (
+                                  <p className="text-xs text-brand-gray">Planner a signé — il reste votre signature</p>
+                                ) : doc.status ? (
+                                  <p className="text-xs text-brand-gray">{doc.status}</p>
+                                ) : null
+                              ) : doc.status ? (
                                 <p className="text-xs text-brand-gray">{doc.status}</p>
                               ) : null}
                             </div>
@@ -700,7 +721,11 @@ export default function DocumentsPage() {
                                   onClick={() => void handleSignContract(doc)}
                                   disabled={!canSign || isSigning}
                                 >
-                                  {doc.status === 'signed' ? 'Déjà signé' : (isSigning ? 'Validation...' : 'Signer / Valider')}
+                                  {fullySigned
+                                    ? 'Déjà signé'
+                                    : clientSigned
+                                      ? 'Vous avez déjà signé'
+                                      : (isSigning ? 'Validation...' : 'Signer / Valider')}
                                 </DropdownMenuItem>
                               ) : null}
                             </DropdownMenuContent>

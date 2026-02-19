@@ -34,6 +34,7 @@ interface Contract {
   signedAt: string | null;
   pdfUrl?: string;
   contractContent?: string;
+  docusign?: any;
 }
 
 const statusConfig = {
@@ -111,6 +112,7 @@ export default function ContractsPage() {
             signedAt: c.signed_at || null,
             pdfUrl: c.pdf_url || '',
             contractContent: c.contract_content || '',
+            docusign: c.docusign || null,
             _createdTimestamp: c.created_timestamp || null,
           };
         } catch (err) {
@@ -432,6 +434,15 @@ export default function ContractsPage() {
             const status = statusConfig[contract.status as keyof typeof statusConfig];
             const StatusIcon = status.icon;
 
+            const dsStatusRaw = String(contract?.docusign?.status || '').toLowerCase();
+            const dsRecipients = contract?.docusign?.recipients || null;
+            const adminRecipientStatus = String(dsRecipients?.planner?.status || '').toLowerCase();
+            const clientRecipientStatus = String(dsRecipients?.client?.status || '').toLowerCase();
+
+            const adminSigned = adminRecipientStatus === 'completed';
+            const clientSigned = clientRecipientStatus === 'completed';
+            const fullySigned = contract.status === 'signed' || dsStatusRaw === 'completed' || (adminSigned && clientSigned);
+
             return (
               <Card key={contract.id} className="p-6 shadow-xl border-0 hover:shadow-2xl transition-shadow">
                 <div className="space-y-4">
@@ -515,7 +526,8 @@ export default function ContractsPage() {
                           Envoyer
                         </Button>
                       )}
-                      {(contract.status === 'draft' || contract.status === 'sent') && (
+
+                      {(contract.status === 'draft' || contract.status === 'sent') && !fullySigned && !adminSigned && (
                         <Button
                           size="sm"
                           variant="outline"
@@ -526,23 +538,43 @@ export default function ContractsPage() {
                           Signer
                         </Button>
                       )}
+
                       <Button
                         size="sm"
                         variant="outline"
-                        className="border-red-400 text-red-600 hover:bg-red-500 hover:text-white"
+                        className="flex-1 border-red-400 text-red-600 hover:bg-red-500 hover:text-white text-xs"
                         onClick={() => handleCancelContract(contract)}
                       >
-                        <Trash2 className="h-3 w-3" />
+                        <Trash2 className="h-3 w-3 mr-1" />
+                        Supprimer
                       </Button>
                     </div>
+
+                    {(contract.status === 'draft' || contract.status === 'sent') && !fullySigned && adminSigned ? (
+                      <div className="text-xs text-brand-gray pt-1">
+                        Signature prestataire effectuée — en attente du client.
+                      </div>
+                    ) : null}
+
+                    {(contract.status === 'draft' || contract.status === 'sent') && !fullySigned && clientSigned && !adminSigned ? (
+                      <div className="text-xs text-brand-gray pt-1">
+                        Le client a signé — il reste votre signature.
+                      </div>
+                    ) : null}
+
+                    {fullySigned ? (
+                      <div className="text-xs text-green-700 font-medium pt-1">
+                        Contrat signé.
+                      </div>
+                    ) : null}
                   </div>
+
                 </div>
               </Card>
             );
           })}
           </div>
         )}
-
         {!loading && filteredContracts.length > contractsPerPage && (
           <Card className="p-4 shadow-xl border-0">
             <div className="flex items-center justify-between">
