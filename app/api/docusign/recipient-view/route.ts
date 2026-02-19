@@ -50,7 +50,8 @@ export async function POST(req: Request) {
     if (!meta) return NextResponse.json({ error: 'envelope_not_found' }, { status: 404 });
 
     const base = resolveReturnUrl(req);
-    const returnUrl = String(body?.returnUrl || `${base}/espace-client/documents`);
+    const defaultReturnUrl = recipientRole === 'planner' ? `${base}/agence/contrats` : `${base}/espace-client/documents`;
+    const returnUrl = String(body?.returnUrl || defaultReturnUrl);
 
     let recipientId = '1';
     let email = String(meta.client_email || '');

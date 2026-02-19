@@ -295,18 +295,14 @@ En cas de litige relatif à l'interprétation ou à l'exécution du présent con
 
 À défaut d'accord amiable dans un délai de 30 jours suivant la notification du différend par lettre recommandée avec accusé de réception, le litige sera porté devant les tribunaux compétents du ressort du siège social du Prestataire.
 
-
 Fait à [VILLE], le [DATE_SIGNATURE]
 En deux exemplaires originaux, dont un pour chaque Partie.
 
+Signature du Client                                          Le Oui Parfait
+Précédée de la mention                                       Président de LE OUI PARFAIT
+« Lu et approuvé, bon pour accord »                          Osnel & Melan
 
-Signature du Prestataire                                    Signature du Client
-Précédée de la mention                                       Précédée de la mention
-« Lu et approuvé, bon pour accord »                          « Lu et approuvé, bon pour accord »
-
-
-[NOM_REPRESENTANT]                                           [NOM_CLIENT]
-Président de LE OUI PARFAIT`;
+[NOM_CLIENT]                                                 [NOM_REPRESENTANT]`;
 
 const vendorContractTemplate = `CONTRAT PRESTATAIRE
 
@@ -704,6 +700,7 @@ export function NewContractModal({ isOpen, onClose, onContractCreated }: NewCont
     // Hauteur max (px) d'un slice pour rentrer dans une page PDF
     const maxSliceHeightPx = Math.floor(pdfInnerHeight / ptPerPx);
     const sliceHeight = Math.max(300, maxSliceHeightPx);
+    const overlapPx = 24;
 
     let y = 0;
     let isFirstPage = true;
@@ -727,7 +724,7 @@ export function NewContractModal({ isOpen, onClose, onContractCreated }: NewCont
       if (!isFirstPage) pdf.addPage();
       pdf.addImage(imgData, 'JPEG', padding, padding, imgWidth, imgHeight, undefined, 'FAST');
       isFirstPage = false;
-      y += sliceHeight;
+      y += Math.max(1, sliceHeight - overlapPx);
     }
 
     return pdf.output('blob');

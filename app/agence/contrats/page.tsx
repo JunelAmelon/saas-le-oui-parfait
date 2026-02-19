@@ -324,29 +324,10 @@ export default function ContractsPage() {
 
       let viewAttempt = await tryRecipientView(envelopeId);
 
-      // If the envelope was created with sequential routing (old config), the planner cannot sign until the client does.
-      // In that case, create a fresh envelope (current config uses parallel routing) and retry once.
       const viewError = String(viewAttempt?.json?.error || '').toLowerCase();
       if (!viewAttempt.ok && viewError.includes('out of sequence')) {
-        const createRes = await fetch('/api/docusign/create-envelope', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${idToken}`,
-          },
-          body: JSON.stringify({ docType: 'contract', docId: contract.id }),
-        });
-        const createJson = await createRes.json().catch(() => null);
-        if (!createRes.ok) {
-          toast.error(createJson?.error || 'Impossible de préparer la signature');
-          return;
-        }
-        envelopeId = String(createJson?.envelopeId || '');
-        if (!envelopeId) {
-          toast.error('Impossible de préparer la signature');
-          return;
-        }
-        viewAttempt = await tryRecipientView(envelopeId);
+        toast.error('Le client doit signer en premier. Une fois signé, vous pourrez signer côté prestataire.');
+        return;
       }
 
       if (!viewAttempt.ok) {

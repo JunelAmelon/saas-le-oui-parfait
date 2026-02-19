@@ -139,7 +139,7 @@ export async function POST(req: Request) {
             email: plannerEmail,
             name: plannerName,
             recipientId: plannerRecipientId,
-            routingOrder: '1',
+            routingOrder: '2',
             clientUserId: plannerEmail,
             tabs: {
               signHereTabs: [
