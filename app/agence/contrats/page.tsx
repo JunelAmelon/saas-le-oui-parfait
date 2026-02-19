@@ -21,6 +21,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { getDocuments } from '@/lib/db';
 import { toast } from 'sonner';
 import { auth } from '@/lib/firebase';
+import { useRef } from 'react';
 
 interface Contract {
   id: string;
@@ -81,6 +82,8 @@ export default function ContractsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const contractsPerPage = 3;
 
+  const syncedEnvelopeIdsRef = useRef<Set<string>>(new Set());
+
   // Fetch contracts from Firebase
   const fetchContracts = async () => {
     if (!user) {
@@ -131,6 +134,46 @@ export default function ContractsPage() {
       console.log('✅ Mapped and sorted contracts:', mapped.length, 'contrats');
       console.log('📋 Contracts list:', mapped);
       setContracts(mapped);
+
+      // Fallback: sync DocuSign statuses + signed PDF without relying on Connect webhook
+      try {
+        const idToken = await auth.currentUser?.getIdToken().catch(() => null);
+        if (!idToken) return;
+
+        const toSync = mapped
+          .map((c) => ({
+            id: c.id,
+            envelopeId: String(c?.docusign?.envelope_id || '').trim(),
+            status: String(c?.docusign?.status || c.status || '').trim().toLowerCase(),
+          }))
+          .filter((x) => x.envelopeId && x.status !== 'completed')
+          .filter((x) => !syncedEnvelopeIdsRef.current.has(x.envelopeId));
+
+        if (toSync.length === 0) return;
+
+        // Mark as synced early to avoid request loops
+        toSync.forEach((x) => syncedEnvelopeIdsRef.current.add(x.envelopeId));
+
+        await Promise.allSettled(
+          toSync.slice(0, 5).map((x) =>
+            fetch('/api/docusign/sync-envelope', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${idToken}`,
+              },
+              body: JSON.stringify({ docType: 'contract', docId: x.id }),
+            })
+          )
+        );
+
+        // Refresh once to reflect updated statuses / pdf_url
+        setTimeout(() => {
+          fetchContracts();
+        }, 800);
+      } catch (e) {
+        console.warn('DocuSign sync fallback failed (admin contracts):', e);
+      }
     } catch (e) {
       console.error('Error fetching contracts:', e);
       toast.error('Erreur lors du chargement des contrats');

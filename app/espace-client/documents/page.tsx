@@ -44,7 +44,7 @@ import {
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useClientData } from '@/contexts/ClientDataContext';
 import { calculateDaysRemaining, getClientDevis } from '@/lib/client-helpers';
 import { getDocument, getDocuments, addDocument, updateDocument } from '@/lib/db';
@@ -89,6 +89,8 @@ export default function DocumentsPage() {
   const [isDownloadSuccess, setIsDownloadSuccess] = useState(false);
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const syncedEnvelopeIdsRef = useRef<Set<string>>(new Set());
 
   const [signingContractId, setSigningContractId] = useState<string | null>(null);
   const [savingDevisId, setSavingDevisId] = useState<string | null>(null);
@@ -180,6 +182,44 @@ export default function DocumentsPage() {
 
         const all = [...mappedDocs, ...mappedDevis, ...mappedContracts];
         setDocuments(all);
+
+        // Fallback: sync DocuSign statuses + signed PDF without relying on Connect webhook
+        try {
+          const idToken = await auth.currentUser?.getIdToken().catch(() => null);
+          if (!idToken) return;
+
+          const toSync = mappedContracts
+            .map((c) => ({
+              docId: String(c.contract_id || '').trim(),
+              envelopeId: String((c as any)?.docusign?.envelope_id || '').trim(),
+              status: String((c as any)?.docusign?.status || c.status || '').trim().toLowerCase(),
+            }))
+            .filter((x) => x.docId && x.envelopeId && x.status !== 'completed')
+            .filter((x) => !syncedEnvelopeIdsRef.current.has(x.envelopeId));
+
+          if (toSync.length === 0) return;
+
+          toSync.forEach((x) => syncedEnvelopeIdsRef.current.add(x.envelopeId));
+
+          await Promise.allSettled(
+            toSync.slice(0, 5).map((x) =>
+              fetch('/api/docusign/sync-envelope', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  Authorization: `Bearer ${idToken}`,
+                },
+                body: JSON.stringify({ docType: 'contract', docId: x.docId }),
+              })
+            )
+          );
+
+          setTimeout(() => {
+            fetchDocuments();
+          }, 800);
+        } catch (e) {
+          console.warn('DocuSign sync fallback failed (client documents):', e);
+        }
       } catch (e) {
         console.error('Error fetching client documents:', e);
         toast.error('Erreur lors du chargement des documents');
