@@ -137,7 +137,7 @@ export function TodoModal({ open, onOpenChange, todo, mode, onSave }: TodoModalP
           </div>
 
           <div>
-            <Label>Date d'échéance *</Label>
+            <Label>Date d&apos;échéance *</Label>
             <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className="mt-1" />
           </div>
 

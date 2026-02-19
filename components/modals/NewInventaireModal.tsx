@@ -153,7 +153,7 @@ export function NewInventaireModal({ isOpen, onClose, onInventaireCreated }: New
           </div>
 
           <div>
-            <Label>Responsable de l'inventaire *</Label>
+            <Label>Responsable de l&apos;inventaire *</Label>
             <Input
               placeholder="Nom de la personne"
               value={responsiblePerson}
@@ -174,13 +174,13 @@ export function NewInventaireModal({ isOpen, onClose, onInventaireCreated }: New
           </div>
 
           <div className="p-3 bg-gray-50 rounded-lg text-sm text-brand-gray">
-            <p className="font-medium mb-1">Processus d'inventaire :</p>
+            <p className="font-medium mb-1">Processus d&apos;inventaire :</p>
             <ol className="list-decimal list-inside space-y-1 text-xs">
-              <li>Planification : créer l'inventaire (statut "Planifié")</li>
-              <li>Comptage : compter physiquement les articles (statut "En cours")</li>
+              <li>Planification : créer l&apos;inventaire (statut &quot;Planifié&quot;)</li>
+              <li>Comptage : compter physiquement les articles (statut &quot;En cours&quot;)</li>
               <li>Vérification : comparer avec les quantités système</li>
               <li>Ajustement : corriger les écarts détectés</li>
-              <li>Finalisation : terminer l'inventaire (statut "Terminé")</li>
+              <li>Finalisation : terminer l&apos;inventaire (statut &quot;Terminé&quot;)</li>
             </ol>
           </div>
         </div>

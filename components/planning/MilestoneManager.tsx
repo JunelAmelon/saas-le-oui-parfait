@@ -200,7 +200,7 @@ export function MilestoneManager({ eventId, isAdmin = false, milestones: initial
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <Label htmlFor="title">Titre de l'étape *</Label>
+              <Label htmlFor="title">Titre de l&apos;étape *</Label>
               <Input
                 id="title"
                 value={newMilestone.title}

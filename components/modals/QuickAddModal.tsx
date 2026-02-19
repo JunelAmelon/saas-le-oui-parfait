@@ -375,7 +375,7 @@ export function QuickAddModal({ open, onOpenChange }: QuickAddModalProps) {
                   </div>
                 </div>
                 <div>
-                  <Label>Date d'échéance *</Label>
+                  <Label>Date d&apos;échéance *</Label>
                   <Input 
                     type="date" 
                     className="mt-1"

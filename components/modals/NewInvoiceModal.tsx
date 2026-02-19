@@ -514,7 +514,7 @@ export function NewInvoiceModal({ isOpen, onClose }: NewInvoiceModalProps) {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="dueDate">Date d'échéance *</Label>
+                  <Label htmlFor="dueDate">Date d&apos;échéance *</Label>
                   <Input
                     id="dueDate"
                     type="date"

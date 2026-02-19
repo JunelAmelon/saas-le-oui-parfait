@@ -953,7 +953,7 @@ export function NewContractModal({ isOpen, onClose, onContractCreated }: NewCont
             <div className="p-4 bg-brand-beige/30 rounded-lg">
               <h3 className="font-bold text-brand-purple mb-3 flex items-center gap-2">
                 <FileText className="h-5 w-5" />
-                Informations de l'agence
+                Informations de l&apos;agence
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div>
@@ -973,7 +973,7 @@ export function NewContractModal({ isOpen, onClose, onContractCreated }: NewCont
                   />
                 </div>
                 <div>
-                  <Label>Adresse de l'agence *</Label>
+                  <Label>Adresse de l&apos;agence *</Label>
                   <Input
                     value={adminInfo.adresseAgence}
                     onChange={(e) => setAdminInfo({...adminInfo, adresseAgence: e.target.value})}
@@ -1140,7 +1140,7 @@ export function NewContractModal({ isOpen, onClose, onContractCreated }: NewCont
             </div>
 
             <div>
-              <Label htmlFor="eventLocation">Lieu de l'événement *</Label>
+              <Label htmlFor="eventLocation">Lieu de l&apos;événement *</Label>
               <Input
                 id="eventLocation"
                 placeholder="Ex: Château d'Apigné, Rennes"

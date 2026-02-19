@@ -522,7 +522,7 @@ export function NewDevisModal({ isOpen, onClose, onDevisCreated }: NewDevisModal
               </div>
 
               <div>
-                <Label htmlFor="validUntil">Valide jusqu'au</Label>
+                <Label htmlFor="validUntil">Valide jusqu&apos;au</Label>
                 <Input
                   id="validUntil"
                   type="date"
@@ -578,7 +578,7 @@ export function NewDevisModal({ isOpen, onClose, onDevisCreated }: NewDevisModal
                 <Input id="devisTitle" value={devisTitle} onChange={(e) => setDevisTitle(e.target.value)} />
               </div>
               <div>
-                <Label htmlFor="devisIntro">Phrase d'introduction (optionnel)</Label>
+                <Label htmlFor="devisIntro">Phrase d&apos;introduction (optionnel)</Label>
                 <Input id="devisIntro" value={devisIntro} onChange={(e) => setDevisIntro(e.target.value)} />
               </div>
             </div>
@@ -777,7 +777,7 @@ export function NewDevisModal({ isOpen, onClose, onDevisCreated }: NewDevisModal
                       </div>
                       {validUntil ? (
                         <div className="mt-2 text-sm">
-                          <div className="text-gray-500">Valide jusqu'au</div>
+                          <div className="text-gray-500">Valide jusqu&apos;au</div>
                           <div className="font-semibold">{new Date(validUntil).toLocaleDateString('fr-FR')}</div>
                         </div>
                       ) : null}

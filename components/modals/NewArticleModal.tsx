@@ -142,7 +142,7 @@ export function NewArticleModal({ isOpen, onClose, onArticleCreated }: NewArticl
 
         <div className="space-y-4 py-4">
           <div>
-            <Label>Nom de l'article *</Label>
+            <Label>Nom de l&apos;article *</Label>
             <Input
               placeholder="Ex: Chaises Napoleon III"
               value={name}
