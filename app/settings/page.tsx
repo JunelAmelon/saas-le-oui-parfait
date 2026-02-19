@@ -289,7 +289,7 @@ export default function SettingsPage() {
                       <div>
                         <p className="font-medium text-sm">Nouveau prospect</p>
                         <p className="text-xs text-brand-gray">
-                          Recevoir un email quand un nouveau prospect s'inscrit
+                          Recevoir un email quand un nouveau prospect s&apos;inscrit
                         </p>
                       </div>
                       <Switch
@@ -508,7 +508,7 @@ export default function SettingsPage() {
                 </div>
 
                 <div className="space-y-4">
-                  <Label>Couleur d'accent</Label>
+                  <Label>Couleur d&apos;accent</Label>
                   <div className="flex gap-3">
                     <div className="h-12 w-12 rounded-lg bg-brand-turquoise border-2 border-brand-purple cursor-pointer"></div>
                     <div className="h-12 w-12 rounded-lg bg-blue-500 border-2 border-transparent hover:border-brand-purple cursor-pointer"></div>

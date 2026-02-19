@@ -487,7 +487,7 @@ export default function EventsPage() {
           <div className="space-y-4 py-4">
             {/* Image Upload */}
             <div>
-              <Label>Photo de l'événement</Label>
+              <Label>Photo de l&apos;événement</Label>
               <div className="mt-2">
                 {imagePreview ? (
                   <div className="relative w-full h-48 rounded-lg overflow-hidden border-2 border-brand-turquoise/30">
@@ -535,7 +535,7 @@ export default function EventsPage() {
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <Label>Date de l'événement *</Label>
+                <Label>Date de l&apos;événement *</Label>
                 <Input 
                   type="date" 
                   className="mt-1"
@@ -544,7 +544,7 @@ export default function EventsPage() {
                 />
               </div>
               <div>
-                <Label>Nombre d'invités *</Label>
+                <Label>Nombre d&apos;invités *</Label>
                 <Input 
                   type="number" 
                   placeholder="120" 

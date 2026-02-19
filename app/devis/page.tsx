@@ -665,7 +665,7 @@ export default function DevisPage() {
                     </p>
                   </div>
                   <div>
-                    <p className="text-xs text-brand-gray uppercase tracking-label mb-1">Valide jusqu'au</p>
+                    <p className="text-xs text-brand-gray uppercase tracking-label mb-1">Valide jusqu&apos;au</p>
                     <p className="text-sm font-medium text-brand-purple">{devis.validUntil}</p>
                   </div>
                 </div>
@@ -789,7 +789,7 @@ export default function DevisPage() {
                   <p className="text-xl font-bold text-brand-turquoise">{selectedDevis.montantTTC.toLocaleString()} €</p>
                 </div>
                 <div>
-                  <p className="text-xs text-brand-gray">Valide jusqu'au</p>
+                  <p className="text-xs text-brand-gray">Valide jusqu&apos;au</p>
                   <p className="text-lg font-medium text-brand-purple">{selectedDevis.validUntil}</p>
                 </div>
               </div>
@@ -837,7 +837,7 @@ export default function DevisPage() {
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div>
-              <Label>Valide jusqu'au</Label>
+              <Label>Valide jusqu&apos;au</Label>
               <Input value={editValidUntil} onChange={(e) => setEditValidUntil(e.target.value)} className="mt-1" />
             </div>
             <div>

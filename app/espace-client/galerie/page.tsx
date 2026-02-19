@@ -633,7 +633,7 @@ export default function GaleriePage() {
               </div>
               <DialogTitle className="text-brand-purple text-xl">Photos ajoutées !</DialogTitle>
               <DialogDescription className="mt-2">
-                Vos photos ont été ajoutées avec succès à l'album.
+                Vos photos ont été ajoutées avec succès à l&apos;album.
               </DialogDescription>
             </div>
             <DialogFooter className="justify-center">

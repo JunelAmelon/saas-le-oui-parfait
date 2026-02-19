@@ -212,7 +212,7 @@ export default function InventairePage() {
                   </Button>
                   {inventaire.status === 'in_progress' && (
                     <Button size="sm" variant="outline" className="border-2 border-green-500 text-green-600 hover:bg-green-500 hover:text-white">
-                      Terminer l'inventaire
+                      Terminer l&apos;inventaire
                     </Button>
                   )}
                 </div>

@@ -107,7 +107,7 @@ export default function LoginPage() {
         </form>
 
         <p className="text-center text-xs text-brand-gray mt-6">
-          En vous connectant, vous acceptez nos conditions d'utilisation et notre politique de confidentialité.
+          En vous connectant, vous acceptez nos conditions d&apos;utilisation et notre politique de confidentialité.
         </p>
       </Card>
     </div>

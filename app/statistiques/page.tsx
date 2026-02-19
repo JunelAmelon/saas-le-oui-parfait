@@ -147,7 +147,7 @@ export default function StatistiquesPage() {
               Statistiques & Analyses
             </h1>
             <p className="text-sm sm:text-base text-brand-gray">
-              Vue d'ensemble de votre activité
+              Vue d&apos;ensemble de votre activité
             </p>
           </div>
           <Button 
@@ -250,7 +250,7 @@ export default function StatistiquesPage() {
                       />
                     </div>
                     <p className="text-xs text-brand-gray mt-1">
-                      {percentage.toFixed(0)}% de l'objectif
+                      {percentage.toFixed(0)}% de l&apos;objectif
                     </p>
                   </div>
                 );

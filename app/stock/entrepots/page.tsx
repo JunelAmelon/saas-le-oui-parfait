@@ -220,10 +220,10 @@ export default function WarehousesPage() {
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Modifier l'entrepôt</DialogTitle>
+            <DialogTitle>Modifier l&apos;entrepôt</DialogTitle>
           </DialogHeader>
           <div className="py-4 space-y-2">
-            <Input value={nameDraft} onChange={(e) => setNameDraft(e.target.value)} placeholder="Nom de l'entrepôt" />
+            <Input value={nameDraft} onChange={(e) => setNameDraft(e.target.value)} placeholder="Nom de l&apos;entrepôt" />
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsEditOpen(false)}>

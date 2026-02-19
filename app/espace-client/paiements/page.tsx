@@ -406,7 +406,7 @@ export default function PaiementsPage() {
             </h2>
             {historyPayments.length === 0 ? (
               <div className="text-center py-10 text-brand-gray">
-                Aucun paiement à afficher pour l'instant.
+                Aucun paiement à afficher pour l&apos;instant.
               </div>
             ) : (
               <>
@@ -481,7 +481,7 @@ export default function PaiementsPage() {
             </h2>
             {upcomingPayments.length === 0 ? (
               <div className="text-center py-10 text-brand-gray">
-                Aucun paiement à venir pour l'instant.
+                Aucun paiement à venir pour l&apos;instant.
               </div>
             ) : (
               <>

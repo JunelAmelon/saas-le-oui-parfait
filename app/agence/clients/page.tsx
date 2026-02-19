@@ -826,27 +826,6 @@ export default function ClientFilesPage() {
                 <Label>Email</Label>
                 <Input type="email" placeholder="email@exemple.com" className="mt-1" />
               </div>
-              <div>
-                <Label>Téléphone</Label>
-                <Input placeholder="+33 6 00 00 00 00" className="mt-1" />
-              </div>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <Label>Date de l'événement</Label>
-                <Input type="date" className="mt-1" />
-              </div>
-              <div>
-                <Label>Nombre d'invités</Label>
-                <Input type="number" placeholder="100" className="mt-1" />
-              </div>
-            </div>
-            <div>
-              <Label>Lieu de réception</Label>
-              <Input placeholder="Nom du lieu, Ville" className="mt-1" />
-            </div>
-            <div>
-              <Label>Budget estimé (€)</Label>
               <Input type="number" placeholder="25000" className="mt-1" />
             </div>
           </div>
@@ -920,11 +899,11 @@ export default function ClientFilesPage() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label>Date de l'événement</Label>
+                  <Label>Date de l&apos;événement</Label>
                   <Input defaultValue={selectedClient.eventDate} className="mt-1" />
                 </div>
                 <div>
-                  <Label>Nombre d'invités</Label>
+                  <Label>Nombre d&apos;invités</Label>
                   <Input type="number" defaultValue={selectedClient.guests} className="mt-1" />
                 </div>
               </div>

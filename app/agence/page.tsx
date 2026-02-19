@@ -181,7 +181,7 @@ export default function AgencyPage() {
   if (!agency) {
     return (
       <DashboardLayout>
-        <p className="text-center text-brand-gray">Aucune donnée disponible pour l'agence.</p>
+        <p className="text-center text-brand-gray">Aucune donnée disponible pour l&apos;agence.</p>
       </DashboardLayout>
     );
   }
@@ -210,7 +210,7 @@ export default function AgencyPage() {
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
                     <Label htmlFor="name" className="text-sm font-medium text-brand-gray">
-                      Nom de l'agence
+                      Nom de l&apos;agence
                     </Label>
                     <Input
                       id="name"
@@ -359,14 +359,14 @@ export default function AgencyPage() {
           <div className="space-y-6">
             <Card className="p-6 shadow-xl border-0">
               <h3 className="text-lg font-bold text-brand-purple mb-4">
-                Logo de l'agence
+                Logo de l&apos;agence
               </h3>
               <div className="mb-4 flex h-32 items-center justify-center rounded-lg border-2 border-dashed border-[#E5E5E5] bg-gray-50 relative overflow-hidden">
                 {agency.logoUrl ? (
                   <>
                     <img
                       src={agency.logoUrl}
-                      alt="Logo de l'agence"
+                      alt="Logo de l&apos;agence"
                       className="h-full w-full object-contain p-2"
                     />
                     <button

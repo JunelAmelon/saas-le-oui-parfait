@@ -333,7 +333,7 @@ export default function ClientPlanningPage() {
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
               <DialogTitle className="text-brand-purple">Ajouter un rendez-vous</DialogTitle>
-              <DialogDescription>Ce RDV sera visible côté client dans "Prochains rendez-vous"</DialogDescription>
+              <DialogDescription>Ce RDV sera visible côté client dans &quot;Prochains rendez-vous&quot;</DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
               <div className="space-y-2">

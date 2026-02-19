@@ -372,7 +372,7 @@ export default function PlanningPage() {
                 <div>
                   <h3 className="text-lg font-bold text-brand-purple">Étapes clés</h3>
                   <p className="text-sm text-brand-gray">
-                    Suivez l'avancement de vos étapes
+                    Suivez l&apos;avancement de vos étapes
                   </p>
                 </div>
 

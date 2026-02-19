@@ -72,7 +72,7 @@ export default function SignaturesPage() {
               Signatures électroniques
             </h1>
             <p className="text-brand-gray">
-              Suivez l'état des signatures de vos contrats
+              Suivez l&apos;état des signatures de vos contrats
             </p>
           </div>
         </div>

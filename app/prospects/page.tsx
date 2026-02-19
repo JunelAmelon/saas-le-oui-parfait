@@ -283,7 +283,7 @@ export default function ProspectsPage() {
 
           {!loading && filteredProspects.length === 0 ? (
             <Card className="p-8 text-center text-brand-gray">
-              Aucun prospect pour le moment. Cliquez sur "Nouveau prospect" pour ajouter.
+              Aucun prospect pour le moment. Cliquez sur &quot;Nouveau prospect&quot; pour ajouter.
             </Card>
           ) : (
             <>

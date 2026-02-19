@@ -137,7 +137,7 @@ export default function CampaignsPage() {
                 campaignsDemo.filter(c => c.status === 'sent').length
               )}%
             </p>
-            <p className="text-sm text-brand-gray">Taux d'ouverture moyen</p>
+            <p className="text-sm text-brand-gray">Taux d&apos;ouverture moyen</p>
           </Card>
 
           <Card className="p-6 shadow-xl border-0 bg-gradient-to-br from-purple-50 to-white">
@@ -215,7 +215,7 @@ export default function CampaignsPage() {
                       <p className="text-sm font-bold text-brand-purple">
                         {campaign.sentAt}
                       </p>
-                      <p className="text-xs text-brand-gray">Date d'envoi</p>
+                      <p className="text-xs text-brand-gray">Date d&apos;envoi</p>
                     </div>
                   </div>
                 )}
@@ -260,7 +260,7 @@ export default function CampaignsPage() {
                         className="bg-brand-turquoise hover:bg-brand-turquoise-hover gap-2"
                         onClick={() => alert('Ouverture de l\'\u00e9diteur de campagne')}
                       >
-                        Continuer l'édition
+                        Continuer l&apos;édition
                       </Button>
                       <Button
                         size="sm"

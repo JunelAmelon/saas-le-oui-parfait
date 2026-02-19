@@ -17,7 +17,7 @@ export default function AnnuairePage() {
               Ma fiche annuaire
             </h1>
             <p className="text-brand-gray">
-              Gérez votre présence dans l'annuaire professionnel
+              Gérez votre présence dans l&apos;annuaire professionnel
             </p>
           </div>
           <Button className="bg-brand-turquoise hover:bg-brand-turquoise-hover">

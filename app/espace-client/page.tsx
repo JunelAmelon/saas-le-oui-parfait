@@ -134,7 +134,7 @@ export default function ClientPortalPage() {
             Tableau de bord
           </h1>
           <p className="text-sm sm:text-base text-brand-gray">
-            Votre mariage en un coup d'œil
+            Votre mariage en un coup d&apos;œil
           </p>
         </div>
 

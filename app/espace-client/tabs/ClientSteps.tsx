@@ -77,7 +77,7 @@ export function ClientSteps({ eventId }: ClientStepsProps) {
       <div className="flex items-start justify-between gap-4 mb-6">
         <div>
           <h3 className="text-xl font-bold text-brand-purple">Étapes clés</h3>
-          <p className="text-sm text-brand-gray">Suivez l'avancement de vos étapes</p>
+          <p className="text-sm text-brand-gray">Suivez l&apos;avancement de vos étapes</p>
         </div>
       </div>
 

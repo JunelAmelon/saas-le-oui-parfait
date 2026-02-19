@@ -790,7 +790,7 @@ export default function DocumentsPage() {
                   <FileText className="h-12 w-12 text-brand-gray mx-auto" />
                   <p className="text-brand-gray">Ouvrir le document</p>
                   <p className="text-sm text-brand-gray">
-                    Cliquez sur "Voir" pour l'ouvrir dans un nouvel onglet.
+                    Cliquez sur &quot;Voir&quot; pour l&apos;ouvrir dans un nouvel onglet.
                   </p>
                 </div>
               </div>
@@ -820,7 +820,7 @@ export default function DocumentsPage() {
               </div>
               <DialogTitle className="text-brand-purple text-xl">Téléchargement lancé !</DialogTitle>
               <DialogDescription className="mt-2">
-                Le document "{selectedDocument?.name}" est en cours de téléchargement.
+                Le document &quot;{selectedDocument?.name}&quot; est en cours de téléchargement.
               </DialogDescription>
             </div>
             <DialogFooter className="justify-center">

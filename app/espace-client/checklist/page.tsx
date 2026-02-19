@@ -138,7 +138,7 @@ export default function ChecklistPage() {
             Check-list
           </h1>
           <p className="text-sm sm:text-base text-brand-gray mt-1">
-            Suivez l'avancement de vos préparatifs
+            Suivez l&apos;avancement de vos préparatifs
           </p>
         </div>
 
