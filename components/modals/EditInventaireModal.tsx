@@ -116,7 +116,7 @@ export function EditInventaireModal({ isOpen, onClose, inventaire, onInventaireU
         <DialogHeader>
           <DialogTitle className="text-brand-purple flex items-center gap-2">
             <Package className="h-5 w-5 text-brand-turquoise" />
-            Modifier l'inventaire
+            Modifier l&apos;inventaire
           </DialogTitle>
           <DialogDescription>
             {inventaire.reference}

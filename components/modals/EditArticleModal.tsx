@@ -153,16 +153,16 @@ export function EditArticleModal({ isOpen, onClose, article, onArticleUpdated }:
         <DialogHeader>
           <DialogTitle className="text-brand-purple flex items-center gap-2">
             <Package className="h-5 w-5 text-brand-turquoise" />
-            Modifier l'article
+            Modifier l&apos;article
           </DialogTitle>
           <DialogDescription>
-            Modifiez les informations de l'article
+            Modifiez les informations de l&apos;article
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-4">
           <div>
-            <Label>Nom de l'article *</Label>
+            <Label>Nom de l&apos;article *</Label>
             <Input
               value={name}
               onChange={(e) => setName(e.target.value)}

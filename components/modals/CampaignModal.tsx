@@ -128,7 +128,7 @@ export function CampaignModal({ isOpen, onClose }: CampaignModalProps) {
           </div>
 
           <div>
-            <Label>Objet de l'email *</Label>
+            <Label>Objet de l&apos;email *</Label>
             <Input
               placeholder="Ex: Les tendances mariage 2024"
               value={subject}
@@ -136,12 +136,12 @@ export function CampaignModal({ isOpen, onClose }: CampaignModalProps) {
               className="mt-1"
             />
             <p className="text-xs text-brand-gray mt-1">
-              L'objet que vos destinataires verront
+              L&apos;objet que vos destinataires verront
             </p>
           </div>
 
           <div>
-            <Label>Contenu de l'email (optionnel)</Label>
+            <Label>Contenu de l&apos;email (optionnel)</Label>
             <Textarea
               placeholder="Vous pourrez éditer le contenu complet après la création..."
               value={content}

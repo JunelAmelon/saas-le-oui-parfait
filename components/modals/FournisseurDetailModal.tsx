@@ -196,7 +196,7 @@ export function FournisseurDetailModal({
           <AlertDialogHeader>
             <AlertDialogTitle>Êtes-vous sûr ?</AlertDialogTitle>
             <AlertDialogDescription>
-              Cette action est irréversible. Le fournisseur "{fournisseur.name}" sera définitivement supprimé 
+              Cette action est irréversible. Le fournisseur &quot;{fournisseur.name}&quot; sera définitivement supprimé 
               de votre liste. Les produits associés ne seront pas supprimés.
             </AlertDialogDescription>
           </AlertDialogHeader>

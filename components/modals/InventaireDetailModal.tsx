@@ -46,24 +46,22 @@ const statusConfig = {
 };
 
 export function InventaireDetailModal({ isOpen, onClose, inventaire, onInventaireUpdated }: InventaireDetailModalProps) {
-  if (!inventaire) return null;
-
   const { user } = useAuth();
   const [items, setItems] = useState<Array<{ id: string; name: string; expected: number; counted: number; difference: number }>>([]);
   const [loading, setLoading] = useState(false);
   const [finishing, setFinishing] = useState(false);
 
-  const config = statusConfig[inventaire.status as keyof typeof statusConfig];
+  const config = statusConfig[(inventaire?.status || 'planned') as keyof typeof statusConfig] || statusConfig.planned;
   const StatusIcon = config.icon;
 
   useEffect(() => {
     const fetchItems = async () => {
-      if (!isOpen || !user) return;
+      if (!isOpen || !user || !inventaire) return;
       setLoading(true);
       try {
         const filters: any[] = [{ field: 'owner_id', operator: '==', value: user.uid }];
         // Si l'inventaire est sur un entrepôt précis, on filtre par location.
-        if (inventaire.location) {
+        if (inventaire?.location) {
           filters.push({ field: 'location', operator: '==', value: inventaire.location });
         }
         const articles = await getDocuments('articles', filters);
@@ -89,12 +87,14 @@ export function InventaireDetailModal({ isOpen, onClose, inventaire, onInventair
     };
 
     fetchItems();
-  }, [isOpen, user, inventaire.location]);
+  }, [isOpen, user, inventaire?.location]);
 
   const discrepancies = useMemo(() => items.reduce((acc, it) => acc + (it.difference !== 0 ? 1 : 0), 0), [items]);
 
+  if (!inventaire) return null;
+
   const handleFinish = async () => {
-    if (!user) return;
+    if (!user || !inventaire) return;
     setFinishing(true);
     try {
       await updateDocument('inventaires', inventaire.id, {
@@ -120,7 +120,7 @@ export function InventaireDetailModal({ isOpen, onClose, inventaire, onInventair
         <DialogHeader>
           <DialogTitle className="text-brand-purple flex items-center gap-2">
             <Package className="h-5 w-5 text-brand-turquoise" />
-            Détails de l'inventaire
+            Détails de l&apos;inventaire
           </DialogTitle>
           <DialogDescription>
             {inventaire.reference}

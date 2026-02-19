@@ -447,64 +447,8 @@ export function ClientModal({ open, onOpenChange, mode, client, userId, onSucces
                   </div>
                 ) : null}
               </div>
-
-              {/* Divider */}
-              <div className="border-t border-gray-200"></div>
             </>
           )}
-
-          {/* Détails de l'événement */}
-          <div className="space-y-4">
-            <Label className="text-base font-semibold">Détails de l'événement</Label>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="eventDate">Date de l'événement</Label>
-                <Input
-                  id="eventDate"
-                  name="eventDate"
-                  type="date"
-                  defaultValue={normalizeDateInputValue(client?.eventDate)}
-                  className="border-gray-300 focus:border-brand-purple focus:ring-brand-purple"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="guests">Nombre d'invités</Label>
-                <Input
-                  id="guests"
-                  name="guests"
-                  type="number"
-                  defaultValue={client?.guests}
-                  placeholder="100"
-                  className="border-gray-300 focus:border-brand-purple focus:ring-brand-purple"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="eventLocation">Lieu de réception</Label>
-              <Input
-                id="eventLocation"
-                name="eventLocation"
-                defaultValue={client?.eventLocation}
-                placeholder="Château de..."
-                className="border-gray-300 focus:border-brand-purple focus:ring-brand-purple"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="budget">Budget estimé (€)</Label>
-              <Input
-                id="budget"
-                name="budget"
-                type="number"
-                defaultValue={client?.budget}
-                placeholder="20000"
-                className="border-gray-300 focus:border-brand-purple focus:ring-brand-purple"
-              />
-            </div>
-          </div>
 
           {/* Divider */}
           <div className="border-t border-gray-200"></div>

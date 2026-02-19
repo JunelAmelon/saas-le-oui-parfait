@@ -119,7 +119,7 @@ export function NewInventaireModal({ isOpen, onClose, onInventaireCreated }: New
                 <p className="font-semibold mb-1">À quoi sert un inventaire ?</p>
                 <p className="text-blue-800">
                   Un inventaire permet de compter physiquement tous les articles en stock pour vérifier 
-                  qu'ils correspondent aux quantités enregistrées dans le système. Cela aide à détecter 
+                  qu&apos;ils correspondent aux quantités enregistrées dans le système. Cela aide à détecter 
                   les écarts (pertes, vols, erreurs) et à maintenir des données précises.
                 </p>
               </div>

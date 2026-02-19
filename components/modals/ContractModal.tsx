@@ -145,9 +145,9 @@ export function ContractModal({ isOpen, onClose }: ContractModalProps) {
           <div className="p-4 bg-blue-50 rounded-lg text-sm text-blue-900">
             <p className="font-semibold mb-1">Étapes suivantes :</p>
             <ol className="list-decimal list-inside space-y-1 text-xs">
-              <li>Le contrat sera créé en statut "Brouillon"</li>
+              <li>Le contrat sera créé en statut &quot;Brouillon&quot;</li>
               <li>Vous pourrez le compléter et le personnaliser</li>
-              <li>Une fois finalisé, vous pourrez l'envoyer au client</li>
+              <li>Une fois finalisé, vous pourrez l&apos;envoyer au client</li>
               <li>Le client pourra le signer électroniquement</li>
             </ol>
           </div>

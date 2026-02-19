@@ -172,7 +172,7 @@ export function ClientSidebar() {
       <div className="border-t border-[#E5E5E5] p-4">
         <div className="rounded-lg bg-brand-turquoise/10 p-4">
           <p className="text-sm font-medium text-brand-purple mb-1">
-            Besoin d'aide ?
+            Besoin d&apos;aide ?
           </p>
           <p className="text-xs text-brand-gray mb-3">
             Contactez votre wedding planner
