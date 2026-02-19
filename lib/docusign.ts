@@ -102,7 +102,7 @@ export async function getDocuSignAccessToken(): Promise<string> {
     payload: {
       iss: env.integrationKey,
       sub: env.userId,
-      aud: `https://${env.authServer}`,
+      aud: env.authServer,
       iat: now,
       exp: now + 3600,
       scope: 'signature impersonation',

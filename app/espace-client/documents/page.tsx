@@ -64,7 +64,7 @@ interface DocumentItem {
   status?: string;
   contract_id?: string | null;
   devis_id?: string | null;
-  source?: 'documents' | 'devis';
+  source?: 'documents' | 'devis' | 'contracts';
 }
 
 const docTypeLabels: Record<string, string> = {
@@ -114,9 +114,10 @@ export default function DocumentsPage() {
       }
       try {
         setLoading(true);
-        const [docItems, devisItems] = await Promise.all([
+        const [docItems, devisItems, contractItems] = await Promise.all([
           getDocuments('documents', [{ field: 'client_id', operator: '==', value: client.id }]),
           getClientDevis(client.id, client.email),
+          getDocuments('contracts', [{ field: 'client_id', operator: '==', value: client.id }]),
         ]);
 
         const mappedDocs = (docItems as any[]).map((d) => ({
@@ -127,6 +128,12 @@ export default function DocumentsPage() {
         const devisIdsFromDocuments = new Set(
           mappedDocs
             .map((d: any) => d?.devis_id)
+            .filter((x: any) => typeof x === 'string' && x.length > 0)
+        );
+
+        const contractIdsFromDocuments = new Set(
+          mappedDocs
+            .map((d: any) => d?.contract_id)
             .filter((x: any) => typeof x === 'string' && x.length > 0)
         );
 
@@ -149,7 +156,27 @@ export default function DocumentsPage() {
             } as DocumentItem;
           });
 
-        const all = [...mappedDocs, ...mappedDevis];
+        const mappedContracts = (contractItems as any[])
+          .filter((c) => Boolean(c?.pdf_url))
+          .filter((c) => !contractIdsFromDocuments.has(String(c.id || '')))
+          .map((c) => {
+            const reference = c.reference || 'Contrat';
+            const status = c?.docusign?.status || c.status || 'sent';
+            return {
+              id: `contract:${c.id}`,
+              name: `Contrat - ${reference}`,
+              type: 'contrat',
+              file_url: c.pdf_url,
+              file_type: 'application/pdf',
+              uploaded_by: 'planner',
+              uploaded_at: c.sent_at || c.created_at || '',
+              status,
+              contract_id: c.id,
+              source: 'contracts' as const,
+            } as DocumentItem;
+          });
+
+        const all = [...mappedDocs, ...mappedDevis, ...mappedContracts];
         setDocuments(all);
       } catch (e) {
         console.error('Error fetching client documents:', e);
@@ -188,11 +215,6 @@ export default function DocumentsPage() {
   };
 
   const handleSignContract = async (doc: DocumentItem) => {
-    if (doc.source !== 'documents') {
-      toast.error('Contrat introuvable');
-      return;
-    }
-
     if (!doc.contract_id) {
       toast.error('Contrat introuvable');
       return;

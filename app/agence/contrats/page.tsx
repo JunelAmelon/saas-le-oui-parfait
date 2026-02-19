@@ -309,21 +309,52 @@ export default function ContractsPage() {
         return;
       }
 
-      const viewRes = await fetch('/api/docusign/recipient-view', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${idToken}`,
-        },
-        body: JSON.stringify({ envelopeId, recipientRole: 'planner' }),
-      });
-      const viewJson = await viewRes.json().catch(() => null);
-      if (!viewRes.ok) {
-        toast.error(viewJson?.error || 'Impossible de démarrer la signature');
+      const tryRecipientView = async (targetEnvelopeId: string) => {
+        const viewRes = await fetch('/api/docusign/recipient-view', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${idToken}`,
+          },
+          body: JSON.stringify({ envelopeId: targetEnvelopeId, recipientRole: 'planner' }),
+        });
+        const viewJson = await viewRes.json().catch(() => null);
+        return { ok: viewRes.ok, json: viewJson };
+      };
+
+      let viewAttempt = await tryRecipientView(envelopeId);
+
+      // If the envelope was created with sequential routing (old config), the planner cannot sign until the client does.
+      // In that case, create a fresh envelope (current config uses parallel routing) and retry once.
+      const viewError = String(viewAttempt?.json?.error || '').toLowerCase();
+      if (!viewAttempt.ok && viewError.includes('out of sequence')) {
+        const createRes = await fetch('/api/docusign/create-envelope', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${idToken}`,
+          },
+          body: JSON.stringify({ docType: 'contract', docId: contract.id }),
+        });
+        const createJson = await createRes.json().catch(() => null);
+        if (!createRes.ok) {
+          toast.error(createJson?.error || 'Impossible de préparer la signature');
+          return;
+        }
+        envelopeId = String(createJson?.envelopeId || '');
+        if (!envelopeId) {
+          toast.error('Impossible de préparer la signature');
+          return;
+        }
+        viewAttempt = await tryRecipientView(envelopeId);
+      }
+
+      if (!viewAttempt.ok) {
+        toast.error(viewAttempt?.json?.error || 'Impossible de démarrer la signature');
         return;
       }
 
-      const url = String(viewJson?.url || '');
+      const url = String(viewAttempt?.json?.url || '');
       if (!url) {
         toast.error('URL de signature manquante');
         return;
