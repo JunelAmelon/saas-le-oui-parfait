@@ -117,8 +117,6 @@ export function NewDevisModal({ isOpen, onClose, onDevisCreated }: NewDevisModal
   const [activeTab, setActiveTab] = useState<'form' | 'preview'>('form');
   const previewRef = useRef<HTMLDivElement | null>(null);
 
-  const [selectedPrestations, setSelectedPrestations] = useState<string[]>([]);
-
   const [agencyInfo, setAgencyInfo] = useState<any>(null);
   const [agencyName, setAgencyName] = useState('');
   const [agencyAddress, setAgencyAddress] = useState('');
@@ -128,6 +126,8 @@ export function NewDevisModal({ isOpen, onClose, onDevisCreated }: NewDevisModal
 
   const [devisTitle, setDevisTitle] = useState('Devis');
   const [devisIntro, setDevisIntro] = useState('');
+  const [reference, setReference] = useState('');
+  const [selectedPrestations, setSelectedPrestations] = useState<string[]>([]);
   const [items, setItems] = useState<DevisItem[]>([
     { id: '1', description: '', quantity: 1, unitPrice: 0 }
   ]);
@@ -154,8 +154,11 @@ export function NewDevisModal({ isOpen, onClose, onDevisCreated }: NewDevisModal
         "- Les tarifs indiqués sont TTC (TVA 20%).";
 
       setDevisTitle((t) => t || 'Devis');
-      setDevisIntro((v) => (v && v.trim() ? v : defaultIntro));
-      setNotes((v) => (v && v.trim() ? v : defaultNotes));
+      setDevisIntro((v: string) => (v && v.trim() ? v : defaultIntro));
+      setNotes((v: string) => (v && v.trim() ? v : defaultNotes));
+
+      const suggestedRef = `DEVIS-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`;
+      setReference((prev) => (prev && prev.trim() ? prev : suggestedRef));
     }
   }, [isOpen, user]);
 
@@ -350,7 +353,12 @@ export function NewDevisModal({ isOpen, onClose, onDevisCreated }: NewDevisModal
       const { totalHT, totalTTC } = calculateTotal();
       const client = clients.find(c => c.id === selectedClient);
 
-      const reference = `DEVIS-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`;
+      const suggested = `DEVIS-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`;
+      const finalReference = (reference || suggested).trim();
+      if (!finalReference) {
+        sonnerToast.error('Veuillez renseigner une référence');
+        return;
+      }
 
       let pdfUrl = '';
       if (pdfMode === 'import') {
@@ -359,14 +367,14 @@ export function NewDevisModal({ isOpen, onClose, onDevisCreated }: NewDevisModal
         }
       } else {
         sonnerToast.info('Génération du PDF en cours...');
-        const pdfBlob = await generatePdf(reference);
+        const pdfBlob = await generatePdf(finalReference);
         sonnerToast.info('Upload du PDF vers le cloud...');
-        pdfUrl = await uploadPdf(pdfBlob, reference);
+        pdfUrl = await uploadPdf(pdfBlob, finalReference);
       }
 
       const devisData = {
         planner_id: user.uid,
-        reference,
+        reference: finalReference,
         client_id: selectedClient,
         client: client?.name || '',
         client_email: client?.email || '',
@@ -522,6 +530,16 @@ export function NewDevisModal({ isOpen, onClose, onDevisCreated }: NewDevisModal
                   onChange={(e) => setValidUntil(e.target.value)}
                 />
               </div>
+            </div>
+
+            <div>
+              <Label htmlFor="reference">Référence *</Label>
+              <Input
+                id="reference"
+                value={reference}
+                onChange={(e) => setReference(e.target.value)}
+                placeholder="Ex: DEVIS-2026-001"
+              />
             </div>
 
             <div className="p-4 bg-gray-50 rounded-lg">
@@ -749,10 +767,9 @@ export function NewDevisModal({ isOpen, onClose, onDevisCreated }: NewDevisModal
 
                     <div className="w-[260px] text-right">
                       <div className="text-2xl font-bold text-brand-purple">{devisTitle || 'Devis'}</div>
-                      <div className="text-sm text-gray-600 mt-1">Brouillon</div>
                       <div className="mt-4 text-sm">
                         <div className="text-gray-500">Référence</div>
-                        <div className="font-semibold">(auto)</div>
+                        <div className="font-semibold">{(reference || '').trim() || '—'}</div>
                       </div>
                       <div className="mt-2 text-sm">
                         <div className="text-gray-500">Date</div>

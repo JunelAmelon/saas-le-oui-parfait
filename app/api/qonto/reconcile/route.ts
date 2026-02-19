@@ -20,6 +20,22 @@ function transactionContainsRef(tx: any, ref: string) {
   return hay.includes(nref);
 }
 
+function getTxAmountEur(tx: any) {
+  const cents = Number(tx?.amount_cents);
+  if (Number.isFinite(cents) && cents !== 0) return cents / 100;
+  const amt = Number(tx?.amount);
+  return Number.isFinite(amt) ? amt : 0;
+}
+
+function parseMoney(v: any) {
+  if (typeof v === 'number') return Number.isFinite(v) ? v : 0;
+  const s = String(v ?? '').trim();
+  if (!s) return 0;
+  const normalized = s.replace(/\s/g, '').replace(',', '.');
+  const n = Number(normalized);
+  return Number.isFinite(n) ? n : 0;
+}
+
 export async function POST(req: Request) {
   try {
     const authHeader = req.headers.get('authorization') || '';
@@ -42,8 +58,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'missing_qonto_payment_reference' }, { status: 400 });
     }
 
-    const totalTtc = Number(inv?.montant_ttc ?? inv?.amount ?? 0) || 0;
-    const alreadyPaid = Number(inv?.paid ?? 0) || 0;
+    const invoiceType = String(inv?.type || '').toLowerCase();
+    const totalTtcRaw = inv?.montant_ttc ?? inv?.amount ?? 0;
+    const totalTtc = parseMoney(totalTtcRaw);
+    const alreadyPaid = parseMoney(inv?.paid ?? 0);
     const remaining = Math.max(0, totalTtc - alreadyPaid);
 
     if (remaining <= 0) {
@@ -89,8 +107,32 @@ export async function POST(req: Request) {
     const txIds = completed
       .map((t) => String(t?.transaction_id || t?.id || '').trim())
       .filter(Boolean);
-    const totalReceived = completed.reduce((sum, t) => sum + (Number((t as any)?.amount ?? 0) || 0), 0);
-    const received = Number(matched.amount ?? 0) || 0;
+    const totalReceived = completed.reduce((sum, t) => sum + getTxAmountEur(t), 0);
+    const received = getTxAmountEur(matched);
+
+    if (invoiceType === 'deposit') {
+      const eps = 0.01;
+      const isExact = Math.abs(totalReceived - totalTtc) < eps;
+      if (!isExact) {
+        return NextResponse.json({
+          ok: true,
+          invoiceId,
+          status: inv?.status || 'pending',
+          paid: alreadyPaid,
+          matched: {
+            id: matched.transaction_id || matched.id || null,
+            amount: received,
+            settled_at: matched.settled_at || null,
+          },
+          message: 'deposit_requires_exact_amount',
+          invoice_type: invoiceType,
+          expected: totalTtc,
+          expected_raw: totalTtcRaw,
+          received_total: totalReceived,
+        });
+      }
+    }
+
     const newPaid = Math.min(totalTtc, Math.max(alreadyPaid, totalReceived));
     const newStatus = newPaid >= totalTtc ? 'paid' : 'partial';
 

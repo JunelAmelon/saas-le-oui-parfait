@@ -4,6 +4,15 @@ import { buildPrettyTransferReference, getMainBankAccount } from '@/lib/qonto';
 
 export const runtime = 'nodejs';
 
+function parseMoney(v: any) {
+  if (typeof v === 'number') return Number.isFinite(v) ? v : 0;
+  const s = String(v ?? '').trim();
+  if (!s) return 0;
+  const normalized = s.replace(/\s/g, '').replace(',', '.');
+  const n = Number(normalized);
+  return Number.isFinite(n) ? n : 0;
+}
+
 export async function POST(req: Request) {
   try {
     const authHeader = req.headers.get('authorization') || '';
@@ -37,8 +46,8 @@ export async function POST(req: Request) {
 
     const bankAccount = await getMainBankAccount();
 
-    const totalTtc = Number(inv?.montant_ttc ?? inv?.amount ?? 0) || 0;
-    const paid = Number(inv?.paid ?? 0) || 0;
+    const totalTtc = parseMoney(inv?.montant_ttc ?? inv?.amount ?? 0);
+    const paid = parseMoney(inv?.paid ?? 0);
     const amountDue = Math.max(0, totalTtc - paid);
 
     return NextResponse.json({

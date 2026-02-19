@@ -126,9 +126,21 @@ export function NewInvoiceModal({ isOpen, onClose }: NewInvoiceModalProps) {
   const [items, setItems] = useState<InvoiceItem[]>([
     { id: '1', description: '', quantity: 1, unitPrice: 0 }
   ]);
+  const [reference, setReference] = useState('');
   const [dueDate, setDueDate] = useState('');
   const [notes, setNotes] = useState('');
   const [invoiceType, setInvoiceType] = useState<'invoice' | 'deposit'>('invoice');
+
+  useEffect(() => {
+    const suggested = `${invoiceType === 'deposit' ? 'ACOMPTE' : 'FACT'}-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`;
+    setReference((prev) => (prev ? prev : suggested));
+  }, [invoiceType]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const suggested = `${invoiceType === 'deposit' ? 'ACOMPTE' : 'FACT'}-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`;
+    setReference((prev) => (prev ? prev : suggested));
+  }, [isOpen, invoiceType]);
 
   // Fetch clients from Firebase
   useEffect(() => {
@@ -325,7 +337,11 @@ export function NewInvoiceModal({ isOpen, onClose }: NewInvoiceModalProps) {
       const { totalHT, totalTTC } = calculateTotal();
       const client = clients.find(c => c.id === selectedClient);
 
-      const reference = `${invoiceType === 'deposit' ? 'ACOMPTE' : 'FACT'}-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`;
+      const finalReference = (reference || '').trim();
+      if (!finalReference) {
+        sonnerToast.error('Veuillez renseigner une référence');
+        return;
+      }
 
       let pdfUrl = '';
       if (pdfMode === 'import') {
@@ -335,14 +351,14 @@ export function NewInvoiceModal({ isOpen, onClose }: NewInvoiceModalProps) {
         }
       } else {
         sonnerToast.info('Génération du PDF en cours...');
-        const pdfBlob = await generatePdf(reference);
+        const pdfBlob = await generatePdf(finalReference);
         sonnerToast.info('Upload du PDF vers le cloud...');
-        pdfUrl = await uploadPdf(pdfBlob, reference);
+        pdfUrl = await uploadPdf(pdfBlob, finalReference);
       }
       
       const invoiceData = {
         planner_id: user.uid,
-        reference,
+        reference: finalReference,
         client_id: selectedClient,
         client: client?.name || '',
         client_email: client?.email || '',
@@ -496,14 +512,26 @@ export function NewInvoiceModal({ isOpen, onClose }: NewInvoiceModalProps) {
                 </Select>
               </div>
 
-              <div>
-                <Label htmlFor="dueDate">Date d'échéance *</Label>
-                <Input
-                  id="dueDate"
-                  type="date"
-                  value={dueDate}
-                  onChange={(e) => setDueDate(e.target.value)}
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="dueDate">Date d'échéance *</Label>
+                  <Input
+                    id="dueDate"
+                    type="date"
+                    value={dueDate}
+                    onChange={(e) => setDueDate(e.target.value)}
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="reference">Référence *</Label>
+                  <Input
+                    id="reference"
+                    value={reference}
+                    onChange={(e) => setReference(e.target.value)}
+                    placeholder="Ex: FACT-2026-001"
+                  />
+                </div>
               </div>
             </div>
 
@@ -723,10 +751,9 @@ export function NewInvoiceModal({ isOpen, onClose }: NewInvoiceModalProps) {
                       <div className="text-2xl font-bold text-brand-purple">
                         {invoiceType === 'deposit' ? "Facture d'acompte" : 'Facture'}
                       </div>
-                      <div className="text-sm text-gray-600 mt-1">Brouillon</div>
                       <div className="mt-4 text-sm">
                         <div className="text-gray-500">Référence</div>
-                        <div className="font-semibold">(auto)</div>
+                        <div className="font-semibold">{(reference || '').trim() || '—'}</div>
                       </div>
                       <div className="mt-2 text-sm">
                         <div className="text-gray-500">Date</div>

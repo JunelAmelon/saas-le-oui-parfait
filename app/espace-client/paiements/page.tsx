@@ -38,6 +38,8 @@ import {
   Copy,
 } from 'lucide-react';
 
+import { toast } from 'sonner';
+
 type TransferInstructions = {
   iban: string;
   bic: string | null;
@@ -59,6 +61,8 @@ export default function PaiementsPage() {
   const [transferLoading, setTransferLoading] = useState(false);
   const [reconcileLoading, setReconcileLoading] = useState(false);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const [upcomingPage, setUpcomingPage] = useState(1);
+  const [historyPage, setHistoryPage] = useState(1);
 
   const copyToClipboard = async (value: string) => {
     try {
@@ -123,18 +127,75 @@ export default function PaiementsPage() {
     setBudgetSummary(summary);
   };
 
-  const upcomingPayments = payments.filter((p) => {
+  const parseCreatedAtMs = (v: any) => {
+    if (!v) return 0;
+    const dt = (v as any)?.toDate?.() || new Date(v);
+    const ms = dt instanceof Date ? dt.getTime() : new Date(dt).getTime();
+    return Number.isFinite(ms) ? ms : 0;
+  };
+
+  const sortedPayments = payments
+    .slice()
+    .sort((a, b) => parseCreatedAtMs(b.created_at) - parseCreatedAtMs(a.created_at));
+
+  const upcomingPayments = sortedPayments.filter((p) => {
     const st = String(p.status || 'pending');
     const due = Number(p.amount_due ?? 0) || 0;
     if (st === 'paid' || st === 'completed') return false;
     if (st === 'partial') return due > 0;
     return st === 'pending' || st === 'overdue';
   });
+
+  const historyPayments = sortedPayments;
+
+  useEffect(() => {
+    setUpcomingPage(1);
+    setHistoryPage(1);
+  }, [payments.length]);
+
+  const UPCOMING_PER_PAGE = 3;
+  const HISTORY_PER_PAGE = 4;
+  const upcomingTotalPages = Math.max(1, Math.ceil(upcomingPayments.length / UPCOMING_PER_PAGE));
+  const historyTotalPages = Math.max(1, Math.ceil(historyPayments.length / HISTORY_PER_PAGE));
+
+  const upcomingPaginated = upcomingPayments.slice(
+    (upcomingPage - 1) * UPCOMING_PER_PAGE,
+    (upcomingPage - 1) * UPCOMING_PER_PAGE + UPCOMING_PER_PAGE
+  );
+  const historyPaginated = historyPayments.slice(
+    (historyPage - 1) * HISTORY_PER_PAGE,
+    (historyPage - 1) * HISTORY_PER_PAGE + HISTORY_PER_PAGE
+  );
   const daysRemaining = event ? calculateDaysRemaining(event.event_date) : 0;
 
   const handlePayClick = (payment: PaymentData) => {
     setSelectedPayment(payment);
     setIsPaymentModalOpen(true);
+    setTransferInstructions(null);
+  };
+
+  const downloadInvoicePdf = (p: PaymentData) => {
+    const url = (p as any)?.pdf_url as string | undefined;
+    if (!url) {
+      toast.error('Aucun PDF disponible');
+      return;
+    }
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${p.description || 'facture'}.pdf`;
+    link.target = '_blank';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const openPaymentModal = () => {
+    setIsPaymentModalOpen(true);
+    if (upcomingPayments.length === 1) {
+      setSelectedPayment(upcomingPayments[0]);
+    } else {
+      setSelectedPayment(null);
+    }
     setTransferInstructions(null);
   };
 
@@ -272,7 +333,7 @@ export default function PaiementsPage() {
           </div>
           <Button 
             className="bg-brand-turquoise hover:bg-brand-turquoise-hover gap-2 w-full sm:w-auto"
-            onClick={() => setIsPaymentModalOpen(true)}
+            onClick={openPaymentModal}
           >
             <CreditCard className="h-4 w-4" />
             <span className="hidden sm:inline">Effectuer un paiement</span>
@@ -343,41 +404,74 @@ export default function PaiementsPage() {
             <h2 className="text-xl font-bold text-brand-purple mb-6">
               Historique des paiements
             </h2>
-            <div className="space-y-3">
-              {payments.map((payment) => (
-                <div
-                  key={payment.id}
-                  className="flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors gap-3"
-                >
-                  <div className="flex items-center gap-3 sm:gap-4">
-                    {getStatusIcon(payment.status)}
-                    <div>
-                      <h3 className="font-medium text-brand-purple text-sm sm:text-base">{payment.description}</h3>
-                      <p className="text-xs sm:text-sm text-brand-gray">{payment.vendor}</p>
-                      <p className="text-xs text-brand-gray mt-1">
-                        {payment.status === 'paid' 
-                          ? `Payé le ${payment.date}`
-                          : `Échéance: ${payment.due_date || 'Non définie'}`
-                        }
-                      </p>
+            {historyPayments.length === 0 ? (
+              <div className="text-center py-10 text-brand-gray">
+                Aucun paiement à afficher pour l'instant.
+              </div>
+            ) : (
+              <>
+                <div className="space-y-3">
+                  {historyPaginated.map((payment) => (
+                    <div
+                      key={payment.id}
+                      className="flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors gap-3"
+                    >
+                      <div className="flex items-center gap-3 sm:gap-4">
+                        {getStatusIcon(payment.status)}
+                        <div>
+                          <h3 className="font-medium text-brand-purple text-sm sm:text-base">{payment.description}</h3>
+                          <p className="text-xs sm:text-sm text-brand-gray">{payment.vendor}</p>
+                          <p className="text-xs text-brand-gray mt-1">
+                            {String(payment.status || '') === 'paid' || String(payment.status || '') === 'completed'
+                              ? `Payé le ${payment.date || '-'}`
+                              : `Échéance: ${payment.due_date || 'Non définie'}`}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between sm:justify-end gap-3 sm:gap-4 pl-8 sm:pl-0">
+                        <div className="text-left sm:text-right">
+                          <p className="text-base sm:text-lg font-bold text-brand-purple">
+                            {payment.amount.toLocaleString()} €
+                          </p>
+                          {getStatusBadge(payment.status)}
+                        </div>
+                        {payment.invoice && (
+                          <Button variant="ghost" size="icon" onClick={() => downloadInvoicePdf(payment)}>
+                            <Download className="h-4 w-4 text-brand-turquoise" />
+                          </Button>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex items-center justify-between sm:justify-end gap-3 sm:gap-4 pl-8 sm:pl-0">
-                    <div className="text-left sm:text-right">
-                      <p className="text-base sm:text-lg font-bold text-brand-purple">
-                        {payment.amount.toLocaleString()} €
-                      </p>
-                      {getStatusBadge(payment.status)}
-                    </div>
-                    {payment.invoice && (
-                      <Button variant="ghost" size="icon">
-                        <Download className="h-4 w-4 text-brand-turquoise" />
-                      </Button>
-                    )}
-                  </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+
+                {historyPayments.length > HISTORY_PER_PAGE && (
+                  <div className="flex items-center justify-between mt-4">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setHistoryPage((p) => Math.max(1, p - 1))}
+                      disabled={historyPage === 1}
+                    >
+                      ← Précédent
+                    </Button>
+                    <span className="text-sm text-brand-gray">
+                      Page {historyPage} sur {historyTotalPages}
+                    </span>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setHistoryPage((p) => Math.min(historyTotalPages, p + 1))}
+                      disabled={historyPage === historyTotalPages}
+                    >
+                      Suivant →
+                    </Button>
+                  </div>
+                )}
+              </>
+            )}
           </Card>
 
           <Card className="p-6 shadow-xl border-0">
@@ -385,43 +479,77 @@ export default function PaiementsPage() {
               <AlertCircle className="h-5 w-5 text-orange-500" />
               Prochains paiements
             </h2>
-            <div className="space-y-4">
-              {upcomingPayments.map((payment) => (
-                <div
-                  key={payment.id}
-                  className="bg-white p-4 rounded-lg shadow-sm border border-gray-100"
-                >
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <p className="font-medium text-brand-purple">{payment.description}</p>
-                      <p className="text-sm text-brand-gray">{payment.vendor}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-bold text-brand-purple">
-                        {(Number(payment.amount_due ?? 0) > 0 ? Number(payment.amount_due) : payment.amount).toLocaleString()} €
-                      </p>
-                      {Number(payment.amount_due ?? 0) > 0 && (
-                        <p className="text-xs text-brand-gray">
-                          Reste à payer: {Number(payment.amount_due ?? 0).toLocaleString()} €
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between mt-3">
-                    <p className="text-xs text-gray-500">
-                      Échéance: {payment.due_date ? new Date(payment.due_date).toLocaleDateString() : 'Non définie'}
-                    </p>
-                    <Button 
-                      size="sm" 
-                      className="bg-brand-turquoise hover:bg-brand-turquoise-hover text-xs"
-                      onClick={() => handlePayClick(payment)}
+            {upcomingPayments.length === 0 ? (
+              <div className="text-center py-10 text-brand-gray">
+                Aucun paiement à venir pour l'instant.
+              </div>
+            ) : (
+              <>
+                <div className="space-y-4">
+                  {upcomingPaginated.map((payment) => (
+                    <div
+                      key={payment.id}
+                      className="bg-white p-4 rounded-lg shadow-sm border border-gray-100"
                     >
-                      Payer
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <p className="font-medium text-brand-purple">{payment.description}</p>
+                          <p className="text-sm text-brand-gray">{payment.vendor}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-bold text-brand-purple">
+                            {(Number(payment.amount_due ?? 0) > 0 ? Number(payment.amount_due) : payment.amount).toLocaleString()} €
+                          </p>
+                          {Number(payment.amount_due ?? 0) > 0 && (
+                            <p className="text-xs text-brand-gray">
+                              Reste à payer: {Number(payment.amount_due ?? 0).toLocaleString()} €
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between mt-3">
+                        <p className="text-xs text-gray-500">
+                          Échéance: {payment.due_date ? new Date(payment.due_date).toLocaleDateString() : 'Non définie'}
+                        </p>
+                        <Button 
+                          size="sm" 
+                          className="bg-brand-turquoise hover:bg-brand-turquoise-hover text-xs"
+                          onClick={() => handlePayClick(payment)}
+                        >
+                          Payer
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {upcomingPayments.length > UPCOMING_PER_PAGE && (
+                  <div className="flex items-center justify-between mt-4">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setUpcomingPage((p) => Math.max(1, p - 1))}
+                      disabled={upcomingPage === 1}
+                    >
+                      ← Précédent
+                    </Button>
+                    <span className="text-sm text-brand-gray">
+                      Page {upcomingPage} sur {upcomingTotalPages}
+                    </span>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setUpcomingPage((p) => Math.min(upcomingTotalPages, p + 1))}
+                      disabled={upcomingPage === upcomingTotalPages}
+                    >
+                      Suivant →
                     </Button>
                   </div>
-                </div>
-              ))}
-            </div>
+                )}
+              </>
+            )}
           </Card>
         </div>
 
@@ -437,6 +565,35 @@ export default function PaiementsPage() {
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
+              {!selectedPayment && (
+                <div className="space-y-2">
+                  <Label>Choisir un paiement à venir</Label>
+                  {upcomingPayments.length === 0 ? (
+                    <div className="text-sm text-brand-gray">
+                      Aucun paiement à venir à sélectionner.
+                    </div>
+                  ) : (
+                    <Select
+                      value={''}
+                      onValueChange={(v) => {
+                        const found = upcomingPayments.find((p) => p.id === v);
+                        if (found) setSelectedPayment(found);
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Sélectionner un paiement..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {upcomingPayments.map((p) => (
+                          <SelectItem key={p.id} value={p.id}>
+                            {p.description}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+              )}
               {selectedPayment && (
                 <div className="p-4 bg-gray-50 rounded-lg">
                   <p className="font-medium text-brand-purple">{selectedPayment.description}</p>

@@ -148,6 +148,7 @@ export interface PaymentData {
   due_date?: string;
   paid_at?: any;
   invoice?: boolean;
+  pdf_url?: string;
   created_at?: any;
 }
 
@@ -366,6 +367,7 @@ export async function getClientPayments(clientId: string): Promise<PaymentData[]
       due_date: inv.due_date,
       paid_at: inv.paid_at,
       invoice: true,
+      pdf_url: inv.pdf_url || inv.pdfUrl || null,
       created_at: inv.created_at,
     })) as PaymentData[];
   } catch (error) {

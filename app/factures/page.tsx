@@ -86,7 +86,7 @@ export default function FacturesPage() {
         paid: f.paid || 0,
         status: f.status,
         type: f.type,
-        pdfUrl: f.pdf_url || '',
+        pdfUrl: f.pdf_url || f.pdfUrl || '',
         createdAt: f.created_at || null,
       }));
 
@@ -388,6 +388,7 @@ export default function FacturesPage() {
           id: f.id,
           reference: f.reference,
           client: f.client,
+          type: f.type,
           montantTTC: f.montantTTC,
           paid: f.paid,
         }))}

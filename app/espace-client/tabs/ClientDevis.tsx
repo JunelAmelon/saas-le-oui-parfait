@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { FileText, Loader2, Eye, Download, CheckCircle, XCircle } from 'lucide-react';
 import { addDocument, updateDocument } from '@/lib/db';
 import { DevisData, getClientDevis } from '@/lib/client-helpers';
+import { uploadPdf } from '@/lib/storage';
 import {
   Table,
   TableBody,
@@ -35,6 +36,55 @@ export function ClientDevis({ clientId, clientEmail, variant = 'list' }: ClientD
   const [devis, setDevis] = useState<DevisData[]>([]);
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState<string | null>(null);
+
+  const stampDevisPdfToFacture = async (params: {
+    devisPdfUrl: string;
+  }): Promise<Blob> => {
+    const res = await fetch(params.devisPdfUrl);
+    if (!res.ok) {
+      throw new Error(`Unable to download devis PDF (${res.status})`);
+    }
+    const pdfBytes = await res.arrayBuffer();
+
+    const { PDFDocument, StandardFonts, rgb } = await import('pdf-lib');
+    const pdfDoc = await PDFDocument.load(pdfBytes);
+    const pages = pdfDoc.getPages();
+    if (!pages.length) {
+      throw new Error('Devis PDF has no pages');
+    }
+
+    const page = pages[0];
+    const { width, height } = page.getSize();
+    const font = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+
+    // Overlay on the top-right title area used by our generated devis PDFs.
+    // We hide the old label (DEVIS) by drawing a white rectangle, then write FACTURE.
+    const rectW = 180;
+    const rectH = 54;
+    const rectX = width - 24 - rectW;
+    const rectY = height - 24 - 62;
+
+    page.drawRectangle({
+      x: rectX,
+      y: rectY,
+      width: rectW,
+      height: rectH,
+      color: rgb(1, 1, 1),
+      borderColor: rgb(1, 1, 1),
+    });
+
+    page.drawText('FACTURE', {
+      x: rectX + 14,
+      y: rectY + 26,
+      size: 20,
+      font,
+      color: rgb(0.35, 0.0, 0.45),
+    });
+
+    const stampedBytes = await pdfDoc.save();
+    const stampedArrayBuffer = Uint8Array.from(stampedBytes).buffer;
+    return new Blob([stampedArrayBuffer], { type: 'application/pdf' });
+  };
 
   useEffect(() => {
     async function fetchDevis() {
@@ -87,19 +137,39 @@ export function ClientDevis({ clientId, clientEmail, variant = 'list' }: ClientD
 
       // Créer une facture/paiement à régler côté client
       const montantTTC = Number(d.montant_ttc ?? 0);
+      const montantHT = Number(d.montant_ht ?? 0);
+      const baseRef = String(d.reference || '').trim();
+      const normalizedRef = baseRef.replace(/^DEVIS[-\s]*/i, '').replace(/^DEV[-\s]*/i, '').trim();
+      const invoiceRef = `FACT-${normalizedRef || baseRef || d.id}`;
+      const invoiceDate = new Date().toLocaleDateString('fr-FR');
+
+      // Réutiliser le PDF du devis et seulement remplacer l'intitulé "DEVIS" par "FACTURE".
+      let invoicePdfUrl: string | null = null;
+      try {
+        if (!d.pdf_url) {
+          throw new Error('Missing devis pdf_url');
+        }
+        const stampedBlob = await stampDevisPdfToFacture({ devisPdfUrl: d.pdf_url });
+        invoicePdfUrl = await uploadPdf(stampedBlob, invoiceRef);
+      } catch (e) {
+        console.warn('Unable to stamp/upload invoice PDF, fallback to devis pdf_url:', e);
+        invoicePdfUrl = d.pdf_url || null;
+      }
+
       await addDocument('invoices', {
         planner_id: d.planner_id,
         client_id: clientId,
-        reference: `FACT-${d.reference}`,
+        reference: invoiceRef,
         client: d.client || '',
         client_email: d.client_email || clientEmail || '',
-        date: new Date().toLocaleDateString('fr-FR'),
+        date: invoiceDate,
         due_date: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toLocaleDateString('fr-FR'),
-        montant_ht: Number(d.montant_ht ?? 0),
+        montant_ht: montantHT,
         montant_ttc: montantTTC,
         paid: 0,
         status: 'pending',
         type: 'invoice',
+        pdf_url: invoicePdfUrl,
         source: 'devis',
         devis_id: d.id,
         created_at: new Date(),

@@ -17,6 +17,7 @@ interface RecordPaymentModalProps {
     id: string;
     reference?: string;
     client?: string;
+    type?: 'invoice' | 'deposit' | string;
     montantTTC?: number;
     paid?: number;
   }[];
@@ -50,6 +51,19 @@ export function RecordPaymentModal({ isOpen, onClose }: RecordPaymentModalProps)
         variant: 'destructive',
       });
       return;
+    }
+
+    if (selectedInvoiceType === 'deposit') {
+      const added = Number(amount);
+      const eps = 0.01;
+      if (!Number.isFinite(added) || Math.abs(added - selectedInvoiceRemaining) >= eps) {
+        toast({
+          title: 'Montant incorrect',
+          description: `Pour un acompte, le montant doit être exactement ${selectedInvoiceRemaining.toLocaleString()}€`,
+          variant: 'destructive',
+        });
+        return;
+      }
     }
 
     const run = async () => {
@@ -113,6 +127,10 @@ export function RecordPaymentModal({ isOpen, onClose }: RecordPaymentModalProps)
   const defaultInvoiceId = (arguments[0] as any)?.defaultInvoiceId as RecordPaymentModalProps['defaultInvoiceId'] | undefined;
   const invoices = propsInvoices || [];
   const selectedInvoice = invoices.find((i) => i.id === selectedInvoiceId);
+  const selectedInvoiceType = String(selectedInvoice?.type || '').toLowerCase();
+  const selectedInvoiceTotal = Number(selectedInvoice?.montantTTC ?? 0);
+  const selectedInvoicePaid = Number(selectedInvoice?.paid ?? 0);
+  const selectedInvoiceRemaining = Math.max(0, selectedInvoiceTotal - selectedInvoicePaid);
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>

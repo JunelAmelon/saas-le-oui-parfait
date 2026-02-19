@@ -47,8 +47,8 @@ import {
 import { useEffect, useMemo, useState } from 'react';
 import { useClientData } from '@/contexts/ClientDataContext';
 import { calculateDaysRemaining, getClientDevis } from '@/lib/client-helpers';
-import { addDocument, getDocument, getDocuments, updateDocument } from '@/lib/db';
-import { uploadFile } from '@/lib/storage';
+import { getDocument, getDocuments, addDocument, updateDocument } from '@/lib/db';
+import { uploadFile, uploadPdf } from '@/lib/storage';
 import { toast } from 'sonner';
 import { auth } from '@/lib/firebase';
 
@@ -285,19 +285,84 @@ export default function DocumentsPage() {
       });
 
       const montantTTC = Number(devis.montant_ttc ?? 0);
+      const montantHT = Number(devis.montant_ht ?? 0);
+      const baseRef = String(devis.reference || '').trim();
+      const normalizedRef = baseRef.replace(/^DEVIS[-\s]*/i, '').replace(/^DEV[-\s]*/i, '').trim();
+      const invoiceRef = `FACT-${normalizedRef || baseRef || doc.devis_id}`;
+      const invoiceDate = new Date().toLocaleDateString('fr-FR');
+
+      const stampDevisPdfToFacture = async (devisPdfUrl: string): Promise<Blob> => {
+        const res = await fetch(devisPdfUrl);
+        if (!res.ok) {
+          throw new Error(`Unable to download devis PDF (${res.status})`);
+        }
+        const pdfBytes = await res.arrayBuffer();
+
+        const { PDFDocument, StandardFonts, rgb } = await import('pdf-lib');
+        const pdfDoc = await PDFDocument.load(pdfBytes);
+        const pages = pdfDoc.getPages();
+        if (!pages.length) {
+          throw new Error('Devis PDF has no pages');
+        }
+
+        const page = pages[0];
+        const { width, height } = page.getSize();
+        const font = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+
+        const rectW = 180;
+        const rectH = 54;
+        const rectX = width - 24 - rectW;
+        const rectY = height - 24 - 62;
+
+        page.drawRectangle({
+          x: rectX,
+          y: rectY,
+          width: rectW,
+          height: rectH,
+          color: rgb(1, 1, 1),
+          borderColor: rgb(1, 1, 1),
+        });
+
+        page.drawText('FACTURE', {
+          x: rectX + 14,
+          y: rectY + 26,
+          size: 20,
+          font,
+          color: rgb(0.35, 0.0, 0.45),
+        });
+
+        const stampedBytes = await pdfDoc.save();
+        const stampedArrayBuffer = Uint8Array.from(stampedBytes).buffer;
+        return new Blob([stampedArrayBuffer], { type: 'application/pdf' });
+      };
+
+      let invoicePdfUrl: string | null = null;
+      try {
+        const devisPdfUrl = devis.pdf_url || doc.file_url;
+        if (!devisPdfUrl) {
+          throw new Error('Missing devis PDF URL');
+        }
+        const stampedBlob = await stampDevisPdfToFacture(devisPdfUrl);
+        invoicePdfUrl = await uploadPdf(stampedBlob, invoiceRef);
+      } catch (e) {
+        console.warn('Unable to stamp/upload invoice PDF, fallback to devis/doc PDF:', e);
+        invoicePdfUrl = devis.pdf_url || doc.file_url || null;
+      }
+
       await addDocument('invoices', {
         planner_id: devis.planner_id,
         client_id: client.id,
-        reference: `FACT-${devis.reference || doc.devis_id}`,
+        reference: invoiceRef,
         client: devis.client || '',
         client_email: devis.client_email || client.email || '',
-        date: new Date().toLocaleDateString('fr-FR'),
+        date: invoiceDate,
         due_date: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toLocaleDateString('fr-FR'),
-        montant_ht: Number(devis.montant_ht ?? 0),
+        montant_ht: montantHT,
         montant_ttc: montantTTC,
         paid: 0,
         status: 'pending',
         type: 'invoice',
+        pdf_url: invoicePdfUrl,
         source: 'devis',
         devis_id: doc.devis_id,
         created_at: new Date(),
