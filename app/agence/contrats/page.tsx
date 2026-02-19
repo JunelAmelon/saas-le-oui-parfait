@@ -326,7 +326,7 @@ export default function ContractsPage() {
 
       const viewError = String(viewAttempt?.json?.error || '').toLowerCase();
       if (!viewAttempt.ok && viewError.includes('out of sequence')) {
-        toast.error('Le client doit signer en premier. Une fois signé, vous pourrez signer côté prestataire.');
+        toast.error(viewAttempt?.json?.error || 'Impossible de démarrer la signature');
         return;
       }
 

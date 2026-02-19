@@ -298,11 +298,7 @@ En cas de litige relatif à l'interprétation ou à l'exécution du présent con
 Fait à [VILLE], le [DATE_SIGNATURE]
 En deux exemplaires originaux, dont un pour chaque Partie.
 
-Signature du Client                                          Le Oui Parfait
-Précédée de la mention                                       Président de LE OUI PARFAIT
-« Lu et approuvé, bon pour accord »                          Osnel & Melan
-
-[NOM_CLIENT]                                                 [NOM_REPRESENTANT]`;
+`;
 
 const vendorContractTemplate = `CONTRAT PRESTATAIRE
 
