@@ -378,6 +378,7 @@ export default function MessagesPage() {
                   <div className="flex items-start gap-3">
                     <div className="relative">
                       <Avatar className="h-10 w-10">
+                        {plannerPhotoUrl ? <AvatarImage src={plannerPhotoUrl} alt="Wedding Planner" /> : null}
                         <AvatarFallback className="bg-brand-turquoise text-white text-sm">
                           {conv.avatar}
                         </AvatarFallback>
@@ -426,6 +427,7 @@ export default function MessagesPage() {
                   <ArrowLeft className="h-4 w-4 text-brand-gray" />
                 </Button>
                 <Avatar className="h-10 w-10">
+                  {plannerPhotoUrl ? <AvatarImage src={plannerPhotoUrl} alt="Wedding Planner" /> : null}
                   <AvatarFallback className="bg-brand-turquoise text-white">
                     {selectedConversation?.avatar || '—'}
                   </AvatarFallback>

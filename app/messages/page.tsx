@@ -35,6 +35,7 @@ interface Conversation {
   photoUrl?: string | null;
   lastMessage: string;
   time: string;
+  lastMessageAtMs?: number;
   unread: number;
   online: boolean;
 }
@@ -99,7 +100,13 @@ export default function AdminMessagesPage() {
       conv: convByClientId.get(c.id) || null,
     }));
     if (filter !== 'all' && filter !== 'client') return [];
-    return items;
+    return items
+      .slice()
+      .sort((a, b) => {
+        const am = a?.conv?.lastMessageAtMs || 0;
+        const bm = b?.conv?.lastMessageAtMs || 0;
+        return bm - am;
+      });
   }, [clients, convByClientId, filter]);
 
   const totalUnread = useMemo(() => {
@@ -123,6 +130,7 @@ export default function AdminMessagesPage() {
       const mapped = Array.from(dedup.values()).map((c) => {
         const name = c?.client_name || c?.name || 'Conversation';
         const avatar = (name || 'C').split(' ').map((x: string) => x[0]).slice(0, 2).join('').toUpperCase();
+        const lastAtMs = c?.last_message_at?.toDate?.()?.getTime?.() || 0;
         return {
           id: c.id,
           client_id: c.client_id,
@@ -132,13 +140,15 @@ export default function AdminMessagesPage() {
           avatar,
           lastMessage: c.last_message || '',
           time: c.last_message_at?.toDate?.()?.toLocaleString('fr-FR') || '',
+          lastMessageAtMs: lastAtMs,
           unread: Number(c.unread_count_planner ?? 0),
           online: false,
         } as Conversation;
       });
 
-      setConversations(mapped);
-      return mapped;
+      const sorted = mapped.slice().sort((a, b) => (b.lastMessageAtMs || 0) - (a.lastMessageAtMs || 0));
+      setConversations(sorted);
+      return sorted;
     } catch (e) {
       console.error('Error fetching conversations:', e);
       toast.error('Erreur lors du chargement des conversations');
@@ -233,6 +243,7 @@ export default function AdminMessagesPage() {
         photoUrl: c0?.photo || null,
         lastMessage: existing0?.last_message || '',
         time: existing0?.last_message_at?.toDate?.()?.toLocaleString('fr-FR') || '',
+        lastMessageAtMs: existing0?.last_message_at?.toDate?.()?.getTime?.() || 0,
         unread: Number(existing0?.unread_count_planner ?? 0),
         online: false,
       };
@@ -269,6 +280,7 @@ export default function AdminMessagesPage() {
       photoUrl: c0?.photo || null,
       lastMessage: '',
       time: '',
+      lastMessageAtMs: Date.now(),
       unread: 0,
       online: false,
     };

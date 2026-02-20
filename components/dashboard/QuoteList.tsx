@@ -10,7 +10,7 @@ import { NewDevisModal } from '@/components/modals/NewDevisModal';
 interface Quote {
   id: string;
   reference: string;
-  status: 'draft' | 'sent' | 'accepted' | 'rejected';
+  status: 'draft' | 'sent' | 'accepted' | 'rejected' | 'signed';
 }
 
 interface QuoteListProps {
@@ -22,6 +22,7 @@ const statusConfig = {
   draft: { label: 'Brouillon', className: 'bg-gray-400 hover:bg-gray-500' },
   sent: { label: 'Envoyé', className: 'bg-[#C4A26A] hover:bg-[#B59260]' },
   accepted: { label: 'Validé', className: 'bg-green-500 hover:bg-green-600' },
+  signed: { label: 'Signé', className: 'bg-emerald-600 hover:bg-emerald-700' },
   rejected: { label: 'Refusé', className: 'bg-red-500 hover:bg-red-600' },
 };
 
@@ -47,7 +48,9 @@ export function QuoteList({ quotes, onDevisCreated }: QuoteListProps) {
           <p className="text-sm text-gray-500 text-center py-4">Aucun devis pour le moment</p>
         ) : (
           quotes.map((quote) => {
-            const config = statusConfig[quote.status];
+            const config =
+              statusConfig[quote.status as keyof typeof statusConfig] ??
+              statusConfig.draft;
             return (
               <div
                 key={quote.id}
