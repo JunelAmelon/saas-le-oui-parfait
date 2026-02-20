@@ -38,6 +38,13 @@ export function ClientTopbar({ clientName = 'Julie & Frédérick', daysRemaining
   const router = useRouter();
   const { toast } = useToast();
 
+  const computedClientName = (() => {
+    const n1 = String(client?.name || '').trim();
+    const n2 = String(client?.partner || '').trim();
+    const combined = `${n1}${n1 && n2 ? ' & ' : ''}${n2}`.trim();
+    return combined || String(clientName || '').trim() || String(user?.email || '').trim() || 'Client';
+  })();
+
   useEffect(() => {
     if (!user?.uid) return;
     if (pushInitRef.current) return;
@@ -113,7 +120,7 @@ export function ClientTopbar({ clientName = 'Julie & Frédérick', daysRemaining
                 </Avatar>
                 <div className="text-left hidden lg:block">
                   <p className="text-sm font-medium text-brand-purple">
-                    {clientName}
+                    {computedClientName}
                   </p>
                   <p className="text-xs text-brand-gray">Client</p>
                 </div>

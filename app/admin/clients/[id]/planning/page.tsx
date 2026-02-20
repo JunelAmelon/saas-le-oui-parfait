@@ -11,6 +11,7 @@ import { Calendar, Clock, MapPin, Loader2, Plus, Trash2, Pencil } from 'lucide-r
 import { useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 
+import { useAuth } from '@/contexts/AuthContext';
 import { addDocument, deleteDocument, getDocuments, updateDocument } from '@/lib/db';
 import { toast } from 'sonner';
 
@@ -34,6 +35,7 @@ export default function ClientPlanningPage() {
   const params = useParams();
   const router = useRouter();
   const clientId = params.id as string;
+  const { user } = useAuth();
 
   const [loading, setLoading] = useState(true);
   const [eventId, setEventId] = useState<string | null>(null);
@@ -55,16 +57,14 @@ export default function ClientPlanningPage() {
       const ev = ((events as any[]) || []).find((x) => Boolean(x?.event_date)) || (events?.[0] as any) || null;
       const evId = ev?.id || null;
       setEventId(evId);
-      setPlannerId(ev?.planner_id || null);
+      setPlannerId(ev?.planner_id || user?.uid || null);
 
-      if (!evId) {
-        setAppointments([]);
-        return;
-      }
+      const filters: any[] = [];
+      if (evId) filters.push({ field: 'event_id', operator: '==', value: evId });
+      filters.push({ field: 'client_id', operator: '==', value: clientId });
+      if (user?.uid) filters.push({ field: 'planner_id', operator: '==', value: user.uid });
 
-      const tasks = await getDocuments('tasks', [
-        { field: 'event_id', operator: '==', value: evId },
-      ]);
+      const tasks = await getDocuments('tasks', filters);
       const apts = (tasks as any[])
         .filter((t) => t?.kind === 'appointment')
         .filter((t) => (t?.status || 'accepted') === 'accepted') as AppointmentTask[];
@@ -134,7 +134,7 @@ export default function ClientPlanningPage() {
   useEffect(() => {
     void fetchAll();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clientId]);
+  }, [clientId, user?.uid]);
 
   const sortedAppointments = useMemo(() => {
     return appointments
@@ -143,10 +143,6 @@ export default function ClientPlanningPage() {
   }, [appointments]);
 
   const addAppointment = async () => {
-    if (!eventId) {
-      toast.error('Événement introuvable pour ce client');
-      return;
-    }
     if (!form.title.trim() || !form.date || !form.time) {
       toast.error('Titre, date et heure obligatoires');
       return;
@@ -155,9 +151,9 @@ export default function ClientPlanningPage() {
     try {
       const created = await addDocument('tasks', {
         kind: 'appointment',
-        event_id: eventId,
+        event_id: eventId || '',
         client_id: clientId,
-        planner_id: plannerId || undefined,
+        planner_id: plannerId || user?.uid || undefined,
         title: form.title.trim(),
         notes: form.notes.trim(),
         location: form.location.trim(),
@@ -182,9 +178,9 @@ export default function ClientPlanningPage() {
             link: '/espace-client/planning',
             read: false,
             created_at: new Date(),
-            planner_id: plannerId || undefined,
+            planner_id: plannerId || user?.uid || undefined,
             client_id: clientId,
-            event_id: eventId,
+            event_id: eventId || '',
             meta: { kind: 'appointment', task_id: (created as any)?.id || null },
           });
 
@@ -251,7 +247,7 @@ export default function ClientPlanningPage() {
             <Button
               className="bg-brand-turquoise hover:bg-brand-turquoise-hover gap-2"
               onClick={() => setIsAddOpen(true)}
-              disabled={loading || !eventId}
+              disabled={loading}
             >
               <Plus className="h-4 w-4" />
               Ajouter un RDV
@@ -265,10 +261,6 @@ export default function ClientPlanningPage() {
               <Loader2 className="h-5 w-5 animate-spin" />
               Chargement...
             </div>
-          </Card>
-        ) : !eventId ? (
-          <Card className="p-10 shadow-xl border-0">
-            <div className="text-center text-brand-gray">Aucun événement trouvé pour ce client.</div>
           </Card>
         ) : (
           <Card className="p-6 shadow-xl border-0">

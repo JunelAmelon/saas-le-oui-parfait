@@ -1,14 +1,22 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { FileText, Loader2, Eye, Download, CheckCircle, XCircle } from 'lucide-react';
+import { FileText, Loader2, Eye, Download, CheckCircle, XCircle, MoreVertical } from 'lucide-react';
 import { addDocument, updateDocument } from '@/lib/db';
 import { DevisData, getClientDevis } from '@/lib/client-helpers';
 import { uploadPdf } from '@/lib/storage';
+import { auth } from '@/lib/firebase';
+import { toast } from 'sonner';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import {
   Table,
   TableBody,
@@ -36,6 +44,9 @@ export function ClientDevis({ clientId, clientEmail, variant = 'list' }: ClientD
   const [devis, setDevis] = useState<DevisData[]>([]);
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [signingId, setSigningId] = useState<string | null>(null);
+
+  const syncedEnvelopeIdsRef = useRef<Set<string>>(new Set());
 
   const stampDevisPdfToFacture = async (params: {
     devisPdfUrl: string;
@@ -92,6 +103,43 @@ export function ClientDevis({ clientId, clientEmail, variant = 'list' }: ClientD
         setLoading(true);
         const items = await getClientDevis(clientId, clientEmail);
         setDevis(items);
+
+        // Auto-sync DocuSign status (fallback without Connect)
+        try {
+          const idToken = await auth.currentUser?.getIdToken().catch(() => null);
+          if (!idToken) return;
+
+          const toSync = (items as any[])
+            .map((dv) => ({
+              docId: String(dv?.id || '').trim(),
+              envelopeId: String(dv?.docusign?.envelope_id || '').trim(),
+              status: String(dv?.docusign?.status || dv?.status || '').trim().toLowerCase(),
+            }))
+            .filter((x) => x.docId && x.envelopeId && x.status !== 'completed')
+            .filter((x) => !syncedEnvelopeIdsRef.current.has(x.envelopeId));
+
+          if (toSync.length === 0) return;
+          toSync.forEach((x) => syncedEnvelopeIdsRef.current.add(x.envelopeId));
+
+          await Promise.allSettled(
+            toSync.slice(0, 3).map((x) =>
+              fetch('/api/docusign/sync-envelope', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  Authorization: `Bearer ${idToken}`,
+                },
+                body: JSON.stringify({ docType: 'devis', docId: x.docId }),
+              })
+            )
+          );
+
+          setTimeout(() => {
+            fetchDevis();
+          }, 800);
+        } catch (e) {
+          console.warn('DocuSign sync fallback failed (client devis):', e);
+        }
       } catch (e) {
         console.error('Error fetching client devis:', e);
         setDevis([]);
@@ -104,6 +152,12 @@ export function ClientDevis({ clientId, clientEmail, variant = 'list' }: ClientD
       fetchDevis();
     }
   }, [clientId, clientEmail]);
+
+  const isDocusignCompleted = (d: DevisData) => {
+    const ds = String((d as any)?.docusign?.status || '').trim().toLowerCase();
+    const st = String(d.status || '').trim().toLowerCase();
+    return ds === 'completed' || st === 'signed';
+  };
 
   const visibleDevis = useMemo(() => {
     return devis
@@ -128,59 +182,72 @@ export function ClientDevis({ clientId, clientEmail, variant = 'list' }: ClientD
   };
 
   const acceptDevis = async (d: DevisData) => {
-    setSavingId(d.id);
+    setSigningId(d.id);
     try {
+      const idToken = await auth.currentUser?.getIdToken().catch(() => null);
+      if (!idToken) {
+        toast.error('Vous devez être connecté');
+        return;
+      }
+
+      // Mark as accepted (business validation) before signature
       await updateDocument('devis', d.id, {
         status: 'accepted',
         accepted_at: new Date().toISOString(),
       });
 
-      // Créer une facture/paiement à régler côté client
-      const montantTTC = Number(d.montant_ttc ?? 0);
-      const montantHT = Number(d.montant_ht ?? 0);
-      const baseRef = String(d.reference || '').trim();
-      const normalizedRef = baseRef.replace(/^DEVIS[-\s]*/i, '').replace(/^DEV[-\s]*/i, '').trim();
-      const invoiceRef = `FACT-${normalizedRef || baseRef || d.id}`;
-      const invoiceDate = new Date().toLocaleDateString('fr-FR');
-
-      // Réutiliser le PDF du devis et seulement remplacer l'intitulé "DEVIS" par "FACTURE".
-      let invoicePdfUrl: string | null = null;
-      try {
-        if (!d.pdf_url) {
-          throw new Error('Missing devis pdf_url');
+      // Create envelope if missing
+      const existingEnvelopeId = String((d as any)?.docusign?.envelope_id || '').trim();
+      let envelopeId = existingEnvelopeId;
+      if (!envelopeId) {
+        const createRes = await fetch('/api/docusign/create-envelope', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${idToken}`,
+          },
+          body: JSON.stringify({ docType: 'devis', docId: d.id }),
+        });
+        const createJson = await createRes.json().catch(() => null);
+        if (!createRes.ok) {
+          toast.error(createJson?.error || 'Impossible de préparer la signature');
+          return;
         }
-        const stampedBlob = await stampDevisPdfToFacture({ devisPdfUrl: d.pdf_url });
-        invoicePdfUrl = await uploadPdf(stampedBlob, invoiceRef);
-      } catch (e) {
-        console.warn('Unable to stamp/upload invoice PDF, fallback to devis pdf_url:', e);
-        invoicePdfUrl = d.pdf_url || null;
+        envelopeId = String(createJson?.envelopeId || '');
       }
 
-      await addDocument('invoices', {
-        planner_id: d.planner_id,
-        client_id: clientId,
-        reference: invoiceRef,
-        client: d.client || '',
-        client_email: d.client_email || clientEmail || '',
-        date: invoiceDate,
-        due_date: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toLocaleDateString('fr-FR'),
-        montant_ht: montantHT,
-        montant_ttc: montantTTC,
-        paid: 0,
-        status: 'pending',
-        type: 'invoice',
-        pdf_url: invoicePdfUrl,
-        source: 'devis',
-        devis_id: d.id,
-        created_at: new Date(),
+      if (!envelopeId) {
+        toast.error('Envelope introuvable');
+        return;
+      }
+
+      const viewRes = await fetch('/api/docusign/recipient-view', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({ envelopeId, recipientRole: 'client' }),
       });
+      const viewJson = await viewRes.json().catch(() => null);
+      if (!viewRes.ok) {
+        toast.error(viewJson?.error || 'Impossible d’ouvrir la signature');
+        return;
+      }
+
+      const url = String(viewJson?.url || '').trim();
+      if (!url) {
+        toast.error('URL de signature introuvable');
+        return;
+      }
 
       setDevis((prev) => prev.map((x) => (x.id === d.id ? { ...x, status: 'accepted' } : x)));
-      router.push('/espace-client/paiements');
+      window.location.href = url;
     } catch (e) {
-      console.error('Error accepting devis:', e);
+      console.error('Error accepting/signing devis:', e);
+      toast.error('Erreur lors de la validation');
     } finally {
-      setSavingId(null);
+      setSigningId(null);
     }
   };
 
@@ -233,6 +300,11 @@ export function ClientDevis({ clientId, clientEmail, variant = 'list' }: ClientD
                 {visibleDevis.slice(0, 5).map((d) => {
                   const badgeClass = statusBadge[d.status] || 'bg-gray-100 text-gray-700';
                   const isBusy = savingId === d.id;
+                  const isCompleted = isDocusignCompleted(d);
+                  const dsRecipients: any = (d as any)?.docusign?.recipients || null;
+                  const clientRecipientStatus = String(dsRecipients?.client?.status || '').toLowerCase();
+                  const clientSigned = clientRecipientStatus === 'completed';
+                  const canClientSign = d.status === 'sent' && !clientSigned && !isCompleted;
 
                   return (
                     <TableRow key={d.id}>
@@ -242,84 +314,51 @@ export function ClientDevis({ clientId, clientEmail, variant = 'list' }: ClientD
                         <Badge className={badgeClass}>{d.status}</Badge>
                       </TableCell>
                       <TableCell className="whitespace-nowrap w-[1%]">
-                        <div className="flex items-center justify-end gap-1 whitespace-nowrap flex-nowrap">
-                          {d.pdf_url ? (
-                            <>
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                className="text-brand-turquoise hover:text-brand-turquoise-hover h-8 w-8"
-                                onClick={() => openPdf(d)}
-                                title="Visualiser"
-                              >
-                                <Eye className="h-4 w-4" />
+                        <div className="flex items-center justify-end">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button size="icon" variant="ghost" className="h-8 w-8">
+                                <MoreVertical className="h-4 w-4" />
                               </Button>
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                className="text-brand-turquoise hover:text-brand-turquoise-hover h-8 w-8"
-                                onClick={() => downloadPdf(d)}
-                                title="Télécharger"
-                              >
-                                <Download className="h-4 w-4" />
-                              </Button>
-                            </>
-                          ) : null}
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-56">
+                              {d.pdf_url ? (
+                                <>
+                                  <DropdownMenuItem onClick={() => openPdf(d)}>
+                                    <Eye className="h-4 w-4 mr-2" />
+                                    Visualiser
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => downloadPdf(d)}>
+                                    <Download className="h-4 w-4 mr-2" />
+                                    Télécharger
+                                  </DropdownMenuItem>
+                                </>
+                              ) : null}
 
-                          {d.status === 'sent' ? (
-                            <>
-                              <Button
-                                size="icon"
-                                className="sm:hidden bg-green-600 hover:bg-green-700 h-8 w-8"
-                                onClick={() => void acceptDevis(d)}
-                                disabled={isBusy}
-                                title="Valider"
-                              >
-                                <CheckCircle className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                size="sm"
-                                className="hidden sm:inline-flex bg-green-600 hover:bg-green-700 gap-2"
-                                onClick={() => void acceptDevis(d)}
-                                disabled={isBusy}
-                              >
-                                <CheckCircle className="h-4 w-4" />
-                                Valider
-                              </Button>
+                              {canClientSign ? (
+                                <>
+                                  <DropdownMenuItem
+                                    onClick={() => void acceptDevis(d)}
+                                    disabled={isBusy || signingId === d.id}
+                                  >
+                                    <CheckCircle className="h-4 w-4 mr-2" />
+                                    Valider &amp; signer
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => void rejectDevis(d)} disabled={isBusy}>
+                                    <XCircle className="h-4 w-4 mr-2" />
+                                    Refuser
+                                  </DropdownMenuItem>
+                                </>
+                              ) : null}
 
-                              <Button
-                                size="icon"
-                                variant="outline"
-                                className="sm:hidden border-red-500 text-red-600 hover:bg-red-500 hover:text-white h-8 w-8"
-                                onClick={() => void rejectDevis(d)}
-                                disabled={isBusy}
-                                title="Refuser"
-                              >
-                                <XCircle className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="hidden sm:inline-flex border-red-500 text-red-600 hover:bg-red-500 hover:text-white gap-2"
-                                onClick={() => void rejectDevis(d)}
-                                disabled={isBusy}
-                              >
-                                <XCircle className="h-4 w-4" />
-                                Refuser
-                              </Button>
-                            </>
-                          ) : null}
-
-                          {d.status === 'accepted' ? (
-                            <Button
-                              size="sm"
-                              className="bg-brand-turquoise hover:bg-brand-turquoise-hover"
-                              onClick={() => router.push('/espace-client/paiements')}
-                            >
-                              <span className="sm:hidden">€</span>
-                              <span className="hidden sm:inline">Paiement</span>
-                            </Button>
-                          ) : null}
+                              {d.status === 'accepted' && isCompleted ? (
+                                <DropdownMenuItem onClick={() => router.push('/espace-client/paiements')}>
+                                  <CheckCircle className="h-4 w-4 mr-2" />
+                                  Paiement
+                                </DropdownMenuItem>
+                              ) : null}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -333,6 +372,11 @@ export function ClientDevis({ clientId, clientEmail, variant = 'list' }: ClientD
             {visibleDevis.slice(0, 5).map((d) => {
               const badgeClass = statusBadge[d.status] || 'bg-gray-100 text-gray-700';
               const isBusy = savingId === d.id;
+              const isCompleted = isDocusignCompleted(d);
+              const dsRecipients: any = (d as any)?.docusign?.recipients || null;
+              const clientRecipientStatus = String(dsRecipients?.client?.status || '').toLowerCase();
+              const clientSigned = clientRecipientStatus === 'completed';
+              const canClientSign = d.status === 'sent' && !clientSigned && !isCompleted;
 
               return (
                 <div key={d.id} className="p-4 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors">
@@ -344,53 +388,48 @@ export function ClientDevis({ clientId, clientEmail, variant = 'list' }: ClientD
                     <Badge className={badgeClass}>{d.status}</Badge>
                   </div>
 
-                  <div className="mt-3 flex flex-wrap items-center gap-2">
-                    {d.pdf_url ? (
-                      <>
-                        <Button size="sm" variant="outline" className="gap-2" onClick={() => openPdf(d)}>
-                          <Eye className="h-4 w-4" />
-                          Visualiser
+                  <div className="mt-3 flex items-center justify-end">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button size="icon" variant="ghost" className="h-9 w-9">
+                          <MoreVertical className="h-4 w-4" />
                         </Button>
-                        <Button size="sm" variant="outline" className="gap-2" onClick={() => downloadPdf(d)}>
-                          <Download className="h-4 w-4" />
-                          Télécharger
-                        </Button>
-                      </>
-                    ) : null}
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-56">
+                        {d.pdf_url ? (
+                          <>
+                            <DropdownMenuItem onClick={() => openPdf(d)}>
+                              <Eye className="h-4 w-4 mr-2" />
+                              Visualiser
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => downloadPdf(d)}>
+                              <Download className="h-4 w-4 mr-2" />
+                              Télécharger
+                            </DropdownMenuItem>
+                          </>
+                        ) : null}
 
-                    {d.status === 'sent' ? (
-                      <>
-                        <Button
-                          size="sm"
-                          className="bg-green-600 hover:bg-green-700 gap-2"
-                          onClick={() => void acceptDevis(d)}
-                          disabled={isBusy}
-                        >
-                          <CheckCircle className="h-4 w-4" />
-                          Valider
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="border-red-500 text-red-600 hover:bg-red-500 hover:text-white gap-2"
-                          onClick={() => void rejectDevis(d)}
-                          disabled={isBusy}
-                        >
-                          <XCircle className="h-4 w-4" />
-                          Refuser
-                        </Button>
-                      </>
-                    ) : null}
+                        {canClientSign ? (
+                          <>
+                            <DropdownMenuItem onClick={() => void acceptDevis(d)} disabled={isBusy || signingId === d.id}>
+                              <CheckCircle className="h-4 w-4 mr-2" />
+                              Valider &amp; signer
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => void rejectDevis(d)} disabled={isBusy}>
+                              <XCircle className="h-4 w-4 mr-2" />
+                              Refuser
+                            </DropdownMenuItem>
+                          </>
+                        ) : null}
 
-                    {d.status === 'accepted' ? (
-                      <Button
-                        size="sm"
-                        className="bg-brand-turquoise hover:bg-brand-turquoise-hover ml-auto"
-                        onClick={() => router.push('/espace-client/paiements')}
-                      >
-                        Passer au paiement
-                      </Button>
-                    ) : null}
+                        {d.status === 'accepted' && isCompleted ? (
+                          <DropdownMenuItem onClick={() => router.push('/espace-client/paiements')}>
+                            <CheckCircle className="h-4 w-4 mr-2" />
+                            Paiement
+                          </DropdownMenuItem>
+                        ) : null}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 </div>
               );

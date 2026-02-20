@@ -64,10 +64,22 @@ export default function MariagePage() {
     setLocation((event?.location || client?.event_location || '') as string);
     setGuestCount((event?.guest_count ?? (client as any)?.guests ?? 0) as number);
     setBudget((event?.budget ?? (client as any)?.budget ?? 0) as number);
-    setThemeStyle(event?.theme?.style || '');
-    setThemeDescription(event?.theme?.description || '');
-    setThemeColors(event?.theme?.colors || []);
-    setNotes(event?.notes || '');
+    setThemeStyle(
+      (event as any)?.theme?.style ||
+        (client as any)?.theme?.style ||
+        (client as any)?.theme_style ||
+        ''
+    );
+    setThemeDescription(
+      (event as any)?.theme?.description ||
+        (client as any)?.theme?.description ||
+        (client as any)?.theme_description ||
+        ''
+    );
+    setThemeColors(
+      ((event as any)?.theme?.colors || (client as any)?.theme?.colors || (client as any)?.theme_colors || []) as string[]
+    );
+    setNotes((event as any)?.notes || (client as any)?.notes || '');
   }, [event, client]);
 
   if (dataLoading) {

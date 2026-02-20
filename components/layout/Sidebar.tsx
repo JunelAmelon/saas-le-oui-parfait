@@ -28,6 +28,8 @@ interface MenuItem {
   icon: React.ElementType;
   href?: string;
   subItems?: { label: string; href: string }[];
+  disabled?: boolean;
+  comingSoonLabel?: string;
 }
 
 const menuItems: MenuItem[] = [
@@ -61,10 +63,8 @@ const menuItems: MenuItem[] = [
   {
     label: 'Événements',
     icon: Calendar,
-    subItems: [
-      { label: 'Liste', href: '/evenements' },
-      { label: 'Archives', href: '/evenements/archives' },
-    ],
+    disabled: true,
+    comingSoonLabel: 'À venir',
   },
   {
     label: 'Mes prestataires',
@@ -176,7 +176,20 @@ export function Sidebar() {
         <ul className="space-y-1">
           {menuItems.map((item) => (
             <li key={item.label}>
-              {item.subItems ? (
+              {item.disabled ? (
+                <div
+                  className={cn(
+                    'flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium',
+                    'text-brand-gray/50 cursor-not-allowed bg-gray-50'
+                  )}
+                >
+                  <item.icon className="h-5 w-5" />
+                  <span className="flex-1 text-left">{item.label}</span>
+                  <span className="text-[11px] px-2 py-0.5 rounded-full bg-gray-200 text-gray-600">
+                    {item.comingSoonLabel || 'À venir'}
+                  </span>
+                </div>
+              ) : item.subItems ? (
                 <div>
                   <button
                     onClick={() => toggleExpand(item.label)}

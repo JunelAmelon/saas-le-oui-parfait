@@ -453,6 +453,67 @@ export function ClientModal({ open, onOpenChange, mode, client, userId, onSucces
           {/* Divider */}
           <div className="border-t border-gray-200"></div>
 
+          {/* Informations événement */}
+          <div className="space-y-4">
+            <Label className="text-base font-semibold">Informations événement</Label>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="eventDate">Date de l&apos;événement</Label>
+                <Input
+                  id="eventDate"
+                  name="eventDate"
+                  type="date"
+                  defaultValue={normalizeDateInputValue(client?.eventDate)}
+                  className="border-gray-300 focus:border-brand-purple focus:ring-brand-purple"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="guests">Nombre d&apos;invités</Label>
+                <Input
+                  id="guests"
+                  name="guests"
+                  type="number"
+                  inputMode="numeric"
+                  min={0}
+                  defaultValue={String(client?.guests ?? '')}
+                  placeholder="Ex: 120"
+                  className="border-gray-300 focus:border-brand-purple focus:ring-brand-purple"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="eventLocation">Lieu</Label>
+              <Input
+                id="eventLocation"
+                name="eventLocation"
+                defaultValue={client?.eventLocation || ''}
+                placeholder="Ex: Château, domaine, salle..."
+                className="border-gray-300 focus:border-brand-purple focus:ring-brand-purple"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="budget">Budget estimé</Label>
+              <Input
+                id="budget"
+                name="budget"
+                type="number"
+                inputMode="decimal"
+                min={0}
+                step="1"
+                defaultValue={String(client?.budget ?? '')}
+                placeholder="Ex: 24330"
+                className="border-gray-300 focus:border-brand-purple focus:ring-brand-purple"
+              />
+            </div>
+          </div>
+
+          {/* Divider */}
+          <div className="border-t border-gray-200"></div>
+
           <div className="space-y-4">
             <Label className="text-base font-semibold">Thème & Décoration</Label>
 

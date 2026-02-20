@@ -443,15 +443,15 @@ export default function EventsPage() {
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <Button variant="outline" className="gap-2">
+                <Button variant="outline" className="gap-2 opacity-60" disabled>
                   <FileText className="h-4 w-4" />
                   Documents
                 </Button>
-                <Button variant="outline" className="gap-2">
+                <Button variant="outline" className="gap-2 opacity-60" disabled>
                   <Clock className="h-4 w-4" />
                   Planning
                 </Button>
-                <Button variant="outline" className="gap-2">
+                <Button variant="outline" className="gap-2 opacity-60" disabled>
                   <UsersIcon className="h-4 w-4" />
                   Prestataires
                 </Button>

@@ -121,11 +121,13 @@ export default function PlanningPage() {
           });
 
         let mappedFromTasks: any[] = [];
-        if (event?.id) {
-          const items = await getDocuments('tasks', [
-            { field: 'event_id', operator: '==', value: event.id },
-            { field: 'client_id', operator: '==', value: client.id },
-          ]);
+        {
+          const baseFilters: any[] = [{ field: 'client_id', operator: '==', value: client.id }];
+          if (event?.id) {
+            baseFilters.unshift({ field: 'event_id', operator: '==', value: event.id });
+          }
+
+          const items = await getDocuments('tasks', baseFilters);
 
           const appointments = (items as any[])
             .filter((t) => t?.kind === 'appointment')
@@ -172,16 +174,21 @@ export default function PlanningPage() {
 
   useEffect(() => {
     async function fetchSteps() {
-      if (!event?.id || !client?.id) {
+      if (!client?.id) {
         setSteps([]);
         setStepsLoading(false);
         return;
       }
       try {
         setStepsLoading(true);
-        const items = await getDocuments('tasks', [
-          { field: 'event_id', operator: '==', value: event.id },
-        ]);
+        const filters: any[] = [];
+        if (event?.id) {
+          filters.push({ field: 'event_id', operator: '==', value: event.id });
+        } else {
+          filters.push({ field: 'client_id', operator: '==', value: client.id });
+        }
+
+        const items = await getDocuments('tasks', filters);
         const onlySteps = (items as any[]).filter((t) => t?.kind === 'milestone');
         setSteps(onlySteps as Step[]);
       } catch (e) {

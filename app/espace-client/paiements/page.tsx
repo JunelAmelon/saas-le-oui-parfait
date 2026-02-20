@@ -34,6 +34,8 @@ import {
   Download,
   TrendingUp,
   Calendar,
+  ChevronLeft,
+  ChevronRight,
   Loader2,
   Copy,
 } from 'lucide-react';
@@ -63,6 +65,85 @@ export default function PaiementsPage() {
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [upcomingPage, setUpcomingPage] = useState(1);
   const [historyPage, setHistoryPage] = useState(1);
+
+  const getVisiblePages = (current: number, total: number) => {
+    if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+    const pages = new Set<number>();
+    pages.add(1);
+    pages.add(total);
+    for (let i = current - 1; i <= current + 1; i++) {
+      if (i > 1 && i < total) pages.add(i);
+    }
+    return Array.from(pages.values()).sort((a, b) => a - b);
+  };
+
+  const PaginationBar = (props: {
+    currentPage: number;
+    totalPages: number;
+    onChange: (next: number) => void;
+  }) => {
+    const { currentPage, totalPages, onChange } = props;
+    if (totalPages <= 1) return null;
+
+    const pages = getVisiblePages(currentPage, totalPages);
+
+    return (
+      <div className="mt-4 flex items-center justify-between gap-3">
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          onClick={() => onChange(Math.max(1, currentPage - 1))}
+          disabled={currentPage === 1}
+          aria-label="Page précédente"
+        >
+          <ChevronLeft className="h-4 w-4" />
+        </Button>
+
+        <div className="flex items-center gap-1">
+          <span className="text-sm text-brand-gray sm:hidden">
+            Page {currentPage} / {totalPages}
+          </span>
+
+          <div className="hidden sm:flex items-center gap-1">
+            {pages.map((p, idx) => {
+              const prev = pages[idx - 1];
+              const showEllipsis = idx > 0 && prev !== undefined && p - prev > 1;
+              return (
+                <div key={p} className="flex items-center gap-1">
+                  {showEllipsis ? <span className="px-1 text-sm text-brand-gray">…</span> : null}
+                  <Button
+                    type="button"
+                    variant={p === currentPage ? 'default' : 'outline'}
+                    size="sm"
+                    className={
+                      p === currentPage
+                        ? 'bg-brand-turquoise hover:bg-brand-turquoise-hover text-white border-0'
+                        : ''
+                    }
+                    onClick={() => onChange(p)}
+                  >
+                    {p}
+                  </Button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          onClick={() => onChange(Math.min(totalPages, currentPage + 1))}
+          disabled={currentPage === totalPages}
+          aria-label="Page suivante"
+        >
+          <ChevronRight className="h-4 w-4" />
+        </Button>
+      </div>
+    );
+  };
 
   const copyToClipboard = async (value: string) => {
     try {
@@ -446,29 +527,11 @@ export default function PaiementsPage() {
                 </div>
 
                 {historyPayments.length > HISTORY_PER_PAGE && (
-                  <div className="flex items-center justify-between mt-4">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setHistoryPage((p) => Math.max(1, p - 1))}
-                      disabled={historyPage === 1}
-                    >
-                      ← Précédent
-                    </Button>
-                    <span className="text-sm text-brand-gray">
-                      Page {historyPage} sur {historyTotalPages}
-                    </span>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setHistoryPage((p) => Math.min(historyTotalPages, p + 1))}
-                      disabled={historyPage === historyTotalPages}
-                    >
-                      Suivant →
-                    </Button>
-                  </div>
+                  <PaginationBar
+                    currentPage={historyPage}
+                    totalPages={historyTotalPages}
+                    onChange={(next) => setHistoryPage(next)}
+                  />
                 )}
               </>
             )}
@@ -524,29 +587,11 @@ export default function PaiementsPage() {
                 </div>
 
                 {upcomingPayments.length > UPCOMING_PER_PAGE && (
-                  <div className="flex items-center justify-between mt-4">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setUpcomingPage((p) => Math.max(1, p - 1))}
-                      disabled={upcomingPage === 1}
-                    >
-                      ← Précédent
-                    </Button>
-                    <span className="text-sm text-brand-gray">
-                      Page {upcomingPage} sur {upcomingTotalPages}
-                    </span>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setUpcomingPage((p) => Math.min(upcomingTotalPages, p + 1))}
-                      disabled={upcomingPage === upcomingTotalPages}
-                    >
-                      Suivant →
-                    </Button>
-                  </div>
+                  <PaginationBar
+                    currentPage={upcomingPage}
+                    totalPages={upcomingTotalPages}
+                    onChange={(next) => setUpcomingPage(next)}
+                  />
                 )}
               </>
             )}

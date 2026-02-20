@@ -82,7 +82,9 @@ export default function ChecklistPage() {
 
   useEffect(() => {
     async function fetchStepsAsChecklist() {
-      if (!event?.id) {
+      const eventId = String(event?.id || '').trim();
+      const clId = String(client?.id || '').trim();
+      if (!eventId && !clId) {
         setChecklistItems([]);
         setLoading(false);
         return;
@@ -90,7 +92,9 @@ export default function ChecklistPage() {
       try {
         setLoading(true);
         const items = await getDocuments('tasks', [
-          { field: 'event_id', operator: '==', value: event.id },
+          eventId
+            ? { field: 'event_id', operator: '==', value: eventId }
+            : { field: 'client_id', operator: '==', value: clId },
         ]);
         const steps = (items as any[]).filter((t) => t?.kind === 'milestone') as Step[];
 
@@ -101,7 +105,7 @@ export default function ChecklistPage() {
           completed: Boolean(s.client_confirmed),
           category: 'Étapes',
           priority: 'high',
-          eventId: event.id,
+          eventId: eventId,
           completedAt: undefined,
         }));
 
@@ -117,9 +121,15 @@ export default function ChecklistPage() {
     if (!dataLoading) {
       fetchStepsAsChecklist();
     }
-  }, [event?.id, dataLoading]);
+  }, [event?.id, client?.id, dataLoading]);
 
-  const daysRemaining = event ? calculateDaysRemaining(event.event_date) : 0;
+  const displayDate = String(event?.event_date || (client as any)?.event_date || '').trim();
+  const daysRemaining = displayDate ? calculateDaysRemaining(displayDate) : 0;
+  const clientName =
+    String((event as any)?.couple_names || '').trim() ||
+    `${String((client as any)?.name || '').trim()}${(client as any)?.name && (client as any)?.partner ? ' & ' : ''}${String((client as any)?.partner || '').trim()}`
+      .trim() ||
+    'Client';
 
   if (dataLoading || loading) {
     return (
@@ -130,7 +140,7 @@ export default function ChecklistPage() {
   }
 
   return (
-    <ClientDashboardLayout clientName={event?.couple_names || 'Client'} daysRemaining={daysRemaining}>
+    <ClientDashboardLayout clientName={clientName} daysRemaining={daysRemaining}>
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-brand-purple flex items-center gap-2 sm:gap-3">

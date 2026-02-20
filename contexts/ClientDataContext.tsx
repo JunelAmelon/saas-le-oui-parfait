@@ -4,6 +4,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, Rea
 import { useAuth } from './AuthContext';
 import {
   getClientFullData,
+  getClientFullDataWithEmail,
   ClientData,
   EventData,
 } from '@/lib/client-helpers';
@@ -51,7 +52,9 @@ export function ClientDataProvider({ children }: ClientDataProviderProps) {
       return;
     }
 
-    if (user.role !== 'client') {
+    // Some auth profiles may not expose role on first load.
+    // Only prevent client data loading when role is explicitly non-client.
+    if ((user as any)?.role && (user as any).role !== 'client') {
       setLoading(false);
       return;
     }
@@ -60,11 +63,12 @@ export function ClientDataProvider({ children }: ClientDataProviderProps) {
       setLoading(true);
       setError(null);
 
-      const data = await getClientFullData(user.uid);
+      const data = await getClientFullDataWithEmail(user.uid, (user as any)?.email);
+      const fallback = data || (await getClientFullData(user.uid));
       
-      if (data) {
-        setClient(data.client);
-        setEvent(data.event);
+      if (fallback) {
+        setClient(fallback.client);
+        setEvent(fallback.event);
       } else {
         setError('Aucune donnée client trouvée');
       }

@@ -68,6 +68,10 @@ export default function ClientGalleryAdminPage() {
 
   const albums = useMemo(() => {
     const getPhotoUrls = (p: any) => {
+      if (typeof p === 'string') {
+        const url = String(p || '').trim();
+        return { url, thumb: '' };
+      }
       const url =
         p?.url ||
         p?.file_url ||
@@ -105,6 +109,10 @@ export default function ClientGalleryAdminPage() {
 
   const photos = useMemo(() => {
     const getPhotoUrls = (p: any) => {
+      if (typeof p === 'string') {
+        const url = String(p || '').trim();
+        return { url, thumb: '' };
+      }
       const url =
         p?.url ||
         p?.file_url ||
@@ -166,12 +174,6 @@ export default function ClientGalleryAdminPage() {
             <div className="flex items-center justify-center gap-3 text-brand-gray">
               <Loader2 className="h-5 w-5 animate-spin" />
               Chargement...
-            </div>
-          </Card>
-        ) : !eventId ? (
-          <Card className="p-10 shadow-xl border-0">
-            <div className="text-center text-brand-gray">
-              Aucun événement trouvé pour ce client.
             </div>
           </Card>
         ) : (

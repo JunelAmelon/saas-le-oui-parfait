@@ -210,6 +210,35 @@ export async function getClientByAuthId(authUserId: string): Promise<ClientData 
 }
 
 /**
+ * Récupère le client par UID, avec fallback par email.
+ */
+export async function getClientByAuthIdWithEmail(authUserId: string, email?: string | null): Promise<ClientData | null> {
+  const byUid = await getClientByAuthId(authUserId);
+  if (byUid) return byUid;
+
+  const normalizedEmail = String(email || '').trim().toLowerCase();
+  if (!normalizedEmail) return null;
+
+  try {
+    const byEmail = await getDocuments('clients', [{ field: 'email', operator: '==', value: normalizedEmail }]);
+    if (byEmail.length > 0) return byEmail[0] as ClientData;
+  } catch (error) {
+    console.error('Error fetching client by email:', error);
+  }
+
+  try {
+    const byClientEmail = await getDocuments('clients', [
+      { field: 'client_email', operator: '==', value: normalizedEmail },
+    ]);
+    if (byClientEmail.length > 0) return byClientEmail[0] as ClientData;
+  } catch (error) {
+    console.error('Error fetching client by client_email:', error);
+  }
+
+  return null;
+}
+
+/**
  * Récupère l'événement d'un client
  */
 export async function getClientEvent(clientId: string): Promise<EventData | null> {
@@ -255,6 +284,26 @@ export async function getClientFullData(authUserId: string) {
     };
   } catch (error) {
     console.error('Error fetching client full data:', error);
+    return null;
+  }
+}
+
+export async function getClientFullDataWithEmail(authUserId: string, email?: string | null) {
+  try {
+    const client = await getClientByAuthIdWithEmail(authUserId, email);
+    if (!client) return null;
+
+    let event = await getClientEvent(client.id);
+    if (!event && client.email) {
+      event = await getClientEventByEmail(client.email);
+    }
+
+    return {
+      client,
+      event,
+    };
+  } catch (error) {
+    console.error('Error fetching client full data with email:', error);
     return null;
   }
 }

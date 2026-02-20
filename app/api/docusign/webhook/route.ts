@@ -190,6 +190,44 @@ export async function POST(req: Request) {
               { merge: true }
             );
 
+            // Create invoice for the signed devis (idempotent)
+            try {
+              const existingInvoiceSnap = await adminDb
+                .collection('invoices')
+                .where('devis_id', '==', String(meta.doc_id))
+                .limit(1)
+                .get();
+              if (existingInvoiceSnap.empty) {
+                const devisSnap = await adminDb.collection('devis').doc(String(meta.doc_id)).get();
+                const devisData = devisSnap.exists ? (devisSnap.data() as any) : null;
+                const ref = String(devisData?.reference || 'Devis').trim();
+                const invoiceRef = `FACT-${ref.replace(/^DEVIS[-\s]*/i, '').replace(/^DEV[-\s]*/i, '').trim() || String(meta.doc_id)}`;
+                const invoiceDate = new Date().toLocaleDateString('fr-FR');
+                const dueDate = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toLocaleDateString('fr-FR');
+
+                await adminDb.collection('invoices').add({
+                  planner_id: devisData?.planner_id || meta?.planner_uid || null,
+                  client_id: devisData?.client_id || meta?.client_id || null,
+                  reference: invoiceRef,
+                  client: devisData?.client || devisData?.client_name || '',
+                  client_email: devisData?.client_email || meta?.client_email || '',
+                  date: invoiceDate,
+                  due_date: dueDate,
+                  montant_ht: Number(devisData?.montant_ht ?? 0) || 0,
+                  montant_ttc: Number(devisData?.montant_ttc ?? 0) || 0,
+                  paid: 0,
+                  status: 'pending',
+                  type: 'invoice',
+                  pdf_url: signedUrl,
+                  source: 'devis',
+                  devis_id: String(meta.doc_id),
+                  created_at: new Date(),
+                });
+              }
+            } catch (e) {
+              console.warn('Unable to create invoice for signed devis:', e);
+            }
+
             try {
               const docsSnap = await adminDb
                 .collection('documents')

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Card } from '@/components/ui/card';
 import { Euro } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -14,6 +15,7 @@ interface PaymentsProps {
 }
 
 export function ClientPayments({ eventId, clientId }: PaymentsProps) {
+    const router = useRouter();
     const [payments, setPayments] = useState<PaymentData[]>([]);
     const [loading, setLoading] = useState(true);
 
@@ -96,7 +98,7 @@ export function ClientPayments({ eventId, clientId }: PaymentsProps) {
                 <Button
                     variant="outline"
                     className="w-full border-2 border-brand-turquoise text-brand-gray hover:bg-brand-turquoise hover:text-white"
-                    onClick={() => alert("Fonctionnalité de paiement en ligne bientôt disponible")}
+                    onClick={() => router.push('/espace-client/paiements')}
                 >
                     Effectuer un paiement
                 </Button>

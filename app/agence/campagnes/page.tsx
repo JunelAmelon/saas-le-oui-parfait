@@ -83,6 +83,7 @@ const statusConfig = {
 
 export default function CampaignsPage() {
   const [isCampaignModalOpen, setIsCampaignModalOpen] = useState(false);
+  const comingSoon = true;
 
   return (
     <DashboardLayout>
@@ -95,10 +96,11 @@ export default function CampaignsPage() {
             <p className="text-sm sm:text-base text-brand-gray">
               Créez et suivez vos campagnes marketing
             </p>
-          </div>
+            </div>
           <Button 
             className="bg-brand-turquoise hover:bg-brand-turquoise-hover gap-2 w-full sm:w-auto"
             onClick={() => setIsCampaignModalOpen(true)}
+            disabled={comingSoon}
           >
             <Plus className="h-4 w-4" />
             <span className="hidden sm:inline">Nouvelle campagne</span>
@@ -106,56 +108,71 @@ export default function CampaignsPage() {
           </Button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          <Card className="p-6 shadow-xl border-0 bg-gradient-to-br from-brand-beige to-white">
-            <div className="flex items-center justify-between mb-2">
-              <Send className="h-8 w-8 text-brand-turquoise" />
+        {comingSoon ? (
+          <Card className="p-4 border border-brand-turquoise/20 bg-brand-turquoise/5">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-brand-purple">À venir</p>
+                <p className="text-sm text-brand-gray">La fonctionnalité Campagnes email arrive bientôt.</p>
+              </div>
+              <Badge className="bg-brand-turquoise/15 text-brand-turquoise">Bientôt</Badge>
             </div>
-            <p className="text-3xl font-bold text-brand-purple mb-1">
-              {campaignsDemo.filter(c => c.status === 'sent').length}
-            </p>
-            <p className="text-sm text-brand-gray">Campagnes envoyées</p>
           </Card>
+        ) : null}
 
-          <Card className="p-6 shadow-xl border-0 bg-gradient-to-br from-blue-50 to-white">
-            <div className="flex items-center justify-between mb-2">
-              <Users className="h-8 w-8 text-blue-500" />
-            </div>
-            <p className="text-3xl font-bold text-brand-purple mb-1">
-              {campaignsDemo.filter(c => c.status === 'sent').reduce((acc, c) => acc + c.recipientsCount, 0)}
-            </p>
-            <p className="text-sm text-brand-gray">Destinataires totaux</p>
-          </Card>
+        <div className={comingSoon ? 'pointer-events-none opacity-60' : ''}>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <Card className="p-6 shadow-xl border-0 bg-gradient-to-br from-brand-beige to-white">
+              <div className="flex items-center justify-between mb-2">
+                <Send className="h-8 w-8 text-brand-turquoise" />
+              </div>
+              <p className="text-3xl font-bold text-brand-purple mb-1">
+                {campaignsDemo.filter((c) => c.status === 'sent').length}
+              </p>
+              <p className="text-sm text-brand-gray">Campagnes envoyées</p>
+            </Card>
 
-          <Card className="p-6 shadow-xl border-0 bg-gradient-to-br from-green-50 to-white">
-            <div className="flex items-center justify-between mb-2">
-              <Eye className="h-8 w-8 text-green-500" />
-            </div>
-            <p className="text-3xl font-bold text-brand-purple mb-1">
-              {Math.round(
-                campaignsDemo.filter(c => c.status === 'sent').reduce((acc, c) => acc + c.openRate, 0) /
-                campaignsDemo.filter(c => c.status === 'sent').length
-              )}%
-            </p>
-            <p className="text-sm text-brand-gray">Taux d&apos;ouverture moyen</p>
-          </Card>
+            <Card className="p-6 shadow-xl border-0 bg-gradient-to-br from-blue-50 to-white">
+              <div className="flex items-center justify-between mb-2">
+                <Users className="h-8 w-8 text-blue-500" />
+              </div>
+              <p className="text-3xl font-bold text-brand-purple mb-1">
+                {campaignsDemo
+                  .filter((c) => c.status === 'sent')
+                  .reduce((acc, c) => acc + c.recipientsCount, 0)}
+              </p>
+              <p className="text-sm text-brand-gray">Destinataires totaux</p>
+            </Card>
 
-          <Card className="p-6 shadow-xl border-0 bg-gradient-to-br from-purple-50 to-white">
-            <div className="flex items-center justify-between mb-2">
-              <MousePointerClick className="h-8 w-8 text-purple-500" />
-            </div>
-            <p className="text-3xl font-bold text-brand-purple mb-1">
-              {Math.round(
-                campaignsDemo.filter(c => c.status === 'sent').reduce((acc, c) => acc + c.clickRate, 0) /
-                campaignsDemo.filter(c => c.status === 'sent').length
-              )}%
-            </p>
-            <p className="text-sm text-brand-gray">Taux de clic moyen</p>
-          </Card>
-        </div>
+            <Card className="p-6 shadow-xl border-0 bg-gradient-to-br from-green-50 to-white">
+              <div className="flex items-center justify-between mb-2">
+                <Eye className="h-8 w-8 text-green-500" />
+              </div>
+              <p className="text-3xl font-bold text-brand-purple mb-1">
+                {Math.round(
+                  campaignsDemo.filter((c) => c.status === 'sent').reduce((acc, c) => acc + c.openRate, 0) /
+                    campaignsDemo.filter((c) => c.status === 'sent').length
+                )}%
+              </p>
+              <p className="text-sm text-brand-gray">Taux d&apos;ouverture moyen</p>
+            </Card>
 
-        <div className="space-y-4">
-          {campaignsDemo.map((campaign) => {
+            <Card className="p-6 shadow-xl border-0 bg-gradient-to-br from-purple-50 to-white">
+              <div className="flex items-center justify-between mb-2">
+                <MousePointerClick className="h-8 w-8 text-purple-500" />
+              </div>
+              <p className="text-3xl font-bold text-brand-purple mb-1">
+                {Math.round(
+                  campaignsDemo.filter((c) => c.status === 'sent').reduce((acc, c) => acc + c.clickRate, 0) /
+                    campaignsDemo.filter((c) => c.status === 'sent').length
+                )}%
+              </p>
+              <p className="text-sm text-brand-gray">Taux de clic moyen</p>
+            </Card>
+          </div>
+
+          <div className="space-y-4">
+            {campaignsDemo.map((campaign) => {
             const statusInfo = statusConfig[campaign.status as keyof typeof statusConfig];
             const StatusIcon = statusInfo.icon;
 
@@ -313,11 +330,12 @@ export default function CampaignsPage() {
               </Card>
             );
           })}
+          </div>
         </div>
       </div>
 
       <CampaignModal
-        isOpen={isCampaignModalOpen}
+        isOpen={comingSoon ? false : isCampaignModalOpen}
         onClose={() => setIsCampaignModalOpen(false)}
       />
     </DashboardLayout>

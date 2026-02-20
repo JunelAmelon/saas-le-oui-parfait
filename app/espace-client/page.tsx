@@ -51,8 +51,13 @@ export default function ClientPortalPage() {
     'Client';
   const daysRemaining = displayDate ? calculateDaysRemaining(displayDate) : 0;
 
-  const themeStyle = (event as any)?.theme?.style || '';
-  const themeColors: string[] = (event as any)?.theme?.colors || [];
+  const themeStyle =
+    (event as any)?.theme?.style ||
+    (client as any)?.theme?.style ||
+    (client as any)?.theme_style ||
+    '';
+  const themeColors: string[] =
+    (event as any)?.theme?.colors || (client as any)?.theme?.colors || (client as any)?.theme_colors || [];
 
   const sortedMilestones = useMemo(() => {
     return milestones.slice().sort((a, b) => String(a.deadline || '').localeCompare(String(b.deadline || '')));
@@ -83,13 +88,19 @@ export default function ClientPortalPage() {
 
   useEffect(() => {
     const fetchMilestones = async () => {
-      if (!event?.id) {
+      const eventId = String(event?.id || '').trim();
+      const clId = String(client?.id || '').trim();
+      if (!eventId && !clId) {
         setMilestones([]);
         return;
       }
       setMilestonesLoading(true);
       try {
-        const items = await getDocuments('tasks', [{ field: 'event_id', operator: '==', value: event.id }]);
+        const items = await getDocuments('tasks', [
+          eventId
+            ? { field: 'event_id', operator: '==', value: eventId }
+            : { field: 'client_id', operator: '==', value: clId },
+        ]);
         const only = (items as any[]).filter((t) => t?.kind === 'milestone') as Milestone[];
         setMilestones(only);
       } catch (e) {
@@ -101,7 +112,7 @@ export default function ClientPortalPage() {
     };
 
     fetchMilestones();
-  }, [event?.id]);
+  }, [event?.id, client?.id]);
 
   if (authLoading || !user || user.role !== 'client' || dataLoading) {
     return (
@@ -250,23 +261,15 @@ export default function ClientPortalPage() {
           </Card>
         </div>
 
-        {event?.id ? (
-          <>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              <ClientDocuments eventId={event.id} clientId={client?.id} />
-              <ClientPayments eventId={event.id} clientId={client?.id} />
-            </div>
-            {client?.id ? (
-              <ClientDevis clientId={client.id} clientEmail={client.email} variant="table" />
-            ) : null}
-          </>
-        ) : (
-          <Card className="p-6 shadow-xl border-0">
-            <p className="text-brand-gray">
-              Certaines sections (documents, paiements, timeline) seront disponibles une fois que votre wedding planner aura associé votre événement.
-            </p>
-          </Card>
-        )}
+        <>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <ClientDocuments eventId={event?.id || ''} clientId={client?.id} />
+            <ClientPayments eventId={event?.id || ''} clientId={client?.id} />
+          </div>
+          {client?.id ? (
+            <ClientDevis clientId={client.id} clientEmail={client.email} variant="table" />
+          ) : null}
+        </>
       </div>
     </ClientDashboardLayout>
   );

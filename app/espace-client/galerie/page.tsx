@@ -89,6 +89,10 @@ export default function GaleriePage() {
   const daysRemaining = event ? calculateDaysRemaining(event.event_date) : 0;
 
   const getPhotoUrls = (p: any) => {
+    if (typeof p === 'string') {
+      const url = String(p || '').trim();
+      return { url, thumb: '' };
+    }
     const url =
       p?.url ||
       p?.file_url ||
@@ -156,17 +160,14 @@ export default function GaleriePage() {
   useEffect(() => {
     async function fetchGalleries() {
       const evId = effectiveEventId;
-      if (!evId) {
-        setGalleries([]);
-        setLoading(false);
-        return;
-      }
       try {
         setLoading(true);
-        const itemsByEvent = await getEventGalleries(evId);
-        const itemsByClient = client?.id
-          ? ((await getDocuments('galleries', [{ field: 'client_id', operator: '==', value: client.id }])) as GalleryData[])
-          : ([] as GalleryData[]);
+        const [itemsByEvent, itemsByClient] = await Promise.all([
+          evId ? getEventGalleries(evId) : Promise.resolve([]),
+          client?.id
+            ? ((await getDocuments('galleries', [{ field: 'client_id', operator: '==', value: client.id }])) as GalleryData[])
+            : Promise.resolve([] as GalleryData[]),
+        ]);
 
         const merged = new Map<string, GalleryData>();
         (itemsByEvent || []).forEach((g) => merged.set(g.id, g));
@@ -214,8 +215,8 @@ export default function GaleriePage() {
   }, [galleries]);
 
   const handleUpload = async () => {
-    if (!client?.id || !event?.id) {
-      toast.error('Client / événement introuvable');
+    if (!client?.id) {
+      toast.error('Client introuvable');
       return;
     }
     if (uploadFiles.length === 0) {
@@ -234,7 +235,7 @@ export default function GaleriePage() {
       let albumId = selectedUploadAlbumId;
       if (creatingNew) {
         const created = await addDocument('galleries', {
-          event_id: event.id,
+          event_id: effectiveEventId || '',
           client_id: client.id,
           planner_id: client.planner_id,
           name: newAlbumName.trim(),
@@ -278,7 +279,7 @@ export default function GaleriePage() {
       });
 
       const [itemsByEvent, itemsByClient] = await Promise.all([
-        getEventGalleries(event.id),
+        effectiveEventId ? getEventGalleries(effectiveEventId) : Promise.resolve([]),
         getDocuments('galleries', [{ field: 'client_id', operator: '==', value: client.id }]).catch(() => []),
       ]);
 

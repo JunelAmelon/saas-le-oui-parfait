@@ -337,6 +337,12 @@ export default function DocumentsPage() {
     }
     setSavingDevisId(doc.devis_id);
     try {
+      const idToken = await auth.currentUser?.getIdToken().catch(() => null);
+      if (!idToken) {
+        toast.error('Vous devez être connecté');
+        return;
+      }
+
       const devis = (await getDocument('devis', doc.devis_id)) as any;
       if (!devis) {
         toast.error('Devis introuvable');
@@ -348,95 +354,56 @@ export default function DocumentsPage() {
         accepted_at: new Date().toISOString(),
       });
 
-      const montantTTC = Number(devis.montant_ttc ?? 0);
-      const montantHT = Number(devis.montant_ht ?? 0);
-      const baseRef = String(devis.reference || '').trim();
-      const normalizedRef = baseRef.replace(/^DEVIS[-\s]*/i, '').replace(/^DEV[-\s]*/i, '').trim();
-      const invoiceRef = `FACT-${normalizedRef || baseRef || doc.devis_id}`;
-      const invoiceDate = new Date().toLocaleDateString('fr-FR');
-
-      const stampDevisPdfToFacture = async (devisPdfUrl: string): Promise<Blob> => {
-        const res = await fetch(devisPdfUrl);
-        if (!res.ok) {
-          throw new Error(`Unable to download devis PDF (${res.status})`);
-        }
-        const pdfBytes = await res.arrayBuffer();
-
-        const { PDFDocument, StandardFonts, rgb } = await import('pdf-lib');
-        const pdfDoc = await PDFDocument.load(pdfBytes);
-        const pages = pdfDoc.getPages();
-        if (!pages.length) {
-          throw new Error('Devis PDF has no pages');
-        }
-
-        const page = pages[0];
-        const { width, height } = page.getSize();
-        const font = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-
-        const rectW = 180;
-        const rectH = 54;
-        const rectX = width - 24 - rectW;
-        const rectY = height - 24 - 62;
-
-        page.drawRectangle({
-          x: rectX,
-          y: rectY,
-          width: rectW,
-          height: rectH,
-          color: rgb(1, 1, 1),
-          borderColor: rgb(1, 1, 1),
+      // Create envelope if missing, then open client signing.
+      const envelopeIdExisting = String(devis?.docusign?.envelope_id || '').trim();
+      let envelopeId = envelopeIdExisting;
+      if (!envelopeId) {
+        const createRes = await fetch('/api/docusign/create-envelope', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${idToken}`,
+          },
+          body: JSON.stringify({ docType: 'devis', docId: doc.devis_id }),
         });
-
-        page.drawText('FACTURE', {
-          x: rectX + 14,
-          y: rectY + 26,
-          size: 20,
-          font,
-          color: rgb(0.35, 0.0, 0.45),
-        });
-
-        const stampedBytes = await pdfDoc.save();
-        const stampedArrayBuffer = Uint8Array.from(stampedBytes).buffer;
-        return new Blob([stampedArrayBuffer], { type: 'application/pdf' });
-      };
-
-      let invoicePdfUrl: string | null = null;
-      try {
-        const devisPdfUrl = devis.pdf_url || doc.file_url;
-        if (!devisPdfUrl) {
-          throw new Error('Missing devis PDF URL');
+        const createJson = await createRes.json().catch(() => null);
+        if (!createRes.ok) {
+          toast.error(createJson?.error || 'Impossible de préparer la signature');
+          return;
         }
-        const stampedBlob = await stampDevisPdfToFacture(devisPdfUrl);
-        invoicePdfUrl = await uploadPdf(stampedBlob, invoiceRef);
-      } catch (e) {
-        console.warn('Unable to stamp/upload invoice PDF, fallback to devis/doc PDF:', e);
-        invoicePdfUrl = devis.pdf_url || doc.file_url || null;
+        envelopeId = String(createJson?.envelopeId || '').trim();
       }
 
-      await addDocument('invoices', {
-        planner_id: devis.planner_id,
-        client_id: client.id,
-        reference: invoiceRef,
-        client: devis.client || '',
-        client_email: devis.client_email || client.email || '',
-        date: invoiceDate,
-        due_date: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toLocaleDateString('fr-FR'),
-        montant_ht: montantHT,
-        montant_ttc: montantTTC,
-        paid: 0,
-        status: 'pending',
-        type: 'invoice',
-        pdf_url: invoicePdfUrl,
-        source: 'devis',
-        devis_id: doc.devis_id,
-        created_at: new Date(),
-      });
+      if (!envelopeId) {
+        toast.error('Impossible de préparer la signature');
+        return;
+      }
 
-      setDocuments((prev) => prev.map((d) => (d.id === doc.id ? { ...d, status: 'accepted' } : d)));
-      toast.success('Devis validé');
+      const viewRes = await fetch('/api/docusign/recipient-view', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({ envelopeId, recipientRole: 'client' }),
+      });
+      const viewJson = await viewRes.json().catch(() => null);
+      if (!viewRes.ok) {
+        toast.error(viewJson?.error || 'Impossible d’ouvrir la signature');
+        return;
+      }
+
+      const url = String(viewJson?.url || '').trim();
+      if (!url) {
+        toast.error('URL de signature introuvable');
+        return;
+      }
+
+      toast.success('Redirection vers signature');
+      window.location.href = url;
     } catch (e) {
       console.error('Error accepting devis:', e);
-      toast.error('Impossible de valider le devis');
+      toast.error('Impossible de valider / signer le devis');
     } finally {
       setSavingDevisId(null);
     }
@@ -689,6 +656,9 @@ export default function DocumentsPage() {
                     const isDevis = doc.type?.toLowerCase() === 'devis' && Boolean(doc.devis_id);
                     const devisBusy = isDevis && savingDevisId === doc.devis_id;
                     const devisCanDecide = isDevis && (doc.status === 'sent' || !doc.status);
+                    const devisClientSigned = isDevis && clientRecipientStatus === 'completed';
+                    const devisFullySigned = isDevis && (doc.status === 'signed' || dsStatusRaw === 'completed');
+                    const devisCanSign = devisCanDecide && !devisClientSigned && !devisFullySigned;
                     return (
                       <TableRow key={doc.id}>
                         <TableCell>
@@ -744,9 +714,9 @@ export default function DocumentsPage() {
                                 <>
                                   <DropdownMenuItem
                                     onClick={() => void acceptDevisFromDoc(doc)}
-                                    disabled={!devisCanDecide || devisBusy}
+                                    disabled={!devisCanSign || devisBusy}
                                   >
-                                    {devisBusy ? 'Validation...' : 'Valider'}
+                                    {devisBusy ? 'Ouverture...' : 'Valider / Signer'}
                                   </DropdownMenuItem>
                                   <DropdownMenuItem
                                     onClick={() => void rejectDevisFromDoc(doc)}

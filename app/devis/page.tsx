@@ -8,6 +8,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -15,7 +22,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { Plus, Search, FileText, Eye, Download, Send, Clock, CheckCircle, Euro, Calendar, Edit, Loader2, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, Search, FileText, Eye, Download, Send, Clock, CheckCircle, Euro, Calendar, Edit, Loader2, Trash2, ChevronLeft, ChevronRight, MoreVertical, PenLine } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { getDocument, getDocuments, addDocument, updateDocument, deleteDocument } from '@/lib/db';
@@ -38,6 +45,13 @@ interface Devis {
   tva: number;
   pdfUrl?: string;
   createdAt?: any;
+  docusign?: {
+    envelope_id?: string;
+    status?: string;
+    updated_at?: string;
+    client_email?: string;
+    planner_email?: string;
+  };
 }
 
 
@@ -55,6 +69,11 @@ const statusConfig = {
   accepted: {
     label: 'Accepté',
     color: 'bg-green-100 text-green-700',
+    icon: CheckCircle,
+  },
+  signed: {
+    label: 'Signé',
+    color: 'bg-emerald-100 text-emerald-700',
     icon: CheckCircle,
   },
   rejected: {
@@ -90,6 +109,60 @@ export default function DevisPage() {
   const [bonCommandeVendors, setBonCommandeVendors] = useState<any[]>([]);
   const [bonCommandeVendorId, setBonCommandeVendorId] = useState('');
   const [bonCommandeLoading, setBonCommandeLoading] = useState(false);
+
+  const handleSignerPlanner = async (devis: Devis) => {
+    if (!user) return;
+    try {
+      const idToken = await (await import('@/lib/firebase')).auth.currentUser?.getIdToken().catch(() => null);
+      if (!idToken) {
+        toast.error('Connexion requise');
+        return;
+      }
+
+      // Ensure envelope exists
+      let envelopeId = String(devis?.docusign?.envelope_id || '').trim();
+      if (!envelopeId) {
+        const res = await fetch('/api/docusign/create-envelope', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${idToken}`,
+          },
+          body: JSON.stringify({ docType: 'devis', docId: devis.id }),
+        });
+        const json = await res.json().catch(() => null);
+        if (!res.ok) {
+          toast.error(json?.error || 'Impossible de créer l’enveloppe');
+          return;
+        }
+        envelopeId = String(json?.envelopeId || '').trim();
+      }
+
+      const res2 = await fetch('/api/docusign/recipient-view', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({ envelopeId, recipientRole: 'planner' }),
+      });
+
+      const json2 = await res2.json().catch(() => null);
+      if (!res2.ok) {
+        toast.error(json2?.error || 'Impossible d’ouvrir la signature');
+        return;
+      }
+      const url = String(json2?.url || '').trim();
+      if (!url) {
+        toast.error('URL DocuSign introuvable');
+        return;
+      }
+      window.location.href = url;
+    } catch (e) {
+      console.error('Error opening planner signing:', e);
+      toast.error('Erreur lors de l’ouverture de signature');
+    }
+  };
 
   const generateBonCommandePdf = async (params: {
     reference: string;
@@ -214,6 +287,7 @@ export default function DevisPage() {
         tva: d.tva,
         pdfUrl: d.pdf_url || '',
         createdAt: d.created_at || null,
+        docusign: d.docusign || undefined,
       }));
 
       const parseCreatedAt = (v: any) => {
@@ -629,8 +703,16 @@ export default function DevisPage() {
         ) : (
           <div className="space-y-4">
             {paginatedDevis.map((devis) => {
-            const config = statusConfig[devis.status as keyof typeof statusConfig];
+            const config =
+              (statusConfig as any)[String(devis.status || '').toLowerCase()] ||
+              ({ label: String(devis.status || 'Statut'), color: 'bg-gray-100 text-gray-700', icon: FileText } as const);
             const StatusIcon = config.icon;
+            const dsStatusRaw = String(devis?.docusign?.status || '').toLowerCase();
+            const dsRecipients: any = (devis as any)?.docusign?.recipients || null;
+            const plannerRecipientStatus = String(dsRecipients?.planner?.status || '').toLowerCase();
+            const plannerSigned = plannerRecipientStatus === 'completed';
+            const fullySigned = devis.status === 'signed' || dsStatusRaw === 'completed';
+            const canPlannerSign = !fullySigned && !plannerSigned && (devis.status === 'sent' || devis.status === 'accepted' || Boolean(devis?.docusign?.envelope_id));
 
             return (
               <Card key={devis.id} className="p-6 shadow-xl border-0 hover:shadow-2xl transition-shadow">
@@ -651,6 +733,14 @@ export default function DevisPage() {
                   </Badge>
                 </div>
 
+                {devis?.docusign?.envelope_id ? (
+                  <div className="mb-4">
+                    <Badge className="bg-purple-100 text-purple-700">
+                      Signature: {String(devis?.docusign?.status || 'sent')}
+                    </Badge>
+                  </div>
+                ) : null}
+
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4 p-4 rounded-lg bg-gray-50">
                   <div>
                     <p className="text-xs text-brand-gray uppercase tracking-label mb-1">Montant HT</p>
@@ -670,56 +760,124 @@ export default function DevisPage() {
                   </div>
                 </div>
 
-                <div className="flex gap-2">
-                  <Button 
-                    size="sm" 
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    size="sm"
                     className="bg-brand-turquoise hover:bg-brand-turquoise-hover gap-2"
                     onClick={() => handleViewDetail(devis)}
                   >
                     <Eye className="h-3 w-3" />
                     Voir
                   </Button>
-                  <Button 
-                    size="sm" 
-                    variant="outline" 
-                    className="border-2 border-brand-turquoise text-brand-gray hover:bg-brand-turquoise hover:text-white gap-2"
-                    onClick={() => handleDownload(devis)}
-                  >
-                    <Download className="h-3 w-3" />
-                    PDF
-                  </Button>
-                  {devis.status === 'draft' && (
-                    <Button 
-                      size="sm" 
-                      variant="outline" 
-                      className="border-2 border-blue-500 text-blue-600 hover:bg-blue-500 hover:text-white gap-2"
-                      onClick={() => handleSend(devis)}
-                    >
-                      <Send className="h-3 w-3" />
-                      Envoyer
-                    </Button>
-                  )}
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="border-2 border-brand-purple text-brand-purple hover:bg-brand-purple hover:text-white gap-2"
-                    onClick={() => openEdit(devis)}
-                  >
-                    <Edit className="h-3 w-3" />
-                    Modifier
-                  </Button>
 
-                  {devis.status === 'accepted' ? (
+                  {/* Desktop actions */}
+                  <div className="hidden sm:flex flex-wrap items-center gap-2">
                     <Button
                       size="sm"
                       variant="outline"
-                      className="border-2 border-green-600 text-green-700 hover:bg-green-600 hover:text-white gap-2"
-                      onClick={() => void openBonCommande(devis)}
+                      className="border-2 border-brand-turquoise text-brand-gray hover:bg-brand-turquoise hover:text-white gap-2"
+                      onClick={() => handleDownload(devis)}
                     >
-                      <FileText className="h-3 w-3" />
-                      Bon de commande
+                      <Download className="h-3 w-3" />
+                      PDF
                     </Button>
-                  ) : null}
+
+                    {devis.status === 'draft' ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="border-2 border-blue-500 text-blue-600 hover:bg-blue-500 hover:text-white gap-2"
+                        onClick={() => handleSend(devis)}
+                      >
+                        <Send className="h-3 w-3" />
+                        Envoyer
+                      </Button>
+                    ) : null}
+
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-2 border-brand-purple text-brand-purple hover:bg-brand-purple hover:text-white gap-2"
+                      onClick={() => openEdit(devis)}
+                    >
+                      <Edit className="h-3 w-3" />
+                      Modifier
+                    </Button>
+
+                    {canPlannerSign ? (
+                      <Button
+                        size="sm"
+                        className="bg-green-600 hover:bg-green-700 text-white gap-2"
+                        onClick={() => void handleSignerPlanner(devis)}
+                      >
+                        <PenLine className="h-3 w-3" />
+                        Signer
+                      </Button>
+                    ) : null}
+
+                    {devis.status === 'accepted' ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="border-2 border-green-600 text-green-700 hover:bg-green-600 hover:text-white gap-2"
+                        onClick={() => void openBonCommande(devis)}
+                      >
+                        <FileText className="h-3 w-3" />
+                        Bon de commande
+                      </Button>
+                    ) : null}
+                  </div>
+
+                  {/* Mobile actions */}
+                  <div className="sm:hidden">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="border-2 border-brand-turquoise text-brand-gray hover:bg-brand-turquoise hover:text-white"
+                          aria-label="Actions"
+                        >
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-56">
+                        <DropdownMenuItem onClick={() => handleDownload(devis)} className="gap-2">
+                          <Download className="h-4 w-4" />
+                          Télécharger PDF
+                        </DropdownMenuItem>
+
+                        {devis.status === 'draft' ? (
+                          <DropdownMenuItem onClick={() => handleSend(devis)} className="gap-2">
+                            <Send className="h-4 w-4" />
+                            Envoyer
+                          </DropdownMenuItem>
+                        ) : null}
+
+                        <DropdownMenuItem onClick={() => openEdit(devis)} className="gap-2">
+                          <Edit className="h-4 w-4" />
+                          Modifier
+                        </DropdownMenuItem>
+
+                        {canPlannerSign ? (
+                          <DropdownMenuItem onClick={() => void handleSignerPlanner(devis)} className="gap-2">
+                            <PenLine className="h-4 w-4" />
+                            Signer
+                          </DropdownMenuItem>
+                        ) : null}
+
+                        {devis.status === 'accepted' ? (
+                          <>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onClick={() => void openBonCommande(devis)} className="gap-2">
+                              <FileText className="h-4 w-4" />
+                              Bon de commande
+                            </DropdownMenuItem>
+                          </>
+                        ) : null}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
                 </div>
               </Card>
               );

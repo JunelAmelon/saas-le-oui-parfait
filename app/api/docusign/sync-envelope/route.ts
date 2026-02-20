@@ -130,6 +130,32 @@ export async function POST(req: Request) {
           },
           { merge: true }
         );
+
+      // Business rule: a devis is considered "accepted" only once the client has completed their signature.
+      // We do not wait for the full envelope to be completed (planner may sign after).
+      if (targetDocType === 'devis') {
+        const clientRecipientStatus = String(recipientsPayload?.client?.status || '').toLowerCase();
+        const clientSigned = clientRecipientStatus === 'completed';
+        if (clientSigned) {
+          try {
+            const devisSnap = await adminDb.collection('devis').doc(targetDocId).get();
+            const devisData = devisSnap.exists ? (devisSnap.data() as any) : null;
+            const currentStatus = String(devisData?.status || '').toLowerCase();
+            if (currentStatus !== 'signed' && currentStatus !== 'completed') {
+              const acceptedAtExisting = devisData?.accepted_at;
+              await adminDb.collection('devis').doc(targetDocId).set(
+                {
+                  status: 'accepted',
+                  accepted_at: acceptedAtExisting || new Date().toISOString(),
+                },
+                { merge: true }
+              );
+            }
+          } catch (e) {
+            console.warn('docusign sync-envelope: unable to mark devis accepted after client signature:', e);
+          }
+        }
+      }
     }
 
     // If completed, download signed combined PDF and replace pdf_url (same behavior as webhook)
@@ -193,6 +219,44 @@ export async function POST(req: Request) {
             },
             { merge: true }
           );
+
+          // Create invoice for the signed devis (idempotent)
+          try {
+            const existingInvoiceSnap = await adminDb
+              .collection('invoices')
+              .where('devis_id', '==', targetDocId)
+              .limit(1)
+              .get();
+            if (existingInvoiceSnap.empty) {
+              const devisSnap = await adminDb.collection('devis').doc(targetDocId).get();
+              const devisData = devisSnap.exists ? (devisSnap.data() as any) : null;
+              const ref = String(devisData?.reference || 'Devis').trim();
+              const invoiceRef = `FACT-${ref.replace(/^DEVIS[-\s]*/i, '').replace(/^DEV[-\s]*/i, '').trim() || targetDocId}`;
+              const invoiceDate = new Date().toLocaleDateString('fr-FR');
+              const dueDate = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toLocaleDateString('fr-FR');
+
+              await adminDb.collection('invoices').add({
+                planner_id: devisData?.planner_id || meta?.planner_uid || null,
+                client_id: devisData?.client_id || meta?.client_id || null,
+                reference: invoiceRef,
+                client: devisData?.client || devisData?.client_name || '',
+                client_email: devisData?.client_email || meta?.client_email || '',
+                date: invoiceDate,
+                due_date: dueDate,
+                montant_ht: Number(devisData?.montant_ht ?? 0) || 0,
+                montant_ttc: Number(devisData?.montant_ttc ?? 0) || 0,
+                paid: 0,
+                status: 'pending',
+                type: 'invoice',
+                pdf_url: uploadedUrl,
+                source: 'devis',
+                devis_id: targetDocId,
+                created_at: new Date(),
+              });
+            }
+          } catch (e) {
+            console.warn('docusign sync-envelope: unable to create invoice for signed devis:', e);
+          }
 
           try {
             const docsSnap = await adminDb.collection('documents').where('devis_id', '==', targetDocId).get();

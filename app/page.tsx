@@ -10,6 +10,7 @@ import { QuoteList } from '@/components/dashboard/QuoteList';
 import { TaskList } from '@/components/dashboard/TaskList';
 import { TimeTracker } from '@/components/dashboard/TimeTracker';
 import { Euro, Calendar, Users, TrendingUp, Loader2, Heart, Eye, MoreVertical, Edit, MessageSquare } from 'lucide-react';
+
 import { getDocuments } from '@/lib/db';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
@@ -26,7 +27,9 @@ interface DashboardStats {
   eventsCount: number;
   activeEvents: any[];
   upcomingTasks: any[];
-  revenue: number;
+  revenueCollected: number;
+  revenueRemaining: number;
+  expensesTotal: number;
   conversionRate: number;
 }
 
@@ -62,7 +65,9 @@ export default function Home() {
     eventsCount: 0,
     activeEvents: [],
     upcomingTasks: [],
-    revenue: 0,
+    revenueCollected: 0,
+    revenueRemaining: 0,
+    expensesTotal: 0,
     conversionRate: 0
   });
   const [dataLoading, setDataLoading] = useState(true);
@@ -83,7 +88,7 @@ export default function Home() {
       if (!user || user.role !== 'planner') return;
 
       try {
-        const [prospects, events, tasks, clients, devis] = await Promise.all([
+        const [prospects, events, tasks, clients, devis, invoices, expenses] = await Promise.all([
           getDocuments('prospects', [{ field: 'planner_id', operator: '==', value: user.uid }]),
           getDocuments('events', [{ field: 'planner_id', operator: '==', value: user.uid }]),
           getDocuments('tasks', [
@@ -91,15 +96,30 @@ export default function Home() {
             { field: 'status', operator: '==', value: 'todo' }
           ]),
           getDocuments('clients', [{ field: 'planner_id', operator: '==', value: user.uid }]),
-          getDocuments('devis', [{ field: 'planner_id', operator: '==', value: user.uid }])
+          getDocuments('devis', [{ field: 'planner_id', operator: '==', value: user.uid }]),
+          getDocuments('invoices', [{ field: 'planner_id', operator: '==', value: user.uid }]),
+          getDocuments('expenses', [{ field: 'planner_id', operator: '==', value: user.uid }]),
         ]);
 
         const signedEvents = events.filter((e: any) =>
           ['confirmed', 'in_progress', 'completed'].includes(e.status)
         );
 
-        const revenue = signedEvents.reduce(
-          (acc: number, e: any) => acc + (parseInt(e.budget) || 0),
+        const revenueCollected = (invoices as any[]).reduce(
+          (acc: number, inv: any) => acc + Number(inv?.paid || 0),
+          0
+        );
+
+        const revenueRemaining = (invoices as any[])
+          .filter((inv: any) => String(inv?.status || '') !== 'paid')
+          .reduce((acc: number, inv: any) => {
+            const total = Number(inv?.montant_ttc || inv?.montantTTC || 0);
+            const paid = Number(inv?.paid || 0);
+            return acc + Math.max(0, total - paid);
+          }, 0);
+
+        const expensesTotal = (expenses as any[]).reduce(
+          (acc: number, ex: any) => acc + Number(ex?.amount || 0),
           0
         );
 
@@ -144,7 +164,9 @@ export default function Home() {
           eventsCount: signedEvents.length,
           activeEvents,
           upcomingTasks: tasks.slice(0, 5),
-          revenue,
+          revenueCollected,
+          revenueRemaining,
+          expensesTotal,
           conversionRate
         });
 
@@ -220,7 +242,7 @@ export default function Home() {
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
           <StatCard
             title="Chiffre d'affaires"
-            value={`${stats.revenue.toLocaleString('fr-FR')} €`}
+            value={`${stats.revenueCollected.toLocaleString('fr-FR')} €`}
             icon={Euro}
             trend={{ value: 12.5, isPositive: true }}
           />
@@ -345,8 +367,8 @@ export default function Home() {
         {/* Dernière ligne : BudgetCard + QuoteList + TaskList (3 colonnes) */}
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           <BudgetCard
-            total={stats.activeEvents.reduce((acc: number, curr: any) => acc + (parseInt(curr.budget) || 0), 0)}
-            spent={stats.activeEvents.reduce((acc: number, curr: any) => acc + (curr.spent || 0), 0)}
+            total={stats.revenueCollected + stats.revenueRemaining}
+            spent={stats.expensesTotal}
           />
 
           <QuoteList

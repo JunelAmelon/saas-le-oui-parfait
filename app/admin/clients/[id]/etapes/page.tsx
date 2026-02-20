@@ -19,6 +19,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { addDocument, deleteDocument, getDocuments, updateDocument } from '@/lib/db';
 import { ArrowLeft, CheckCircle, Circle, Loader2, Plus, Trash2, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
+import { useAuth } from '@/contexts/AuthContext';
 
 type Step = {
   id: string;
@@ -38,6 +39,7 @@ export default function ClientStepsAdminPage() {
   const params = useParams();
   const router = useRouter();
   const clientId = params.id as string;
+  const { user } = useAuth();
 
   const [loading, setLoading] = useState(true);
   const [eventId, setEventId] = useState<string | null>(null);
@@ -61,16 +63,14 @@ export default function ClientStepsAdminPage() {
       const ev = ((events as any[]) || []).find((x) => Boolean(x?.event_date)) || (events?.[0] as any) || null;
       const evId = ev?.id || null;
       setEventId(evId);
-      setPlannerId(ev?.planner_id || null);
+      setPlannerId(ev?.planner_id || user?.uid || null);
 
-      if (!evId) {
-        setSteps([]);
-        return;
-      }
+      const filters: any[] = [];
+      if (evId) filters.push({ field: 'event_id', operator: '==', value: evId });
+      filters.push({ field: 'client_id', operator: '==', value: clientId });
+      if (user?.uid) filters.push({ field: 'planner_id', operator: '==', value: user.uid });
 
-      const tasks = await getDocuments('tasks', [
-        { field: 'event_id', operator: '==', value: evId },
-      ]);
+      const tasks = await getDocuments('tasks', filters);
       const onlySteps = (tasks as any[]).filter((t) => t?.kind === 'milestone');
       setSteps(onlySteps as Step[]);
     } catch (e) {
@@ -131,17 +131,13 @@ export default function ClientStepsAdminPage() {
   useEffect(() => {
     void fetchAll();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clientId]);
+  }, [clientId, user?.uid]);
 
   const sortedSteps = useMemo(() => {
     return steps.slice().sort((a, b) => (a.deadline || '').localeCompare(b.deadline || ''));
   }, [steps]);
 
   const addStep = async () => {
-    if (!eventId) {
-      toast.error('Événement introuvable pour ce client');
-      return;
-    }
     if (!newStep.title.trim()) {
       toast.error('Titre obligatoire');
       return;
@@ -150,9 +146,9 @@ export default function ClientStepsAdminPage() {
     try {
       const created = await addDocument('tasks', {
         kind: 'milestone',
-        event_id: eventId,
+        event_id: eventId || '',
         client_id: clientId,
-        planner_id: plannerId || undefined,
+        planner_id: plannerId || user?.uid || undefined,
         title: newStep.title.trim(),
         description: newStep.description.trim(),
         deadline: newStep.deadline,
@@ -175,9 +171,9 @@ export default function ClientStepsAdminPage() {
             link: '/espace-client/planning',
             read: false,
             created_at: new Date(),
-            planner_id: plannerId || undefined,
+            planner_id: plannerId || user?.uid || undefined,
             client_id: clientId,
-            event_id: eventId,
+            event_id: eventId || '',
             meta: { kind: 'milestone', task_id: (created as any)?.id || null },
           });
 
@@ -256,7 +252,7 @@ export default function ClientStepsAdminPage() {
             <Button
               className="bg-brand-turquoise hover:bg-brand-turquoise-hover gap-2"
               onClick={() => setIsAddOpen(true)}
-              disabled={loading || !eventId}
+              disabled={loading}
             >
               <Plus className="h-4 w-4" />
               Ajouter
@@ -270,10 +266,6 @@ export default function ClientStepsAdminPage() {
               <Loader2 className="h-5 w-5 animate-spin" />
               Chargement...
             </div>
-          </Card>
-        ) : !eventId ? (
-          <Card className="p-10 shadow-xl border-0">
-            <div className="text-center text-brand-gray">Aucun événement trouvé pour ce client.</div>
           </Card>
         ) : (
           <Card className="p-6 shadow-xl border-0">

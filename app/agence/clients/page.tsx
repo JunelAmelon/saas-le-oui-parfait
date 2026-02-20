@@ -225,6 +225,13 @@ export default function ClientFilesPage() {
     }
   };
 
+  const handleGoToDepenses = () => {
+    if (selectedClient) {
+      setIsDetailOpen(false);
+      router.push(`/admin/clients/${selectedClient.id}/depenses`);
+    }
+  };
+
   const handleDeleteClient = async (client: Client) => {
     if (!user) return;
     if (!confirm(`Êtes-vous sûr de vouloir supprimer définitivement la fiche client ${client.names} ?`)) return;
@@ -755,7 +762,7 @@ export default function ClientFilesPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-6 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-7 gap-3">
                 <Button variant="outline" className="gap-2" onClick={handleGoToMessages}>
                   <MessageSquare className="h-4 w-4" />
                   Message
@@ -767,6 +774,10 @@ export default function ClientFilesPage() {
                 <Button variant="outline" className="gap-2" onClick={handleGoToPrestataires}>
                   <Users className="h-4 w-4" />
                   Prestataires
+                </Button>
+                <Button variant="outline" className="gap-2" onClick={handleGoToDepenses}>
+                  <Euro className="h-4 w-4" />
+                  Dépenses
                 </Button>
                 <Button variant="outline" className="gap-2" onClick={handleGoToPlanning}>
                   <Calendar className="h-4 w-4" />
