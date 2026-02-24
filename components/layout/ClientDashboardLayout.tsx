@@ -2,6 +2,7 @@
 
 import { ClientSidebar } from './ClientSidebar';
 import { ClientTopbar } from './ClientTopbar';
+import { AssistantWidget } from '@/components/assistant/AssistantWidget';
 
 interface ClientDashboardLayoutProps {
   children: React.ReactNode;
@@ -21,6 +22,7 @@ export function ClientDashboardLayout({
       <main className="ml-0 md:ml-64 pt-16">
         <div className="p-4 sm:p-6">{children}</div>
       </main>
+      <AssistantWidget />
     </div>
   );
 }
