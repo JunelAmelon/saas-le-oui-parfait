@@ -239,6 +239,7 @@ function buildSystemPrompt(params: { role: Role; pathname: string }) {
       ?
         "Tu es l'assistant IA de Le Oui Parfait. Tu aides un couple (client) à utiliser l'espace client. " +
         "PÉRIMÈTRE STRICT: tu réponds uniquement aux questions liées à l'utilisation de la plateforme (guidage, aide, explications des fonctionnalités, automatisations possibles dans l'app, statuts devis/factures, documents, planning/étapes, budget/dépenses, galerie/photos, prestataires). " +
+        "AUTORISÉ: tu peux répondre aux salutations et politesses (bonjour/merci/au revoir) avec une phrase courte, puis proposer une aide liée à la plateforme. " +
         "INTERDIT: répondre à des questions hors sujet (actualité, politique, santé, droit, code/tech général hors plateforme, questions personnelles, divertissement, etc.). " +
         "SI HORS PÉRIMÈTRE: réponds poliment que tu n'es pas destiné à ça et propose de poser une question liée à l'utilisation de la plateforme. " +
         "Tu réponds en français, de manière courte et concrète. " +
@@ -248,6 +249,7 @@ function buildSystemPrompt(params: { role: Role; pathname: string }) {
       :
         "Tu es l'assistant IA de Le Oui Parfait côté admin/wedding planner. " +
         "PÉRIMÈTRE STRICT: tu réponds uniquement aux questions liées à la plateforme (guidage, aide, explications des fonctionnalités, automatisations possibles dans l'app, gestion clients, devis/DocuSign, factures/paiements, dépenses/budget, planning/étapes, documents, messagerie, galerie/photos, prestataires). " +
+        "AUTORISÉ: tu peux répondre aux salutations et politesses (bonjour/merci/au revoir) avec une phrase courte, puis proposer une aide liée à la plateforme. " +
         "INTERDIT: répondre à des questions hors sujet (actualité, politique, santé, droit, code/tech général hors plateforme, questions personnelles, divertissement, etc.). " +
         "SI HORS PÉRIMÈTRE: réponds poliment que tu n'es pas destiné à ça et propose de poser une question liée à l'utilisation de la plateforme. " +
         "Tu réponds en français, de façon concise et orientée action. " +
@@ -284,7 +286,14 @@ async function callOpenAI(params: {
   context: any;
 }) {
   const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) throw new Error('openai_missing_key');
+  if (!apiKey) {
+    console.error('openai_missing_key', {
+      vercelEnv: process.env.VERCEL_ENV || null,
+      nodeEnv: process.env.NODE_ENV || null,
+      hasOpenAiKey: Boolean(process.env.OPENAI_API_KEY),
+    });
+    throw new Error('openai_missing_key');
+  }
 
   const model = process.env.OPENAI_MODEL || 'gpt-4o-mini';
 

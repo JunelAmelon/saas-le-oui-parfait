@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Bot, Heart, Loader2, Sparkles, X } from 'lucide-react';
+import { Bot, Heart, Loader2, Sparkles, Trash2, X } from 'lucide-react';
 import { auth } from '@/lib/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
@@ -70,6 +70,17 @@ export function AssistantWidget() {
   }, [open, messages, loading]);
 
   const canUseAssistant = Boolean(user?.uid);
+
+  const clearConversation = () => {
+    const ok = window.confirm('Effacer toute la conversation ?');
+    if (!ok) return;
+    setMessages([]);
+    try {
+      localStorage.removeItem('assistant_messages');
+    } catch {
+      // ignore
+    }
+  };
 
   const send = async () => {
     const text = input.trim();
@@ -172,6 +183,16 @@ export function AssistantWidget() {
                   <Sparkles className="h-4 w-4" />
                   <Heart className="h-4 w-4" />
                 </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={clearConversation}
+                  className="h-9 w-9 text-white hover:bg-white/15"
+                  title="Effacer la conversation"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
                 <Button
                   type="button"
                   variant="ghost"
