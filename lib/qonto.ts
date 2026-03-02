@@ -56,13 +56,18 @@ function normalizeEnvValue(v: string | undefined) {
 }
 
 function buildHeaders() {
+  // Prevent client-side execution from triggering the error immediately
+  if (typeof window !== 'undefined') {
+    return {}; // Should not happen for real requests
+  }
+
   const login = normalizeEnvValue(process.env.QONTO_API_LOGIN || process.env.QONTO_LOGIN);
   const secret = normalizeEnvValue(process.env.QONTO_API_SECRET || process.env.QONTO_SECRET);
 
   if (!login || !secret) {
     throw new Error(
       'Missing Qonto API key env vars (expected QONTO_API_LOGIN + QONTO_API_SECRET). ' +
-      'If you changed .env.local, restart the dev server.'
+      'Check your .env file and RESTART the dev server.'
     );
   }
 
