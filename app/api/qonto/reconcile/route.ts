@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
 import { getMainBankAccount, listTransactions } from '@/lib/qonto';
+import { handlePaymentSuccessNotifications } from '@/lib/notifications.server';
 
 export const runtime = 'nodejs';
 
@@ -65,6 +66,12 @@ export async function POST(req: Request) {
     const remaining = Math.max(0, totalTtc - alreadyPaid);
 
     if (remaining <= 0) {
+      // Add notification call for already paid invoices
+      try {
+        await handlePaymentSuccessNotifications(invoiceId, alreadyPaid);
+      } catch (e) {
+        console.warn('Unable to send payment notifications (manual reconcile, already paid):', e);
+      }
       return NextResponse.json({ ok: true, invoiceId, status: 'paid', paid: alreadyPaid, matched: null, message: 'already_paid' });
     }
 
@@ -158,6 +165,13 @@ export async function POST(req: Request) {
       },
       { merge: true }
     );
+
+    // Trigger notifications (Email, Push, Firestore)
+    try {
+      await handlePaymentSuccessNotifications(invoiceId, totalReceived);
+    } catch (e) {
+      console.warn('Unable to send payment notifications (manual reconcile):', e);
+    }
 
     return NextResponse.json({
       ok: true,

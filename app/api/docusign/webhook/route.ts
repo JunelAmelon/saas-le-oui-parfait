@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebase-admin';
 import { docusignRequest, getDocuSignEnv, downloadSignedCombinedPdf, uploadPdfBufferToCloudinary } from '@/lib/docusign';
+import { buildPrettyTransferReference } from '@/lib/qonto';
 
 export const runtime = 'nodejs';
 
@@ -205,7 +206,7 @@ export async function POST(req: Request) {
                 const invoiceDate = new Date().toLocaleDateString('fr-FR');
                 const dueDate = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toLocaleDateString('fr-FR');
 
-                await adminDb.collection('invoices').add({
+                const newInvoiceRef = await adminDb.collection('invoices').add({
                   planner_id: devisData?.planner_id || meta?.planner_uid || null,
                   client_id: devisData?.client_id || meta?.client_id || null,
                   reference: invoiceRef,
@@ -223,6 +224,19 @@ export async function POST(req: Request) {
                   devis_id: String(meta.doc_id),
                   created_at: new Date(),
                 });
+
+                // Génération automatique de la référence Qonto pour le matching
+                try {
+                  const qontoRef = buildPrettyTransferReference({
+                    invoiceId: newInvoiceRef.id,
+                    invoiceReference: invoiceRef,
+                  });
+                  await newInvoiceRef.update({
+                    qonto_payment_reference: qontoRef,
+                  });
+                } catch (e) {
+                  console.warn('Unable to pre-generate Qonto reference in docusign webhook:', e);
+                }
               }
             } catch (e) {
               console.warn('Unable to create invoice for signed devis:', e);

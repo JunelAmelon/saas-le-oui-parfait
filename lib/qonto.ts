@@ -62,7 +62,7 @@ function buildHeaders() {
   if (!login || !secret) {
     throw new Error(
       'Missing Qonto API key env vars (expected QONTO_API_LOGIN + QONTO_API_SECRET). ' +
-        'If you changed .env.local, restart the dev server.'
+      'If you changed .env.local, restart the dev server.'
     );
   }
 
@@ -141,14 +141,25 @@ export async function listTransactions(params: {
   return qontoRequest<{ transactions: QontoTransaction[] }>(`/v2/transactions?${qp.toString()}`, { method: 'GET' });
 }
 
+import { createHmac } from 'crypto';
+
+export function verifyQontoSignature(payload: string, signature: string, secret: string): boolean {
+  if (!payload || !signature || !secret) return false;
+
+  const hmac = createHmac('sha256', secret);
+  const calculatedSignature = hmac.update(payload).digest('hex');
+
+  return calculatedSignature === signature;
+}
+
 export function buildPrettyTransferReference(params: { invoiceId: string; invoiceReference?: string }) {
   const base = String(params.invoiceReference || '').trim();
   const prettyBase = base
     ? base
-        .toUpperCase()
-        .replace(/[^A-Z0-9]+/g, '-')
-        .replace(/^-+|-+$/g, '')
-        .slice(0, 16)
+      .toUpperCase()
+      .replace(/[^A-Z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 16)
     : 'FACT';
 
   const tail = params.invoiceId.replace(/[^a-zA-Z0-9]/g, '').slice(-6).toUpperCase();

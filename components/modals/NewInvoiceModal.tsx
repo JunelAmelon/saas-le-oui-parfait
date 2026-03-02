@@ -9,7 +9,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Plus, Trash2, Eye, Upload } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { getDocument, getDocuments, addDocument } from '@/lib/db';
+import { getDocument, getDocuments, addDocument, updateDocument } from '@/lib/db';
+import { buildPrettyTransferReference } from '@/lib/qonto';
 import { toast as sonnerToast } from 'sonner';
 import { uploadFile } from '@/lib/storage';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -260,7 +261,7 @@ export function NewInvoiceModal({ isOpen, onClose }: NewInvoiceModalProps) {
   };
 
   const updateItem = (id: string, field: keyof InvoiceItem, value: string | number) => {
-    setItems(items.map(item => 
+    setItems(items.map(item =>
       item.id === id ? { ...item, [field]: value } : item
     ));
   };
@@ -355,7 +356,7 @@ export function NewInvoiceModal({ isOpen, onClose }: NewInvoiceModalProps) {
         sonnerToast.info('Upload du PDF vers le cloud...');
         pdfUrl = await uploadPdf(pdfBlob, finalReference);
       }
-      
+
       const invoiceData = {
         planner_id: user.uid,
         reference: finalReference,
@@ -381,6 +382,23 @@ export function NewInvoiceModal({ isOpen, onClose }: NewInvoiceModalProps) {
       };
 
       const created = await addDocument('invoices', invoiceData);
+
+      // Génération proactive de la référence Qonto
+      if (created?.id) {
+        try {
+          const qontoRef = buildPrettyTransferReference({
+            invoiceId: created.id,
+            invoiceReference: finalReference,
+          });
+          await updateDocument('invoices', created.id, {
+            qonto_payment_reference: qontoRef,
+          });
+          // Update local object for subsequent logic if needed
+          (invoiceData as any).qonto_payment_reference = qontoRef;
+        } catch (e) {
+          console.warn('Unable to pre-generate Qonto reference:', e);
+        }
+      }
 
       // Rendre la facture visible côté client (page Documents)
       if (pdfUrl) {
@@ -450,7 +468,7 @@ export function NewInvoiceModal({ isOpen, onClose }: NewInvoiceModalProps) {
           console.error('Error creating documents entry for invoice:', e);
         }
       }
-      
+
       sonnerToast.success(`Facture de ${totalTTC.toLocaleString()}€ TTC créée pour ${client?.name}`);
 
       onClose();
@@ -541,11 +559,10 @@ export function NewInvoiceModal({ isOpen, onClose }: NewInvoiceModalProps) {
                 {defaultPrestations.map((p) => (
                   <label
                     key={p.id}
-                    className={`flex items-start gap-2 p-3 border rounded cursor-pointer bg-white transition-colors ${
-                      selectedPrestations.includes(p.id)
+                    className={`flex items-start gap-2 p-3 border rounded cursor-pointer bg-white transition-colors ${selectedPrestations.includes(p.id)
                         ? 'border-brand-turquoise bg-brand-turquoise/5'
                         : 'border-gray-200'
-                    }`}
+                      }`}
                   >
                     <input
                       type="checkbox"
