@@ -249,62 +249,10 @@ export default function PaiementsPage() {
   );
   const daysRemaining = event ? calculateDaysRemaining(event.event_date) : 0;
 
-  const createPaymentLinkAndRedirect = async (invoiceId: string) => {
-    const idToken = await auth.currentUser?.getIdToken().catch(() => null);
-    if (!idToken) throw new Error('missing_auth');
-
-    const res = await fetch('/api/qonto/payment-links/create', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${idToken}`,
-      },
-      body: JSON.stringify({ invoiceId }),
-    });
-
-    const json = await res.json().catch(() => null);
-    if (!res.ok || !json?.ok || !json?.url) {
-      const code = String(json?.error || 'payment_link_error');
-      const detail = json?.detail ? String(json.detail) : '';
-      throw new Error(detail ? `${code}::${detail}` : code);
-    }
-
-    window.location.href = String(json.url);
-  };
-
-  const openTransferModalForPayment = (payment: PaymentData) => {
+  const handlePayClick = (payment: PaymentData) => {
     setSelectedPayment(payment);
     setIsPaymentModalOpen(true);
     setTransferInstructions(null);
-  };
-
-  const handlePayClick = async (payment: PaymentData) => {
-    const invoiceId = String(payment?.invoice_id || '').trim();
-    if (!invoiceId) {
-      openTransferModalForPayment(payment);
-      return;
-    }
-
-    try {
-      await createPaymentLinkAndRedirect(invoiceId);
-    } catch (e: any) {
-      const raw = String(e?.message || 'error');
-      const code = raw.includes('::') ? raw.split('::')[0] : raw;
-      const detail = raw.includes('::') ? raw.split('::').slice(1).join('::') : '';
-      if (code === 'qonto_oauth_not_connected') {
-        toast.error('Paiement Qonto non configuré. Ouvre les instructions de virement pour payer.');
-      } else if (code === 'qonto_payment_links_not_enabled') {
-        toast.error('Paiement Qonto non activé. Ouvre les instructions de virement pour payer.');
-      } else {
-        const shortDetail = detail ? detail.slice(0, 140) : '';
-        toast.error(
-          shortDetail
-            ? `Impossible d'ouvrir le paiement Qonto (${code}): ${shortDetail}`
-            : "Impossible d'ouvrir le paiement Qonto. Ouverture des instructions de virement."
-        );
-      }
-      openTransferModalForPayment(payment);
-    }
   };
 
   const downloadInvoicePdf = (p: PaymentData) => {

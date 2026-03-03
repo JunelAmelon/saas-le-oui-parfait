@@ -10,9 +10,6 @@ import { Textarea } from '@/components/ui/textarea';
 import { Building2, Mail, Phone, MapPin, Globe, Upload, X, Loader2 } from 'lucide-react';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { auth } from '@/lib/firebase';
-import { useAuth } from '@/contexts/AuthContext';
-import { toast } from 'sonner';
 
 interface Agency {
   name: string;
@@ -29,21 +26,10 @@ interface Agency {
 }
 
 export default function AgencyPage() {
-  const { user } = useAuth();
   const [agency, setAgency] = useState<Agency | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
-
-  const [qontoStatusLoading, setQontoStatusLoading] = useState(false);
-  const [qontoConnected, setQontoConnected] = useState<boolean | null>(null);
-  const [qontoConnectLoading, setQontoConnectLoading] = useState(false);
-  const [qontoDebugLoading, setQontoDebugLoading] = useState(false);
-
-  const [paymentLinksStatusLoading, setPaymentLinksStatusLoading] = useState(false);
-  const [paymentLinksStatus, setPaymentLinksStatus] = useState<string | null>(null);
-  const [paymentLinksLocation, setPaymentLinksLocation] = useState<string | null>(null);
-  const [paymentLinksConnectLoading, setPaymentLinksConnectLoading] = useState(false);
 
   // Charger les infos depuis Firestore
   useEffect(() => {
@@ -80,180 +66,6 @@ export default function AgencyPage() {
     };
     fetchAgency();
   }, []);
-
-  useEffect(() => {
-    async function fetchQontoStatus() {
-      if (!user?.uid) return;
-      if (user.role !== 'planner') return;
-      setQontoStatusLoading(true);
-      try {
-        const idToken = await auth.currentUser?.getIdToken().catch(() => null);
-        if (!idToken) return;
-        const res = await fetch('/api/qonto/oauth/token-info', {
-          headers: {
-            Authorization: `Bearer ${idToken}`,
-          },
-        });
-        const json = await res.json().catch(() => null);
-        if (!res.ok) {
-          setQontoConnected(false);
-          return;
-        }
-        setQontoConnected(Boolean(json?.connected));
-      } catch {
-        setQontoConnected(false);
-      } finally {
-        setQontoStatusLoading(false);
-      }
-    }
-
-    void fetchQontoStatus();
-  }, [user?.uid, user?.role]);
-
-  useEffect(() => {
-    async function fetchPaymentLinksStatus() {
-      if (!user?.uid) return;
-      if (user.role !== 'planner') return;
-      if (!qontoConnected) return;
-
-      setPaymentLinksStatusLoading(true);
-      try {
-        const idToken = await auth.currentUser?.getIdToken().catch(() => null);
-        if (!idToken) return;
-
-        const res = await fetch('/api/qonto/payment-links/connection-status', {
-          headers: {
-            Authorization: `Bearer ${idToken}`,
-          },
-        });
-        const json = await res.json().catch(() => null);
-        if (!res.ok) {
-          setPaymentLinksStatus(null);
-          setPaymentLinksLocation(null);
-          return;
-        }
-
-        setPaymentLinksStatus(String(json?.status || '').toLowerCase() || null);
-        setPaymentLinksLocation(String(json?.connection_location || '').trim() || null);
-      } catch {
-        setPaymentLinksStatus(null);
-        setPaymentLinksLocation(null);
-      } finally {
-        setPaymentLinksStatusLoading(false);
-      }
-    }
-
-    void fetchPaymentLinksStatus();
-  }, [user?.uid, user?.role, qontoConnected]);
-
-  const handleConnectQonto = async () => {
-    if (!user?.uid) return;
-    if (user.role !== 'planner') {
-      toast.error('Connexion Qonto disponible uniquement en mode admin');
-      return;
-    }
-
-    setQontoConnectLoading(true);
-    try {
-      const idToken = await auth.currentUser?.getIdToken().catch(() => null);
-      if (!idToken) throw new Error('missing_auth');
-
-      const res = await fetch('/api/qonto/oauth/start', {
-        headers: {
-          Authorization: `Bearer ${idToken}`,
-        },
-      });
-      const json = await res.json().catch(() => null);
-      if (!res.ok || !json?.url) {
-        throw new Error(String(json?.error || 'qonto_oauth_start_error'));
-      }
-
-      window.location.href = String(json.url);
-    } catch (e: any) {
-      console.error('Qonto connect error:', e);
-      toast.error("Impossible de lancer la connexion Qonto");
-    } finally {
-      setQontoConnectLoading(false);
-    }
-  };
-
-  const handleDebugQonto = async () => {
-    if (!user?.uid) return;
-    if (user.role !== 'planner') {
-      toast.error('Diagnostic Qonto disponible uniquement en mode admin');
-      return;
-    }
-
-    setQontoDebugLoading(true);
-    try {
-      const idToken = await auth.currentUser?.getIdToken().catch(() => null);
-      if (!idToken) throw new Error('missing_auth');
-
-      const res = await fetch('/api/qonto/oauth/debug', {
-        headers: {
-          Authorization: `Bearer ${idToken}`,
-        },
-      });
-
-      const json = await res.json().catch(() => null);
-      if (!res.ok) {
-        toast.error(String(json?.error || 'Erreur diagnostic Qonto'));
-        return;
-      }
-
-      const env = json?.env || {};
-      toast.success(
-        `Qonto env=${env?.QONTO_ENV || 'n/a'} | oauth_base=${env?.oauth_base || 'n/a'} | client_id_len=${env?.QONTO_OAUTH_CLIENT_ID_length || 0} | secret_len=${env?.QONTO_OAUTH_CLIENT_SECRET_length || 0}`
-      );
-    } catch (e: any) {
-      console.error('Qonto debug error:', e);
-      toast.error('Erreur diagnostic Qonto');
-    } finally {
-      setQontoDebugLoading(false);
-    }
-  };
-
-  const handleConnectPaymentLinks = async () => {
-    if (!user?.uid) return;
-    if (user.role !== 'planner') {
-      toast.error('Activation Payment Links disponible uniquement en mode admin');
-      return;
-    }
-
-    setPaymentLinksConnectLoading(true);
-    try {
-      const idToken = await auth.currentUser?.getIdToken().catch(() => null);
-      if (!idToken) throw new Error('missing_auth');
-
-      const res = await fetch('/api/qonto/payment-links/connect', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${idToken}`,
-        },
-      });
-      const json = await res.json().catch(() => null);
-      if (!res.ok) {
-        const code = String(json?.error || 'Erreur activation Payment Links');
-        const value = json?.value ? ` (${String(json.value)})` : '';
-        toast.error(`${code}${value}`);
-        return;
-      }
-
-      const status = String(json?.status || '').toLowerCase();
-      setPaymentLinksStatus(status || null);
-      const location = String(json?.connection_location || '').trim();
-      setPaymentLinksLocation(location || null);
-      toast.success(status ? `Payment Links: ${status}` : 'Payment Links: demande envoyée');
-      if (location) {
-        window.open(location, '_blank', 'noopener,noreferrer');
-      }
-    } catch (e: any) {
-      console.error('Payment Links connect error:', e);
-      toast.error('Erreur activation Payment Links');
-    } finally {
-      setPaymentLinksConnectLoading(false);
-    }
-  };
 
   // Mise à jour d'un champ
   const handleChange = (field: keyof Agency, value: string) => {
@@ -388,90 +200,6 @@ export default function AgencyPage() {
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           <div className="lg:col-span-2 space-y-6">
-            <Card className="p-6 shadow-xl border-0">
-              <h2 className="text-xl font-bold text-brand-purple mb-2">Paiements Qonto</h2>
-              <p className="text-sm text-brand-gray mb-4">
-                Connecte Qonto pour activer les liens de paiement (le bouton “Payer” redirigera vers Qonto).
-              </p>
-
-              <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
-                <div className="text-sm text-brand-gray">
-                  Statut :{' '}
-                  {qontoStatusLoading ? (
-                    <span>Chargement…</span>
-                  ) : qontoConnected ? (
-                    <span className="text-green-700 font-medium">Connecté</span>
-                  ) : (
-                    <span className="text-orange-700 font-medium">Non connecté</span>
-                  )}
-                </div>
-
-                <div className="text-sm text-brand-gray">
-                  Payment Links :{' '}
-                  {paymentLinksStatusLoading ? (
-                    <span>Chargement…</span>
-                  ) : paymentLinksStatus ? (
-                    <span className={paymentLinksStatus === 'enabled' ? 'text-green-700 font-medium' : 'text-orange-700 font-medium'}>
-                      {paymentLinksStatus}
-                    </span>
-                  ) : (
-                    <span className="text-brand-gray">n/a</span>
-                  )}
-                </div>
-
-                {paymentLinksLocation ? (
-                  <Button type="button" variant="outline" onClick={() => window.open(paymentLinksLocation, '_blank', 'noopener,noreferrer')}>
-                    Ouvrir onboarding
-                  </Button>
-                ) : null}
-
-                <div className="flex-1" />
-
-                <Button type="button" variant="outline" onClick={handleDebugQonto} disabled={qontoDebugLoading}>
-                  {qontoDebugLoading ? (
-                    <span className="flex items-center gap-2">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Diagnostic…
-                    </span>
-                  ) : (
-                    'Diagnostiquer Qonto'
-                  )}
-                </Button>
-
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={handleConnectPaymentLinks}
-                  disabled={paymentLinksConnectLoading || !qontoConnected}
-                >
-                  {paymentLinksConnectLoading ? (
-                    <span className="flex items-center gap-2">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Activation…
-                    </span>
-                  ) : (
-                    'Activer Payment Links'
-                  )}
-                </Button>
-
-                <Button
-                  type="button"
-                  onClick={handleConnectQonto}
-                  disabled={qontoConnectLoading}
-                  className="bg-brand-turquoise hover:bg-brand-turquoise-hover"
-                >
-                  {qontoConnectLoading ? (
-                    <span className="flex items-center gap-2">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Connexion…
-                    </span>
-                  ) : (
-                    'Connecter Qonto'
-                  )}
-                </Button>
-              </div>
-            </Card>
-
             <Card className="p-6 shadow-xl border-0">
               <h2 className="text-xl font-bold text-brand-purple mb-6 flex items-center gap-2">
                 <Building2 className="h-5 w-5" />
