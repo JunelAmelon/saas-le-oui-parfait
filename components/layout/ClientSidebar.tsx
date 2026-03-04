@@ -16,6 +16,8 @@ import {
   Settings,
   Menu,
   X,
+  Map,
+  Car,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useState, useEffect } from 'react';
@@ -25,6 +27,7 @@ interface MenuItem {
   label: string;
   icon: React.ElementType;
   href: string;
+  isComingSoon?: boolean;
 }
 
 const clientMenuItems: MenuItem[] = [
@@ -57,6 +60,19 @@ const clientMenuItems: MenuItem[] = [
     label: 'Fleurs',
     icon: Flower2,
     href: '/espace-client/fleurs',
+    isComingSoon: true,
+  },
+  {
+    label: 'Plan de table 3D',
+    icon: Map,
+    href: '/espace-client/plan-table',
+    isComingSoon: true,
+  },
+  {
+    label: 'Service chauffeur',
+    icon: Car,
+    href: '/espace-client/chauffeur',
+    isComingSoon: true,
   },
   {
     label: 'Paiements',
@@ -137,7 +153,7 @@ export function ClientSidebar() {
         <ul className="space-y-1">
           {clientMenuItems.map((item) => (
             <li key={item.label}>
-              {item.href === '/espace-client/fleurs' ? (
+              {item.isComingSoon ? (
                 <div
                   className={cn(
                     'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
