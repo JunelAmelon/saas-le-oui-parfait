@@ -46,9 +46,7 @@ function getAuthOk(req: Request) {
   const token = auth.slice('Bearer '.length);
   if (token !== secret) return false;
 
-  const ua = (req.headers.get('user-agent') || '').toLowerCase();
-  const isVercelCron = ua.includes('vercel-cron/1.0');
-  return isVercelCron || process.env.NODE_ENV !== 'production';
+  return true;
 }
 
 export async function GET(req: Request) {

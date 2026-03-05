@@ -80,7 +80,9 @@ export async function POST(req: Request) {
 
         // Tentative 1: Matching direct sur qonto_payment_reference (Recommandé)
         // On va scanner les champs de la transaction pour trouver une string qui ressemble à nos références LOP-FACT-...
-        const refMatch = bodyText.match(/LOP-FACT-[A-Z0-9-]+/i);
+        // buildPrettyTransferReference génère: LOP-<PRETTY_BASE>-<TAIL_6>
+        // Exemple: LOP-FACT-2026-001-ABCDEF ou LOP-ACOMPTE-ABCDEF
+        const refMatch = bodyText.match(/LOP-[A-Z0-9-]+-[A-Z0-9]{6}/i);
         const extractedRef = refMatch ? normalizeText(refMatch[0]) : null;
 
         if (!extractedRef) {
