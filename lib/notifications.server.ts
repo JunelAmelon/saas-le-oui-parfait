@@ -80,7 +80,7 @@ export async function sendPushServer(params: {
 }
 
 /**
- * Envoie les notifications appropriées lorsqu'un paiement est validé (Webhook ou Reconcile)
+ * Envoie les notifications appropriées lorsqu'un paiement est validé (Webhook ou Reconcile..)
  */
 export async function handlePaymentSuccessNotifications(invoiceId: string, amount: number) {
     try {

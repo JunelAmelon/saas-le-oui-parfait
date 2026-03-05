@@ -46,7 +46,8 @@ function getAuthOk(req: Request) {
   const token = auth.slice('Bearer '.length);
   if (token !== secret) return false;
 
-  const isVercelCron = (req.headers.get('x-vercel-cron') || '').toLowerCase() === '1';
+  const ua = (req.headers.get('user-agent') || '').toLowerCase();
+  const isVercelCron = ua.includes('vercel-cron/1.0');
   return isVercelCron || process.env.NODE_ENV !== 'production';
 }
 
@@ -58,7 +59,7 @@ export async function GET(req: Request) {
 
     const invoiceSnap = await adminDb
       .collection('invoices')
-      .where('status', 'in', ['pending', 'partial'])
+      .where('status', 'in', ['pending', 'partial', 'overdue'])
       .limit(limit)
       .get();
 
