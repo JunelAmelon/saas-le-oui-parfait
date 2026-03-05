@@ -3,9 +3,10 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Bell, MessageSquare, FileText, CheckCircle2, Calendar, CheckCircle, X } from 'lucide-react';
+import { Bell, MessageSquare, FileText, CheckCircle2, Calendar, CheckCircle, X, CreditCard } from 'lucide-react';
 import type { AppNotification, NotificationType } from '@/hooks/use-notifications';
 import { useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 
 interface NotificationsModalProps {
   open: boolean;
@@ -28,6 +29,8 @@ const getNotifStyle = (type: NotificationType) => {
       return { icon: Calendar, color: 'text-green-600', bgColor: 'bg-green-50' };
     case 'step':
       return { icon: CheckCircle, color: 'text-blue-600', bgColor: 'bg-blue-50' };
+    case 'payment':
+      return { icon: CreditCard, color: 'text-emerald-600', bgColor: 'bg-emerald-50' };
     default:
       return { icon: Bell, color: 'text-gray-500', bgColor: 'bg-gray-50' };
   }
@@ -48,6 +51,8 @@ export function NotificationsModal({
   onMarkAsRead,
 }: NotificationsModalProps) {
   const router = useRouter();
+  const pathname = usePathname();
+  const isClient = Boolean(pathname?.startsWith('/espace-client'));
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -144,6 +149,10 @@ export function NotificationsModal({
           <Button
             variant="outline"
             className="w-full border-2 border-brand-turquoise text-brand-gray hover:bg-brand-turquoise hover:text-white"
+            onClick={() => {
+              onOpenChange(false);
+              router.push(isClient ? '/espace-client/notifications' : '/notifications');
+            }}
           >
             Voir toutes les notifications
           </Button>

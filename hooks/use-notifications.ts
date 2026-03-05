@@ -9,9 +9,10 @@ import {
   updateDoc,
   where,
   doc,
+  deleteDoc,
 } from 'firebase/firestore';
 
-export type NotificationType = 'message' | 'document' | 'change_request' | 'planning' | 'step';
+export type NotificationType = 'message' | 'document' | 'change_request' | 'planning' | 'step' | 'payment';
 
 export interface AppNotification {
   id: string;
@@ -94,5 +95,19 @@ export function useNotifications(recipientId?: string, take: number = 20) {
     await Promise.all(unread.map((n) => updateDoc(doc(db, 'notifications', n.id), { read: true })));
   };
 
-  return { items, unreadCount, loading, markAsRead, markAllAsRead };
+  const deleteOne = async (notificationId: string) => {
+    if (!notificationId) return;
+    await deleteDoc(doc(db, 'notifications', notificationId));
+  };
+
+  const deleteRead = async () => {
+    const readItems = items.filter((n) => n.read);
+    await Promise.all(readItems.map((n) => deleteDoc(doc(db, 'notifications', n.id))));
+  };
+
+  const deleteAll = async () => {
+    await Promise.all(items.map((n) => deleteDoc(doc(db, 'notifications', n.id))));
+  };
+
+  return { items, unreadCount, loading, markAsRead, markAllAsRead, deleteOne, deleteRead, deleteAll };
 }
