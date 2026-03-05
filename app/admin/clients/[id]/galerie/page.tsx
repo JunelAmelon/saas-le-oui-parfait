@@ -6,9 +6,28 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
-import { Loader2, Image as ImageIcon, ArrowLeft, ExternalLink } from 'lucide-react';
-import { getDocuments } from '@/lib/db';
+import { Loader2, Image as ImageIcon, ArrowLeft, ExternalLink, Upload } from 'lucide-react';
+import { addDocument, getDocument, getDocuments, updateDocument } from '@/lib/db';
 import { getEventGalleries, GalleryData } from '@/lib/client-helpers';
+import { uploadImage } from '@/lib/storage';
+import { toast } from 'sonner';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 export default function ClientGalleryAdminPage() {
   const params = useParams();
@@ -19,6 +38,12 @@ export default function ClientGalleryAdminPage() {
   const [eventId, setEventId] = useState<string | null>(null);
   const [galleries, setGalleries] = useState<GalleryData[]>([]);
   const [selectedAlbumId, setSelectedAlbumId] = useState<string | null>(null);
+
+  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+  const [selectedUploadAlbumId, setSelectedUploadAlbumId] = useState('');
+  const [newAlbumName, setNewAlbumName] = useState('');
+  const [uploadFiles, setUploadFiles] = useState<File[]>([]);
+  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
     async function fetchAll() {
@@ -107,6 +132,101 @@ export default function ClientGalleryAdminPage() {
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [galleries]);
 
+  const handleUpload = async () => {
+    if (!clientId) {
+      toast.error('Client introuvable');
+      return;
+    }
+    if (uploadFiles.length === 0) {
+      toast.error('Sélectionnez au moins une image');
+      return;
+    }
+
+    const creatingNew = selectedUploadAlbumId === 'new';
+    if (!selectedUploadAlbumId) {
+      toast.error('Veuillez sélectionner un album');
+      return;
+    }
+    if (creatingNew && !newAlbumName.trim()) {
+      toast.error("Veuillez saisir le nom du nouvel album");
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const clientDoc = await getDocument('clients', clientId).catch(() => null);
+
+      let albumId = selectedUploadAlbumId;
+      if (creatingNew) {
+        const created = await addDocument('galleries', {
+          event_id: eventId || '',
+          client_id: clientId,
+          planner_id: (clientDoc as any)?.planner_id || (clientDoc as any)?.owner_id || '',
+          name: newAlbumName.trim(),
+          description: '',
+          cover: '',
+          count: 0,
+          photos: [],
+          created_at: new Date().toISOString(),
+        });
+        albumId = created.id;
+      }
+
+      const albumDoc = await getDocument('galleries', albumId);
+      if (!albumDoc) {
+        toast.error('Album introuvable');
+        return;
+      }
+
+      const existingPhotos = ((albumDoc as any).photos || []) as any[];
+      const newPhotos: any[] = [];
+
+      for (const f of uploadFiles) {
+        const url = await uploadImage(f, 'gallery');
+        newPhotos.push({
+          id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+          url,
+          uploaded_by: 'planner',
+          uploaded_at: new Date().toISOString(),
+          liked: false,
+          album: (albumDoc as any).name,
+          date: new Date().toLocaleDateString('fr-FR'),
+        });
+      }
+
+      const updatedPhotos = [...newPhotos, ...existingPhotos];
+
+      await updateDocument('galleries', albumId, {
+        photos: updatedPhotos,
+        count: updatedPhotos.length,
+        cover: updatedPhotos[0]?.url || (albumDoc as any).cover || '',
+      });
+
+      const [itemsByEvent, itemsByClient] = await Promise.all([
+        eventId ? getEventGalleries(eventId) : Promise.resolve([]),
+        getDocuments('galleries', [{ field: 'client_id', operator: '==', value: clientId }]).catch(() => []),
+      ]);
+
+      const merged = new Map<string, GalleryData>();
+      (itemsByEvent || []).forEach((g) => merged.set(g.id, g));
+      (itemsByClient as any[]).forEach((g: any) => {
+        if (g?.id && !merged.has(g.id)) merged.set(g.id, g as GalleryData);
+      });
+      setGalleries(Array.from(merged.values()));
+
+      setIsUploadModalOpen(false);
+      setSelectedUploadAlbumId('');
+      setNewAlbumName('');
+      setUploadFiles([]);
+      toast.success('Photos ajoutées');
+    } catch (e) {
+      console.error('Error uploading admin gallery photos:', e);
+      toast.error("Erreur lors de l'upload des photos");
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const photos = useMemo(() => {
     const getPhotoUrls = (p: any) => {
       if (typeof p === 'string') {
@@ -162,6 +282,14 @@ export default function ClientGalleryAdminPage() {
             <p className="text-brand-gray">Albums et photos envoyés par le client et/ou la wedding planner</p>
           </div>
           <div className="flex items-center gap-2">
+            <Button
+              className="bg-brand-turquoise hover:bg-brand-turquoise-hover gap-2"
+              onClick={() => setIsUploadModalOpen(true)}
+              disabled={loading}
+            >
+              <Upload className="h-4 w-4" />
+              Ajouter des photos
+            </Button>
             <Button variant="outline" onClick={() => router.back()} className="gap-2">
               <ArrowLeft className="h-4 w-4" />
               Retour
@@ -285,6 +413,72 @@ export default function ClientGalleryAdminPage() {
           </>
         )}
       </div>
+
+      <Dialog open={isUploadModalOpen} onOpenChange={setIsUploadModalOpen}>
+        <DialogContent className="sm:max-w-lg w-[95vw] sm:w-full">
+          <DialogHeader>
+            <DialogTitle className="text-brand-purple">Ajouter des photos</DialogTitle>
+            <DialogDescription>
+              Importez des images dans un album existant ou créez-en un nouveau.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label>Album</Label>
+              <Select value={selectedUploadAlbumId} onValueChange={setSelectedUploadAlbumId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Sélectionner un album" />
+                </SelectTrigger>
+                <SelectContent>
+                  {albums.map((a) => (
+                    <SelectItem key={a.id} value={a.id}>
+                      {a.name}
+                    </SelectItem>
+                  ))}
+                  <SelectItem value="new">+ Nouvel album</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {selectedUploadAlbumId === 'new' && (
+              <div className="space-y-2">
+                <Label>Nom du nouvel album</Label>
+                <Input value={newAlbumName} onChange={(e) => setNewAlbumName(e.target.value)} />
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <Label>Photos</Label>
+              <Input
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={(e) => setUploadFiles(Array.from(e.target.files || []))}
+              />
+              <p className="text-xs text-brand-gray">{uploadFiles.length} fichier(s) sélectionné(s)</p>
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2 flex-col sm:flex-row">
+            <Button
+              variant="outline"
+              onClick={() => setIsUploadModalOpen(false)}
+              disabled={uploading}
+            >
+              Annuler
+            </Button>
+            <Button
+              className="bg-brand-turquoise hover:bg-brand-turquoise-hover gap-2"
+              onClick={handleUpload}
+              disabled={uploading}
+            >
+              {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+              Ajouter
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }

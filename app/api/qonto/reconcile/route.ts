@@ -59,6 +59,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'missing_qonto_payment_reference' }, { status: 400 });
     }
 
+    const alreadyNotifiedTxIds = Array.isArray(inv?.qonto_notified_transaction_ids)
+      ? (inv.qonto_notified_transaction_ids as any[]).map((v) => String(v || '').trim()).filter(Boolean)
+      : [];
+    const alreadyNotifiedTotal = parseMoney(inv?.qonto_notified_total_received ?? 0);
+
     const invoiceType = String(inv?.type || '').toLowerCase();
     const totalTtcRaw = inv?.montant_ttc ?? inv?.amount ?? 0;
     const totalTtc = parseMoney(totalTtcRaw);
@@ -66,11 +71,22 @@ export async function POST(req: Request) {
     const remaining = Math.max(0, totalTtc - alreadyPaid);
 
     if (remaining <= 0) {
-      // Add notification call for already paid invoices
-      try {
-        await handlePaymentSuccessNotifications(invoiceId, alreadyPaid);
-      } catch (e) {
-        console.warn('Unable to send payment notifications (manual reconcile, already paid):', e);
+      const shouldNotify = alreadyPaid > 0 && alreadyPaid > alreadyNotifiedTotal + 0.01;
+      if (shouldNotify) {
+        const delta = Math.max(0, alreadyPaid - alreadyNotifiedTotal);
+        try {
+          await handlePaymentSuccessNotifications(invoiceId, delta);
+          await invRef.set(
+            {
+              qonto_notified_total_received: alreadyPaid,
+              qonto_notified_transaction_ids: alreadyNotifiedTxIds,
+              qonto_notified_at: new Date().toISOString(),
+            },
+            { merge: true }
+          );
+        } catch (e) {
+          console.warn('Unable to send payment notifications (manual reconcile, already paid):', e);
+        }
       }
       return NextResponse.json({ ok: true, invoiceId, status: 'paid', paid: alreadyPaid, matched: null, message: 'already_paid' });
     }
@@ -166,11 +182,25 @@ export async function POST(req: Request) {
       { merge: true }
     );
 
-    // Trigger notifications (Email, Push, Firestore)
-    try {
-      await handlePaymentSuccessNotifications(invoiceId, totalReceived);
-    } catch (e) {
-      console.warn('Unable to send payment notifications (manual reconcile):', e);
+    const hasNewTx = txIds.some((id) => !alreadyNotifiedTxIds.includes(id));
+    const shouldNotify = (totalReceived > 0 && totalReceived > alreadyNotifiedTotal + 0.01) || hasNewTx;
+    if (shouldNotify) {
+      const nextNotifiedTxIds = Array.from(new Set([...alreadyNotifiedTxIds, ...txIds]));
+      const delta = Math.max(0, newPaid - alreadyPaid);
+      const notifyAmount = delta > 0 ? delta : Math.max(0, totalReceived - alreadyNotifiedTotal);
+      try {
+        await handlePaymentSuccessNotifications(invoiceId, notifyAmount);
+        await invRef.set(
+          {
+            qonto_notified_total_received: totalReceived,
+            qonto_notified_transaction_ids: nextNotifiedTxIds,
+            qonto_notified_at: new Date().toISOString(),
+          },
+          { merge: true }
+        );
+      } catch (e) {
+        console.warn('Unable to send payment notifications (manual reconcile):', e);
+      }
     }
 
     return NextResponse.json({

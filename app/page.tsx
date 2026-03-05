@@ -88,18 +88,22 @@ export default function Home() {
       if (!user || user.role !== 'planner') return;
 
       try {
-        const [prospects, events, tasks, clients, devis, invoices, expenses] = await Promise.all([
+        const [prospectsByPlanner, events, tasks, clients, devis, invoices, expenses] = await Promise.all([
           getDocuments('prospects', [{ field: 'planner_id', operator: '==', value: user.uid }]),
           getDocuments('events', [{ field: 'planner_id', operator: '==', value: user.uid }]),
           getDocuments('tasks', [
             { field: 'assigned_to', operator: '==', value: user.uid },
             { field: 'status', operator: '==', value: 'todo' }
           ]),
+
           getDocuments('clients', [{ field: 'planner_id', operator: '==', value: user.uid }]),
+
           getDocuments('devis', [{ field: 'planner_id', operator: '==', value: user.uid }]),
           getDocuments('invoices', [{ field: 'planner_id', operator: '==', value: user.uid }]),
           getDocuments('expenses', [{ field: 'planner_id', operator: '==', value: user.uid }]),
         ]);
+
+        const activeProspects = (prospectsByPlanner as any[]).filter((p: any) => p?.archived !== true);
 
         const signedEvents = events.filter((e: any) =>
           ['confirmed', 'in_progress', 'completed'].includes(e.status)
@@ -123,10 +127,11 @@ export default function Home() {
           0
         );
 
-        const conversionRate = prospects.length
-          ? Math.round(
-            (prospects.filter((p: any) => p.status === 'converted').length / prospects.length) * 100
-          )
+        const normalizeProspectStatus = (status: any) =>
+          String(status || '').trim().toLowerCase();
+
+        const conversionRate = activeProspects.length
+          ? Math.round((activeProspects.filter((p: any) => normalizeProspectStatus(p?.status) === 'converted').length / activeProspects.length) * 100)
           : 0;
 
         const activeEvents = events
@@ -160,7 +165,7 @@ export default function Home() {
         setRecentDevis(sortedDevis);
 
         setStats({
-          prospectsCount: prospects.length,
+          prospectsCount: activeProspects.length,
           eventsCount: signedEvents.length,
           activeEvents,
           upcomingTasks: tasks.slice(0, 5),

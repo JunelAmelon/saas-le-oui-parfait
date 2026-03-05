@@ -320,12 +320,12 @@ export default function PaiementsPage() {
       body: JSON.stringify({ invoiceId }),
     });
 
+    const data = await res.json().catch(() => null);
     if (!res.ok) {
-      const err = await res.json().catch(() => null);
-      throw new Error(err?.error || 'reconcile_error');
+      throw new Error(String(data?.error || 'error'));
     }
 
-    return (await res.json()) as any;
+    return data as any;
   };
 
   useEffect(() => {
@@ -727,11 +727,23 @@ export default function PaiementsPage() {
                   onClick={async () => {
                     setReconcileLoading(true);
                     try {
-                      await reconcileInvoice(selectedPayment.invoice_id as string);
+                      const result = await reconcileInvoice(selectedPayment.invoice_id as string);
+                      if (result?.message === 'transaction_not_completed_yet') {
+                        toast.info('Paiement en cours', {
+                          description:
+                            "Votre paiement est détecté mais n'est pas encore finalisé. Réessaie dans quelques minutes.",
+                        });
+                      } else if (!result?.matched) {
+                        toast.info('Rien à vérifier pour le moment', {
+                          description:
+                            "Aucun paiement n'a été enregistré pour cette facture. Si vous venez de payer, attendez quelques minutes.",
+                        });
+                      }
                       await refreshPayments();
                       setIsPaymentModalOpen(false);
                     } catch (e) {
                       console.error('Error reconciling payment:', e);
+                      toast.error("Impossible de vérifier le paiement pour le moment");
                     } finally {
                       setReconcileLoading(false);
                     }

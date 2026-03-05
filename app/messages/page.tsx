@@ -81,6 +81,7 @@ export default function AdminMessagesPage() {
   const [loadingClients, setLoadingClients] = useState(true);
 
   const [profilePhotoUrl, setProfilePhotoUrl] = useState<string | null>(null);
+  const [agencyLogoUrl, setAgencyLogoUrl] = useState<string | null>(null);
   const [uploadingAttachment, setUploadingAttachment] = useState(false);
   const fileInputId = 'admin-chat-attachment-input';
 
@@ -193,6 +194,16 @@ export default function AdminMessagesPage() {
     }
   };
 
+  const fetchAgencyLogo = async () => {
+    try {
+      const a = (await getDocument('agency', 'leOuiParfait')) as any;
+      const url = a?.logoUrl || null;
+      setAgencyLogoUrl(url);
+    } catch {
+      setAgencyLogoUrl(null);
+    }
+  };
+
   const fetchMessages = async (conversationId: string) => {
     if (!conversationId) return;
     try {
@@ -293,6 +304,7 @@ export default function AdminMessagesPage() {
     void fetchConversations();
     void fetchClients();
     void fetchMyProfilePhoto();
+    void fetchAgencyLogo();
   }, [user?.uid]);
 
   useEffect(() => {
@@ -639,7 +651,9 @@ export default function AdminMessagesPage() {
                 >
                   <div className={`flex items-end gap-2 ${message.isMe ? 'flex-row-reverse' : 'flex-row'}`}>
                     <Avatar className="h-8 w-8">
-                      {message.isMe && profilePhotoUrl ? <AvatarImage src={profilePhotoUrl} alt="Moi" /> : null}
+                      {message.isMe && (agencyLogoUrl || profilePhotoUrl) ? (
+                        <AvatarImage src={agencyLogoUrl || profilePhotoUrl || undefined} alt="Moi" />
+                      ) : null}
                       {!message.isMe && selectedConversation?.photoUrl ? (
                         <AvatarImage src={selectedConversation.photoUrl} alt={selectedConversation.name} />
                       ) : null}

@@ -25,6 +25,7 @@ import {
 } from '@/components/ui/select';
 import { Plus, Search, Filter, Phone, Mail, Calendar, Euro, UserPlus, CheckCircle, Archive, Save } from 'lucide-react';
 import { db } from '@/lib/firebase';
+import { useAuth } from '@/contexts/AuthContext';
 import {
   collection,
   addDoc,
@@ -33,8 +34,7 @@ import {
   getDocs,
   query,
   where,
-  serverTimestamp,
-  Timestamp
+  serverTimestamp
 } from 'firebase/firestore';
 
 interface Prospect {
@@ -48,6 +48,7 @@ interface Prospect {
   status: 'new' | 'contacted' | 'qualified' | 'converted' | 'lost';
   notes?: string;
   archived?: boolean;
+  planner_id?: string;
   createdAt?: any;
   updatedAt?: any;
 }
@@ -60,7 +61,13 @@ const statusConfig = {
   lost: { label: 'Perdu', className: 'bg-red-500' },
 };
 
+const getProspectStatusConfig = (status: any) => {
+  const normalized = String(status || 'new').trim().toLowerCase();
+  return (statusConfig as any)[normalized] || statusConfig.new;
+};
+
 export default function ProspectsPage() {
+  const { user } = useAuth();
   const [prospects, setProspects] = useState<Prospect[]>([]);
   const [search, setSearch] = useState('');
   const [selectedProspect, setSelectedProspect] = useState<Prospect | null>(null);
@@ -79,23 +86,24 @@ export default function ProspectsPage() {
     notes: '',
   });
 
-  // Charger les prospects depuis Firestore
   useEffect(() => {
+    if (!user?.uid) return;
     loadProspects();
-  }, []);
+  }, [user?.uid]);
 
   const loadProspects = async () => {
     try {
+      if (!user?.uid) return;
       setLoading(true);
       const prospectsRef = collection(db, 'prospects');
-      const q = query(prospectsRef, where('archived', '==', false));
-      const querySnapshot = await getDocs(q);
 
+      const plannerSnap = await getDocs(query(prospectsRef, where('planner_id', '==', user.uid)));
       const loadedProspects: Prospect[] = [];
-      querySnapshot.forEach((doc) => {
-        loadedProspects.push({ id: doc.id, ...doc.data() } as Prospect);
+      plannerSnap.forEach((d) => {
+        const data = d.data() as any;
+        if (data?.archived === true) return;
+        loadedProspects.push({ id: d.id, ...data } as Prospect);
       });
-
       setProspects(loadedProspects);
     } catch (error) {
       console.error('Erreur lors du chargement des prospects:', error);
@@ -111,16 +119,21 @@ export default function ProspectsPage() {
   const handleCreateProspect = async () => {
     try {
       setLoading(true);
+      if (!user?.uid) {
+        alert('Vous devez être connecté pour créer un prospect');
+        return;
+      }
       const prospectsRef = collection(db, 'prospects');
       const docRef = await addDoc(prospectsRef, {
         ...newProspect,
+        planner_id: user.uid,
         archived: false,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
 
       // Ajouter au state local
-      setProspects([...prospects, { id: docRef.id, ...newProspect, archived: false }]);
+      setProspects([...prospects, { id: docRef.id, ...newProspect, planner_id: user.uid, archived: false } as any]);
 
       // Réinitialiser le formulaire
       setNewProspect({
@@ -145,11 +158,6 @@ export default function ProspectsPage() {
   const handleViewDetail = (prospect: Prospect) => {
     setSelectedProspect(prospect);
     setIsDetailOpen(true);
-  };
-
-  const handleConvert = (prospect: Prospect) => {
-    setSelectedProspect(prospect);
-    setIsConvertOpen(true);
   };
 
   const handleStatusChange = (newStatus: string) => {
@@ -290,7 +298,7 @@ export default function ProspectsPage() {
               {/* Version mobile - Cards */}
               <div className="block sm:hidden space-y-4">
                 {filteredProspects.map((prospect) => {
-                  const config = statusConfig[prospect.status];
+                  const config = getProspectStatusConfig((prospect as any)?.status);
                   return (
                     <div key={prospect.id} className="p-4 bg-gray-50 rounded-lg space-y-3">
                       <div className="flex items-start justify-between">
@@ -348,7 +356,7 @@ export default function ProspectsPage() {
                   </thead>
                   <tbody>
                     {filteredProspects.map((prospect) => {
-                      const config = statusConfig[prospect.status];
+                      const config = getProspectStatusConfig((prospect as any)?.status);
                       return (
                         <tr
                           key={prospect.id}
@@ -412,8 +420,8 @@ export default function ProspectsPage() {
           {selectedProspect && (
             <div className="space-y-4 py-4">
               <div className="flex items-center justify-between">
-                <Badge className={`${statusConfig[selectedProspect.status]?.className} text-white`}>
-                  {statusConfig[selectedProspect.status]?.label}
+                <Badge className={`${getProspectStatusConfig((selectedProspect as any)?.status).className} text-white`}>
+                  {getProspectStatusConfig((selectedProspect as any)?.status).label}
                 </Badge>
                 <p className="text-xl font-bold text-brand-purple">
                   {parseInt(selectedProspect.budget || '0').toLocaleString()} €
@@ -495,7 +503,7 @@ export default function ProspectsPage() {
                   className="bg-green-600 hover:bg-green-700 gap-2"
                   onClick={() => {
                     setIsDetailOpen(false);
-                    if (selectedProspect) handleConvert(selectedProspect);
+                    if (selectedProspect) handleConfirmConvert();
                   }}
                   disabled={loading}
                 >

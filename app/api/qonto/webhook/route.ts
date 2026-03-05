@@ -100,6 +100,11 @@ export async function POST(req: Request) {
         const inv = invDoc.data();
         const invoiceId = invDoc.id;
 
+        const alreadyNotifiedTxIds = Array.isArray((inv as any)?.qonto_notified_transaction_ids)
+            ? ((inv as any).qonto_notified_transaction_ids as any[]).map((v) => String(v || '').trim()).filter(Boolean)
+            : [];
+        const alreadyNotifiedTotal = parseMoney((inv as any)?.qonto_notified_total_received ?? 0);
+
         // Logique de mise à jour (similaire à reconcile)
         const totalTtc = parseMoney(inv?.montant_ttc ?? inv?.amount ?? 0);
         const received = getTxAmountEur(tx);
@@ -124,6 +129,9 @@ export async function POST(req: Request) {
         const newPaid = Math.min(totalTtc, alreadyPaid + received);
         const newStatus = newPaid >= totalTtc ? 'paid' : 'partial';
 
+        const txId = String((tx as any)?.transaction_id || (tx as any)?.id || '').trim();
+        const hasNewTx = txId ? !alreadyNotifiedTxIds.includes(txId) : received > alreadyNotifiedTotal + 0.01;
+
         await invDoc.ref.update({
             paid: newPaid,
             status: newStatus,
@@ -136,14 +144,25 @@ export async function POST(req: Request) {
                 matched_at: new Date().toISOString(),
                 webhook_synced: true,
             },
+            ...(hasNewTx
+                ? {
+                    qonto_notified_total_received: alreadyPaid + received,
+                    qonto_notified_transaction_ids: txId
+                        ? Array.from(new Set([...alreadyNotifiedTxIds, txId]))
+                        : alreadyNotifiedTxIds,
+                    qonto_notified_at: new Date().toISOString(),
+                }
+                : {}),
             updated_at: new Date().toISOString(),
         });
 
         // Trigger notifications (Email, Push, Firestore)
-        try {
-            await handlePaymentSuccessNotifications(invoiceId, received);
-        } catch (e) {
-            console.warn('Unable to send payment notifications:', e);
+        if (hasNewTx) {
+            try {
+                await handlePaymentSuccessNotifications(invoiceId, received);
+            } catch (e) {
+                console.warn('Unable to send payment notifications:', e);
+            }
         }
 
         return NextResponse.json({

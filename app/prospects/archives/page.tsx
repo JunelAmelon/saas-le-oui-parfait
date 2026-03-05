@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Search, Archive, RefreshCcw, Trash2 } from 'lucide-react';
 import { db } from '@/lib/firebase';
+import { useAuth } from '@/contexts/AuthContext';
 import {
   collection,
   updateDoc,
@@ -43,29 +44,39 @@ const statusConfig = {
   lost: { label: 'Perdu', color: 'bg-red-100 text-red-700' },
 };
 
+const getProspectStatusConfig = (status: any) => {
+  const normalized = String(status || 'new').trim().toLowerCase();
+  return (statusConfig as any)[normalized] || statusConfig.new;
+};
+
 export default function ProspectsArchivesPage() {
+  const { user } = useAuth();
   const [archivedProspects, setArchivedProspects] = useState<ArchivedProspect[]>([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Charger les prospects archivés depuis Firestore
   useEffect(() => {
+    if (!user?.uid) return;
     loadArchivedProspects();
-  }, []);
+  }, [user?.uid]);
 
   const loadArchivedProspects = async () => {
     try {
+      if (!user?.uid) return;
       setLoading(true);
       const prospectsRef = collection(db, 'prospects');
-      const q = query(prospectsRef, where('archived', '==', true));
-      const querySnapshot = await getDocs(q);
 
-      const loadedProspects: ArchivedProspect[] = [];
-      querySnapshot.forEach((doc) => {
-        loadedProspects.push({ id: doc.id, ...doc.data() } as ArchivedProspect);
+      const plannerSnap = await getDocs(query(prospectsRef, where('planner_id', '==', user.uid)));
+      const byId = new Map<string, ArchivedProspect>();
+
+      plannerSnap.forEach((d: any) => {
+        const data = d.data() as any;
+        if (data?.archived !== true) return;
+        byId.set(d.id, { id: d.id, ...data } as ArchivedProspect);
       });
 
-      // Trier par date d'archivage (plus récent en premier)
+      const loadedProspects: ArchivedProspect[] = Array.from(byId.values());
+
       loadedProspects.sort((a, b) => {
         const dateA = a.archivedAt?.toDate?.() || new Date(0);
         const dateB = b.archivedAt?.toDate?.() || new Date(0);
@@ -179,7 +190,7 @@ export default function ProspectsArchivesPage() {
           <div className="space-y-4">
             {filteredProspects.length > 0 ? (
               filteredProspects.map((p) => {
-                const status = statusConfig[p.status];
+                const status = getProspectStatusConfig((p as any)?.status);
                 return (
                   <Card key={p.id} className="p-6 shadow-xl border-0 opacity-80 hover:opacity-100 transition-opacity">
                     <div className="flex items-start justify-between">

@@ -62,6 +62,7 @@ export default function MessagesPage() {
   const [showChatOnMobile, setShowChatOnMobile] = useState(false);
 
   const [plannerPhotoUrl, setPlannerPhotoUrl] = useState<string | null>(null);
+  const [agencyLogoUrl, setAgencyLogoUrl] = useState<string | null>(null);
   const [uploadingAttachment, setUploadingAttachment] = useState(false);
   const fileInputId = 'client-chat-attachment-input';
 
@@ -107,6 +108,16 @@ export default function MessagesPage() {
     }
   };
 
+  const fetchAgencyLogo = async () => {
+    try {
+      const a = (await getDocument('agency', 'leOuiParfait')) as any;
+      const url = a?.logoUrl || null;
+      setAgencyLogoUrl(url);
+    } catch {
+      setAgencyLogoUrl(null);
+    }
+  };
+
   const ensureConversation = async () => {
     if (!user?.uid || !client?.id || !client?.planner_id) return null;
     const existing = await getDocuments('conversations', [{ field: 'client_id', operator: '==', value: client.id }]);
@@ -136,6 +147,7 @@ export default function MessagesPage() {
       setLoading(true);
       try {
         void fetchPlannerPhoto();
+        void fetchAgencyLogo();
         const conv = await ensureConversation();
         if (!conv?.id) {
           setLoading(false);
@@ -378,7 +390,9 @@ export default function MessagesPage() {
                   <div className="flex items-start gap-3">
                     <div className="relative">
                       <Avatar className="h-10 w-10">
-                        {plannerPhotoUrl ? <AvatarImage src={plannerPhotoUrl} alt="Wedding Planner" /> : null}
+                        {agencyLogoUrl || plannerPhotoUrl ? (
+                          <AvatarImage src={agencyLogoUrl || plannerPhotoUrl || undefined} alt="Wedding Planner" />
+                        ) : null}
                         <AvatarFallback className="bg-brand-turquoise text-white text-sm">
                           {conv.avatar}
                         </AvatarFallback>
@@ -427,7 +441,9 @@ export default function MessagesPage() {
                   <ArrowLeft className="h-4 w-4 text-brand-gray" />
                 </Button>
                 <Avatar className="h-10 w-10">
-                  {plannerPhotoUrl ? <AvatarImage src={plannerPhotoUrl} alt="Wedding Planner" /> : null}
+                  {agencyLogoUrl || plannerPhotoUrl ? (
+                    <AvatarImage src={agencyLogoUrl || plannerPhotoUrl || undefined} alt="Wedding Planner" />
+                  ) : null}
                   <AvatarFallback className="bg-brand-turquoise text-white">
                     {selectedConversation?.avatar || '—'}
                   </AvatarFallback>
@@ -464,7 +480,9 @@ export default function MessagesPage() {
                   <div className={`flex items-end gap-2 ${message.isMe ? 'flex-row-reverse' : 'flex-row'}`}>
                     <Avatar className="h-8 w-8">
                       {message.isMe && client?.photo ? <AvatarImage src={client.photo} alt="Moi" /> : null}
-                      {!message.isMe && plannerPhotoUrl ? <AvatarImage src={plannerPhotoUrl} alt="Wedding Planner" /> : null}
+                      {!message.isMe && (agencyLogoUrl || plannerPhotoUrl) ? (
+                        <AvatarImage src={agencyLogoUrl || plannerPhotoUrl || undefined} alt="Wedding Planner" />
+                      ) : null}
                       <AvatarFallback className="bg-brand-turquoise text-white text-xs">
                         {message.isMe ? 'ME' : 'WP'}
                       </AvatarFallback>

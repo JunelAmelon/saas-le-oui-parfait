@@ -46,6 +46,7 @@ export default function PostItPage() {
   const [selectedPostIt, setSelectedPostIt] = useState<StickyNote | null>(null);
   const [modalMode, setModalMode] = useState<'create' | 'edit'>('create');
   const [draggedNote, setDraggedNote] = useState<string | null>(null);
+  const [dragOverNote, setDragOverNote] = useState<string | null>(null);
 
   // 🔄 FETCH
   const fetchPostIts = async () => {
@@ -114,7 +115,42 @@ export default function PostItPage() {
 
   // 🧲 DRAG (UI uniquement)
   const handleDragStart = (_: any, id: string) => setDraggedNote(id);
-  const handleDragEnd = () => setDraggedNote(null);
+  const handleDragEnd = () => {
+    setDraggedNote(null);
+    setDragOverNote(null);
+  };
+
+  const persistPriorities = async (next: StickyNote[], prev: StickyNote[]) => {
+    const prevMap = new Map(prev.map((n) => [n.id, n.priority]));
+    const changed = next.filter((n) => prevMap.get(n.id) !== n.priority);
+    await Promise.all(changed.map((n) => updateDocument('post_its', n.id, { priority: n.priority })));
+  };
+
+  const handleDropOn = async (targetId: string) => {
+    if (!draggedNote || draggedNote === targetId) return;
+    const prev = notes;
+    const fromIndex = prev.findIndex((n) => n.id === draggedNote);
+    const toIndex = prev.findIndex((n) => n.id === targetId);
+    if (fromIndex < 0 || toIndex < 0) return;
+
+    const next = prev.slice();
+    const [moved] = next.splice(fromIndex, 1);
+    next.splice(toIndex, 0, moved);
+    const withPriority = next.map((n, idx) => ({ ...n, priority: idx + 1 }));
+
+    setNotes(withPriority);
+    setDraggedNote(null);
+    setDragOverNote(null);
+
+    try {
+      await persistPriorities(withPriority, prev);
+      toast.success('Post-it réorganisés');
+    } catch (e) {
+      console.error('Error persisting post-it order:', e);
+      setNotes(prev);
+      toast.error("Impossible d'enregistrer le nouvel ordre");
+    }
+  };
 
   if (loading) {
     return (
@@ -193,7 +229,19 @@ export default function PostItPage() {
                 draggable
                 onDragStart={(e) => handleDragStart(e, note.id)}
                 onDragEnd={handleDragEnd}
-                className={`p-4 border-2 shadow-lg hover:shadow-xl transition-all cursor-move relative min-h-[180px] flex flex-col justify-between ${colorClasses[note.color]} ${draggedNote === note.id ? 'opacity-50' : ''}`}
+                onDragOver={(e) => {
+                  if (!draggedNote) return;
+                  e.preventDefault();
+                  setDragOverNote(note.id);
+                }}
+                onDragLeave={() => {
+                  setDragOverNote((prev) => (prev === note.id ? null : prev));
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  void handleDropOn(note.id);
+                }}
+                className={`p-4 border-2 shadow-lg hover:shadow-xl transition-all cursor-move relative min-h-[180px] flex flex-col justify-between ${colorClasses[note.color]} ${draggedNote === note.id ? 'opacity-50' : ''} ${dragOverNote === note.id && draggedNote !== note.id ? 'ring-2 ring-brand-turquoise' : ''}`}
               >
                 <div className="flex items-start justify-between mb-2">
                   <GripVertical className="h-4 w-4 text-gray-400 flex-shrink-0" />
