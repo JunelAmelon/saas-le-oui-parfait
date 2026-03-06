@@ -267,7 +267,7 @@ export function ClientDevis({ clientId, clientEmail, variant = 'list' }: ClientD
   };
 
   return (
-    <Card className="p-6 shadow-xl border-0">
+    <Card className="p-6 border border-gray-200 shadow-[0_10px_30px_rgba(0,0,0,0.06)] rounded-3xl bg-white">
       <div className="flex items-start justify-between gap-4 mb-6">
         <div>
           <h3 className="text-xl font-bold text-brand-purple flex items-center gap-2">
@@ -286,7 +286,7 @@ export function ClientDevis({ clientId, clientEmail, variant = 'list' }: ClientD
         <div className="text-gray-500 italic text-center p-4">Aucun devis reçu pour le moment.</div>
       ) : (
         variant === 'table' ? (
-          <div className="rounded-lg border border-gray-200 overflow-x-auto">
+          <div className="rounded-2xl border border-gray-200 overflow-x-auto bg-white">
             <Table className="min-w-[720px]">
               <TableHeader>
                 <TableRow>
@@ -379,11 +379,11 @@ export function ClientDevis({ clientId, clientEmail, variant = 'list' }: ClientD
               const canClientSign = d.status === 'sent' && !clientSigned && !isCompleted;
 
               return (
-                <div key={d.id} className="p-4 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors">
+                <div key={d.id} className="p-4 rounded-2xl bg-[#F6F6F6] hover:bg-[#EFEFEF] transition-colors">
                   <div className="flex items-start justify-between gap-4">
                     <div className="min-w-0">
                       <p className="font-medium text-brand-purple truncate">{d.reference}</p>
-                      <p className="text-xs text-brand-gray">{d.date || ''}</p>
+                      <p className="text-xs text-brand-gray mt-1">{String(d.date || '').trim() || '-'}</p>
                     </div>
                     <Badge className={badgeClass}>{d.status}</Badge>
                   </div>

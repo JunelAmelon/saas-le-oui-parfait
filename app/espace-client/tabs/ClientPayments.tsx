@@ -44,7 +44,7 @@ export function ClientPayments({ eventId, clientId }: PaymentsProps) {
 
     if (payments.length === 0) {
         return (
-            <Card className="p-6 shadow-xl border-0">
+            <Card className="p-6 border border-gray-200 shadow-[0_10px_30px_rgba(0,0,0,0.06)] rounded-3xl bg-white">
                 <h3 className="text-xl font-bold text-brand-purple mb-6 flex items-center gap-2">
                     <Euro className="h-6 w-6 text-brand-turquoise" />
                     Paiements
@@ -55,7 +55,7 @@ export function ClientPayments({ eventId, clientId }: PaymentsProps) {
     }
 
     return (
-        <Card className="p-6 shadow-xl border-0">
+        <Card className="p-6 border border-gray-200 shadow-[0_10px_30px_rgba(0,0,0,0.06)] rounded-3xl bg-white">
             <h3 className="text-xl font-bold text-brand-purple mb-6 flex items-center gap-2">
                 <Euro className="h-6 w-6 text-brand-turquoise" />
                 Paiements
@@ -64,7 +64,7 @@ export function ClientPayments({ eventId, clientId }: PaymentsProps) {
                 {payments.slice(0, 5).map((payment) => (
                     <div
                         key={payment.id}
-                        className="flex items-center justify-between p-4 rounded-lg bg-gray-50"
+                        className="flex items-center justify-between p-4 rounded-2xl bg-[#F6F6F6]"
                     >
                         <div className="flex-1">
                             <p className="font-medium text-brand-purple text-sm mb-1">
@@ -97,7 +97,7 @@ export function ClientPayments({ eventId, clientId }: PaymentsProps) {
                 {/* Placeholder functionality */}
                 <Button
                     variant="outline"
-                    className="w-full border-2 border-brand-turquoise text-brand-gray hover:bg-brand-turquoise hover:text-white"
+                    className="w-full rounded-2xl border border-gray-200 bg-white text-brand-gray hover:bg-gray-50"
                     onClick={() => router.push('/espace-client/paiements')}
                 >
                     Effectuer un paiement

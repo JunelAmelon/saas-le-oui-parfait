@@ -6,15 +6,47 @@ interface StatCardProps {
   value: string | number;
   icon: LucideIcon;
   description?: string;
+  tone?: 'mint' | 'lavender' | 'sky' | 'peach' | 'neutral';
   trend?: {
     value: number;
     isPositive: boolean;
   };
 }
 
-export function StatCard({ title, value, icon: Icon, description, trend }: StatCardProps) {
+const toneStyles: Record<NonNullable<StatCardProps['tone']>, { card: string; iconWrap: string; icon: string }> = {
+  mint: {
+    card: 'bg-[#EAF4EF] border-[#D7E7DE]',
+    iconWrap: 'bg-white/70 border border-white/70',
+    icon: 'text-[#2F6B55]',
+  },
+  lavender: {
+    card: 'bg-[#E7E8FF] border-[#D8D9FF]',
+    iconWrap: 'bg-white/70 border border-white/70',
+    icon: 'text-[#4B4A86]',
+  },
+  sky: {
+    card: 'bg-[#EAF2FF] border-[#D9E6FF]',
+    iconWrap: 'bg-white/70 border border-white/70',
+    icon: 'text-[#2B5EA7]',
+  },
+  peach: {
+    card: 'bg-[#FBE9E6] border-[#F6D7D1]',
+    iconWrap: 'bg-white/70 border border-white/70',
+    icon: 'text-[#9B3E34]',
+  },
+  neutral: {
+    card: 'bg-white border-gray-200',
+    iconWrap: 'bg-brand-turquoise/10',
+    icon: 'text-brand-turquoise',
+  },
+};
+
+export function StatCard({ title, value, icon: Icon, description, trend, tone }: StatCardProps) {
+  const styles = toneStyles[tone || 'neutral'];
   return (
-    <Card className="p-6 shadow-xl border-0">
+    <Card
+      className={`p-6 border shadow-[0_10px_30px_rgba(0,0,0,0.06)] rounded-3xl ${styles.card}`}
+    >
       <div className="flex items-start justify-between">
         <div className="flex-1">
           <p className="text-xs font-medium uppercase tracking-label text-brand-gray mb-2">
@@ -38,8 +70,8 @@ export function StatCard({ title, value, icon: Icon, description, trend }: StatC
             </div>
           )}
         </div>
-        <div className="rounded-full bg-brand-turquoise/10 p-3">
-          <Icon className="h-6 w-6 text-brand-turquoise" />
+        <div className={`rounded-full p-3 ${styles.iconWrap}`}>
+          <Icon className={`h-6 w-6 ${styles.icon}`} />
         </div>
       </div>
     </Card>

@@ -169,29 +169,33 @@ export default function ClientPortalPage() {
             value={`J-${daysRemaining}`}
             icon={Calendar}
             description={displayDate ? new Date(displayDate).toLocaleDateString('fr-FR') : 'Date à définir'}
+            tone="mint"
           />
           <StatCard
             title="Invités"
             value={displayGuests || 0}
             icon={Users}
             description=""
+            tone="sky"
           />
           <StatCard
             title="Budget"
             value={`${Number(displayBudget || 0).toLocaleString('fr-FR')} €`}
             icon={Euro}
             description=""
+            tone="lavender"
           />
           <StatCard
             title="Progression"
             value={`${progressPct}%`}
             icon={Sparkles}
             description={milestonesTotal > 0 ? `${milestonesDone} / ${milestonesTotal}` : ''}
+            tone="peach"
           />
         </div>
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-          <Card className="p-6 shadow-xl border-0 lg:col-span-2">
+          <Card className="p-6 border border-gray-200 shadow-[0_10px_30px_rgba(0,0,0,0.06)] rounded-3xl bg-white lg:col-span-2">
             <div className="flex items-start justify-between gap-4 mb-4">
               <div>
                 <h3 className="text-xl font-bold text-brand-purple">Prochaines étapes</h3>
@@ -201,8 +205,8 @@ export default function ClientPortalPage() {
               </div>
             </div>
 
-            <div className="h-2 w-full rounded-full bg-gray-100 overflow-hidden mb-5">
-              <div className="h-full bg-brand-turquoise" style={{ width: `${progressPct}%` }} />
+            <div className="h-2.5 w-full rounded-full bg-gray-100 overflow-hidden mb-5">
+              <div className="h-full bg-brand-turquoise rounded-full" style={{ width: `${progressPct}%` }} />
             </div>
 
             {milestonesLoading ? (
@@ -214,7 +218,7 @@ export default function ClientPortalPage() {
             ) : (
               <div className="space-y-3">
                 {nextMilestones.map((m) => (
-                  <div key={m.id} className="p-4 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors">
+                  <div key={m.id} className="p-4 rounded-2xl bg-[#F6F6F6] hover:bg-[#EFEFEF] transition-colors">
                     <div className="flex items-start justify-between gap-4">
                       <div className="min-w-0">
                         <p className="font-medium text-brand-purple truncate">{m.title}</p>
@@ -233,9 +237,9 @@ export default function ClientPortalPage() {
             )}
           </Card>
 
-          <Card className="p-6 shadow-xl border-0 bg-brand-turquoise-hover">
-            <h3 className="text-xl font-bold text-white mb-4">Moodboard</h3>
-            <p className="text-sm text-white/90">
+          <Card className="p-6 border border-[#D8D9FF] shadow-[0_10px_30px_rgba(0,0,0,0.06)] rounded-3xl bg-[#E7E8FF]">
+            <h3 className="text-xl font-bold text-brand-purple mb-4">Moodboard</h3>
+            <p className="text-sm text-brand-gray">
               {themeStyle ? themeStyle : 'À définir'}
             </p>
             <div className="mt-4 flex flex-wrap gap-2">
@@ -249,11 +253,11 @@ export default function ClientPortalPage() {
                   />
                 ))
               ) : (
-                <p className="text-sm text-white/90">Ajoutez vos couleurs depuis “Mon mariage”.</p>
+                <p className="text-sm text-brand-gray">Ajoutez vos couleurs depuis “Mon mariage”.</p>
               )}
             </div>
             <Button
-              className="w-full mt-5 bg-white text-brand-turquoise-hover hover:bg-white/90"
+              className="w-full mt-5 bg-white text-brand-purple hover:bg-white/90"
               onClick={() => router.push('/espace-client/mariage')}
             >
               Modifier

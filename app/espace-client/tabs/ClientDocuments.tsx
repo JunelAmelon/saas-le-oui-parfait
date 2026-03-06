@@ -59,7 +59,7 @@ export function ClientDocuments({ eventId, clientId }: DocumentsProps) {
 
     if (documents.length === 0) {
         return (
-            <Card className="p-6 shadow-xl border-0">
+            <Card className="p-6 border border-gray-200 shadow-[0_10px_30px_rgba(0,0,0,0.06)] rounded-3xl bg-white">
                 <h3 className="text-xl font-bold text-brand-purple mb-6 flex items-center gap-2">
                     <FileText className="h-6 w-6 text-brand-turquoise" />
                     Documents
@@ -70,7 +70,7 @@ export function ClientDocuments({ eventId, clientId }: DocumentsProps) {
     }
 
     return (
-        <Card className="p-6 shadow-xl border-0">
+        <Card className="p-6 border border-gray-200 shadow-[0_10px_30px_rgba(0,0,0,0.06)] rounded-3xl bg-white">
             <h3 className="text-xl font-bold text-brand-purple mb-6 flex items-center gap-2">
                 <FileText className="h-6 w-6 text-brand-turquoise" />
                 Documents
@@ -83,7 +83,7 @@ export function ClientDocuments({ eventId, clientId }: DocumentsProps) {
                     .map((doc) => (
                     <div
                         key={doc.id}
-                        className="flex items-center justify-between p-4 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors"
+                        className="flex items-center justify-between p-4 rounded-2xl bg-[#F6F6F6] hover:bg-[#EFEFEF] transition-colors"
                     >
                         <div className="flex items-center gap-3 flex-1">
                             <FileText className="h-5 w-5 text-brand-turquoise" />
