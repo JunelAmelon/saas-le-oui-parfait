@@ -215,7 +215,7 @@ export default function MariagePage() {
           </Button>
         </div>
 
-        <Card className="p-6 shadow-xl border-0">
+        <Card className="p-6 border border-gray-200 shadow-[0_10px_30px_rgba(0,0,0,0.06)] rounded-3xl bg-white">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
               <p className="text-xs text-brand-gray uppercase tracking-label">Couple</p>
@@ -227,7 +227,7 @@ export default function MariagePage() {
           </div>
 
           <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="p-4 rounded-lg bg-gray-50">
+            <div className="p-4 rounded-2xl bg-[#F3E7C8]">
               <div className="flex items-center gap-2 text-brand-gray text-sm">
                 <Calendar className="h-4 w-4 text-brand-turquoise" />
                 Date
@@ -240,7 +240,7 @@ export default function MariagePage() {
               </div>
             </div>
 
-            <div className="p-4 rounded-lg bg-gray-50">
+            <div className="p-4 rounded-2xl bg-[#F3E7C8]">
               <div className="flex items-center gap-2 text-brand-gray text-sm">
                 <MapPin className="h-4 w-4 text-brand-turquoise" />
                 Lieu
@@ -248,7 +248,7 @@ export default function MariagePage() {
               <p className="mt-2 font-medium text-brand-purple">{location || 'À définir'}</p>
             </div>
 
-            <div className="p-4 rounded-lg bg-gray-50">
+            <div className="p-4 rounded-2xl bg-[#F3E7C8]">
               <div className="flex items-center gap-2 text-brand-gray text-sm">
                 <Users className="h-4 w-4 text-brand-turquoise" />
                 Invités
@@ -256,7 +256,7 @@ export default function MariagePage() {
               <p className="mt-2 font-medium text-brand-purple">{guestCount || 0}</p>
             </div>
 
-            <div className="p-4 rounded-lg bg-gray-50">
+            <div className="p-4 rounded-2xl bg-[#F3E7C8]">
               <div className="flex items-center gap-2 text-brand-gray text-sm">
                 <span className="h-4 w-4 inline-flex items-center justify-center text-brand-turquoise">€</span>
                 Budget
