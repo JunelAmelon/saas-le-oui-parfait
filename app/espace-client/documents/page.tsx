@@ -591,9 +591,9 @@ export default function DocumentsPage() {
               key={cat.id}
               className={`p-4 cursor-pointer transition-all ${
                 selectedCategory === cat.id
-                  ? 'bg-brand-turquoise text-white shadow-lg'
-                  : 'bg-white hover:shadow-md'
-              }`}
+                  ? 'bg-brand-turquoise text-white'
+                  : 'bg-white hover:bg-[#FAFAFA]'
+              } border-0 shadow-xl`}
               onClick={() => setSelectedCategory(cat.id)}
             >
               <p className={`text-2xl font-bold ${selectedCategory === cat.id ? 'text-white' : 'text-brand-purple'}`}>
@@ -606,7 +606,7 @@ export default function DocumentsPage() {
           ))}
         </div>
 
-        <Card className="p-6 shadow-xl border-0">
+        <Card className="p-6 border border-gray-200 shadow-[0_10px_30px_rgba(0,0,0,0.06)] rounded-3xl bg-white">
           <div className="flex flex-col md:flex-row gap-4 mb-6">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-brand-gray" />
@@ -628,9 +628,9 @@ export default function DocumentsPage() {
               <Loader2 className="animate-spin h-8 w-8 text-brand-turquoise" />
             </div>
           ) : (
-            <div className="w-full overflow-x-auto">
-              <Table>
-                <TableHeader>
+            <div className="w-full overflow-x-auto rounded-3xl border border-gray-200">
+              <Table className="min-w-[720px]">
+                <TableHeader className="bg-[#F6F6F6]">
                   <TableRow>
                     <TableHead>Document</TableHead>
                     <TableHead>Type</TableHead>

@@ -97,7 +97,7 @@ export function ClientPayments({ eventId, clientId }: PaymentsProps) {
                 {/* Placeholder functionality */}
                 <Button
                     variant="outline"
-                    className="w-full rounded-2xl border border-gray-200 bg-white text-brand-gray hover:bg-gray-50"
+                    className="w-full rounded-2xl border border-gray-200 bg-white text-brand-gray hover:bg-gray-50 hover:text-brand-gray hover:border-gray-300"
                     onClick={() => router.push('/espace-client/paiements')}
                 >
                     Effectuer un paiement

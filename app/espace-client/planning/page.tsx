@@ -272,7 +272,7 @@ export default function PlanningPage() {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-6">
-            <Card className="p-6 shadow-xl border-0">
+            <Card className="p-6 border border-gray-200 shadow-[0_10px_30px_rgba(0,0,0,0.06)] rounded-3xl bg-white">
               <h2 className="text-xl font-bold text-brand-purple mb-6">
                 Prochains rendez-vous
               </h2>
@@ -285,7 +285,7 @@ export default function PlanningPage() {
                   rdvEvents.map((event) => (
                   <div
                     key={event.id}
-                    className="flex items-start gap-4 p-4 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer"
+                    className="flex items-start gap-4 p-4 rounded-2xl bg-[#F6F6F6] hover:bg-[#EFEFEF] transition-colors cursor-pointer"
                     onClick={() => handleEventClick(event as Event)}
                   >
                     <div className="flex-shrink-0 w-16 text-center">
@@ -317,7 +317,7 @@ export default function PlanningPage() {
           </div>
 
           <div className="space-y-6">
-            <Card className="p-6 shadow-xl border-0">
+            <Card className="p-6 border border-gray-200 shadow-[0_10px_30px_rgba(0,0,0,0.06)] rounded-3xl bg-white">
               <div className="flex items-center justify-between mb-4">
                 <Button variant="ghost" size="icon" onClick={() => {
                   if (currentMonth.getMonth() === 0) {
@@ -374,13 +374,11 @@ export default function PlanningPage() {
               </div>
             </Card>
 
-            <Card className="p-6 shadow-xl border-0">
+            <Card className="p-6 border border-gray-200 shadow-[0_10px_30px_rgba(0,0,0,0.06)] rounded-3xl bg-white">
               <div className="space-y-4">
                 <div>
                   <h3 className="text-lg font-bold text-brand-purple">Étapes clés</h3>
-                  <p className="text-sm text-brand-gray">
-                    Suivez l&apos;avancement de vos étapes
-                  </p>
+                  <p className="text-sm text-brand-gray">Suivez vos prochaines étapes</p>
                 </div>
 
                 {stepsLoading ? (
@@ -401,7 +399,7 @@ export default function PlanningPage() {
                         return (
                           <div
                             key={s.id}
-                            className="p-4 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors"
+                            className="p-4 rounded-2xl bg-[#F6F6F6] hover:bg-[#EFEFEF] transition-colors"
                           >
                             <div className="flex items-start justify-between gap-4">
                               <div className="min-w-0">

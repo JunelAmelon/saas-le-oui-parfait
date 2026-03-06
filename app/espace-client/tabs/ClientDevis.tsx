@@ -286,14 +286,14 @@ export function ClientDevis({ clientId, clientEmail, variant = 'list' }: ClientD
         <div className="text-gray-500 italic text-center p-4">Aucun devis reçu pour le moment.</div>
       ) : (
         variant === 'table' ? (
-          <div className="rounded-2xl border border-gray-200 overflow-x-auto bg-white">
+          <div className="rounded-3xl border border-gray-200 overflow-hidden bg-white">
             <Table className="min-w-[720px]">
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Référence</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Statut</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+              <TableHeader className="bg-[#F6F6F6]">
+                <TableRow className="hover:bg-transparent">
+                  <TableHead className="text-brand-gray">Référence</TableHead>
+                  <TableHead className="text-brand-gray">Date</TableHead>
+                  <TableHead className="text-brand-gray">Statut</TableHead>
+                  <TableHead className="text-brand-gray text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -307,7 +307,7 @@ export function ClientDevis({ clientId, clientEmail, variant = 'list' }: ClientD
                   const canClientSign = d.status === 'sent' && !clientSigned && !isCompleted;
 
                   return (
-                    <TableRow key={d.id}>
+                    <TableRow key={d.id} className="hover:bg-[#FAFAFA]">
                       <TableCell className="font-medium text-brand-purple">{d.reference}</TableCell>
                       <TableCell className="text-brand-gray">{String(d.date || '').trim() || '-'}</TableCell>
                       <TableCell>
