@@ -19,6 +19,20 @@ type ChatMessage = {
   content: string;
 };
 
+function buildStoragePrefix(params: {
+  uid: string;
+  role: Role;
+  clientId?: string;
+}) {
+  const { uid, role, clientId } = params;
+  const scope = role === 'admin' ? (clientId ? `client:${clientId}` : 'global') : 'self';
+  return `assistant:${role}:${uid}:${scope}`;
+}
+
+function storageKey(prefix: string, suffix: string) {
+  return `${prefix}:${suffix}`;
+}
+
 function safeJsonParse<T>(raw: string | null): T | null {
   if (!raw) return null;
   try {
@@ -59,30 +73,47 @@ export function AssistantWidget() {
 
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
-  useEffect(() => {
-    const persistedOpen = safeJsonParse<boolean>(localStorage.getItem('assistant_open'));
-    const persistedMessages = safeJsonParse<ChatMessage[]>(localStorage.getItem('assistant_messages'));
-    const persistedLastSeen = safeJsonParse<string>(localStorage.getItem('assistant_last_seen_assistant'));
-    if (typeof persistedOpen === 'boolean') setOpen(persistedOpen);
-    if (Array.isArray(persistedMessages)) setMessages(persistedMessages);
-    if (typeof persistedLastSeen === 'string') setLastSeenAssistantId(persistedLastSeen);
-  }, []);
+  const storagePrefix = useMemo(() => {
+    if (!user?.uid) return '';
+    return buildStoragePrefix({
+      uid: user.uid,
+      role,
+      clientId: role === 'admin' ? clientIdFromPath : undefined,
+    });
+  }, [user?.uid, role, clientIdFromPath]);
 
   useEffect(() => {
-    localStorage.setItem('assistant_open', JSON.stringify(open));
-  }, [open]);
+    if (!storagePrefix) return;
+
+    const persistedOpen = safeJsonParse<boolean>(localStorage.getItem(storageKey(storagePrefix, 'open')));
+    const persistedMessages = safeJsonParse<ChatMessage[]>(localStorage.getItem(storageKey(storagePrefix, 'messages')));
+    const persistedLastSeen = safeJsonParse<string>(
+      localStorage.getItem(storageKey(storagePrefix, 'last_seen_assistant'))
+    );
+
+    setOpen(typeof persistedOpen === 'boolean' ? persistedOpen : false);
+    setMessages(Array.isArray(persistedMessages) ? persistedMessages : []);
+    setLastSeenAssistantId(typeof persistedLastSeen === 'string' ? persistedLastSeen : '');
+  }, [storagePrefix]);
 
   useEffect(() => {
-    localStorage.setItem('assistant_messages', JSON.stringify(messages.slice(-50)));
-  }, [messages]);
+    if (!storagePrefix) return;
+    localStorage.setItem(storageKey(storagePrefix, 'open'), JSON.stringify(open));
+  }, [open, storagePrefix]);
+
+  useEffect(() => {
+    if (!storagePrefix) return;
+    localStorage.setItem(storageKey(storagePrefix, 'messages'), JSON.stringify(messages.slice(-50)));
+  }, [messages, storagePrefix]);
 
   useEffect(() => {
     if (!open) return;
     const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant');
     if (!lastAssistant) return;
     setLastSeenAssistantId(lastAssistant.id);
-    localStorage.setItem('assistant_last_seen_assistant', JSON.stringify(lastAssistant.id));
-  }, [open, messages]);
+    if (!storagePrefix) return;
+    localStorage.setItem(storageKey(storagePrefix, 'last_seen_assistant'), JSON.stringify(lastAssistant.id));
+  }, [open, messages, storagePrefix]);
 
   useEffect(() => {
     if (!open) return;
@@ -106,8 +137,9 @@ export function AssistantWidget() {
     setMessages([]);
     setLastSeenAssistantId('');
     try {
-      localStorage.removeItem('assistant_messages');
-      localStorage.removeItem('assistant_last_seen_assistant');
+      if (!storagePrefix) return;
+      localStorage.removeItem(storageKey(storagePrefix, 'messages'));
+      localStorage.removeItem(storageKey(storagePrefix, 'last_seen_assistant'));
     } catch {
       // ignore
     }

@@ -11,6 +11,16 @@ type ChatRequestBody = {
   clientId?: string;
 };
 
+async function resolveRoleForUid(uid: string): Promise<Role> {
+  try {
+    const snap = await adminDb.collection('profiles').doc(uid).get();
+    const role = String((snap.exists ? (snap.data() as any)?.role : '') || '').toLowerCase();
+    return role === 'planner' ? 'admin' : 'client';
+  } catch {
+    return 'client';
+  }
+}
+
 function getBearerToken(req: Request) {
   const authHeader = req.headers.get('authorization') || '';
   return authHeader.startsWith('Bearer ') ? authHeader.slice('Bearer '.length) : '';
@@ -342,7 +352,7 @@ export async function POST(req: Request) {
 
     const body = (await req.json()) as ChatRequestBody;
     const userMessage = String(body?.message || '').trim();
-    const role = (body?.role || 'client') as Role;
+    const role = await resolveRoleForUid(decoded.uid);
     const pathname = String(body?.pathname || '');
 
     if (!userMessage) return NextResponse.json({ error: 'missing_message' }, { status: 400 });
