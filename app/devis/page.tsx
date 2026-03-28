@@ -88,10 +88,10 @@ export default function DevisPage() {
   const [devisList, setDevisList] = useState<Devis[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedDevis, setSelectedDevis] = useState<Devis | null>(null);
+  const [editDevis, setEditDevis] = useState<any | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isNewDevisOpen, setIsNewDevisOpen] = useState(false);
   const [isSendOpen, setIsSendOpen] = useState(false);
-  const [isEditOpen, setIsEditOpen] = useState(false);
   const [sendEmail, setSendEmail] = useState('');
   const [sendMessage, setSendMessage] = useState(
     "Bonjour, veuillez trouver ci-joint notre devis pour votre mariage. N'hésitez pas à nous contacter pour toute question."
@@ -101,9 +101,6 @@ export default function DevisPage() {
 
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 3;
-
-  const [editValidUntil, setEditValidUntil] = useState('');
-  const [editDescription, setEditDescription] = useState('');
 
   const [isBonCommandeOpen, setIsBonCommandeOpen] = useState(false);
   const [bonCommandeVendors, setBonCommandeVendors] = useState<any[]>([]);
@@ -581,6 +578,7 @@ export default function DevisPage() {
   };
 
   const handleNewDevis = () => {
+    setEditDevis(null);
     setIsNewDevisOpen(true);
   };
 
@@ -597,26 +595,15 @@ export default function DevisPage() {
   const startIndex = (currentPage - 1) * itemsPerPage;
   const paginatedDevis = filteredDevis.slice(startIndex, startIndex + itemsPerPage);
 
-  const openEdit = (devis: Devis) => {
-    setSelectedDevis(devis);
-    setEditValidUntil(devis.validUntil || '');
-    setEditDescription(devis.description || '');
-    setIsEditOpen(true);
-  };
-
-  const saveEdit = async () => {
-    if (!selectedDevis?.id) return;
+  const openEdit = async (devis: Devis) => {
     try {
-      await updateDocument('devis', selectedDevis.id, {
-        valid_until: editValidUntil,
-        description: editDescription,
-      });
-      toast.success('Devis modifié');
-      setIsEditOpen(false);
-      await fetchDevis();
+      toast.message('Chargement du devis...', { description: devis.reference });
+      const full = await getDocument('devis', devis.id);
+      setEditDevis({ id: devis.id, ...(full as any) });
+      setIsNewDevisOpen(true);
     } catch (e) {
-      console.error('Error updating devis:', e);
-      toast.error('Erreur lors de la modification');
+      console.error('Error loading devis for edit:', e);
+      toast.error('Impossible de charger le devis pour modification');
     }
   };
 
@@ -987,43 +974,19 @@ export default function DevisPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-brand-purple">Modifier le devis</DialogTitle>
-            <DialogDescription>{selectedDevis?.reference}</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div>
-              <Label>Valide jusqu&apos;au</Label>
-              <Input value={editValidUntil} onChange={(e) => setEditValidUntil(e.target.value)} className="mt-1" />
-            </div>
-            <div>
-              <Label>Description</Label>
-              <Textarea
-                value={editDescription}
-                onChange={(e) => setEditDescription(e.target.value)}
-                className="mt-1"
-                rows={4}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsEditOpen(false)}>
-              Annuler
-            </Button>
-            <Button className="bg-brand-turquoise hover:bg-brand-turquoise-hover" onClick={() => void saveEdit()}>
-              Enregistrer
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
       {/* Modal Nouveau Devis */}
       <NewDevisModal 
         isOpen={isNewDevisOpen} 
-        onClose={() => setIsNewDevisOpen(false)}
+        onClose={() => {
+          setIsNewDevisOpen(false);
+          setSelectedDevis(null);
+          setEditDevis(null);
+        }}
         onDevisCreated={fetchDevis}
+        onDevisUpdated={fetchDevis}
+        mode={editDevis ? 'edit' : 'create'}
+        devisId={editDevis?.id}
+        initialDevis={editDevis}
       />
 
       {/* Modal Envoyer Devis */}

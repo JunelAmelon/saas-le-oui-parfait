@@ -10,25 +10,31 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Upload, Plus, Trash2, Eye } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { getDocument, getDocuments, addDocument } from '@/lib/db';
+import { getDocument, getDocuments, addDocument, updateDocument } from '@/lib/db';
 import { toast as sonnerToast } from 'sonner';
 import axios from 'axios';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import Image from 'next/image';
 import jsPDF from 'jspdf';
-import { uploadPdf } from '@/lib/storage';
+import { uploadImage, uploadPdf } from '@/lib/storage';
+import { getClientEvent } from '@/lib/client-helpers';
 
 interface DevisItem {
   id: string;
   description: string;
   quantity: number;
   unitPrice: number;
+  images?: string[];
 }
 
 interface NewDevisModalProps {
   isOpen: boolean;
   onClose: () => void;
   onDevisCreated?: () => void;
+  mode?: 'create' | 'edit';
+  devisId?: string;
+  initialDevis?: any;
+  onDevisUpdated?: () => void;
 }
 
 interface Client {
@@ -107,7 +113,15 @@ const getPrestationIdFromItemId = (itemId: string) => {
   return itemId;
 };
 
-export function NewDevisModal({ isOpen, onClose, onDevisCreated }: NewDevisModalProps) {
+export function NewDevisModal({
+  isOpen,
+  onClose,
+  onDevisCreated,
+  mode = 'create',
+  devisId,
+  initialDevis,
+  onDevisUpdated,
+}: NewDevisModalProps) {
   const { toast } = useToast();
   const { user } = useAuth();
   const [clients, setClients] = useState<Client[]>([]);
@@ -116,6 +130,7 @@ export function NewDevisModal({ isOpen, onClose, onDevisCreated }: NewDevisModal
   const [pdfMode, setPdfMode] = useState<'generate' | 'import'>('generate');
   const [activeTab, setActiveTab] = useState<'form' | 'preview'>('form');
   const previewRef = useRef<HTMLDivElement | null>(null);
+  const notesSignatureRef = useRef<HTMLDivElement | null>(null);
 
   const [agencyInfo, setAgencyInfo] = useState<any>(null);
   const [agencyName, setAgencyName] = useState('');
@@ -134,12 +149,40 @@ export function NewDevisModal({ isOpen, onClose, onDevisCreated }: NewDevisModal
   const [validUntil, setValidUntil] = useState('');
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
+  const [weddingEvent, setWeddingEvent] = useState<any | null>(null);
 
   // Fetch clients
   useEffect(() => {
     if (isOpen && user) {
       fetchClients();
       void fetchAgencyInfo();
+
+      if (mode === 'edit' && initialDevis) {
+        setActiveTab('form');
+        setPdfMode('generate');
+        setPdfFile(null);
+
+        setSelectedClient(String(initialDevis.client_id || ''));
+        setReference(String(initialDevis.reference || '').trim());
+        setValidUntil(String(initialDevis.valid_until || ''));
+        setDevisTitle(String(initialDevis.title || 'Devis'));
+        setDevisIntro(String(initialDevis.intro || ''));
+        setNotes(String(initialDevis.description || ''));
+
+        const mappedItems: DevisItem[] = (Array.isArray(initialDevis.items) ? initialDevis.items : []).map(
+          (it: any, idx: number) => ({
+            id: String(idx + 1),
+            description: String(it?.description || ''),
+            quantity: Number(it?.quantity || 1),
+            unitPrice: Number(it?.unit_price || 0),
+            images: Array.isArray(it?.images) ? it.images : [],
+          })
+        );
+
+        setItems(mappedItems.length ? mappedItems : [{ id: '1', description: '', quantity: 1, unitPrice: 0 }]);
+        setSelectedPrestations([]);
+        return;
+      }
 
       setActiveTab('form');
       setPdfMode('generate');
@@ -160,7 +203,7 @@ export function NewDevisModal({ isOpen, onClose, onDevisCreated }: NewDevisModal
       const suggestedRef = `DEVIS-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`;
       setReference((prev) => (prev && prev.trim() ? prev : suggestedRef));
     }
-  }, [isOpen, user]);
+  }, [isOpen, user, mode, initialDevis]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -169,8 +212,30 @@ export function NewDevisModal({ isOpen, onClose, onDevisCreated }: NewDevisModal
       setValidUntil('');
       setDevisIntro('');
       setNotes('');
+      setWeddingEvent(null);
     }
   }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    if (!selectedClient) {
+      setWeddingEvent(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const ev = await getClientEvent(String(selectedClient));
+        if (!cancelled) setWeddingEvent(ev);
+      } catch (e) {
+        console.warn('Unable to load client event for devis:', e);
+        if (!cancelled) setWeddingEvent(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, selectedClient]);
 
   const fetchClients = async () => {
     if (!user) return;
@@ -305,38 +370,147 @@ export function NewDevisModal({ isOpen, onClose, onDevisCreated }: NewDevisModal
     const pageHeight = pdf.internal.pageSize.getHeight();
     const padding = 24;
 
-    const scale = 1.25;
-    const quality = 0.8;
-    const totalHeight = node.scrollHeight;
+    const scale = 2;
+    const quality = 0.9;
+
+    const canvas = await html2canvas(node, {
+      scale,
+      useCORS: true,
+      backgroundColor: '#ffffff',
+      logging: false,
+      width: node.scrollWidth,
+      height: node.scrollHeight,
+      windowWidth: node.scrollWidth,
+      windowHeight: node.scrollHeight,
+      scrollY: 0,
+      scrollX: 0,
+    } as any);
+
+    const blockEl = notesSignatureRef.current;
+    const blockRange = (() => {
+      if (!blockEl) return null;
+      const nodeRect = node.getBoundingClientRect();
+      const blockRect = blockEl.getBoundingClientRect();
+      const top = (blockRect.top - nodeRect.top) + node.scrollTop;
+      const bottom = top + blockEl.scrollHeight;
+      const scaleY = canvas.height / Math.max(1, node.scrollHeight);
+      return {
+        startPx: Math.max(0, Math.floor(top * scaleY)),
+        endPx: Math.min(canvas.height, Math.ceil(bottom * scaleY)),
+      };
+    })();
+
     const imgWidth = pageWidth - padding * 2;
     const pdfInnerHeight = pageHeight - padding * 2;
-    const ptPerPx = imgWidth / Math.max(1, node.scrollWidth);
-    const maxSliceHeightPx = Math.floor(pdfInnerHeight / ptPerPx);
-    const sliceHeight = Math.max(300, maxSliceHeightPx);
+    const ptPerPx = imgWidth / canvas.width;
+    const pageHeightPx = Math.floor(pdfInnerHeight / ptPerPx);
 
-    let y = 0;
-    let isFirstPage = true;
+    const fullCtx = canvas.getContext('2d');
+    if (!fullCtx) {
+      throw new Error('Canvas context introuvable pour la génération PDF');
+    }
 
-    while (y < totalHeight) {
-      const canvas = await html2canvas(node, {
-        scale,
-        useCORS: true,
-        backgroundColor: '#ffffff',
-        logging: false,
-        width: node.scrollWidth,
-        height: Math.min(sliceHeight, totalHeight - y),
-        windowWidth: node.scrollWidth,
-        windowHeight: sliceHeight,
-        y,
-      } as any);
+    const isRowMostlyWhite = (y: number) => {
+      const width = canvas.width;
+      const x0 = Math.floor(width * 0.08);
+      const w = Math.max(1, Math.floor(width * 0.84));
+      const sampleStep = 8;
+      const threshold = 245;
+      const maxDarkRatio = 0.015;
+      let dark = 0;
+      let total = 0;
+      const yy = Math.max(0, Math.min(canvas.height - 1, y));
+      const row = fullCtx.getImageData(x0, yy, w, 1).data;
+      for (let x = 0; x < w; x += sampleStep) {
+        const i = x * 4;
+        const r = row[i];
+        const g = row[i + 1];
+        const b = row[i + 2];
+        total += 1;
+        if (r < threshold || g < threshold || b < threshold) dark += 1;
+      }
+      return total > 0 ? dark / total <= maxDarkRatio : true;
+    };
 
-      const imgData = canvas.toDataURL('image/jpeg', quality);
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+    const findSmartBreak = (targetY: number) => {
+      const searchUp = 140;
+      const searchDown = 24;
+      const minY = Math.max(0, targetY - searchUp);
+      const maxY = Math.min(canvas.height - 1, targetY + searchDown);
+      for (let y = maxY; y >= minY; y -= 1) {
+        if (isRowMostlyWhite(y)) return y;
+      }
+      return targetY;
+    };
 
-      if (!isFirstPage) pdf.addPage();
+    let yPx = 0;
+    let pageIndex = 0;
+
+    while (yPx < canvas.height) {
+      const targetBreak = Math.min(canvas.height, yPx + pageHeightPx);
+
+      if (
+        blockRange &&
+        yPx < blockRange.startPx &&
+        targetBreak > blockRange.startPx &&
+        targetBreak < blockRange.endPx
+      ) {
+        // Force un saut de page avant le bloc Notes + Signature pour éviter de le couper en deux.
+        if (pageIndex === 0 && blockRange.startPx < pageHeightPx * 0.5) {
+          // Si le bloc est très haut sur la première page, on ne force pas.
+        } else {
+          const forcedBreak = findSmartBreak(blockRange.startPx);
+          const sliceH = Math.max(1, Math.min(canvas.height - yPx, forcedBreak - yPx));
+
+          const sliceCanvas = document.createElement('canvas');
+          sliceCanvas.width = canvas.width;
+          sliceCanvas.height = sliceH;
+
+          const ctx = sliceCanvas.getContext('2d');
+          if (!ctx) {
+            throw new Error('Canvas context introuvable pour la génération PDF');
+          }
+
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, sliceCanvas.width, sliceCanvas.height);
+          ctx.drawImage(canvas, 0, yPx, canvas.width, sliceCanvas.height, 0, 0, canvas.width, sliceCanvas.height);
+
+          const imgData = sliceCanvas.toDataURL('image/jpeg', quality);
+          const imgHeight = sliceCanvas.height * ptPerPx;
+
+          if (pageIndex > 0) pdf.addPage();
+          pdf.addImage(imgData, 'JPEG', padding, padding, imgWidth, imgHeight, undefined, 'FAST');
+
+          yPx += sliceH;
+          pageIndex += 1;
+          continue;
+        }
+      }
+
+      const smartBreak = findSmartBreak(targetBreak);
+      const sliceH = Math.max(1, Math.min(canvas.height - yPx, smartBreak - yPx));
+
+      const sliceCanvas = document.createElement('canvas');
+      sliceCanvas.width = canvas.width;
+      sliceCanvas.height = sliceH;
+
+      const ctx = sliceCanvas.getContext('2d');
+      if (!ctx) {
+        throw new Error('Canvas context introuvable pour la génération PDF');
+      }
+
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, sliceCanvas.width, sliceCanvas.height);
+      ctx.drawImage(canvas, 0, yPx, canvas.width, sliceCanvas.height, 0, 0, canvas.width, sliceCanvas.height);
+
+      const imgData = sliceCanvas.toDataURL('image/jpeg', quality);
+      const imgHeight = sliceCanvas.height * ptPerPx;
+
+      if (pageIndex > 0) pdf.addPage();
       pdf.addImage(imgData, 'JPEG', padding, padding, imgWidth, imgHeight, undefined, 'FAST');
-      isFirstPage = false;
-      y += sliceHeight;
+
+      yPx += sliceH;
+      pageIndex += 1;
     }
 
     return pdf.output('blob');
@@ -372,17 +546,17 @@ export function NewDevisModal({ isOpen, onClose, onDevisCreated }: NewDevisModal
         pdfUrl = await uploadPdf(pdfBlob, finalReference);
       }
 
-      const devisData = {
+      const devisData: any = {
         planner_id: user.uid,
         reference: finalReference,
         client_id: selectedClient,
         client: client?.name || '',
         client_email: client?.email || '',
-        date: new Date().toLocaleDateString('fr-FR'),
+        date: mode === 'edit' ? String(initialDevis?.date || new Date().toLocaleDateString('fr-FR')) : new Date().toLocaleDateString('fr-FR'),
         montant_ht: totalHT,
         montant_ttc: totalTTC,
         tva: 20,
-        status: 'sent',
+        status: mode === 'edit' ? String(initialDevis?.status || 'sent') : 'sent',
         valid_until: validUntil,
         title: devisTitle,
         intro: devisIntro,
@@ -392,11 +566,34 @@ export function NewDevisModal({ isOpen, onClose, onDevisCreated }: NewDevisModal
           quantity: item.quantity,
           unit_price: item.unitPrice,
           total: item.quantity * item.unitPrice,
+          images: Array.isArray(item.images) ? item.images : [],
         })),
         pdf_url: pdfUrl,
-        created_at: new Date(),
-        sent_at: new Date().toLocaleDateString('fr-FR'),
       };
+
+      if (mode !== 'edit') {
+        devisData.created_at = new Date();
+        devisData.sent_at = new Date().toLocaleDateString('fr-FR');
+      } else {
+        devisData.updated_at = new Date();
+      }
+
+      if (mode === 'edit') {
+        if (!devisId) {
+          sonnerToast.error('Impossible de modifier le devis (ID manquant)');
+          return;
+        }
+
+        await updateDocument('devis', devisId, devisData);
+        sonnerToast.success('Devis modifié');
+
+        if (onDevisUpdated) {
+          onDevisUpdated();
+        }
+
+        onClose();
+        return;
+      }
 
       const createdDevis = await addDocument('devis', devisData);
 
@@ -491,7 +688,7 @@ export function NewDevisModal({ isOpen, onClose, onDevisCreated }: NewDevisModal
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="text-brand-purple">Créer un nouveau devis</DialogTitle>
+          <DialogTitle className="text-brand-purple">{mode === 'edit' ? 'Modifier le devis' : 'Créer un nouveau devis'}</DialogTitle>
         </DialogHeader>
 
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-full">
@@ -691,6 +888,50 @@ export function NewDevisModal({ isOpen, onClose, onDevisCreated }: NewDevisModal
                         </Button>
                       )}
                     </div>
+
+                    <div className="col-span-12">
+                      <Input
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        onChange={async (e) => {
+                          const files = e.target.files;
+                          if (!files || files.length === 0) return;
+
+                          try {
+                            sonnerToast.info('Upload des images en cours...');
+                            const urls = await Promise.all(
+                              Array.from(files).map((f) => uploadImage(f, 'devis_items'))
+                            );
+                            setItems((prev) =>
+                              prev.map((it) =>
+                                it.id === item.id
+                                  ? { ...it, images: [...(it.images || []), ...urls] }
+                                  : it
+                              )
+                            );
+                            sonnerToast.success('Images ajoutées');
+                            e.target.value = '';
+                          } catch (err) {
+                            console.error('Error uploading item images:', err);
+                            sonnerToast.error("Erreur lors de l'upload des images");
+                          }
+                        }}
+                      />
+
+                      {item.images?.length ? (
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {item.images.map((url, idx) => (
+                            <img
+                              key={`${item.id}-img-${idx}`}
+                              src={url}
+                              alt=""
+                              className="h-16 w-16 object-cover rounded border border-gray-200"
+                            />
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -771,16 +1012,6 @@ export function NewDevisModal({ isOpen, onClose, onDevisCreated }: NewDevisModal
                         <div className="text-gray-500">Référence</div>
                         <div className="font-semibold">{(reference || '').trim() || '—'}</div>
                       </div>
-                      <div className="mt-2 text-sm">
-                        <div className="text-gray-500">Date</div>
-                        <div className="font-semibold">{new Date().toLocaleDateString('fr-FR')}</div>
-                      </div>
-                      {validUntil ? (
-                        <div className="mt-2 text-sm">
-                          <div className="text-gray-500">Valide jusqu&apos;au</div>
-                          <div className="font-semibold">{new Date(validUntil).toLocaleDateString('fr-FR')}</div>
-                        </div>
-                      ) : null}
                     </div>
                   </div>
 
@@ -792,8 +1023,21 @@ export function NewDevisModal({ isOpen, onClose, onDevisCreated }: NewDevisModal
                     </div>
                     <div className="border rounded-lg p-4">
                       <div className="text-xs text-gray-500">Objet</div>
-                      <div className="font-semibold text-gray-900 mt-1">Prestations mariage</div>
-                      {devisIntro ? <div className="text-sm text-gray-700 mt-1">{devisIntro}</div> : null}
+                      <div className="font-semibold text-gray-900 mt-1">
+                        {weddingEvent?.couple_names ? `Mariage de ${weddingEvent.couple_names}` : 'Prestations mariage'}
+                      </div>
+                      {weddingEvent?.event_date ? (
+                        <div className="text-sm text-gray-700 mt-1">
+                          Date : {new Date(weddingEvent.event_date).toLocaleDateString('fr-FR')}
+                        </div>
+                      ) : null}
+                      {weddingEvent?.location ? (
+                        <div className="text-sm text-gray-700 mt-1">Lieu : {String(weddingEvent.location)}</div>
+                      ) : null}
+                      {typeof weddingEvent?.guest_count === 'number' ? (
+                        <div className="text-sm text-gray-700 mt-1">Invités : {weddingEvent.guest_count}</div>
+                      ) : null}
+                      {devisIntro ? <div className="text-sm text-gray-700 mt-2">{devisIntro}</div> : null}
                     </div>
                   </div>
 
@@ -814,6 +1058,19 @@ export function NewDevisModal({ isOpen, onClose, onDevisCreated }: NewDevisModal
                               {getPrestationDetail(getPrestationIdFromItemId(it.id)) ? (
                                 <div className="text-xs text-gray-600 mt-1 leading-snug">
                                   {getPrestationDetail(getPrestationIdFromItemId(it.id))}
+                                </div>
+                              ) : null}
+
+                              {it.images?.length ? (
+                                <div className="mt-2 grid grid-cols-3 gap-2">
+                                  {it.images.slice(0, 6).map((url, idx) => (
+                                    <img
+                                      key={`${it.id}-prev-${idx}`}
+                                      src={url}
+                                      alt=""
+                                      className="h-20 w-full object-cover rounded border border-gray-200"
+                                    />
+                                  ))}
                                 </div>
                               ) : null}
                             </div>
@@ -844,11 +1101,36 @@ export function NewDevisModal({ isOpen, onClose, onDevisCreated }: NewDevisModal
                   </div>
 
                   {notes ? (
-                    <div className="mt-8">
+                    <div
+                      ref={(el) => {
+                        notesSignatureRef.current = el;
+                      }}
+                      className="mt-8"
+                    >
                       <div className="text-sm font-semibold text-gray-900 mb-2">Notes / conditions</div>
                       <div className="border rounded-lg p-4 text-sm text-gray-700 whitespace-pre-wrap">{notes}</div>
                     </div>
                   ) : null}
+
+                  <div className="mt-10 break-inside-avoid">
+                    <div className="text-sm font-semibold text-gray-900 mb-2">Signature</div>
+                    <div className="border rounded-lg p-4">
+                      <div className="grid grid-cols-2 gap-6">
+                        <div>
+                          <div className="text-xs text-gray-500">Client</div>
+                          <div className="text-sm font-semibold text-gray-900 mt-1">Lu et approuvé</div>
+                          <div className="text-sm text-gray-700 mt-6">Signature :</div>
+                          <div className="h-14 border-b border-gray-300 mt-2" />
+                        </div>
+                        <div>
+                          <div className="text-xs text-gray-500">Le Oui Parfait</div>
+                          <div className="text-sm font-semibold text-gray-900 mt-1">Bon pour accord</div>
+                          <div className="text-sm text-gray-700 mt-6">Signature :</div>
+                          <div className="h-14 border-b border-gray-300 mt-2" />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
 
                   <div className="mt-10 pt-6 border-t text-xs text-gray-500">
                     Merci pour votre confiance.
@@ -868,7 +1150,7 @@ export function NewDevisModal({ isOpen, onClose, onDevisCreated }: NewDevisModal
             onClick={handleSubmit}
             disabled={!selectedClient || loading || (pdfMode === 'import' && !pdfFile)}
           >
-            {loading ? 'Création...' : 'Créer le devis'}
+            {loading ? (mode === 'edit' ? 'Enregistrement...' : 'Création...') : mode === 'edit' ? 'Enregistrer' : 'Créer le devis'}
           </Button>
         </DialogFooter>
       </DialogContent>
