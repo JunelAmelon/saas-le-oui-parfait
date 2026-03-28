@@ -456,35 +456,32 @@ export function NewDevisModal({
         targetBreak < blockRange.endPx
       ) {
         // Force un saut de page avant le bloc Notes + Signature pour éviter de le couper en deux.
-        if (pageIndex === 0 && blockRange.startPx < pageHeightPx * 0.5) {
-          // Si le bloc est très haut sur la première page, on ne force pas.
-        } else {
-          const forcedBreak = findSmartBreak(blockRange.startPx);
-          const sliceH = Math.max(1, Math.min(canvas.height - yPx, forcedBreak - yPx));
+        // Ici: on veut carrément une page dédiée pour tout le bloc de fin.
+        const forcedBreak = findSmartBreak(blockRange.startPx);
+        const sliceH = Math.max(1, Math.min(canvas.height - yPx, forcedBreak - yPx));
 
-          const sliceCanvas = document.createElement('canvas');
-          sliceCanvas.width = canvas.width;
-          sliceCanvas.height = sliceH;
+        const sliceCanvas = document.createElement('canvas');
+        sliceCanvas.width = canvas.width;
+        sliceCanvas.height = sliceH;
 
-          const ctx = sliceCanvas.getContext('2d');
-          if (!ctx) {
-            throw new Error('Canvas context introuvable pour la génération PDF');
-          }
-
-          ctx.fillStyle = '#ffffff';
-          ctx.fillRect(0, 0, sliceCanvas.width, sliceCanvas.height);
-          ctx.drawImage(canvas, 0, yPx, canvas.width, sliceCanvas.height, 0, 0, canvas.width, sliceCanvas.height);
-
-          const imgData = sliceCanvas.toDataURL('image/jpeg', quality);
-          const imgHeight = sliceCanvas.height * ptPerPx;
-
-          if (pageIndex > 0) pdf.addPage();
-          pdf.addImage(imgData, 'JPEG', padding, padding, imgWidth, imgHeight, undefined, 'FAST');
-
-          yPx += sliceH;
-          pageIndex += 1;
-          continue;
+        const ctx = sliceCanvas.getContext('2d');
+        if (!ctx) {
+          throw new Error('Canvas context introuvable pour la génération PDF');
         }
+
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, sliceCanvas.width, sliceCanvas.height);
+        ctx.drawImage(canvas, 0, yPx, canvas.width, sliceCanvas.height, 0, 0, canvas.width, sliceCanvas.height);
+
+        const imgData = sliceCanvas.toDataURL('image/jpeg', quality);
+        const imgHeight = sliceCanvas.height * ptPerPx;
+
+        if (pageIndex > 0) pdf.addPage();
+        pdf.addImage(imgData, 'JPEG', padding, padding, imgWidth, imgHeight, undefined, 'FAST');
+
+        yPx += sliceH;
+        pageIndex += 1;
+        continue;
       }
 
       const smartBreak = findSmartBreak(targetBreak);
@@ -1100,40 +1097,42 @@ export function NewDevisModal({
                     </div>
                   </div>
 
-                  {notes ? (
-                    <div
-                      ref={(el) => {
-                        notesSignatureRef.current = el;
-                      }}
-                      className="mt-8"
-                    >
-                      <div className="text-sm font-semibold text-gray-900 mb-2">Notes / conditions</div>
-                      <div className="border rounded-lg p-4 text-sm text-gray-700 whitespace-pre-wrap">{notes}</div>
-                    </div>
-                  ) : null}
+                  <div
+                    ref={(el) => {
+                      notesSignatureRef.current = el;
+                    }}
+                    className="mt-8"
+                  >
+                    {notes ? (
+                      <div>
+                        <div className="text-sm font-semibold text-gray-900 mb-2">Notes / conditions</div>
+                        <div className="border rounded-lg p-4 text-sm text-gray-700 whitespace-pre-wrap">{notes}</div>
+                      </div>
+                    ) : null}
 
-                  <div className="mt-10 break-inside-avoid">
-                    <div className="text-sm font-semibold text-gray-900 mb-2">Signature</div>
-                    <div className="border rounded-lg p-4">
-                      <div className="grid grid-cols-2 gap-6">
-                        <div>
-                          <div className="text-xs text-gray-500">Client</div>
-                          <div className="text-sm font-semibold text-gray-900 mt-1">Lu et approuvé</div>
-                          <div className="text-sm text-gray-700 mt-6">Signature :</div>
-                          <div className="h-14 border-b border-gray-300 mt-2" />
-                        </div>
-                        <div>
-                          <div className="text-xs text-gray-500">Le Oui Parfait</div>
-                          <div className="text-sm font-semibold text-gray-900 mt-1">Bon pour accord</div>
-                          <div className="text-sm text-gray-700 mt-6">Signature :</div>
-                          <div className="h-14 border-b border-gray-300 mt-2" />
+                    <div className="mt-10 break-inside-avoid">
+                      <div className="text-sm font-semibold text-gray-900 mb-2">Signature</div>
+                      <div className="border rounded-lg p-4">
+                        <div className="grid grid-cols-2 gap-6">
+                          <div>
+                            <div className="text-xs text-gray-500">Client</div>
+                            <div className="text-sm font-semibold text-gray-900 mt-1">Lu et approuvé</div>
+                            <div className="text-sm text-gray-700 mt-6">Signature :</div>
+                            <div className="h-14 border-b border-gray-300 mt-2" />
+                          </div>
+                          <div>
+                            <div className="text-xs text-gray-500">Le Oui Parfait</div>
+                            <div className="text-sm font-semibold text-gray-900 mt-1">Bon pour accord</div>
+                            <div className="text-sm text-gray-700 mt-6">Signature :</div>
+                            <div className="h-14 border-b border-gray-300 mt-2" />
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
 
-                  <div className="mt-10 pt-6 border-t text-xs text-gray-500">
-                    Merci pour votre confiance.
+                    <div className="mt-10 pt-6 border-t text-xs text-gray-500">
+                      Merci pour votre confiance.
+                    </div>
                   </div>
                 </div>
               </div>
