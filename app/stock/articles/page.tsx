@@ -23,6 +23,8 @@ interface Article {
   location: string;
   status: string;
   fournisseur_id?: string | null;
+  details?: string;
+  photo_url?: string | null;
 }
 
 const statusConfig = {
@@ -77,6 +79,8 @@ export default function ArticlesPage() {
           location: d.location || '',
           status: status,
           fournisseur_id: d.fournisseur_id ?? null,
+          details: d.details || '',
+          photo_url: d.photo_url ?? null,
         };
       });
       setArticles(mapped);
@@ -224,7 +228,15 @@ export default function ArticlesPage() {
                     >
                       <td className="py-4">
                         <div className="flex items-center gap-3">
-                          <Package className="h-5 w-5 text-brand-turquoise" />
+                          {article.photo_url ? (
+                            <img
+                              src={article.photo_url}
+                              alt=""
+                              className="h-10 w-10 rounded object-cover border border-gray-200"
+                            />
+                          ) : (
+                            <Package className="h-5 w-5 text-brand-turquoise" />
+                          )}
                           <p className="font-medium text-brand-purple">
                             {article.name}
                           </p>

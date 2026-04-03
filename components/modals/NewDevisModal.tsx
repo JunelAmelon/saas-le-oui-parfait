@@ -188,7 +188,9 @@ export function NewDevisModal({
       setPdfMode('generate');
       setPdfFile(null);
 
-      const defaultIntro = "Merci pour votre confiance. Vous trouverez ci-dessous notre proposition détaillée de prestations pour votre mariage.";
+      const defaultIntro =
+        "Nous vous remercions pour votre confiance.\n" +
+        "Vous trouverez ci-dessous.....";
       const defaultNotes =
         "Conditions :\n" +
         "- Devis valable 30 jours à compter de la date d'émission.\n" +

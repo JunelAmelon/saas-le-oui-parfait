@@ -11,6 +11,8 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { getDocuments, updateDocument } from '@/lib/db';
 import { toast as sonnerToast } from 'sonner';
+import { Textarea } from '@/components/ui/textarea';
+import { uploadImage } from '@/lib/storage';
 
 interface Article {
   id: string;
@@ -31,8 +33,13 @@ interface EditArticleModalProps {
 }
 
 const categories = [
+  'Prestataire',
+  'Animation',
+  'Location',
+  'Weeding',
+  'Location nappage',
+  'Location vaisselle',
   'Mobilier',
-  'Linge',
   'Décoration',
   'Éclairage',
   'Vaisselle',
@@ -59,6 +66,9 @@ export function EditArticleModal({ isOpen, onClose, article, onArticleUpdated }:
   const [location, setLocation] = useState('');
   const [status, setStatus] = useState('');
   const [supplierId, setSupplierId] = useState('');
+  const [details, setDetails] = useState('');
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -71,6 +81,9 @@ export function EditArticleModal({ isOpen, onClose, article, onArticleUpdated }:
       setLocation(article.location);
       setStatus(article.status);
       setSupplierId((article as any)?.fournisseur_id || '');
+      setDetails(String((article as any)?.details || ''));
+      setPhotoUrl(((article as any)?.photo_url as string) || null);
+      setPhotoFile(null);
     }
   }, [article]);
 
@@ -119,6 +132,12 @@ export function EditArticleModal({ isOpen, onClose, article, onArticleUpdated }:
 
     setLoading(true);
     try {
+      let nextPhotoUrl = photoUrl;
+      if (photoFile) {
+        sonnerToast.info('Upload de la photo en cours...');
+        nextPhotoUrl = await uploadImage(photoFile, 'articles');
+      }
+
       await updateDocument('articles', article.id, {
         name,
         category,
@@ -126,6 +145,8 @@ export function EditArticleModal({ isOpen, onClose, article, onArticleUpdated }:
         min_quantity: parseInt(minQuantity),
         price: parseFloat(price),
         location,
+        details,
+        photo_url: nextPhotoUrl,
         fournisseur_id: supplierId || null,
         updated_at: new Date(),
       });
@@ -249,6 +270,35 @@ export function EditArticleModal({ isOpen, onClose, article, onArticleUpdated }:
                 ))}
               </SelectContent>
             </Select>
+          </div>
+
+          <div>
+            <Label>Détails du produit (optionnel)</Label>
+            <Textarea
+              value={details}
+              onChange={(e) => setDetails(e.target.value)}
+              className="mt-1"
+              rows={4}
+              placeholder="Décrivez le produit (dimensions, matière, couleur, etc.)"
+            />
+          </div>
+
+          <div>
+            <Label>Photo (optionnel)</Label>
+            <Input
+              type="file"
+              accept="image/*"
+              className="mt-1"
+              onChange={(e) => {
+                const f = e.target.files?.[0] || null;
+                setPhotoFile(f);
+              }}
+            />
+            {photoUrl ? (
+              <div className="mt-2">
+                <img src={photoUrl} alt="" className="h-20 w-20 object-cover rounded border border-gray-200" />
+              </div>
+            ) : null}
           </div>
 
           <div>

@@ -11,6 +11,8 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { addDocument, getDocuments } from '@/lib/db';
 import { toast as sonnerToast } from 'sonner';
+import { Textarea } from '@/components/ui/textarea';
+import { uploadImage } from '@/lib/storage';
 
 interface NewArticleModalProps {
   isOpen: boolean;
@@ -19,8 +21,13 @@ interface NewArticleModalProps {
 }
 
 const categories = [
+  'Prestataire',
+  'Animation',
+  'Location',
+  'Weeding',
+  'Location nappage',
+  'Location vaisselle',
   'Mobilier',
-  'Linge',
   'Décoration',
   'Éclairage',
   'Vaisselle',
@@ -39,6 +46,8 @@ export function NewArticleModal({ isOpen, onClose, onArticleCreated }: NewArticl
   const [price, setPrice] = useState('');
   const [location, setLocation] = useState('');
   const [supplierId, setSupplierId] = useState('');
+  const [details, setDetails] = useState('');
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -91,6 +100,12 @@ export function NewArticleModal({ isOpen, onClose, onArticleCreated }: NewArticl
 
     setLoading(true);
     try {
+      let photoUrl: string | null = null;
+      if (photoFile) {
+        sonnerToast.info('Upload de la photo en cours...');
+        photoUrl = await uploadImage(photoFile, 'articles');
+      }
+
       await addDocument('articles', {
         name,
         category,
@@ -98,6 +113,8 @@ export function NewArticleModal({ isOpen, onClose, onArticleCreated }: NewArticl
         min_quantity: parseInt(minQuantity),
         price: parseFloat(price),
         location,
+        details,
+        photo_url: photoUrl,
         fournisseur_id: supplierId || null,
         owner_id: user.uid,
         created_at: new Date(),
@@ -113,6 +130,8 @@ export function NewArticleModal({ isOpen, onClose, onArticleCreated }: NewArticl
       setPrice('');
       setLocation('');
       setSupplierId('');
+      setDetails('');
+      setPhotoFile(null);
       
       if (onArticleCreated) {
         onArticleCreated();
@@ -236,6 +255,30 @@ export function NewArticleModal({ isOpen, onClose, onArticleCreated }: NewArticl
                 ))}
               </SelectContent>
             </Select>
+          </div>
+
+          <div>
+            <Label>Détails du produit (optionnel)</Label>
+            <Textarea
+              value={details}
+              onChange={(e) => setDetails(e.target.value)}
+              className="mt-1"
+              rows={4}
+              placeholder="Décrivez le produit (dimensions, matière, couleur, etc.)"
+            />
+          </div>
+
+          <div>
+            <Label>Photo (optionnel)</Label>
+            <Input
+              type="file"
+              accept="image/*"
+              className="mt-1"
+              onChange={(e) => {
+                const f = e.target.files?.[0] || null;
+                setPhotoFile(f);
+              }}
+            />
           </div>
         </div>
 
