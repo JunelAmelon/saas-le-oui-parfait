@@ -285,15 +285,26 @@ export function EditArticleModal({ isOpen, onClose, article, onArticleUpdated }:
 
           <div>
             <Label>Photo (optionnel)</Label>
-            <Input
+            <input
+              id="article-photo-upload-edit"
               type="file"
               accept="image/*"
-              className="mt-1"
+              className="hidden"
               onChange={(e) => {
                 const f = e.target.files?.[0] || null;
                 setPhotoFile(f);
               }}
             />
+            <label
+              htmlFor="article-photo-upload-edit"
+              className="mt-1 flex items-center justify-center gap-2 border-2 border-dashed border-gray-300 rounded-lg p-3 text-sm text-brand-gray hover:border-brand-turquoise hover:text-brand-purple transition-colors cursor-pointer bg-white"
+            >
+              <Package className="h-4 w-4" />
+              {photoFile ? 'Photo sélectionnée' : 'Ajouter / changer la photo'}
+            </label>
+            {photoFile ? (
+              <p className="text-xs text-brand-gray mt-2">{photoFile.name}</p>
+            ) : null}
             {photoUrl ? (
               <div className="mt-2">
                 <img src={photoUrl} alt="" className="h-20 w-20 object-cover rounded border border-gray-200" />

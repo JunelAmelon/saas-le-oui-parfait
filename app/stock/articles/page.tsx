@@ -12,6 +12,7 @@ import { getDocuments, addDocument, updateDocument, deleteDocument } from '@/lib
 import { toast } from 'sonner';
 import { NewArticleModal } from '@/components/modals/NewArticleModal';
 import { EditArticleModal } from '@/components/modals/EditArticleModal';
+import { useRouter } from 'next/navigation';
 
 interface Article {
   id: string;
@@ -47,6 +48,7 @@ const statusConfig = {
 
 export default function ArticlesPage() {
   const { user } = useAuth();
+  const router = useRouter();
   const [articles, setArticles] = useState<Article[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -225,6 +227,15 @@ export default function ArticlesPage() {
                     <tr
                       key={article.id}
                       className="border-b border-[#E5E5E5] transition-colors hover:bg-gray-50"
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => router.push(`/stock/articles/${article.id}`)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          router.push(`/stock/articles/${article.id}`);
+                        }
+                      }}
                     >
                       <td className="py-4">
                         <div className="flex items-center gap-3">
@@ -267,7 +278,10 @@ export default function ArticlesPage() {
                         <Button 
                           variant="ghost" 
                           size="sm"
-                          onClick={() => handleEdit(article)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleEdit(article);
+                          }}
                         >
                           Modifier
                         </Button>

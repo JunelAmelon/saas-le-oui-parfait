@@ -6,6 +6,7 @@
 import axios from 'axios';
 
 const CLOUDINARY_TIMEOUT_MS = 60_000;
+const CLOUDINARY_IMAGE_TIMEOUT_MS = 180_000;
 
 export const uploadFile = async (file: File, folder: string = 'uploads'): Promise<string> => {
   const formData = new FormData();
@@ -24,6 +25,27 @@ export const uploadFile = async (file: File, folder: string = 'uploads'): Promis
     return res.data.secure_url;
   } catch (e: any) {
     const message = e?.response?.data?.error?.message || e?.message || 'Cloudinary upload failed';
+    throw new Error(message);
+  }
+};
+
+export const uploadImage = async (file: File, folder: string = 'uploads'): Promise<string> => {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('upload_preset', process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET!);
+  formData.append('folder', folder);
+  formData.append('resource_type', 'image');
+
+  try {
+    const res = await axios.post(
+      `https://api.cloudinary.com/v1_1/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/image/upload`,
+      formData,
+      { timeout: CLOUDINARY_IMAGE_TIMEOUT_MS }
+    );
+
+    return res.data.secure_url;
+  } catch (e: any) {
+    const message = e?.response?.data?.error?.message || e?.message || 'Cloudinary image upload failed';
     throw new Error(message);
   }
 };
@@ -51,4 +73,4 @@ export const uploadPdf = async (pdfBlob: Blob, filename: string): Promise<string
   }
 };
 
-export const uploadImage = uploadFile; // Alias pour compatibilité
+// uploadImage est exporté au-dessus (timeout plus long)

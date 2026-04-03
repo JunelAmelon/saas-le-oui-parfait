@@ -43,6 +43,40 @@ interface Client {
   email: string;
 }
 
+const formatDateFR = (d: Date) => {
+  return d.toLocaleDateString('fr-FR');
+};
+
+const addMonths = (date: Date, months: number) => {
+  const d = new Date(date);
+  const day = d.getDate();
+  d.setMonth(d.getMonth() + months);
+  // Ajuste si le mois cible n'a pas le même nombre de jours (ex: 31 -> 30)
+  if (d.getDate() !== day) d.setDate(0);
+  return d;
+};
+
+const buildDefaultNotes = (eventDate?: string | Date | null) => {
+  const date = eventDate ? new Date(eventDate) : null;
+  const second = date ? addMonths(date, -2) : null;
+  const solde = date ? new Date(date.getTime() - 7 * 24 * 60 * 60 * 1000) : null;
+
+  const secondText = second ? formatDateFR(second) : '___/___/____';
+  const soldeText = solde ? formatDateFR(solde) : '___/___/____';
+
+  return (
+    "Conditions :\n" +
+    "- Devis valable 30 jours à compter de la date d'émission.\n" +
+    "- Conditions de règlement : 40% à l'acceptation du devis, 40% au plus tard 2 mois avant la réception (" +
+    secondText +
+    "), le solde à J-7 (" +
+    soldeText +
+    ").\n" +
+    "- Toute modification fera l'objet d'un ajustement écrit.\n" +
+    "- Les tarifs indiqués sont TTC (TVA 20%)."
+  );
+};
+
 const prestationDetails: Record<string, string> = {
   'coord-complete':
     "Un accompagnement de A à Z : rendez-vous, rétroplanning, suivi des prestataires et pilotage du projet jusqu'au jour J.",
@@ -148,6 +182,7 @@ export function NewDevisModal({
   ]);
   const [validUntil, setValidUntil] = useState('');
   const [notes, setNotes] = useState('');
+  const [notesDirty, setNotesDirty] = useState(false);
   const [loading, setLoading] = useState(false);
   const [weddingEvent, setWeddingEvent] = useState<any | null>(null);
 
@@ -168,6 +203,7 @@ export function NewDevisModal({
         setDevisTitle(String(initialDevis.title || 'Devis'));
         setDevisIntro(String(initialDevis.intro || ''));
         setNotes(String(initialDevis.description || ''));
+        setNotesDirty(false);
 
         const mappedItems: DevisItem[] = (Array.isArray(initialDevis.items) ? initialDevis.items : []).map(
           (it: any, idx: number) => ({
@@ -191,16 +227,12 @@ export function NewDevisModal({
       const defaultIntro =
         "Nous vous remercions pour votre confiance.\n" +
         "Vous trouverez ci-dessous.....";
-      const defaultNotes =
-        "Conditions :\n" +
-        "- Devis valable 30 jours à compter de la date d'émission.\n" +
-        "- Un acompte de 30% est demandé à l'acceptation du devis, le solde selon l'échéancier convenu.\n" +
-        "- Les prestations sont réalisées sur rendez-vous. Toute modification fera l'objet d'un ajustement écrit.\n" +
-        "- Les tarifs indiqués sont TTC (TVA 20%).";
+      const defaultNotes = buildDefaultNotes(null);
 
       setDevisTitle((t) => t || 'Devis');
       setDevisIntro((v: string) => (v && v.trim() ? v : defaultIntro));
       setNotes((v: string) => (v && v.trim() ? v : defaultNotes));
+      setNotesDirty((v) => (v ? true : false));
 
       const suggestedRef = `DEVIS-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`;
       setReference((prev) => (prev && prev.trim() ? prev : suggestedRef));
@@ -214,6 +246,7 @@ export function NewDevisModal({
       setValidUntil('');
       setDevisIntro('');
       setNotes('');
+      setNotesDirty(false);
       setWeddingEvent(null);
     }
   }, [isOpen]);
@@ -228,7 +261,16 @@ export function NewDevisModal({
     (async () => {
       try {
         const ev = await getClientEvent(String(selectedClient));
-        if (!cancelled) setWeddingEvent(ev);
+        if (!cancelled) {
+          setWeddingEvent(ev);
+          if (!notesDirty) {
+            const computed = buildDefaultNotes(ev?.event_date || null);
+            setNotes((prev) => {
+              if (prev && prev.trim()) return prev;
+              return computed;
+            });
+          }
+        }
       } catch (e) {
         console.warn('Unable to load client event for devis:', e);
         if (!cancelled) setWeddingEvent(null);
@@ -359,6 +401,27 @@ export function NewDevisModal({
     return { totalHT, totalTTC };
   };
 
+  const waitForImages = async (root: HTMLElement) => {
+    const imgs = Array.from(root.querySelectorAll('img')) as HTMLImageElement[];
+    if (imgs.length === 0) return;
+
+    await Promise.all(
+      imgs.map(
+        (img) =>
+          new Promise<void>((resolve) => {
+            if (img.complete && img.naturalWidth > 0) return resolve();
+            const onDone = () => {
+              img.removeEventListener('load', onDone);
+              img.removeEventListener('error', onDone);
+              resolve();
+            };
+            img.addEventListener('load', onDone);
+            img.addEventListener('error', onDone);
+          })
+      )
+    );
+  };
+
   const generatePdf = async (reference: string): Promise<Blob> => {
     const node = previewRef.current;
     if (!node) {
@@ -366,6 +429,9 @@ export function NewDevisModal({
     }
 
     const { default: html2canvas } = await import('html2canvas');
+
+    // Important: attendre le chargement des images (Cloudinary) sinon html2canvas capture avant affichage.
+    await waitForImages(node);
 
     const pdf = new jsPDF({ unit: 'pt', format: 'a4', compress: true });
     const pageWidth = pdf.internal.pageSize.getWidth();
@@ -889,10 +955,12 @@ export function NewDevisModal({
                     </div>
 
                     <div className="col-span-12">
-                      <Input
+                      <input
+                        id={`devis-item-images-${item.id}`}
                         type="file"
                         accept="image/*"
                         multiple
+                        className="hidden"
                         onChange={async (e) => {
                           const files = e.target.files;
                           if (!files || files.length === 0) return;
@@ -917,6 +985,14 @@ export function NewDevisModal({
                           }
                         }}
                       />
+
+                      <label
+                        htmlFor={`devis-item-images-${item.id}`}
+                        className="mt-1 flex items-center justify-center gap-2 border-2 border-dashed border-gray-300 rounded-lg p-3 text-sm text-brand-gray hover:border-brand-turquoise hover:text-brand-purple transition-colors cursor-pointer bg-white"
+                      >
+                        <Upload className="h-4 w-4" />
+                        Ajouter des images (optionnel)
+                      </label>
 
                       {item.images?.length ? (
                         <div className="mt-2 flex flex-wrap gap-2">
@@ -956,7 +1032,10 @@ export function NewDevisModal({
               <Textarea
                 id="notes"
                 value={notes}
-                onChange={(e) => setNotes(e.target.value)}
+                onChange={(e) => {
+                  setNotesDirty(true);
+                  setNotes(e.target.value);
+                }}
                 placeholder="Conditions de paiement, délais, etc."
                 rows={3}
               />
@@ -1067,6 +1146,7 @@ export function NewDevisModal({
                                       key={`${it.id}-prev-${idx}`}
                                       src={url}
                                       alt=""
+                                      crossOrigin="anonymous"
                                       className="h-20 w-full object-cover rounded border border-gray-200"
                                     />
                                   ))}
