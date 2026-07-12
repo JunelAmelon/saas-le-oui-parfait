@@ -28,14 +28,14 @@ import {
   CreditCard,
   CheckCircle,
   Clock,
-  AlertCircle,
-  Download,
   TrendingUp,
   Calendar,
   ChevronLeft,
   ChevronRight,
   Loader2,
   Copy,
+  Wallet,
+  Download,
 } from 'lucide-react';
 
 import { toast } from 'sonner';
@@ -241,7 +241,7 @@ export default function PaiementsPage() {
   }, [payments.length]);
 
   const UPCOMING_PER_PAGE = 3;
-  const HISTORY_PER_PAGE = 4;
+  const HISTORY_PER_PAGE = 3;
   const upcomingTotalPages = Math.max(1, Math.ceil(upcomingPayments.length / UPCOMING_PER_PAGE));
   const historyTotalPages = Math.max(1, Math.ceil(historyPayments.length / HISTORY_PER_PAGE));
 
@@ -361,24 +361,6 @@ export default function PaiementsPage() {
     run();
   }, [isPaymentModalOpen, selectedPayment?.invoice_id]);
 
-  const getStatusIcon = (status: string, className: string) => {
-    switch (status) {
-      case 'paid':
-      case 'completed':
-        return <CheckCircle className={className} />;
-      case 'pending':
-        return <Clock className={className} />;
-      case 'partial':
-        return <AlertCircle className={className} />;
-      case 'upcoming':
-        return <Calendar className={className} />;
-      case 'overdue':
-        return <AlertCircle className={className} />;
-      default:
-        return <Clock className={className} />;
-    }
-  };
-
   const progressPercentage = budgetSummary.total > 0 ? (budgetSummary.paid / budgetSummary.total) * 100 : 0;
 
   if (dataLoading || loading) {
@@ -388,6 +370,75 @@ export default function PaiementsPage() {
       </div>
     );
   }
+
+  // ---------- Rangée de métriques façon "carte colocation" (prochains paiements) ----------
+  const MetricCell = ({
+    icon,
+    label,
+    value,
+    accent,
+  }: {
+    icon: React.ReactNode;
+    label: string;
+    value: React.ReactNode;
+    accent: string;
+  }) => (
+    <div className="flex-1 flex flex-col items-center text-center px-3 py-4 min-w-0">
+      <div className={`w-9 h-9 rounded-full flex items-center justify-center mb-2 ${accent}`}>
+        {icon}
+      </div>
+      <p className="text-[9px] tracking-label uppercase text-brand-gray mb-1 leading-tight">{label}</p>
+      <div className="text-sm font-baskerville text-brand-purple truncate w-full">{value}</div>
+    </div>
+  );
+
+  const UpcomingRow = ({ payment }: { payment: PaymentData }) => {
+    const st = String(payment.status || 'pending');
+    const style = stStyle(st);
+    const dueAmount = Number(payment.amount_due ?? 0) > 0 ? Number(payment.amount_due) : payment.amount;
+
+    return (
+      <div className="rounded-2xl overflow-hidden border border-brand-purple/8">
+        <div className={`flex items-center justify-between px-4 py-2.5 ${style.bg}`}>
+          <p className={`text-xs font-semibold truncate ${style.text}`}>
+            {payment.description}{payment.vendor ? ` — ${payment.vendor}` : ''}
+          </p>
+          <span className={`text-[10px] font-bold uppercase tracking-wide shrink-0 ${style.text}`}>
+            {style.label}
+          </span>
+        </div>
+
+        <div className="flex divide-x divide-brand-purple/6 bg-white">
+          <MetricCell
+            icon={<Euro className="w-4 h-4 text-white" />}
+            label="Montant"
+            value={`${dueAmount.toLocaleString()} €`}
+            accent={style.solid}
+          />
+          <MetricCell
+            icon={<Wallet className="w-4 h-4 text-white" />}
+            label="Reste à payer"
+            value={Number(payment.amount_due ?? 0) > 0 ? `${Number(payment.amount_due).toLocaleString()} €` : '—'}
+            accent="bg-brand-purple"
+          />
+          <MetricCell
+            icon={<Calendar className="w-4 h-4 text-white" />}
+            label="Échéance"
+            value={payment.due_date ? new Date(payment.due_date).toLocaleDateString() : 'Non définie'}
+            accent="bg-[#C9A96E]"
+          />
+          <div className="flex-1 flex items-center justify-center px-3 py-4 min-w-0">
+            <button onClick={() => handlePayClick(payment)} className="flex flex-col items-center gap-2 group">
+              <div className="w-9 h-9 rounded-full bg-brand-turquoise group-hover:bg-brand-turquoise-hover flex items-center justify-center transition-colors">
+                <CreditCard className="w-4 h-4 text-white" />
+              </div>
+              <span className="text-[9px] tracking-label uppercase text-brand-turquoise-hover font-bold">Payer</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   return (
     <ClientDashboardLayout clientName={event?.couple_names || 'Client'} daysRemaining={daysRemaining}>
@@ -428,212 +479,162 @@ export default function PaiementsPage() {
           </div>
         </div>
 
-        {/* ---------- PILLS BUDGET ---------- */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="flex items-center gap-3 bg-white rounded-2xl border border-brand-purple/8 shadow-sm p-4">
-            <div className="w-10 h-10 rounded-xl bg-brand-purple/8 flex items-center justify-center shrink-0">
-              <Euro className="w-4.5 h-4.5 text-brand-purple" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-[10px] tracking-label uppercase text-brand-gray mb-0.5">Budget total</p>
-              <p className="font-baskerville text-lg text-brand-purple truncate">
-                {budgetSummary.total.toLocaleString()} €
-              </p>
-            </div>
+        {/* ---------- BLOC RÉCAPITULATIF ---------- */}
+        <div className="rounded-3xl overflow-hidden border border-brand-purple/8">
+          <div className="flex items-center justify-between px-5 py-3 bg-brand-purple/8">
+            <p className="text-xs font-bold uppercase tracking-wide text-brand-purple">Vue d'ensemble du budget</p>
+            <span className="text-[10px] font-semibold text-brand-turquoise-hover">
+              {progressPercentage.toFixed(0)}% payé
+            </span>
           </div>
-
-          <div className="flex items-center gap-3 bg-white rounded-2xl border border-brand-purple/8 shadow-sm p-4">
-            <div className="w-10 h-10 rounded-xl bg-brand-turquoise/15 flex items-center justify-center shrink-0">
-              <CheckCircle className="w-4.5 h-4.5 text-brand-turquoise-hover" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-[10px] tracking-label uppercase text-brand-gray mb-0.5">Déjà payé</p>
-              <p className="font-baskerville text-lg text-brand-turquoise-hover truncate">
-                {budgetSummary.paid.toLocaleString()} €
-              </p>
-            </div>
+          <div className="flex divide-x divide-brand-purple/6 bg-white flex-wrap sm:flex-nowrap">
+            <MetricCell
+              icon={<Euro className="w-4 h-4 text-white" />}
+              label="Budget total"
+              value={`${budgetSummary.total.toLocaleString()} €`}
+              accent="bg-brand-purple"
+            />
+            <MetricCell
+              icon={<CheckCircle className="w-4 h-4 text-white" />}
+              label="Déjà payé"
+              value={`${budgetSummary.paid.toLocaleString()} €`}
+              accent="bg-brand-turquoise"
+            />
+            <MetricCell
+              icon={<Clock className="w-4 h-4 text-white" />}
+              label="En attente"
+              value={`${budgetSummary.pending.toLocaleString()} €`}
+              accent="bg-[#C9A96E]"
+            />
+            <MetricCell
+              icon={<TrendingUp className="w-4 h-4 text-white" />}
+              label="Reste à payer"
+              value={`${budgetSummary.remaining.toLocaleString()} €`}
+              accent="bg-[#B98A96]"
+            />
           </div>
-
-          <div className="flex items-center gap-3 bg-white rounded-2xl border border-brand-purple/8 shadow-sm p-4">
-            <div className="w-10 h-10 rounded-xl bg-[#F1EADD] flex items-center justify-center shrink-0">
-              <Clock className="w-4.5 h-4.5 text-[#C9A96E]" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-[10px] tracking-label uppercase text-brand-gray mb-0.5">En attente</p>
-              <p className="font-baskerville text-lg text-[#C9A96E] truncate">
-                {budgetSummary.pending.toLocaleString()} €
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3 bg-white rounded-2xl border border-brand-purple/8 shadow-sm p-4">
-            <div className="w-10 h-10 rounded-xl bg-[#F3E3E6] flex items-center justify-center shrink-0">
-              <TrendingUp className="w-4.5 h-4.5 text-[#B98A96]" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-[10px] tracking-label uppercase text-brand-gray mb-0.5">Reste à payer</p>
-              <p className="font-baskerville text-lg text-brand-purple truncate">
-                {budgetSummary.remaining.toLocaleString()} €
-              </p>
+          <div className="px-5 pb-5 pt-1 bg-white">
+            <div className="w-full h-2.5 bg-brand-beige rounded-full overflow-hidden">
+              <div
+                className="h-full bg-brand-turquoise transition-all duration-500 rounded-full"
+                style={{ width: `${progressPercentage}%` }}
+              />
             </div>
           </div>
         </div>
 
-        {/* ---------- AVANCEMENT DU BUDGET ---------- */}
-        <Card className="p-6 sm:p-8 border border-brand-purple/8 shadow-sm rounded-3xl bg-white">
-          <div className="flex items-center justify-between gap-4 mb-1">
-            <h2 className="font-baskerville text-xl text-brand-purple">Avancement du budget</h2>
-            <span className="text-sm font-semibold text-brand-turquoise-hover">
-              {progressPercentage.toFixed(0)}% payé
-            </span>
+        {/* ---------- PROCHAINS PAIEMENTS ---------- */}
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="font-baskerville text-xl text-brand-purple">Prochains paiements</h2>
           </div>
-          <div className="w-10 h-px bg-brand-turquoise mb-6" />
-          <div className="w-full h-3 bg-brand-beige rounded-full overflow-hidden">
-            <div
-              className="h-full bg-brand-turquoise transition-all duration-500 rounded-full"
-              style={{ width: `${progressPercentage}%` }}
-            />
-          </div>
-          <div className="flex justify-between mt-2 text-xs text-brand-gray">
-            <span>0 €</span>
-            <span>{budgetSummary.total.toLocaleString()} €</span>
-          </div>
-        </Card>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* ---------- HISTORIQUE ---------- */}
-          <Card className="lg:col-span-2 p-6 sm:p-8 border border-brand-purple/8 shadow-sm rounded-3xl bg-white">
-            <h2 className="font-baskerville text-xl text-brand-purple mb-1">Historique des paiements</h2>
-            <div className="w-10 h-px bg-brand-turquoise mb-6" />
-
-            {historyPayments.length === 0 ? (
-              <div className="text-center py-10 text-brand-gray text-sm">
-                Aucun paiement à afficher pour l&apos;instant.
+          {upcomingPayments.length === 0 ? (
+            <Card className="p-8 text-center border border-brand-purple/8 rounded-3xl">
+              <p className="text-sm text-brand-gray">Aucun paiement à venir pour l&apos;instant.</p>
+            </Card>
+          ) : (
+            <>
+              <div className="space-y-3">
+                {upcomingPaginated.map((payment) => (
+                  <UpcomingRow key={payment.id} payment={payment} />
+                ))}
               </div>
-            ) : (
-              <>
-                <div className="space-y-3">
-                  {historyPaginated.map((payment) => {
-                    const st = String(payment.status || 'pending');
-                    const style = stStyle(st);
-                    return (
-                      <div
-                        key={payment.id}
-                        className="flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-2xl bg-brand-beige/60 hover:bg-brand-beige transition-colors gap-3"
-                      >
-                        <div className="flex items-center gap-3 sm:gap-4">
-                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${style.bg}`}>
-                            {getStatusIcon(st, `h-4.5 w-4.5 ${style.text}`)}
-                          </div>
-                          <div>
-                            <h3 className="font-medium text-brand-purple text-sm">{payment.description}</h3>
-                            <p className="text-xs text-brand-gray">{payment.vendor}</p>
-                            <p className="text-[11px] text-brand-gray/70 mt-1">
-                              {st === 'paid' || st === 'completed'
-                                ? `Payé le ${payment.date || '-'}`
-                                : `Échéance: ${payment.due_date || 'Non définie'}`}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex items-center justify-between sm:justify-end gap-3 pl-13 sm:pl-0">
-                          <div className="text-left sm:text-right">
-                            <p className="text-base font-baskerville text-brand-purple">
+              {upcomingPayments.length > UPCOMING_PER_PAGE && (
+                <PaginationBar
+                  currentPage={upcomingPage}
+                  totalPages={upcomingTotalPages}
+                  onChange={(next) => setUpcomingPage(next)}
+                />
+              )}
+            </>
+          )}
+        </div>
+
+        {/* ---------- HISTORIQUE (TABLEAU) ---------- */}
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="font-baskerville text-xl text-brand-purple">Historique des paiements</h2>
+          </div>
+
+          {historyPayments.length === 0 ? (
+            <Card className="p-8 text-center border border-brand-purple/8 rounded-3xl">
+              <p className="text-sm text-brand-gray">Aucun paiement à afficher pour l&apos;instant.</p>
+            </Card>
+          ) : (
+            <Card className="p-6 sm:p-8 border border-brand-purple/8 shadow-sm rounded-3xl bg-white">
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse min-w-[600px]">
+                  <thead>
+                    <tr>
+                      <th className="text-left text-[10px] tracking-label uppercase text-brand-gray font-semibold pb-3">
+                        Description
+                      </th>
+                      <th className="text-left text-[10px] tracking-label uppercase text-brand-gray font-semibold pb-3">
+                        Date
+                      </th>
+                      <th className="text-left text-[10px] tracking-label uppercase text-brand-gray font-semibold pb-3">
+                        Montant
+                      </th>
+                      <th className="text-left text-[10px] tracking-label uppercase text-brand-gray font-semibold pb-3">
+                        Statut
+                      </th>
+                      <th className="pb-3" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {historyPaginated.map((payment) => {
+                      const st = String(payment.status || 'pending');
+                      const style = stStyle(st);
+                      const isPaid = st === 'paid' || st === 'completed';
+                      return (
+                        <tr key={payment.id} className="border-t border-brand-purple/6">
+                          <td className="py-4 pr-4">
+                            <p className="text-sm font-semibold text-brand-purple">{payment.description}</p>
+                            <p className="text-xs text-brand-gray mt-0.5">{payment.vendor}</p>
+                          </td>
+                          <td className="py-4 pr-4 text-xs text-brand-gray">
+                            {isPaid ? (payment.date || '-') : (payment.due_date || 'Non définie')}
+                          </td>
+                          <td className="py-4 pr-4">
+                            <span className="text-sm font-baskerville text-brand-purple">
                               {payment.amount.toLocaleString()} €
-                            </p>
-                            <span className={`inline-block mt-1 text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full ${style.bg} ${style.text}`}>
+                            </span>
+                          </td>
+                          <td className="py-4 pr-4">
+                            <span
+                              className={`inline-flex items-center text-[10px] font-bold uppercase tracking-wide px-2.5 py-1 rounded-full ${style.bg} ${style.text}`}
+                            >
                               {style.label}
                             </span>
-                          </div>
-                          {payment.invoice && (
-                            <button
-                              onClick={() => downloadInvoicePdf(payment)}
-                              className="w-8 h-8 rounded-full flex items-center justify-center text-brand-gray hover:bg-white hover:text-brand-turquoise-hover transition-colors"
-                            >
-                              <Download className="h-4 w-4" />
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {historyPayments.length > HISTORY_PER_PAGE && (
-                  <PaginationBar
-                    currentPage={historyPage}
-                    totalPages={historyTotalPages}
-                    onChange={(next) => setHistoryPage(next)}
-                  />
-                )}
-              </>
-            )}
-          </Card>
-
-          {/* ---------- PROCHAINS PAIEMENTS ---------- */}
-          <Card className="p-6 sm:p-8 border border-brand-purple/8 shadow-sm rounded-3xl bg-white">
-            <div className="flex items-center gap-2 mb-1">
-              <h2 className="font-baskerville text-xl text-brand-purple">Prochains paiements</h2>
-            </div>
-            <div className="w-10 h-px bg-[#C9A96E] mb-6" />
-
-            {upcomingPayments.length === 0 ? (
-              <div className="text-center py-10 text-brand-gray text-sm">
-                Aucun paiement à venir pour l&apos;instant.
-              </div>
-            ) : (
-              <>
-                <div className="space-y-3">
-                  {upcomingPaginated.map((payment) => {
-                    const st = String(payment.status || 'pending');
-                    const style = stStyle(st);
-                    return (
-                      <div
-                        key={payment.id}
-                        className="bg-white p-4 rounded-2xl border border-brand-purple/8 relative overflow-hidden"
-                      >
-                        <div className={`absolute left-0 top-0 bottom-0 w-1 ${style.solid}`} />
-                        <div className="flex items-start justify-between pl-2">
-                          <div className="min-w-0">
-                            <p className="font-medium text-brand-purple text-sm truncate">{payment.description}</p>
-                            <p className="text-xs text-brand-gray">{payment.vendor}</p>
-                          </div>
-                          <div className="text-right shrink-0">
-                            <p className="font-baskerville text-brand-purple">
-                              {(Number(payment.amount_due ?? 0) > 0 ? Number(payment.amount_due) : payment.amount).toLocaleString()} €
-                            </p>
-                            {Number(payment.amount_due ?? 0) > 0 && (
-                              <p className="text-[10px] text-brand-gray">
-                                Reste: {Number(payment.amount_due ?? 0).toLocaleString()} €
-                              </p>
+                          </td>
+                          <td className="py-4 text-right">
+                            {payment.invoice ? (
+                              <button
+                                onClick={() => downloadInvoicePdf(payment)}
+                                className="w-8 h-8 rounded-full inline-flex items-center justify-center text-brand-gray hover:bg-brand-purple/8 hover:text-brand-turquoise-hover transition-colors"
+                              >
+                                <Download className="h-4 w-4" />
+                              </button>
+                            ) : (
+                              <span className="text-xs text-brand-gray">—</span>
                             )}
-                          </div>
-                        </div>
-                        <div className="flex items-center justify-between mt-3 pl-2">
-                          <p className="text-[11px] text-brand-gray">
-                            Échéance: {payment.due_date ? new Date(payment.due_date).toLocaleDateString() : 'Non définie'}
-                          </p>
-                          <button
-                            onClick={() => handlePayClick(payment)}
-                            className="text-[11px] font-semibold uppercase tracking-wide text-white bg-brand-turquoise hover:bg-brand-turquoise-hover px-3.5 py-1.5 rounded-full transition-colors"
-                          >
-                            Payer
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
 
-                {upcomingPayments.length > UPCOMING_PER_PAGE && (
-                  <PaginationBar
-                    currentPage={upcomingPage}
-                    totalPages={upcomingTotalPages}
-                    onChange={(next) => setUpcomingPage(next)}
-                  />
-                )}
-              </>
-            )}
-          </Card>
+              {historyPayments.length > HISTORY_PER_PAGE && (
+                <PaginationBar
+                  currentPage={historyPage}
+                  totalPages={historyTotalPages}
+                  onChange={(next) => setHistoryPage(next)}
+                />
+              )}
+            </Card>
+          )}
         </div>
 
         {/* ---------- MODAL PAIEMENT ---------- */}

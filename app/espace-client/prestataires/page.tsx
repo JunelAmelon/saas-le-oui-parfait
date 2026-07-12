@@ -256,7 +256,7 @@ export default function PrestatairesPage() {
                 return (
                   <div
                     key={presta.id}
-                    className="group relative bg-white rounded-3xl border border-brand-purple/8 overflow-hidden hover:shadow-[0_20px_45px_-20px_rgba(75,68,86,0.3)] hover:-translate-y-1 transition-all duration-200"
+                    className="group relative bg-white rounded-3xl border border-brand-purple/8 hover:shadow-[0_20px_45px_-20px_rgba(75,68,86,0.3)] hover:-translate-y-1 transition-all duration-200"
                   >
                     {/* Bannière colorée avec avatar chevauchant */}
                     <div className={`h-16 bg-gradient-to-br ${style.banner} relative`}>
