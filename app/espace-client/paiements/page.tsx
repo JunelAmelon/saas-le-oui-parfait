@@ -3,9 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { ClientDashboardLayout } from '@/components/layout/ClientDashboardLayout';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useClientData } from '@/contexts/ClientDataContext';
 import { getClientPayments, getClientBudgetSummary, calculateDaysRemaining, PaymentData } from '@/lib/client-helpers';
@@ -51,6 +49,18 @@ type TransferInstructions = {
   currency: string;
 };
 
+// Palette de statuts cohérente avec la nouvelle DA (dashboard / documents)
+const statusStyles: Record<string, { bg: string; text: string; solid: string; label: string }> = {
+  paid: { bg: 'bg-brand-turquoise/15', text: 'text-brand-turquoise-hover', solid: 'bg-brand-turquoise', label: 'Payé' },
+  completed: { bg: 'bg-brand-turquoise/15', text: 'text-brand-turquoise-hover', solid: 'bg-brand-turquoise', label: 'Payé' },
+  pending: { bg: 'bg-[#F1EADD]', text: 'text-[#C9A96E]', solid: 'bg-[#C9A96E]', label: 'En attente' },
+  partial: { bg: 'bg-[#F3E3E6]', text: 'text-[#B98A96]', solid: 'bg-[#B98A96]', label: 'Partiel' },
+  upcoming: { bg: 'bg-brand-purple/10', text: 'text-brand-purple', solid: 'bg-brand-purple', label: 'À venir' },
+  overdue: { bg: 'bg-[#F5DEDE]', text: 'text-[#B15C5C]', solid: 'bg-[#B15C5C]', label: 'En retard' },
+};
+
+const stStyle = (status: string) => statusStyles[status] || statusStyles.pending;
+
 export default function PaiementsPage() {
   const { client, event, loading: dataLoading } = useClientData();
   const [payments, setPayments] = useState<PaymentData[]>([]);
@@ -89,19 +99,18 @@ export default function PaiementsPage() {
 
     return (
       <div className="mt-4 flex items-center justify-between gap-3">
-        <Button
+        <button
           type="button"
-          variant="outline"
-          size="icon"
           onClick={() => onChange(Math.max(1, currentPage - 1))}
           disabled={currentPage === 1}
           aria-label="Page précédente"
+          className="w-8 h-8 rounded-full border border-brand-purple/15 flex items-center justify-center text-brand-purple disabled:opacity-30 hover:bg-brand-purple/5 transition-colors"
         >
           <ChevronLeft className="h-4 w-4" />
-        </Button>
+        </button>
 
         <div className="flex items-center gap-1">
-          <span className="text-sm text-brand-gray sm:hidden">
+          <span className="text-xs text-brand-gray sm:hidden">
             Page {currentPage} / {totalPages}
           </span>
 
@@ -112,35 +121,32 @@ export default function PaiementsPage() {
               return (
                 <div key={p} className="flex items-center gap-1">
                   {showEllipsis ? <span className="px-1 text-sm text-brand-gray">…</span> : null}
-                  <Button
+                  <button
                     type="button"
-                    variant={p === currentPage ? 'default' : 'outline'}
-                    size="sm"
-                    className={
-                      p === currentPage
-                        ? 'bg-brand-turquoise hover:bg-brand-turquoise-hover text-white border-0'
-                        : ''
-                    }
                     onClick={() => onChange(p)}
+                    className={`w-8 h-8 rounded-full text-xs font-medium transition-colors ${
+                      p === currentPage
+                        ? 'bg-brand-turquoise text-white'
+                        : 'text-brand-purple hover:bg-brand-purple/8'
+                    }`}
                   >
                     {p}
-                  </Button>
+                  </button>
                 </div>
               );
             })}
           </div>
         </div>
 
-        <Button
+        <button
           type="button"
-          variant="outline"
-          size="icon"
           onClick={() => onChange(Math.min(totalPages, currentPage + 1))}
           disabled={currentPage === totalPages}
           aria-label="Page suivante"
+          className="w-8 h-8 rounded-full border border-brand-purple/15 flex items-center justify-center text-brand-purple disabled:opacity-30 hover:bg-brand-purple/5 transition-colors"
         >
           <ChevronRight className="h-4 w-4" />
-        </Button>
+        </button>
       </div>
     );
   };
@@ -355,37 +361,21 @@ export default function PaiementsPage() {
     run();
   }, [isPaymentModalOpen, selectedPayment?.invoice_id]);
 
-  const getStatusBadge = (status: string) => {
+  const getStatusIcon = (status: string, className: string) => {
     switch (status) {
       case 'paid':
-        return <Badge className="bg-green-100 text-green-700">Payé</Badge>;
+      case 'completed':
+        return <CheckCircle className={className} />;
       case 'pending':
-        return <Badge className="bg-orange-100 text-orange-700">En attente</Badge>;
+        return <Clock className={className} />;
       case 'partial':
-        return <Badge className="bg-yellow-100 text-yellow-800">Partiel</Badge>;
+        return <AlertCircle className={className} />;
       case 'upcoming':
-        return <Badge className="bg-blue-100 text-blue-700">À venir</Badge>;
+        return <Calendar className={className} />;
       case 'overdue':
-        return <Badge className="bg-red-100 text-red-700">En retard</Badge>;
+        return <AlertCircle className={className} />;
       default:
-        return null;
-    }
-  };
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'paid':
-        return <CheckCircle className="h-5 w-5 text-green-600" />;
-      case 'pending':
-        return <Clock className="h-5 w-5 text-orange-500" />;
-      case 'partial':
-        return <AlertCircle className="h-5 w-5 text-yellow-600" />;
-      case 'upcoming':
-        return <Calendar className="h-5 w-5 text-blue-500" />;
-      case 'overdue':
-        return <AlertCircle className="h-5 w-5 text-red-500" />;
-      default:
-        return null;
+        return <Clock className={className} />;
     }
   };
 
@@ -393,8 +383,8 @@ export default function PaiementsPage() {
 
   if (dataLoading || loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="animate-spin h-12 w-12 text-brand-turquoise" />
+      <div className="min-h-screen flex items-center justify-center bg-brand-beige">
+        <Loader2 className="animate-spin h-8 w-8 text-brand-turquoise" />
       </div>
     );
   }
@@ -402,128 +392,170 @@ export default function PaiementsPage() {
   return (
     <ClientDashboardLayout clientName={event?.couple_names || 'Client'} daysRemaining={daysRemaining}>
       <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-brand-purple flex items-center gap-2 sm:gap-3">
-              <Euro className="h-6 w-6 sm:h-8 sm:w-8 text-brand-turquoise" />
-              Paiements
-            </h1>
-            <p className="text-sm sm:text-base text-brand-gray mt-1">
-              Suivez votre budget et vos paiements
-            </p>
-          </div>
-          <Button 
-            className="bg-brand-turquoise hover:bg-brand-turquoise-hover gap-2 w-full sm:w-auto"
-            onClick={openPaymentModal}
+
+        {/* ---------- HERO ---------- */}
+        <div className="relative overflow-hidden rounded-3xl bg-brand-purple px-7 py-9 sm:px-10 sm:py-11">
+          <div className="absolute -top-10 -right-10 w-56 h-56 rounded-full bg-brand-turquoise/10 blur-3xl pointer-events-none" />
+          <svg
+            className="absolute right-6 top-1/2 -translate-y-1/2 opacity-[0.12] pointer-events-none hidden sm:block"
+            width="140" height="140" viewBox="0 0 100 100" fill="none"
           >
-            <CreditCard className="h-4 w-4" />
-            <span className="hidden sm:inline">Effectuer un paiement</span>
-            <span className="sm:hidden">Payer</span>
-          </Button>
+            <path d="M50 5 L56 44 L95 50 L56 56 L50 95 L44 56 L5 50 L44 44 Z" fill="white" />
+          </svg>
+
+          <div className="relative flex flex-col sm:flex-row sm:items-end sm:justify-between gap-6">
+            <div>
+              <span className="inline-block text-[10px] tracking-label uppercase text-brand-purple bg-white/90 px-3 py-1.5 rounded-full mb-4">
+                Paiements
+              </span>
+              <h1 className="font-baskerville text-3xl sm:text-4xl text-brand-beige mb-2">
+                Suivi de votre budget
+              </h1>
+              <p className="text-brand-beige/60 text-sm">
+                {progressPercentage.toFixed(0)}% de votre budget déjà réglé
+              </p>
+            </div>
+
+            <button
+              onClick={openPaymentModal}
+              className="inline-flex items-center gap-3 bg-[#2E2937] hover:bg-[#221f2a] text-white text-sm font-semibold pl-5 pr-1.5 py-1.5 rounded-full transition-colors shrink-0"
+            >
+              Effectuer un paiement
+              <span className="w-8 h-8 rounded-full bg-brand-turquoise flex items-center justify-center">
+                <CreditCard className="w-3.5 h-3.5 text-white" />
+              </span>
+            </button>
+          </div>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
-          <Card className="p-6 shadow-xl border-0 bg-gradient-to-br from-brand-turquoise/10 to-white">
-            <div className="flex items-center gap-3 mb-2">
-              <Euro className="h-6 w-6 text-brand-turquoise" />
-              <p className="text-sm text-brand-gray">Budget total</p>
+        {/* ---------- PILLS BUDGET ---------- */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="flex items-center gap-3 bg-white rounded-2xl border border-brand-purple/8 shadow-sm p-4">
+            <div className="w-10 h-10 rounded-xl bg-brand-purple/8 flex items-center justify-center shrink-0">
+              <Euro className="w-4.5 h-4.5 text-brand-purple" />
             </div>
-            <p className="text-2xl font-bold text-brand-purple">
-              {budgetSummary.total.toLocaleString()} €
-            </p>
-          </Card>
-          <Card className="p-6 shadow-xl border-0">
-            <div className="flex items-center gap-3 mb-2">
-              <CheckCircle className="h-6 w-6 text-green-600" />
-              <p className="text-sm text-brand-gray">Déjà payé</p>
+            <div className="min-w-0">
+              <p className="text-[10px] tracking-label uppercase text-brand-gray mb-0.5">Budget total</p>
+              <p className="font-baskerville text-lg text-brand-purple truncate">
+                {budgetSummary.total.toLocaleString()} €
+              </p>
             </div>
-            <p className="text-2xl font-bold text-green-600">
-              {budgetSummary.paid.toLocaleString()} €
-            </p>
-          </Card>
-          <Card className="p-6 shadow-xl border-0">
-            <div className="flex items-center gap-3 mb-2">
-              <Clock className="h-6 w-6 text-orange-500" />
-              <p className="text-sm text-brand-gray">En attente</p>
+          </div>
+
+          <div className="flex items-center gap-3 bg-white rounded-2xl border border-brand-purple/8 shadow-sm p-4">
+            <div className="w-10 h-10 rounded-xl bg-brand-turquoise/15 flex items-center justify-center shrink-0">
+              <CheckCircle className="w-4.5 h-4.5 text-brand-turquoise-hover" />
             </div>
-            <p className="text-2xl font-bold text-orange-600">
-              {budgetSummary.pending.toLocaleString()} €
-            </p>
-          </Card>
-          <Card className="p-6 shadow-xl border-0">
-            <div className="flex items-center gap-3 mb-2">
-              <TrendingUp className="h-6 w-6 text-blue-500" />
-              <p className="text-sm text-brand-gray">Reste à payer</p>
+            <div className="min-w-0">
+              <p className="text-[10px] tracking-label uppercase text-brand-gray mb-0.5">Déjà payé</p>
+              <p className="font-baskerville text-lg text-brand-turquoise-hover truncate">
+                {budgetSummary.paid.toLocaleString()} €
+              </p>
             </div>
-            <p className="text-2xl font-bold text-brand-purple">
-              {budgetSummary.remaining.toLocaleString()} €
-            </p>
-          </Card>
+          </div>
+
+          <div className="flex items-center gap-3 bg-white rounded-2xl border border-brand-purple/8 shadow-sm p-4">
+            <div className="w-10 h-10 rounded-xl bg-[#F1EADD] flex items-center justify-center shrink-0">
+              <Clock className="w-4.5 h-4.5 text-[#C9A96E]" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[10px] tracking-label uppercase text-brand-gray mb-0.5">En attente</p>
+              <p className="font-baskerville text-lg text-[#C9A96E] truncate">
+                {budgetSummary.pending.toLocaleString()} €
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 bg-white rounded-2xl border border-brand-purple/8 shadow-sm p-4">
+            <div className="w-10 h-10 rounded-xl bg-[#F3E3E6] flex items-center justify-center shrink-0">
+              <TrendingUp className="w-4.5 h-4.5 text-[#B98A96]" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[10px] tracking-label uppercase text-brand-gray mb-0.5">Reste à payer</p>
+              <p className="font-baskerville text-lg text-brand-purple truncate">
+                {budgetSummary.remaining.toLocaleString()} €
+              </p>
+            </div>
+          </div>
         </div>
 
-        <Card className="p-6 shadow-xl border-0">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-bold text-brand-purple">Avancement du budget</h2>
-            <span className="text-sm font-medium text-brand-turquoise">
+        {/* ---------- AVANCEMENT DU BUDGET ---------- */}
+        <Card className="p-6 sm:p-8 border border-brand-purple/8 shadow-sm rounded-3xl bg-white">
+          <div className="flex items-center justify-between gap-4 mb-1">
+            <h2 className="font-baskerville text-xl text-brand-purple">Avancement du budget</h2>
+            <span className="text-sm font-semibold text-brand-turquoise-hover">
               {progressPercentage.toFixed(0)}% payé
             </span>
           </div>
-          <div className="w-full h-4 bg-gray-200 rounded-full overflow-hidden">
+          <div className="w-10 h-px bg-brand-turquoise mb-6" />
+          <div className="w-full h-3 bg-brand-beige rounded-full overflow-hidden">
             <div
-              className="h-full bg-gradient-to-r from-brand-turquoise to-green-500 transition-all duration-500"
+              className="h-full bg-brand-turquoise transition-all duration-500 rounded-full"
               style={{ width: `${progressPercentage}%` }}
             />
           </div>
-          <div className="flex justify-between mt-2 text-sm text-brand-gray">
+          <div className="flex justify-between mt-2 text-xs text-brand-gray">
             <span>0 €</span>
             <span>{budgetSummary.total.toLocaleString()} €</span>
           </div>
         </Card>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <Card className="lg:col-span-2 p-6 shadow-xl border-0">
-            <h2 className="text-xl font-bold text-brand-purple mb-6">
-              Historique des paiements
-            </h2>
+          {/* ---------- HISTORIQUE ---------- */}
+          <Card className="lg:col-span-2 p-6 sm:p-8 border border-brand-purple/8 shadow-sm rounded-3xl bg-white">
+            <h2 className="font-baskerville text-xl text-brand-purple mb-1">Historique des paiements</h2>
+            <div className="w-10 h-px bg-brand-turquoise mb-6" />
+
             {historyPayments.length === 0 ? (
-              <div className="text-center py-10 text-brand-gray">
+              <div className="text-center py-10 text-brand-gray text-sm">
                 Aucun paiement à afficher pour l&apos;instant.
               </div>
             ) : (
               <>
                 <div className="space-y-3">
-                  {historyPaginated.map((payment) => (
-                    <div
-                      key={payment.id}
-                      className="flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors gap-3"
-                    >
-                      <div className="flex items-center gap-3 sm:gap-4">
-                        {getStatusIcon(payment.status)}
-                        <div>
-                          <h3 className="font-medium text-brand-purple text-sm sm:text-base">{payment.description}</h3>
-                          <p className="text-xs sm:text-sm text-brand-gray">{payment.vendor}</p>
-                          <p className="text-xs text-brand-gray mt-1">
-                            {String(payment.status || '') === 'paid' || String(payment.status || '') === 'completed'
-                              ? `Payé le ${payment.date || '-'}`
-                              : `Échéance: ${payment.due_date || 'Non définie'}`}
-                          </p>
+                  {historyPaginated.map((payment) => {
+                    const st = String(payment.status || 'pending');
+                    const style = stStyle(st);
+                    return (
+                      <div
+                        key={payment.id}
+                        className="flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-2xl bg-brand-beige/60 hover:bg-brand-beige transition-colors gap-3"
+                      >
+                        <div className="flex items-center gap-3 sm:gap-4">
+                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${style.bg}`}>
+                            {getStatusIcon(st, `h-4.5 w-4.5 ${style.text}`)}
+                          </div>
+                          <div>
+                            <h3 className="font-medium text-brand-purple text-sm">{payment.description}</h3>
+                            <p className="text-xs text-brand-gray">{payment.vendor}</p>
+                            <p className="text-[11px] text-brand-gray/70 mt-1">
+                              {st === 'paid' || st === 'completed'
+                                ? `Payé le ${payment.date || '-'}`
+                                : `Échéance: ${payment.due_date || 'Non définie'}`}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between sm:justify-end gap-3 pl-13 sm:pl-0">
+                          <div className="text-left sm:text-right">
+                            <p className="text-base font-baskerville text-brand-purple">
+                              {payment.amount.toLocaleString()} €
+                            </p>
+                            <span className={`inline-block mt-1 text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full ${style.bg} ${style.text}`}>
+                              {style.label}
+                            </span>
+                          </div>
+                          {payment.invoice && (
+                            <button
+                              onClick={() => downloadInvoicePdf(payment)}
+                              className="w-8 h-8 rounded-full flex items-center justify-center text-brand-gray hover:bg-white hover:text-brand-turquoise-hover transition-colors"
+                            >
+                              <Download className="h-4 w-4" />
+                            </button>
+                          )}
                         </div>
                       </div>
-                      <div className="flex items-center justify-between sm:justify-end gap-3 sm:gap-4 pl-8 sm:pl-0">
-                        <div className="text-left sm:text-right">
-                          <p className="text-base sm:text-lg font-bold text-brand-purple">
-                            {payment.amount.toLocaleString()} €
-                          </p>
-                          {getStatusBadge(payment.status)}
-                        </div>
-                        {payment.invoice && (
-                          <Button variant="ghost" size="icon" onClick={() => downloadInvoicePdf(payment)}>
-                            <Download className="h-4 w-4 text-brand-turquoise" />
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
 
                 {historyPayments.length > HISTORY_PER_PAGE && (
@@ -537,53 +569,59 @@ export default function PaiementsPage() {
             )}
           </Card>
 
-          <Card className="p-6 shadow-xl border-0">
-            <h2 className="text-xl font-bold text-brand-purple mb-6 flex items-center gap-2">
-              <AlertCircle className="h-5 w-5 text-orange-500" />
-              Prochains paiements
-            </h2>
+          {/* ---------- PROCHAINS PAIEMENTS ---------- */}
+          <Card className="p-6 sm:p-8 border border-brand-purple/8 shadow-sm rounded-3xl bg-white">
+            <div className="flex items-center gap-2 mb-1">
+              <h2 className="font-baskerville text-xl text-brand-purple">Prochains paiements</h2>
+            </div>
+            <div className="w-10 h-px bg-[#C9A96E] mb-6" />
+
             {upcomingPayments.length === 0 ? (
-              <div className="text-center py-10 text-brand-gray">
+              <div className="text-center py-10 text-brand-gray text-sm">
                 Aucun paiement à venir pour l&apos;instant.
               </div>
             ) : (
               <>
-                <div className="space-y-4">
-                  {upcomingPaginated.map((payment) => (
-                    <div
-                      key={payment.id}
-                      className="bg-white p-4 rounded-lg shadow-sm border border-gray-100"
-                    >
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <p className="font-medium text-brand-purple">{payment.description}</p>
-                          <p className="text-sm text-brand-gray">{payment.vendor}</p>
-                        </div>
-                        <div className="text-right">
-                          <p className="font-bold text-brand-purple">
-                            {(Number(payment.amount_due ?? 0) > 0 ? Number(payment.amount_due) : payment.amount).toLocaleString()} €
-                          </p>
-                          {Number(payment.amount_due ?? 0) > 0 && (
-                            <p className="text-xs text-brand-gray">
-                              Reste à payer: {Number(payment.amount_due ?? 0).toLocaleString()} €
+                <div className="space-y-3">
+                  {upcomingPaginated.map((payment) => {
+                    const st = String(payment.status || 'pending');
+                    const style = stStyle(st);
+                    return (
+                      <div
+                        key={payment.id}
+                        className="bg-white p-4 rounded-2xl border border-brand-purple/8 relative overflow-hidden"
+                      >
+                        <div className={`absolute left-0 top-0 bottom-0 w-1 ${style.solid}`} />
+                        <div className="flex items-start justify-between pl-2">
+                          <div className="min-w-0">
+                            <p className="font-medium text-brand-purple text-sm truncate">{payment.description}</p>
+                            <p className="text-xs text-brand-gray">{payment.vendor}</p>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <p className="font-baskerville text-brand-purple">
+                              {(Number(payment.amount_due ?? 0) > 0 ? Number(payment.amount_due) : payment.amount).toLocaleString()} €
                             </p>
-                          )}
+                            {Number(payment.amount_due ?? 0) > 0 && (
+                              <p className="text-[10px] text-brand-gray">
+                                Reste: {Number(payment.amount_due ?? 0).toLocaleString()} €
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between mt-3 pl-2">
+                          <p className="text-[11px] text-brand-gray">
+                            Échéance: {payment.due_date ? new Date(payment.due_date).toLocaleDateString() : 'Non définie'}
+                          </p>
+                          <button
+                            onClick={() => handlePayClick(payment)}
+                            className="text-[11px] font-semibold uppercase tracking-wide text-white bg-brand-turquoise hover:bg-brand-turquoise-hover px-3.5 py-1.5 rounded-full transition-colors"
+                          >
+                            Payer
+                          </button>
                         </div>
                       </div>
-                      <div className="flex items-center justify-between mt-3">
-                        <p className="text-xs text-gray-500">
-                          Échéance: {payment.due_date ? new Date(payment.due_date).toLocaleDateString() : 'Non définie'}
-                        </p>
-                        <Button 
-                          size="sm" 
-                          className="bg-brand-turquoise hover:bg-brand-turquoise-hover text-xs"
-                          onClick={() => handlePayClick(payment)}
-                        >
-                          Payer
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
 
                 {upcomingPayments.length > UPCOMING_PER_PAGE && (
@@ -598,21 +636,21 @@ export default function PaiementsPage() {
           </Card>
         </div>
 
+        {/* ---------- MODAL PAIEMENT ---------- */}
         <Dialog open={isPaymentModalOpen} onOpenChange={setIsPaymentModalOpen}>
-          <DialogContent className="sm:max-w-md w-[95vw] sm:w-full max-h-[90vh] overflow-y-auto">
+          <DialogContent className="sm:max-w-md w-[95vw] sm:w-full max-h-[90vh] overflow-y-auto rounded-3xl">
             <DialogHeader>
-              <DialogTitle className="text-brand-purple">Effectuer un paiement</DialogTitle>
+              <DialogTitle className="font-baskerville text-2xl text-brand-purple">Effectuer un paiement</DialogTitle>
               <DialogDescription>
-                {selectedPayment 
+                {selectedPayment
                   ? `Paiement pour: ${selectedPayment.description}`
-                  : 'Sélectionnez un mode de paiement'
-                }
+                  : 'Sélectionnez un mode de paiement'}
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
               {!selectedPayment && (
                 <div className="space-y-2">
-                  <Label>Choisir un paiement à venir</Label>
+                  <Label className="text-[10px] tracking-label uppercase text-brand-gray">Choisir un paiement à venir</Label>
                   {upcomingPayments.length === 0 ? (
                     <div className="text-sm text-brand-gray">
                       Aucun paiement à venir à sélectionner.
@@ -625,7 +663,7 @@ export default function PaiementsPage() {
                         if (found) setSelectedPayment(found);
                       }}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger className="rounded-xl">
                         <SelectValue placeholder="Sélectionner un paiement..." />
                       </SelectTrigger>
                       <SelectContent>
@@ -640,90 +678,87 @@ export default function PaiementsPage() {
                 </div>
               )}
               {selectedPayment && (
-                <div className="p-4 bg-gray-50 rounded-lg">
+                <div className="p-4 bg-brand-beige rounded-2xl">
                   <p className="font-medium text-brand-purple">{selectedPayment.description}</p>
                   <p className="text-sm text-brand-gray">{selectedPayment.vendor}</p>
-                  <p className="text-xl font-bold text-brand-turquoise mt-2">
+                  <p className="text-xl font-baskerville text-brand-turquoise-hover mt-2">
                     {(Number(selectedPayment.amount_due ?? 0) > 0 ? Number(selectedPayment.amount_due) : selectedPayment.amount).toLocaleString()} €
                   </p>
                 </div>
               )}
-              <div className="p-4 bg-blue-50 rounded-lg text-sm">
-                <p className="font-medium text-blue-700 mb-2">Coordonnées bancaires</p>
+              <div className="p-4 bg-brand-purple/6 rounded-2xl text-sm">
+                <p className="font-semibold text-brand-purple mb-2">Coordonnées bancaires</p>
                 {transferLoading ? (
-                  <div className="flex items-center gap-2 text-blue-600">
+                  <div className="flex items-center gap-2 text-brand-purple/70">
                     <Loader2 className="h-4 w-4 animate-spin" />
                     Chargement...
                   </div>
                 ) : transferInstructions ? (
                   <>
                     <div className="flex items-center justify-between gap-3">
-                      <p className="text-blue-600 break-all">IBAN: {transferInstructions.iban}</p>
-                      <Button
+                      <p className="text-brand-gray break-all">IBAN: {transferInstructions.iban}</p>
+                      <button
                         type="button"
-                        variant="ghost"
-                        size="icon"
                         onClick={() => handleCopy('iban', transferInstructions.iban)}
                         aria-label="Copier l'IBAN"
+                        className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 hover:bg-white transition-colors"
                       >
                         {copiedKey === 'iban' ? (
-                          <CheckCircle className="h-4 w-4 text-green-700" />
+                          <CheckCircle className="h-4 w-4 text-brand-turquoise-hover" />
                         ) : (
-                          <Copy className="h-4 w-4 text-blue-700" />
+                          <Copy className="h-4 w-4 text-brand-purple" />
                         )}
-                      </Button>
+                      </button>
                     </div>
                     {transferInstructions.bic && (
                       <div className="flex items-center justify-between gap-3">
-                        <p className="text-blue-600 break-all">BIC: {transferInstructions.bic}</p>
-                        <Button
+                        <p className="text-brand-gray break-all">BIC: {transferInstructions.bic}</p>
+                        <button
                           type="button"
-                          variant="ghost"
-                          size="icon"
                           onClick={() => handleCopy('bic', transferInstructions.bic as string)}
                           aria-label="Copier le BIC"
+                          className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 hover:bg-white transition-colors"
                         >
                           {copiedKey === 'bic' ? (
-                            <CheckCircle className="h-4 w-4 text-green-700" />
+                            <CheckCircle className="h-4 w-4 text-brand-turquoise-hover" />
                           ) : (
-                            <Copy className="h-4 w-4 text-blue-700" />
+                            <Copy className="h-4 w-4 text-brand-purple" />
                           )}
-                        </Button>
+                        </button>
                       </div>
                     )}
                     <div className="flex items-center justify-between gap-3 mt-2">
-                      <p className="text-blue-600 break-all">Référence: {transferInstructions.reference}</p>
-                      <Button
+                      <p className="text-brand-gray break-all">Référence: {transferInstructions.reference}</p>
+                      <button
                         type="button"
-                        variant="ghost"
-                        size="icon"
                         onClick={() => handleCopy('reference', transferInstructions.reference)}
                         aria-label="Copier la référence"
+                        className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 hover:bg-white transition-colors"
                       >
                         {copiedKey === 'reference' ? (
-                          <CheckCircle className="h-4 w-4 text-green-700" />
+                          <CheckCircle className="h-4 w-4 text-brand-turquoise-hover" />
                         ) : (
-                          <Copy className="h-4 w-4 text-blue-700" />
+                          <Copy className="h-4 w-4 text-brand-purple" />
                         )}
-                      </Button>
+                      </button>
                     </div>
-                    <p className="text-blue-700 mt-3 font-medium">
+                    <p className="text-brand-purple mt-3 font-semibold">
                       Montant restant à régler : {Number(transferInstructions.amountDue || 0).toLocaleString('fr-FR')} €
                     </p>
                   </>
                 ) : (
-                  <p className="text-blue-600">Impossible de récupérer les coordonnées.</p>
+                  <p className="text-brand-gray">Impossible de récupérer les coordonnées.</p>
                 )}
               </div>
             </div>
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setIsPaymentModalOpen(false)}>
+              <Button type="button" variant="outline" className="rounded-full" onClick={() => setIsPaymentModalOpen(false)}>
                 Annuler
               </Button>
               {selectedPayment?.invoice_id && (
                 <Button
                   type="button"
-                  className="bg-brand-turquoise hover:bg-brand-turquoise-hover"
+                  className="bg-brand-turquoise hover:bg-brand-turquoise-hover rounded-full"
                   onClick={async () => {
                     setReconcileLoading(true);
                     try {
@@ -757,20 +792,21 @@ export default function PaiementsPage() {
           </DialogContent>
         </Dialog>
 
+        {/* ---------- SUCCÈS ---------- */}
         <Dialog open={isSuccessModalOpen} onOpenChange={setIsSuccessModalOpen}>
-          <DialogContent className="sm:max-w-md text-center">
+          <DialogContent className="sm:max-w-md text-center rounded-3xl">
             <div className="flex flex-col items-center py-6">
-              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
-                <CheckCircle className="h-8 w-8 text-green-600" />
+              <div className="w-16 h-16 bg-brand-turquoise/15 rounded-full flex items-center justify-center mb-4">
+                <CheckCircle className="h-7 w-7 text-brand-turquoise-hover" />
               </div>
-              <DialogTitle className="text-brand-purple text-xl">Paiement effectué !</DialogTitle>
+              <DialogTitle className="font-baskerville text-brand-purple text-xl">Paiement effectué !</DialogTitle>
               <DialogDescription className="mt-2">
                 Votre paiement a été enregistré avec succès. Vous recevrez un email de confirmation.
               </DialogDescription>
             </div>
             <DialogFooter className="justify-center">
-              <Button 
-                className="bg-brand-turquoise hover:bg-brand-turquoise-hover"
+              <Button
+                className="bg-brand-turquoise hover:bg-brand-turquoise-hover rounded-full"
                 onClick={() => setIsSuccessModalOpen(false)}
               >
                 Fermer

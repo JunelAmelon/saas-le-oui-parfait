@@ -20,18 +20,25 @@ export interface DevisData {
   client_id?: string;
   client?: string;
   client_email?: string;
+  client_name?: string;
   reference: string;
-  status: 'draft' | 'sent' | 'accepted' | 'rejected' | string;
+  status: 'draft' | 'sent' | 'accepted' | 'rejected' | 'signed' | string;
   date?: string;
   valid_until?: string;
   description?: string;
   montant_ht?: number;
   montant_ttc?: number;
   tva?: number;
+  amount?: number;
   pdf_url?: string;
   sent_at?: any;
   accepted_at?: any;
   rejected_at?: any;
+  created_at?: any;
+  docusign?: {
+    envelope_id?: string;
+    status?: string;
+  };
 }
 
 function pickWeddingEvent(events: any[]): EventData | null {

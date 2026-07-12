@@ -1,18 +1,14 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Bell, Settings, LogOut, User, Plus } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Bell, Settings, LogOut, Mail } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { QuickAddModal } from '@/components/modals/QuickAddModal';
 import { MessagesModal } from '@/components/modals/MessagesModal';
 import { NotificationsModal } from '@/components/modals/NotificationsModal';
 import { useNotifications } from '@/hooks/use-notifications';
@@ -20,15 +16,13 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useClientData } from '@/contexts/ClientDataContext';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
-import { Badge } from '@/components/ui/badge';
 
 interface ClientTopbarProps {
   clientName?: string;
   daysRemaining?: number;
 }
 
-export function ClientTopbar({ clientName = 'Julie & Frédérick', daysRemaining = 165 }: ClientTopbarProps) {
-  const [showQuickAdd, setShowQuickAdd] = useState(false);
+export function ClientTopbar({ clientName = 'Marie & Thomas' }: ClientTopbarProps) {
   const [showMessages, setShowMessages] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const { signOut, user } = useAuth();
@@ -43,6 +37,17 @@ export function ClientTopbar({ clientName = 'Julie & Frédérick', daysRemaining
     const n2 = String(client?.partner || '').trim();
     const combined = `${n1}${n1 && n2 ? ' & ' : ''}${n2}`.trim();
     return combined || String(clientName || '').trim() || String(user?.email || '').trim() || 'Client';
+  })();
+
+  const initials = (() => {
+    const source = computedClientName || user?.email || 'CL';
+    return String(source)
+      .split(/\s+|\s*&\s*/)
+      .filter(Boolean)
+      .map((x) => x[0])
+      .slice(0, 2)
+      .join('')
+      .toUpperCase() || 'CL';
   })();
 
   useEffect(() => {
@@ -77,57 +82,44 @@ export function ClientTopbar({ clientName = 'Julie & Frédérick', daysRemaining
 
   return (
     <>
-      <header className="fixed left-0 md:left-64 right-0 top-0 z-30 flex h-16 items-center justify-end border-b border-[#E5E5E5] bg-white px-4 md:px-6">
-        <div className="flex items-center gap-1 md:gap-3">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="relative"
-            onClick={() => setShowNotifications(true)}
+      <header className="flex items-center justify-end gap-3.5 sm:gap-4 pt-6 pb-0 px-6 sm:px-8 lg:px-8 mb-7">
+        <div className="flex items-center gap-3.5 sm:gap-4">
+          <button
+            onClick={() => setShowMessages(true)}
+            className="w-[38px] h-[38px] rounded-full bg-[#FAF9F7] flex items-center justify-center text-[#4B4456] hover:bg-[rgba(75,68,86,0.07)] transition-colors"
+            aria-label="Messages"
           >
-            <Bell className="h-5 w-5 text-brand-gray" />
+            <Mail className="w-4 h-4" />
+          </button>
+
+          <button
+            onClick={() => setShowNotifications(true)}
+            className="relative w-[38px] h-[38px] rounded-full bg-[#FAF9F7] flex items-center justify-center text-[#4B4456] hover:bg-[rgba(75,68,86,0.07)] transition-colors"
+            aria-label="Notifications"
+          >
+            <Bell className="w-4 h-4" />
             {unreadCount > 0 ? (
-              <span className="absolute -right-1 -top-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[11px] leading-[18px] text-center">
+              <span className="absolute -right-0.5 -top-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[11px] leading-[18px] text-center">
                 {unreadCount > 99 ? '99+' : unreadCount}
               </span>
             ) : null}
-          </Button>
+          </button>
 
-          <Button
-            variant="ghost"
-            size="icon"
-            className="hidden md:flex"
-            onClick={() => router.push('/espace-client/parametres')}
-          >
-            <Settings className="h-5 w-5 text-brand-gray" />
-          </Button>
+          <div className="w-px h-7 bg-[rgba(75,68,86,0.12)]" />
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="ml-1 md:ml-2 flex items-center gap-2 md:gap-3 rounded-lg p-1 hover:bg-gray-100">
-                <Avatar className="h-8 w-8 md:h-9 md:w-9">
-                  {client?.photo ? <AvatarImage src={client.photo} alt={clientName} /> : null}
-                  <AvatarFallback className="bg-brand-turquoise text-white font-medium text-sm">
-                    {(clientName || user?.email || 'CL')
-                      .toString()
-                      .split(' ')
-                      .filter(Boolean)
-                      .map((x) => x[0])
-                      .slice(0, 2)
-                      .join('')
-                      .toUpperCase() || 'CL'}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="text-left hidden lg:block">
-                  <p className="text-sm font-medium text-brand-purple">
-                    {computedClientName}
-                  </p>
-                  <p className="text-xs text-brand-gray">Client</p>
+              <button className="flex items-center gap-2.5 shrink-0" aria-label="Menu utilisateur">
+                <div className="w-[34px] h-[34px] rounded-full bg-[#4B4456] flex items-center justify-center text-white text-[12px] font-semibold">
+                  {initials}
                 </div>
+                <span className="hidden sm:block text-[13.5px] font-semibold text-[#4B4456] whitespace-nowrap">
+                  {computedClientName}
+                </span>
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuLabel>Mon compte</DropdownMenuLabel>
+              <div className="px-2 py-1.5 text-sm font-medium text-[#4B4456]">{computedClientName}</div>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => router.push('/espace-client/parametres')}>
                 <Settings className="mr-2 h-4 w-4" />
@@ -143,7 +135,6 @@ export function ClientTopbar({ clientName = 'Julie & Frédérick', daysRemaining
         </div>
       </header>
 
-      <QuickAddModal open={showQuickAdd} onOpenChange={setShowQuickAdd} />
       <MessagesModal open={showMessages} onOpenChange={setShowMessages} />
       <NotificationsModal
         open={showNotifications}

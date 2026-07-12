@@ -14,6 +14,7 @@ import {
   Users,
   CheckCircle,
   Settings,
+  LogOut,
   Menu,
   X,
   Map,
@@ -22,6 +23,7 @@ import {
 import { cn } from '@/lib/utils';
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface MenuItem {
   label: string;
@@ -31,79 +33,25 @@ interface MenuItem {
 }
 
 const clientMenuItems: MenuItem[] = [
-  {
-    label: 'Tableau de bord',
-    icon: LayoutDashboard,
-    href: '/espace-client',
-  },
-  {
-    label: 'Mon mariage',
-    icon: Flower2,
-    href: '/espace-client/mariage',
-  },
-  {
-    label: 'Planning',
-    icon: Calendar,
-    href: '/espace-client/planning',
-  },
-  {
-    label: 'Mes documents',
-    icon: FileText,
-    href: '/espace-client/documents',
-  },
-  {
-    label: 'Messages',
-    icon: MessageSquare,
-    href: '/espace-client/messages',
-  },
-  {
-    label: 'Fleurs',
-    icon: Flower2,
-    href: '/espace-client/fleurs',
-    isComingSoon: true,
-  },
-  {
-    label: 'Plan de table 3D',
-    icon: Map,
-    href: '/espace-client/plan-table',
-    isComingSoon: true,
-  },
-  {
-    label: 'Service chauffeur',
-    icon: Car,
-    href: '/espace-client/chauffeur',
-    isComingSoon: true,
-  },
-  {
-    label: 'Paiements',
-    icon: Euro,
-    href: '/espace-client/paiements',
-  },
-  {
-    label: 'Galerie photos',
-    icon: ImageIcon,
-    href: '/espace-client/galerie',
-  },
-  {
-    label: 'Mes prestataires',
-    icon: Users,
-    href: '/espace-client/prestataires',
-  },
-  {
-    label: 'Check-list',
-    icon: CheckCircle,
-    href: '/espace-client/checklist',
-  },
-  {
-    label: 'Paramètres',
-    icon: Settings,
-    href: '/espace-client/parametres',
-  },
+  { label: 'Tableau de bord', icon: LayoutDashboard, href: '/espace-client' },
+  { label: 'Documents', icon: FileText, href: '/espace-client/documents' },
+  { label: 'Paiements', icon: Euro, href: '/espace-client/paiements' },
+  { label: 'Devis', icon: FileText, href: '/espace-client/devis' },
+  { label: 'Planning', icon: Calendar, href: '/espace-client/planning' },
+  { label: 'Mon mariage', icon: Flower2, href: '/espace-client/mariage' },
+  { label: 'Messages', icon: MessageSquare, href: '/espace-client/messages' },
+  { label: 'Galerie photos', icon: ImageIcon, href: '/espace-client/galerie' },
+  { label: 'Mes prestataires', icon: Users, href: '/espace-client/prestataires' },
+  { label: 'Check-list', icon: CheckCircle, href: '/espace-client/checklist' },
+  { label: 'Fleurs', icon: Flower2, href: '/espace-client/fleurs', isComingSoon: true },
+  { label: 'Plan de table 3D', icon: Map, href: '/espace-client/plan-table', isComingSoon: true },
+  { label: 'Service chauffeur', icon: Car, href: '/espace-client/chauffeur', isComingSoon: true },
 ];
 
 export function ClientSidebar() {
   const pathname = usePathname();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const { signOut } = useAuth();
 
   useEffect(() => {
     setIsMobileMenuOpen(false);
@@ -127,80 +75,106 @@ export function ClientSidebar() {
     return pathname.startsWith(href);
   };
 
+  const mainItems = clientMenuItems.filter((i) => !i.isComingSoon);
+  const comingItems = clientMenuItems.filter((i) => i.isComingSoon);
+
   const SidebarContent = () => (
     <>
-      <div className="flex h-16 items-center justify-between border-b border-[#E5E5E5] px-4">
+      <div className="flex items-center gap-2.5 mb-10 px-2">
         <Link href="/espace-client" className="flex items-center">
           <Image
             src="/logo-horizontal.png"
             alt="Le Oui Parfait"
-            width={140}
-            height={40}
-            className="object-contain"
+            width={160}
+            height={44}
+            className="object-contain max-w-[150px] h-auto"
+            priority
           />
         </Link>
         <Button
           variant="ghost"
           size="icon"
-          className="md:hidden"
+          className="md:hidden ml-auto"
           onClick={() => setIsMobileMenuOpen(false)}
         >
-          <X className="h-6 w-6" />
+          <X className="h-5 w-5" />
         </Button>
       </div>
 
-      <nav className="flex-1 overflow-y-auto px-3 py-4">
-        <ul className="space-y-1">
-          {clientMenuItems.map((item) => (
+      <div className="flex-1 overflow-y-auto pr-1">
+        <div className="text-[10.5px] tracking-[0.15em] uppercase text-[#9C97A3] px-2 mb-2.5">
+          Espace client
+        </div>
+        <ul className="space-y-0.5 mb-8">
+          {mainItems.map((item) => (
             <li key={item.label}>
-              {item.isComingSoon ? (
-                <div
-                  className={cn(
-                    'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
-                    'text-brand-gray opacity-60 cursor-not-allowed'
-                  )}
-                >
-                  <item.icon className="h-5 w-5" />
-                  <span className="flex-1">{item.label}</span>
-                  <span className="text-[10px] uppercase tracking-wide bg-gray-100 text-gray-600 px-2 py-0.5 rounded">
-                    À venir
-                  </span>
-                </div>
-              ) : (
-                <Link
-                  href={item.href}
-                  className={cn(
-                    'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
-                    isActive(item.href)
-                      ? 'bg-brand-turquoise text-white'
-                      : 'text-brand-gray hover:bg-gray-100'
-                  )}
-                >
-                  <item.icon className="h-5 w-5" />
-                  <span>{item.label}</span>
-                </Link>
-              )}
+              <Link
+                href={item.href}
+                className={cn(
+                  'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors',
+                  isActive(item.href)
+                    ? 'bg-[rgba(136,183,181,0.16)] text-[#4B4456]'
+                    : 'text-[#5A5A5A] hover:bg-[rgba(75,68,86,0.07)]'
+                )}
+              >
+                <item.icon className="h-[18px] w-[18px] shrink-0" />
+                <span>{item.label}</span>
+              </Link>
             </li>
           ))}
         </ul>
-      </nav>
 
-      <div className="border-t border-[#E5E5E5] p-4">
-        <div className="rounded-lg bg-brand-turquoise/10 p-4">
-          <p className="text-sm font-medium text-brand-purple mb-1">
-            Besoin d&apos;aide ?
-          </p>
-          <p className="text-xs text-brand-gray mb-3">
-            Contactez votre wedding planner
-          </p>
-          <Button
-            size="sm"
-            className="w-full bg-brand-turquoise hover:bg-brand-turquoise-hover text-white"
-          >
-            <MessageSquare className="h-4 w-4 mr-2" />
-            Contacter
-          </Button>
+        {comingItems.length > 0 && (
+          <>
+            <div className="text-[10.5px] tracking-[0.15em] uppercase text-[#9C97A3] px-2 mb-2.5">
+              À venir
+            </div>
+            <ul className="space-y-0.5 mb-8">
+              {comingItems.map((item) => (
+                <li key={item.label}>
+                  <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-[#5A5A5A] opacity-60 cursor-not-allowed">
+                    <item.icon className="h-[18px] w-[18px] shrink-0" />
+                    <span className="flex-1">{item.label}</span>
+                    <span className="text-[9px] uppercase tracking-wide bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">
+                      Bientôt
+                    </span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+      </div>
+
+      <div>
+        <div className="text-[10.5px] tracking-[0.15em] uppercase text-[#9C97A3] px-2 mb-2.5">
+          Paramètres
         </div>
+        <ul className="space-y-0.5">
+          <li>
+            <Link
+              href="/espace-client/parametres"
+              className={cn(
+                'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors',
+                isActive('/espace-client/parametres')
+                  ? 'bg-[rgba(136,183,181,0.16)] text-[#4B4456]'
+                  : 'text-[#5A5A5A] hover:bg-[rgba(75,68,86,0.07)]'
+              )}
+            >
+              <Settings className="h-[18px] w-[18px] shrink-0" />
+              <span>Paramètres</span>
+            </Link>
+          </li>
+          <li>
+            <button
+              onClick={() => void signOut()}
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-[#B9847F] hover:bg-[rgba(185,132,127,0.1)] transition-colors"
+            >
+              <LogOut className="h-[18px] w-[18px] shrink-0" />
+              <span>Déconnexion</span>
+            </button>
+          </li>
+        </ul>
       </div>
     </>
   );
@@ -210,13 +184,13 @@ export function ClientSidebar() {
       <Button
         variant="ghost"
         size="icon"
-        className="fixed top-4 left-4 z-50 md:hidden"
+        className="fixed top-4 left-4 z-50 md:hidden bg-white/80 backdrop-blur rounded-full shadow-sm"
         onClick={() => setIsMobileMenuOpen(true)}
       >
-        <Menu className="h-6 w-6" />
+        <Menu className="h-5 w-5" />
       </Button>
 
-      <aside className="fixed left-0 top-0 z-40 h-screen w-64 border-r border-[#E5E5E5] bg-white hidden md:flex flex-col">
+      <aside className="hidden md:flex w-[230px] shrink-0 flex-col border-r border-[rgba(75,68,86,0.08)] py-8 px-5">
         <SidebarContent />
       </aside>
 
@@ -226,7 +200,7 @@ export function ClientSidebar() {
             className="fixed inset-0 z-40 bg-black/50 md:hidden"
             onClick={() => setIsMobileMenuOpen(false)}
           />
-          <aside className="fixed left-0 top-0 z-50 h-screen w-64 border-r border-[#E5E5E5] bg-white flex flex-col md:hidden transform transition-transform">
+          <aside className="fixed left-0 top-0 z-50 h-screen w-[260px] bg-white flex flex-col md:hidden py-8 px-5">
             <SidebarContent />
           </aside>
         </>

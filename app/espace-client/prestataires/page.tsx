@@ -1,30 +1,14 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Card } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { ClientDashboardLayout } from '@/components/layout/ClientDashboardLayout';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
 import { useClientData } from '@/contexts/ClientDataContext';
 import { calculateDaysRemaining } from '@/lib/client-helpers';
 import { getDocuments } from '@/lib/db';
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from '@/components/ui/dialog';
-import {
   Users,
   MapPin,
-  Star,
-  CheckCircle,
-  Clock,
   Calendar,
   Loader2,
   ChevronLeft,
@@ -53,103 +37,27 @@ interface AssignedVendorLink {
   vendor_category?: string;
 }
 
-const prestataires = [
-  {
-    id: '1',
-    name: 'Château d\'Apigné',
-    category: 'Lieu de réception',
-    avatar: 'CA',
-    contact: 'Marie Dupont',
-    phone: '02 99 14 80 66',
-    email: 'contact@chateau-apigne.fr',
-    address: '35650 Le Rheu, Rennes',
-    website: 'www.chateau-apigne.fr',
-    status: 'confirmed',
-    rating: 5,
-    nextRdv: '10/04/2024 - Visite finale',
-  },
-  {
-    id: '2',
-    name: 'Traiteur Le Gourmet',
-    category: 'Traiteur',
-    avatar: 'TG',
-    contact: 'Pierre Martin',
-    phone: '02 99 45 23 12',
-    email: 'contact@legourmet.fr',
-    address: 'Rennes',
-    website: 'www.traiteur-legourmet.fr',
-    status: 'confirmed',
-    rating: 5,
-    nextRdv: '15/03/2024 - Dégustation menu',
-  },
-  {
-    id: '3',
-    name: 'Studio Photo Lumière',
-    category: 'Photographe',
-    avatar: 'SP',
-    contact: 'Sophie Bernard',
-    phone: '06 12 34 56 78',
-    email: 'sophie@studiolumiere.fr',
-    address: 'Rennes',
-    website: 'www.studio-lumiere.fr',
-    status: 'confirmed',
-    rating: 5,
-    nextRdv: null,
-  },
-  {
-    id: '4',
-    name: 'DJ Ambiance',
-    category: 'DJ / Animation',
-    avatar: 'DJ',
-    contact: 'Thomas Leroy',
-    phone: '06 98 76 54 32',
-    email: 'thomas@dj-ambiance.fr',
-    address: 'Rennes',
-    website: null,
-    status: 'pending',
-    rating: 4,
-    nextRdv: '12/02/2024 - Validation playlist',
-  },
-  {
-    id: '5',
-    name: 'Atelier Floral',
-    category: 'Fleuriste',
-    avatar: 'AF',
-    contact: 'Claire Moreau',
-    phone: '02 99 67 89 10',
-    email: 'contact@atelierfloral.fr',
-    address: 'Rennes',
-    website: 'www.atelier-floral.fr',
-    status: 'pending',
-    rating: 5,
-    nextRdv: '20/02/2024 - Choix des compositions',
-  },
-  {
-    id: '6',
-    name: 'Le Oui Parfait',
-    category: 'Wedding Planner',
-    avatar: 'LP',
-    contact: 'Caroline Duval',
-    phone: '06 11 22 33 44',
-    email: 'caroline@leouiparfait.fr',
-    address: 'Rennes',
-    website: 'www.leouiparfait.fr',
-    status: 'confirmed',
-    rating: 5,
-    nextRdv: null,
-  },
+// Palette cohérente avec le reste du produit — cycle déterministe par catégorie
+const palette = [
+  { bg: 'bg-brand-turquoise/15', text: 'text-brand-turquoise-hover', solid: 'bg-brand-turquoise', banner: 'from-brand-turquoise to-[#6a9a98]' },
+  { bg: 'bg-brand-purple/10', text: 'text-brand-purple', solid: 'bg-brand-purple', banner: 'from-brand-purple to-[#6a6178]' },
+  { bg: 'bg-[#F1EADD]', text: 'text-[#C9A96E]', solid: 'bg-[#C9A96E]', banner: 'from-[#C9A96E] to-[#e0c395]' },
+  { bg: 'bg-[#F3E3E6]', text: 'text-[#B98A96]', solid: 'bg-[#B98A96]', banner: 'from-[#B98A96] to-[#d3aab3]' },
 ];
+
+const catStyle = (category: string) => {
+  let hash = 0;
+  for (let i = 0; i < category.length; i++) hash = (hash * 31 + category.charCodeAt(i)) >>> 0;
+  return palette[hash % palette.length];
+};
 
 export default function PrestatairesPage() {
   const { client, event, loading: dataLoading } = useClientData();
   const [prestataires, setPrestataires] = useState<Prestataire[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedPrestataire, setSelectedPrestataire] = useState<Prestataire | null>(null);
-  const [isDetailOpen, setIsDetailOpen] = useState(false);
-  const [isMessageOpen, setIsMessageOpen] = useState(false);
-  const [message, setMessage] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 2;
+  const itemsPerPage = 6;
 
   useEffect(() => {
     async function fetchPrestataires() {
@@ -185,7 +93,7 @@ export default function PrestatairesPage() {
           .map((l) => {
             const v = byId.get(l.vendor_id);
             const name = v?.name || l.vendor_name || 'Prestataire';
-            const category = v?.category || l.vendor_category || 'other';
+            const category = v?.category || l.vendor_category || 'Autre';
             const initials = (String(name)
               .split(' ')
               .filter(Boolean)
@@ -224,160 +132,209 @@ export default function PrestatairesPage() {
     }
   }, [client, dataLoading]);
 
+  const categories = useMemo(() => {
+    const uniq = Array.from(new Set(prestataires.map((p) => p.category)));
+    return [{ id: 'all', label: 'Tous', count: prestataires.length }, ...uniq.map((c) => ({
+      id: c,
+      label: c,
+      count: prestataires.filter((p) => p.category === c).length,
+    }))];
+  }, [prestataires]);
+
+  const filteredPrestataires = useMemo(() => {
+    return selectedCategory === 'all' ? prestataires : prestataires.filter((p) => p.category === selectedCategory);
+  }, [prestataires, selectedCategory]);
+
   useEffect(() => {
     setCurrentPage(1);
-  }, [prestataires.length]);
+  }, [prestataires.length, selectedCategory]);
 
   const daysRemaining = event ? calculateDaysRemaining(event.event_date) : 0;
 
   if (dataLoading || loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="animate-spin h-12 w-12 text-brand-turquoise" />
+      <div className="min-h-screen flex items-center justify-center bg-brand-beige">
+        <Loader2 className="animate-spin h-8 w-8 text-brand-turquoise" />
       </div>
     );
   }
 
-  const totalPages = Math.ceil(prestataires.length / itemsPerPage);
+  const totalPages = Math.max(1, Math.ceil(filteredPrestataires.length / itemsPerPage));
   const startIndex = (currentPage - 1) * itemsPerPage;
-  const paginatedPrestataires = prestataires.slice(startIndex, startIndex + itemsPerPage);
+  const paginatedPrestataires = filteredPrestataires.slice(startIndex, startIndex + itemsPerPage);
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'confirmed':
-        return <Badge className="bg-green-100 text-green-700">Confirmé</Badge>;
-      case 'pending':
-        return <Badge className="bg-orange-100 text-orange-700">En attente</Badge>;
-      default:
-        return null;
-    }
-  };
-
-  const confirmedCount = prestataires.filter(p => p.status === 'confirmed').length;
-  const pendingCount = prestataires.filter(p => p.status === 'pending').length;
+  const confirmedCount = prestataires.filter((p) => p.status === 'confirmed').length;
+  const pendingCount = prestataires.filter((p) => p.status === 'pending').length;
 
   return (
     <ClientDashboardLayout clientName={event?.couple_names || 'Client'} daysRemaining={daysRemaining}>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-brand-purple flex items-center gap-2 sm:gap-3">
-            <Users className="h-6 w-6 sm:h-8 sm:w-8 text-brand-turquoise" />
-            Mes Prestataires
-          </h1>
-          <p className="text-sm sm:text-base text-brand-gray mt-1">
-            Tous vos prestataires pour le jour J
-          </p>
+
+        {/* ---------- HERO ---------- */}
+        <div className="relative overflow-hidden rounded-3xl bg-brand-purple px-7 py-9 sm:px-10 sm:py-11">
+          <div className="absolute -top-10 -right-10 w-56 h-56 rounded-full bg-brand-turquoise/10 blur-3xl pointer-events-none" />
+          <svg
+            className="absolute right-6 top-1/2 -translate-y-1/2 opacity-[0.12] pointer-events-none hidden sm:block"
+            width="140" height="140" viewBox="0 0 100 100" fill="none"
+          >
+            <path d="M50 5 L56 44 L95 50 L56 56 L50 95 L44 56 L5 50 L44 44 Z" fill="white" />
+          </svg>
+
+          <div className="relative">
+            <span className="inline-block text-[10px] tracking-label uppercase text-brand-purple bg-white/90 px-3 py-1.5 rounded-full mb-4">
+              Prestataires
+            </span>
+            <h1 className="font-baskerville text-3xl sm:text-4xl text-brand-beige mb-2">
+              Votre équipe pour le jour J
+            </h1>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-brand-beige/60 text-sm">
+              <span>{prestataires.length} prestataires</span>
+              <span className="text-brand-beige/25">·</span>
+              <span>{confirmedCount} confirmés</span>
+              {pendingCount > 0 && (
+                <>
+                  <span className="text-brand-beige/25">·</span>
+                  <span className="text-[#E8C9CE]">{pendingCount} en attente</span>
+                </>
+              )}
+            </div>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Card className="p-6 shadow-xl border-0 bg-gradient-to-br from-brand-turquoise/10 to-white">
-            <div className="flex items-center gap-3">
-              <Users className="h-8 w-8 text-brand-turquoise" />
-              <div>
-                <p className="text-2xl font-bold text-brand-purple">{prestataires.length}</p>
-                <p className="text-sm text-brand-gray">Prestataires total</p>
-              </div>
-            </div>
-          </Card>
-          <Card className="p-6 shadow-xl border-0">
-            <div className="flex items-center gap-3">
-              <CheckCircle className="h-8 w-8 text-green-600" />
-              <div>
-                <p className="text-2xl font-bold text-green-600">{confirmedCount}</p>
-                <p className="text-sm text-brand-gray">Confirmés</p>
-              </div>
-            </div>
-          </Card>
-          <Card className="p-6 shadow-xl border-0">
-            <div className="flex items-center gap-3">
-              <Clock className="h-8 w-8 text-orange-500" />
-              <div>
-                <p className="text-2xl font-bold text-orange-600">{pendingCount}</p>
-                <p className="text-sm text-brand-gray">En attente</p>
-              </div>
-            </div>
-          </Card>
-        </div>
+        {/* ---------- FILTRES CATÉGORIES ---------- */}
+        {categories.length > 1 && (
+          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
+            {categories.map((cat) => {
+              const active = selectedCategory === cat.id;
+              if (cat.id === 'all') {
+                return (
+                  <button
+                    key={cat.id}
+                    onClick={() => setSelectedCategory(cat.id)}
+                    className={`shrink-0 inline-flex items-center gap-1.5 text-sm font-medium px-4 py-2 rounded-full border transition-all ${
+                      active
+                        ? 'bg-brand-purple text-white border-brand-purple'
+                        : 'bg-white text-brand-gray border-brand-purple/15 hover:border-brand-purple/30 hover:text-brand-purple'
+                    }`}
+                  >
+                    {cat.label}
+                    <span className={`text-[10px] ${active ? 'text-white/70' : 'text-brand-gray/60'}`}>{cat.count}</span>
+                  </button>
+                );
+              }
+              const style = catStyle(cat.id);
+              return (
+                <button
+                  key={cat.id}
+                  onClick={() => setSelectedCategory(cat.id)}
+                  className={`shrink-0 inline-flex items-center gap-1.5 text-sm font-medium px-4 py-2 rounded-full transition-all ${
+                    active ? `${style.solid} text-white shadow-sm` : `bg-white ${style.text}`
+                  }`}
+                  style={!active ? { border: '1px solid currentColor', opacity: 0.75 } : undefined}
+                >
+                  {cat.label}
+                  <span className={`text-[10px] ${active ? 'text-white/70' : 'opacity-60'}`}>{cat.count}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {paginatedPrestataires.map((presta) => (
-            <Card key={presta.id} className="p-6 shadow-xl border-0">
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex items-center gap-4">
-                  <div className="h-14 w-14 rounded-full bg-white border border-gray-200 overflow-hidden flex items-center justify-center flex-shrink-0">
-                    {presta.logoUrl ? (
-                      <img src={presta.logoUrl} alt={presta.name} className="h-full w-full object-cover" />
-                    ) : (
-                      <span className="text-white text-lg font-semibold bg-brand-turquoise h-full w-full flex items-center justify-center">
-                        {presta.avatar}
+        {/* ---------- GRILLE DE CARTES PRESTATAIRES ---------- */}
+        {filteredPrestataires.length === 0 ? (
+          <div className="text-center py-20">
+            <div className="w-14 h-14 rounded-full bg-brand-purple/8 flex items-center justify-center mx-auto mb-4">
+              <Users className="h-6 w-6 text-brand-purple" />
+            </div>
+            <p className="text-brand-gray text-sm">Aucun prestataire pour le moment</p>
+          </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
+              {paginatedPrestataires.map((presta) => {
+                const style = catStyle(presta.category);
+                return (
+                  <div
+                    key={presta.id}
+                    className="group relative bg-white rounded-3xl border border-brand-purple/8 overflow-hidden hover:shadow-[0_20px_45px_-20px_rgba(75,68,86,0.3)] hover:-translate-y-1 transition-all duration-200"
+                  >
+                    {/* Bannière colorée avec avatar chevauchant */}
+                    <div className={`h-16 bg-gradient-to-br ${style.banner} relative`}>
+                      {presta.status === 'confirmed' ? (
+                        <span className="absolute top-3 right-3 text-[9px] font-bold uppercase tracking-wide px-2.5 py-1 rounded-full bg-white/90 text-brand-purple">
+                          Confirmé
+                        </span>
+                      ) : (
+                        <span className="absolute top-3 right-3 text-[9px] font-bold uppercase tracking-wide px-2.5 py-1 rounded-full bg-white/90 text-[#B15C5C]">
+                          En attente
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="px-6 pb-6">
+                      <div className="-mt-10 mb-3 flex items-end justify-between">
+                        <div className="w-20 h-20 rounded-2xl bg-white border-4 border-white shadow-lg overflow-hidden flex items-center justify-center shrink-0">
+                          {presta.logoUrl ? (
+                            <img src={presta.logoUrl} alt={presta.name} className="h-full w-full object-cover" />
+                          ) : (
+                            <span className={`text-lg font-baskerville text-white h-full w-full flex items-center justify-center ${style.solid}`}>
+                              {presta.avatar}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <h3 className="font-baskerville text-lg text-brand-purple leading-snug">{presta.name}</h3>
+                      <span className={`inline-block mt-1.5 text-[10px] font-bold uppercase tracking-wide px-2.5 py-1 rounded-full ${style.bg} ${style.text}`}>
+                        {presta.category}
                       </span>
-                    )}
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-brand-purple text-lg">{presta.name}</h3>
-                    <p className="text-sm text-brand-gray">{presta.category}</p>
-                    <div className="flex items-center gap-1 mt-1">
-                      {[...Array(5)].map((_, i) => (
-                        <Star
-                          key={i}
-                          className={`h-4 w-4 ${
-                            i < presta.rating
-                              ? 'text-yellow-400 fill-yellow-400'
-                              : 'text-gray-300'
-                          }`}
-                        />
-                      ))}
+
+                      <div className="mt-4 space-y-2">
+                        {presta.address && (
+                          <div className="flex items-center gap-2 text-xs text-brand-gray">
+                            <MapPin className="h-3.5 w-3.5 text-brand-gray/70 shrink-0" />
+                            <span className="truncate">{presta.address}</span>
+                          </div>
+                        )}
+                        {presta.desc && (
+                          <p className="text-xs text-brand-gray leading-relaxed line-clamp-2">{presta.desc}</p>
+                        )}
+                      </div>
+
+                      {presta.nextRdv && (
+                        <div className={`mt-4 flex items-center gap-2.5 p-3 rounded-xl ${style.bg}`}>
+                          <Calendar className={`h-4 w-4 shrink-0 ${style.text}`} />
+                          <span className="text-xs font-medium text-brand-purple">{presta.nextRdv}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
-                </div>
-                {getStatusBadge(presta.status)}
+                );
+              })}
+            </div>
+
+            {totalPages > 1 && (
+              <div className="flex items-center justify-center gap-2 pt-2">
+                <button
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  className="w-8 h-8 rounded-full border border-brand-purple/15 flex items-center justify-center text-brand-purple disabled:opacity-30 hover:bg-brand-purple/5 transition-colors"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+                <span className="text-xs text-brand-gray">
+                  Page {currentPage} sur {totalPages}
+                </span>
+                <button
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                  className="w-8 h-8 rounded-full border border-brand-purple/15 flex items-center justify-center text-brand-purple disabled:opacity-30 hover:bg-brand-purple/5 transition-colors"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
               </div>
-
-              <div className="space-y-3 mb-4">
-                <div className="flex items-center gap-3 text-sm">
-                  <MapPin className="h-4 w-4 text-brand-turquoise" />
-                  <span className="text-brand-gray">{presta.address}</span>
-                </div>
-                {presta.desc ? (
-                  <div className="text-sm text-brand-gray whitespace-pre-wrap">
-                    {presta.desc}
-                  </div>
-                ) : null}
-                {presta.nextRdv && (
-                  <div className="flex items-center gap-3 text-sm">
-                    <Calendar className="h-4 w-4 text-brand-turquoise" />
-                    <span className="text-brand-purple font-medium">{presta.nextRdv}</span>
-                  </div>
-                )}
-              </div>
-
-              <div className="pt-4 border-t border-gray-100" />
-            </Card>
-          ))}
-        </div>
-
-        {totalPages > 1 && (
-          <div className="flex items-center justify-center gap-2 mt-6">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              disabled={currentPage === 1}
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <span className="text-sm text-brand-gray">
-              Page {currentPage} sur {totalPages}
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-              disabled={currentPage === totalPages}
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
+            )}
+          </>
         )}
       </div>
     </ClientDashboardLayout>

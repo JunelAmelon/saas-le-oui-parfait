@@ -1,9 +1,6 @@
 'use client';
 
 import { Card } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { ClientDashboardLayout } from '@/components/layout/ClientDashboardLayout';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
@@ -20,6 +17,7 @@ import {
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useClientData } from '@/contexts/ClientDataContext';
+import { ClientDashboardLayout } from '@/components/layout/ClientDashboardLayout';
 import { addDocument, getDocument, getDocuments, updateDocument } from '@/lib/db';
 import { uploadFile } from '@/lib/storage';
 import { toast } from 'sonner';
@@ -75,7 +73,9 @@ export default function MessagesPage() {
   const daysRemaining = event?.event_date ? 0 : 0;
 
   const fetchMessages = async (conversationId: string) => {
-    const items = await getDocuments('messages', [{ field: 'conversation_id', operator: '==', value: conversationId }]);
+    const items = await getDocuments('messages', [
+      { field: 'conversation_id', operator: '==', value: conversationId },
+    ]);
     const mapped = (items as any[])
       .sort((a, b) => {
         const da = a?.created_at?.toDate?.()?.getTime?.() || 0;
@@ -120,8 +120,13 @@ export default function MessagesPage() {
 
   const ensureConversation = async () => {
     if (!user?.uid || !client?.id || !client?.planner_id) return null;
-    const existing = await getDocuments('conversations', [{ field: 'client_id', operator: '==', value: client.id }]);
-    const conv0 = (existing as any[])?.find((c) => c?.planner_id === client.planner_id) || (existing as any[])?.[0] || null;
+    const existing = await getDocuments('conversations', [
+      { field: 'client_id', operator: '==', value: client.id },
+    ]);
+    const conv0 =
+      (existing as any[])?.find((c) => c?.planner_id === client.planner_id) ||
+      (existing as any[])?.[0] ||
+      null;
     if (conv0?.id) {
       return conv0;
     }
@@ -153,9 +158,10 @@ export default function MessagesPage() {
           setLoading(false);
           return;
         }
-        const convDoc = await getDocuments('conversations', [{ field: '__name__', operator: '==', value: conv.id }]).catch(() => []);
+        const convDoc = await getDocuments('conversations', [
+          { field: '__name__', operator: '==', value: conv.id },
+        ]).catch(() => []);
         const c0 = (convDoc as any[])?.[0] || null;
-        const name = c0?.client_name || 'Wedding Planner';
         const mapped: Conversation = {
           id: conv.id,
           client_id: client.id,
@@ -213,7 +219,6 @@ export default function MessagesPage() {
         unread_count_planner: 1,
       });
 
-      // Notif in-app côté admin (best effort)
       try {
         const plannerId = client?.planner_id || null;
         const clientId = client?.id || null;
@@ -288,7 +293,6 @@ export default function MessagesPage() {
         unread_count_planner: 1,
       });
 
-      // Notif in-app côté admin (best effort)
       try {
         const plannerId = client?.planner_id || null;
         const clientId = client?.id || null;
@@ -345,157 +349,173 @@ export default function MessagesPage() {
 
   return (
     <ClientDashboardLayout clientName={clientName} daysRemaining={daysRemaining}>
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-brand-purple flex items-center gap-2 sm:gap-3">
-            <MessageSquare className="h-6 w-6 sm:h-8 sm:w-8 text-brand-turquoise" />
-            Messages
-          </h1>
-          <p className="text-sm sm:text-base text-brand-gray mt-1">
-            Communiquez avec votre wedding planner et vos prestataires
-          </p>
+      <div className="space-y-5 h-[calc(100vh-120px)] flex flex-col">
+
+        {/* ---------- HERO COMPACT ---------- */}
+        <div className="relative overflow-hidden rounded-3xl bg-brand-purple px-6 py-5 sm:px-8 sm:py-6 shrink-0">
+          <div className="absolute -top-8 -right-8 w-40 h-40 rounded-full bg-brand-turquoise/10 blur-3xl pointer-events-none" />
+          <div className="relative flex items-center justify-between gap-4">
+            <div>
+              <span className="inline-block text-[10px] tracking-label uppercase text-brand-purple bg-white/90 px-3 py-1 rounded-full mb-2">
+                Messagerie
+              </span>
+              <h1 className="font-baskerville text-2xl sm:text-3xl text-brand-beige">
+                Échangez avec votre wedding planner
+              </h1>
+            </div>
+            <div className="hidden sm:flex w-11 h-11 rounded-full bg-white/10 items-center justify-center shrink-0">
+              <MessageSquare className="w-5 h-5 text-brand-turquoise" />
+            </div>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[calc(100vh-250px)] min-h-[400px]">
+        {/* ---------- CHAT ---------- */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 flex-1 min-h-0">
+
+          {/* Liste des conversations */}
           <Card
-            className={`p-4 shadow-xl border-0 overflow-hidden flex flex-col ${
+            className={`p-4 border border-brand-purple/8 shadow-sm rounded-3xl bg-white overflow-hidden flex flex-col ${
               showChatOnMobile ? 'hidden lg:flex' : 'flex'
             }`}
           >
-            <div className="mb-4">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-brand-gray" />
-                <Input placeholder="Rechercher..." className="pl-10" />
-              </div>
+            <div className="relative mb-4 shrink-0">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-brand-gray" />
+              <Input
+                placeholder="Rechercher..."
+                className="pl-11 h-11 rounded-xl border-brand-purple/10 bg-brand-beige/60"
+              />
             </div>
-            <div className="flex-1 overflow-y-auto space-y-2">
+            <div className="flex-1 overflow-y-auto space-y-1.5">
               {loading ? null : conversations.length === 0 ? (
                 <div className="text-center text-brand-gray py-10">
-                  <p className="font-medium text-brand-purple">Aucune conversation</p>
-                  <p className="text-sm mt-1">Démarrez une conversation en envoyant un premier message.</p>
+                  <p className="font-medium text-brand-purple text-sm">Aucune conversation</p>
+                  <p className="text-xs mt-1">Démarrez une conversation en envoyant un premier message.</p>
                 </div>
-              ) : conversations.map((conv) => (
-                <div
-                  key={conv.id}
-                  onClick={() => {
-                    setSelectedConversation(conv);
-                    setShowChatOnMobile(true);
-                  }}
-                  className={`p-3 rounded-lg cursor-pointer transition-colors ${
-                    selectedConversation?.id === conv.id
-                      ? 'bg-brand-turquoise/10 border-l-4 border-brand-turquoise'
-                      : 'hover:bg-gray-50'
-                  }`}
-                >
-                  <div className="flex items-start gap-3">
-                    <div className="relative">
-                      <Avatar className="h-10 w-10">
-                        {agencyLogoUrl || plannerPhotoUrl ? (
-                          <AvatarImage src={agencyLogoUrl || plannerPhotoUrl || undefined} alt="Wedding Planner" />
-                        ) : null}
-                        <AvatarFallback className="bg-brand-turquoise text-white text-sm">
-                          {conv.avatar}
-                        </AvatarFallback>
-                      </Avatar>
-                      {conv.online && (
-                        <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white rounded-full"></span>
+              ) : (
+                conversations.map((conv) => (
+                  <button
+                    key={conv.id}
+                    onClick={() => {
+                      setSelectedConversation(conv);
+                      setShowChatOnMobile(true);
+                    }}
+                    className={`w-full text-left p-3 rounded-2xl transition-colors ${
+                      selectedConversation?.id === conv.id ? 'bg-brand-turquoise/12' : 'hover:bg-brand-beige/60'
+                    }`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="relative shrink-0">
+                        <Avatar className="h-11 w-11 ring-2 ring-white shadow-sm">
+                          {agencyLogoUrl || plannerPhotoUrl ? (
+                            <AvatarImage src={agencyLogoUrl || plannerPhotoUrl || undefined} alt="Wedding Planner" />
+                          ) : null}
+                          <AvatarFallback className="bg-brand-purple text-white text-sm">
+                            {conv.avatar}
+                          </AvatarFallback>
+                        </Avatar>
+                        {conv.online && (
+                          <span className="absolute bottom-0 right-0 w-3 h-3 bg-brand-turquoise border-2 border-white rounded-full" />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="font-semibold text-brand-purple text-sm truncate">{conv.name}</p>
+                          <span className="text-[10px] text-brand-gray shrink-0">{conv.time}</span>
+                        </div>
+                        <p className="text-xs text-brand-gray truncate mt-0.5">{conv.lastMessage || 'Aucun message'}</p>
+                      </div>
+                      {conv.unread > 0 && (
+                        <span className="bg-brand-turquoise text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center shrink-0">
+                          {conv.unread}
+                        </span>
                       )}
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between">
-                        <p className="font-medium text-brand-purple text-sm truncate">
-                          {conv.name}
-                        </p>
-                        <span className="text-xs text-brand-gray">{conv.time}</span>
-                      </div>
-                      <p className="text-sm text-brand-gray truncate mt-1">
-                        {conv.lastMessage}
-                      </p>
-                    </div>
-                    {conv.unread > 0 && (
-                      <Badge className="bg-brand-turquoise text-white text-xs px-2">
-                        {conv.unread}
-                      </Badge>
-                    )}
-                  </div>
-                </div>
-              ))}
+                  </button>
+                ))
+              )}
             </div>
           </Card>
 
+          {/* Fenêtre de chat */}
           <Card
-            className={`lg:col-span-2 shadow-xl border-0 flex flex-col overflow-hidden ${
+            className={`lg:col-span-2 border border-brand-purple/8 shadow-sm rounded-3xl bg-white flex flex-col overflow-hidden ${
               showChatOnMobile ? 'flex' : 'hidden lg:flex'
             }`}
           >
-            <div className="p-4 border-b border-gray-100 flex items-center justify-between">
+            {/* Header conversation */}
+            <div className="px-5 py-4 border-b border-brand-purple/8 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-3">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="lg:hidden"
-                  onClick={() => {
-                    setShowChatOnMobile(false);
-                  }}
+                <button
+                  className="lg:hidden w-8 h-8 rounded-full flex items-center justify-center text-brand-gray hover:bg-brand-purple/8"
+                  onClick={() => setShowChatOnMobile(false)}
                 >
-                  <ArrowLeft className="h-4 w-4 text-brand-gray" />
-                </Button>
-                <Avatar className="h-10 w-10">
+                  <ArrowLeft className="h-4 w-4" />
+                </button>
+                <Avatar className="h-10 w-10 ring-2 ring-brand-turquoise/20">
                   {agencyLogoUrl || plannerPhotoUrl ? (
                     <AvatarImage src={agencyLogoUrl || plannerPhotoUrl || undefined} alt="Wedding Planner" />
                   ) : null}
-                  <AvatarFallback className="bg-brand-turquoise text-white">
+                  <AvatarFallback className="bg-brand-purple text-white">
                     {selectedConversation?.avatar || '—'}
                   </AvatarFallback>
                 </Avatar>
                 <div>
-                  <p className="font-medium text-brand-purple">
+                  <p className="font-baskerville text-brand-purple">
                     {selectedConversation?.name || 'Sélectionnez une conversation'}
                   </p>
-                  <p className="text-xs text-brand-gray">
-                    {selectedConversation?.online ? 'En ligne' : ''}
-                  </p>
+                  {selectedConversation?.online && (
+                    <p className="text-[11px] text-brand-turquoise-hover flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-brand-turquoise" /> En ligne
+                    </p>
+                  )}
                 </div>
               </div>
-              <Button variant="ghost" size="icon">
-                <MoreVertical className="h-4 w-4 text-brand-gray" />
-              </Button>
+              <button className="w-9 h-9 rounded-full flex items-center justify-center text-brand-gray hover:bg-brand-purple/8">
+                <MoreVertical className="h-4 w-4" />
+              </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            {/* Messages */}
+            <div className="flex-1 overflow-y-auto px-5 py-5 space-y-4 bg-brand-beige/40">
               {!loading && selectedConversation?.id && messages.length === 0 ? (
                 <div className="h-full min-h-[200px] flex items-center justify-center">
                   <div className="text-center text-brand-gray max-w-md">
-                    <p className="font-medium text-brand-purple">Aucun message pour le moment</p>
-                    <p className="text-sm mt-1">Envoyez un message pour démarrer la conversation.</p>
+                    <div className="w-12 h-12 rounded-full bg-brand-purple/8 flex items-center justify-center mx-auto mb-3">
+                      <MessageSquare className="w-5 h-5 text-brand-purple" />
+                    </div>
+                    <p className="font-medium text-brand-purple text-sm">Aucun message pour le moment</p>
+                    <p className="text-xs mt-1">Envoyez un message pour démarrer la conversation.</p>
                   </div>
                 </div>
               ) : null}
 
               {messages.map((message) => (
-                <div
-                  key={message.id}
-                  className={`flex ${message.isMe ? 'justify-end' : 'justify-start'}`}
-                >
-                  <div className={`flex items-end gap-2 ${message.isMe ? 'flex-row-reverse' : 'flex-row'}`}>
-                    <Avatar className="h-8 w-8">
+                <div key={message.id} className={`flex ${message.isMe ? 'justify-end' : 'justify-start'}`}>
+                  <div
+                    className={`flex items-end gap-2 max-w-[85%] sm:max-w-[70%] ${
+                      message.isMe ? 'flex-row-reverse' : 'flex-row'
+                    }`}
+                  >
+                    <Avatar className="h-7 w-7 shrink-0">
                       {message.isMe && client?.photo ? <AvatarImage src={client.photo} alt="Moi" /> : null}
                       {!message.isMe && (agencyLogoUrl || plannerPhotoUrl) ? (
                         <AvatarImage src={agencyLogoUrl || plannerPhotoUrl || undefined} alt="Wedding Planner" />
                       ) : null}
-                      <AvatarFallback className="bg-brand-turquoise text-white text-xs">
+                      <AvatarFallback
+                        className={`text-[10px] ${message.isMe ? 'bg-brand-purple' : 'bg-brand-turquoise'} text-white`}
+                      >
                         {message.isMe ? 'ME' : 'WP'}
                       </AvatarFallback>
                     </Avatar>
 
                     <div
-                      className={`max-w-[85%] sm:max-w-[70%] p-3 rounded-lg ${
+                      className={`p-3.5 shadow-sm ${
                         message.isMe
-                          ? 'bg-brand-turquoise text-white rounded-br-none'
-                          : 'bg-gray-100 text-brand-purple rounded-bl-none'
+                          ? 'bg-brand-turquoise text-white rounded-2xl rounded-br-sm'
+                          : 'bg-white text-brand-purple rounded-2xl rounded-bl-sm border border-brand-purple/6'
                       }`}
                     >
-                      {message.content ? <p className="text-sm">{message.content}</p> : null}
+                      {message.content ? <p className="text-sm leading-relaxed">{message.content}</p> : null}
                       {message.attachments && message.attachments.length > 0 ? (
                         <div className="space-y-1">
                           {message.attachments.map((a, idx) => (
@@ -504,24 +524,24 @@ export default function MessagesPage() {
                               href={a.url}
                               target="_blank"
                               rel="noreferrer"
-                              className={`text-sm underline ${message.isMe ? 'text-white' : 'text-brand-purple'}`}
+                              className={`text-sm underline flex items-center gap-1.5 ${
+                                message.isMe ? 'text-white' : 'text-brand-purple'
+                              }`}
                             >
+                              <Paperclip className="w-3 h-3" />
                               {a.name || 'Document'}
                             </a>
                           ))}
                         </div>
                       ) : null}
-                      <div className={`flex items-center justify-end gap-1 mt-1 ${
-                        message.isMe ? 'text-white/70' : 'text-brand-gray'
-                      }`}>
-                        <span className="text-xs">{message.time}</span>
-                        {message.isMe && (
-                          message.read ? (
-                            <CheckCheck className="h-3 w-3" />
-                          ) : (
-                            <Check className="h-3 w-3" />
-                          )
-                        )}
+                      <div
+                        className={`flex items-center justify-end gap-1 mt-1.5 ${
+                          message.isMe ? 'text-white/70' : 'text-brand-gray'
+                        }`}
+                      >
+                        <span className="text-[10px]">{message.time}</span>
+                        {message.isMe &&
+                          (message.read ? <CheckCheck className="h-3 w-3" /> : <Check className="h-3 w-3" />)}
                       </div>
                     </div>
                   </div>
@@ -529,8 +549,9 @@ export default function MessagesPage() {
               ))}
             </div>
 
-            <div className="p-4 border-t border-gray-100">
-              <div className="flex items-center gap-2">
+            {/* Input */}
+            <div className="p-4 border-t border-brand-purple/8 shrink-0">
+              <div className="flex items-center gap-2 bg-brand-beige/60 rounded-full pl-2 pr-2 py-2">
                 <input
                   id={fileInputId}
                   type="file"
@@ -541,32 +562,31 @@ export default function MessagesPage() {
                     if (f) void handleSendAttachment(f);
                   }}
                 />
-                <Button
-                  variant="ghost"
-                  size="icon"
+                <button
                   disabled={!selectedConversation?.id || uploadingAttachment}
                   onClick={() => document.getElementById(fileInputId)?.click()}
+                  className="w-9 h-9 rounded-full flex items-center justify-center text-brand-gray hover:bg-white transition-colors shrink-0 disabled:opacity-40"
                 >
-                  <Paperclip className="h-4 w-4 text-brand-gray" />
-                </Button>
-                <Input
+                  <Paperclip className="h-4 w-4" />
+                </button>
+                <input
                   placeholder="Écrivez votre message..."
                   value={newMessage}
                   onChange={(e) => setNewMessage(e.target.value)}
-                  className="flex-1"
-                  onKeyPress={(e) => {
+                  className="flex-1 bg-transparent outline-none text-sm text-brand-purple placeholder:text-brand-gray"
+                  onKeyDown={(e) => {
                     if (e.key === 'Enter' && newMessage.trim()) {
                       void handleSend();
                     }
                   }}
                 />
-                <Button 
-                  className="bg-brand-turquoise hover:bg-brand-turquoise-hover"
+                <button
                   disabled={!newMessage.trim() || !selectedConversation?.id || sending || uploadingAttachment}
                   onClick={() => void handleSend()}
+                  className="w-9 h-9 rounded-full bg-brand-turquoise hover:bg-brand-turquoise-hover disabled:opacity-40 disabled:hover:bg-brand-turquoise flex items-center justify-center text-white transition-colors shrink-0"
                 >
                   <Send className="h-4 w-4" />
-                </Button>
+                </button>
               </div>
             </div>
           </Card>

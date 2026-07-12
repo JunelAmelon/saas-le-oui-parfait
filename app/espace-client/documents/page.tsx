@@ -2,7 +2,6 @@
 
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { ClientDashboardLayout } from '@/components/layout/ClientDashboardLayout';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -13,14 +12,6 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -30,10 +21,8 @@ import {
 } from '@/components/ui/dialog';
 import {
   FileText,
-  Download,
   Eye,
   Search,
-  Filter,
   File,
   FileCheck,
   FilePen,
@@ -43,6 +32,9 @@ import {
   MoreVertical,
   ChevronLeft,
   ChevronRight,
+  ExternalLink,
+  Download,
+  PenLine,
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useClientData } from '@/contexts/ClientDataContext';
@@ -77,12 +69,24 @@ const docTypeLabels: Record<string, string> = {
   autre: 'Autre',
 };
 
+// Palette cohérente avec la nouvelle DA (dashboard / hero)
+const typeStyles: Record<string, { bg: string; text: string; solid: string; accent: string }> = {
+  contrat: { bg: 'bg-brand-turquoise/15', text: 'text-brand-turquoise-hover', solid: 'bg-brand-turquoise', accent: '#88b7b5' },
+  devis: { bg: 'bg-brand-purple/10', text: 'text-brand-purple', solid: 'bg-brand-purple', accent: '#4B4456' },
+  facture: { bg: 'bg-[#F1EADD]', text: 'text-[#C9A96E]', solid: 'bg-[#C9A96E]', accent: '#C9A96E' },
+  planning: { bg: 'bg-[#F3E3E6]', text: 'text-[#B98A96]', solid: 'bg-[#B98A96]', accent: '#B98A96' },
+  photo: { bg: 'bg-[#F3E3E6]', text: 'text-[#B98A96]', solid: 'bg-[#B98A96]', accent: '#B98A96' },
+  autre: { bg: 'bg-brand-purple/8', text: 'text-brand-gray', solid: 'bg-brand-gray', accent: '#5A5A5A' },
+};
+
+const catStyle = (id: string) => typeStyles[id] || typeStyles.autre;
+
 export default function DocumentsPage() {
   const { client, event, loading: dataLoading } = useClientData();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 5;
+  const itemsPerPage = 6;
   const [selectedDocument, setSelectedDocument] = useState<DocumentItem | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
@@ -183,7 +187,6 @@ export default function DocumentsPage() {
         const all = [...mappedDocs, ...mappedDevis, ...mappedContracts];
         setDocuments(all);
 
-        // Fallback: sync DocuSign statuses + signed PDF without relying on Connect webhook
         try {
           const idToken = await auth.currentUser?.getIdToken().catch(() => null);
           if (!idToken) return;
@@ -236,24 +239,6 @@ export default function DocumentsPage() {
   const handlePreview = (doc: DocumentItem) => {
     setSelectedDocument(doc);
     setIsPreviewOpen(true);
-  };
-
-  const getTypeBadgeClass = (type: string) => {
-    const t = (type || '').toLowerCase();
-    switch (t) {
-      case 'contrat':
-        return 'bg-brand-turquoise/15 text-brand-turquoise';
-      case 'devis':
-        return 'bg-blue-100 text-blue-700';
-      case 'facture':
-        return 'bg-green-100 text-green-700';
-      case 'planning':
-        return 'bg-purple-100 text-purple-700';
-      case 'photo':
-        return 'bg-pink-100 text-pink-700';
-      default:
-        return 'bg-gray-100 text-gray-700';
-    }
   };
 
   const handleSignContract = async (doc: DocumentItem) => {
@@ -354,7 +339,6 @@ export default function DocumentsPage() {
         accepted_at: new Date().toISOString(),
       });
 
-      // Create envelope if missing, then open client signing.
       const envelopeIdExisting = String(devis?.docusign?.envelope_id || '').trim();
       let envelopeId = envelopeIdExisting;
       if (!envelopeId) {
@@ -475,25 +459,42 @@ export default function DocumentsPage() {
   const categories = useMemo(() => {
     const getCount = (type: string) => documents.filter((d) => (d.type || '').toLowerCase() === type).length;
     return [
-      { id: 'all', label: 'Tous', count: documents.length },
-      { id: 'contrat', label: 'Contrats', count: getCount('contrat') },
-      { id: 'devis', label: 'Devis', count: getCount('devis') },
-      { id: 'facture', label: 'Factures', count: getCount('facture') },
-      { id: 'planning', label: 'Planning', count: getCount('planning') },
-    ];
+      { id: 'all', label: 'Tous' },
+      { id: 'contrat', label: 'Contrats' },
+      { id: 'devis', label: 'Devis' },
+      { id: 'facture', label: 'Factures' },
+      { id: 'planning', label: 'Planning' },
+    ].map((c) => ({ ...c, count: c.id === 'all' ? documents.length : getCount(c.id) }));
   }, [documents]);
 
-  const getTypeIcon = (type: string) => {
+  const pendingSignatures = useMemo(() => {
+    return documents.filter((d) => {
+      const isContract = d.type?.toLowerCase() === 'contrat' && Boolean(d.contract_id);
+      const isDevis = d.type?.toLowerCase() === 'devis' && Boolean(d.devis_id);
+      if (!isContract && !isDevis) return false;
+      const dsStatus = String(d?.docusign?.status || d.status || '').toLowerCase();
+      const clientStatus = String(d?.docusign?.recipients?.client?.status || '').toLowerCase();
+      return dsStatus !== 'completed' && clientStatus !== 'completed' && (d.status === 'sent' || !d.status || isContract);
+    }).length;
+  }, [documents]);
+
+  const lastAddedLabel = useMemo(() => {
+    if (documents.length === 0) return null;
+    const sorted = documents.slice().sort((a, b) => parseDocDate(b) - parseDocDate(a));
+    return formatDocDate(sorted[0]?.uploaded_at);
+  }, [documents]);
+
+  const getTypeIcon = (type: string, className: string) => {
     const t = (type || '').toLowerCase();
     switch (t) {
       case 'contrat':
-        return <FileCheck className="h-5 w-5 text-brand-turquoise" />;
+        return <FileCheck className={className} />;
       case 'devis':
-        return <FilePen className="h-5 w-5 text-blue-500" />;
+        return <FilePen className={className} />;
       case 'facture':
-        return <File className="h-5 w-5 text-green-500" />;
+        return <File className={className} />;
       default:
-        return <FileText className="h-5 w-5 text-brand-gray" />;
+        return <FileText className={className} />;
     }
   };
 
@@ -565,227 +566,298 @@ export default function DocumentsPage() {
   return (
     <ClientDashboardLayout clientName={clientName} daysRemaining={daysRemaining}>
       <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-brand-purple flex items-center gap-2 sm:gap-3">
-              <FileText className="h-6 w-6 sm:h-8 sm:w-8 text-brand-turquoise" />
-              Mes Documents
-            </h1>
-            <p className="text-sm sm:text-base text-brand-gray mt-1">
-              Tous vos documents au même endroit
-            </p>
-          </div>
-          <Button 
-            className="bg-brand-turquoise hover:bg-brand-turquoise-hover gap-2 w-full sm:w-auto"
-            onClick={() => setIsUploadOpen(true)}
+
+        {/* ---------- HERO ---------- */}
+        <div className="relative overflow-hidden rounded-3xl bg-brand-purple px-7 py-9 sm:px-10 sm:py-11">
+          <div className="absolute -top-10 -right-10 w-56 h-56 rounded-full bg-brand-turquoise/10 blur-3xl pointer-events-none" />
+          <svg
+            className="absolute right-6 top-1/2 -translate-y-1/2 opacity-[0.12] pointer-events-none hidden sm:block"
+            width="140" height="140" viewBox="0 0 100 100" fill="none"
           >
-            <Upload className="h-4 w-4" />
-            <span className="hidden sm:inline">Ajouter un document</span>
-            <span className="sm:hidden">Ajouter</span>
-          </Button>
-        </div>
+            <path d="M50 5 L56 44 L95 50 L56 56 L50 95 L44 56 L5 50 L44 44 Z" fill="white" />
+          </svg>
 
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-          {categories.map((cat) => (
-            <Card
-              key={cat.id}
-              className={`p-4 cursor-pointer transition-all ${
-                selectedCategory === cat.id
-                  ? 'bg-brand-turquoise text-white'
-                  : 'bg-white hover:bg-[#FAFAFA]'
-              } border-0 shadow-xl`}
-              onClick={() => setSelectedCategory(cat.id)}
-            >
-              <p className={`text-2xl font-bold ${selectedCategory === cat.id ? 'text-white' : 'text-brand-purple'}`}>
-                {cat.count}
-              </p>
-              <p className={`text-sm ${selectedCategory === cat.id ? 'text-white/80' : 'text-brand-gray'}`}>
-                {cat.label}
-              </p>
-            </Card>
-          ))}
-        </div>
-
-        <Card className="p-6 border border-gray-200 shadow-[0_10px_30px_rgba(0,0,0,0.06)] rounded-3xl bg-white">
-          <div className="flex flex-col md:flex-row gap-4 mb-6">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-brand-gray" />
-              <Input
-                placeholder="Rechercher un document..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
+          <div className="relative flex flex-col sm:flex-row sm:items-end sm:justify-between gap-6">
+            <div>
+              <span className="inline-block text-[10px] tracking-label uppercase text-brand-purple bg-white/90 px-3 py-1.5 rounded-full mb-4">
+                Documents
+              </span>
+              <h1 className="font-baskerville text-3xl sm:text-4xl text-brand-beige mb-3">
+                Mes Documents
+              </h1>
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-brand-beige/70">
+                <span>{documents.length} document{documents.length > 1 ? 's' : ''}</span>
+                <span className="text-brand-beige/25">·</span>
+                <span className={pendingSignatures > 0 ? 'text-[#E8C9CE]' : ''}>
+                  {pendingSignatures} en attente de signature
+                </span>
+                {lastAddedLabel && (
+                  <>
+                    <span className="text-brand-beige/25">·</span>
+                    <span>dernier ajout le {lastAddedLabel}</span>
+                  </>
+                )}
+              </div>
             </div>
-            <Button variant="outline" className="gap-2">
-              <Filter className="h-4 w-4" />
-              Filtres
-            </Button>
+
+            <button
+              onClick={() => setIsUploadOpen(true)}
+              className="inline-flex items-center gap-3 bg-[#2E2937] hover:bg-[#221f2a] text-white text-sm font-semibold pl-5 pr-1.5 py-1.5 rounded-full transition-colors shrink-0"
+            >
+              Ajouter un document
+              <span className="w-8 h-8 rounded-full bg-brand-turquoise flex items-center justify-center">
+                <Upload className="w-3.5 h-3.5 text-white" />
+              </span>
+            </button>
+          </div>
+        </div>
+
+        {/* ---------- RECHERCHE ÉDITORIALE + FILTRES COLORÉS PAR CATÉGORIE ---------- */}
+        <div className="flex flex-col md:flex-row md:items-center gap-4">
+          <div className="relative flex-1 group">
+            <Search className="absolute left-1 top-1/2 -translate-y-1/2 h-4 w-4 text-brand-gray group-focus-within:text-brand-turquoise-hover transition-colors" />
+            <input
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Rechercher un document..."
+              className="w-full pl-7 pb-2 bg-transparent border-b border-brand-purple/15 focus:border-brand-turquoise-hover outline-none text-brand-purple placeholder:text-brand-gray text-[15px] transition-colors"
+            />
           </div>
 
-          {loading ? (
-            <div className="flex justify-center p-8">
-              <Loader2 className="animate-spin h-8 w-8 text-brand-turquoise" />
+          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
+            {categories.map((cat) => {
+              const active = selectedCategory === cat.id;
+
+              // "Tous" reste neutre en violet — il n'a pas de couleur de catégorie propre
+              if (cat.id === 'all') {
+                return (
+                  <button
+                    key={cat.id}
+                    onClick={() => setSelectedCategory(cat.id)}
+                    className={`shrink-0 inline-flex items-center gap-1.5 text-sm font-medium px-4 py-2 rounded-full border transition-all ${
+                      active
+                        ? 'bg-brand-purple text-white border-brand-purple'
+                        : 'bg-white text-brand-gray border-brand-purple/15 hover:border-brand-purple/30 hover:text-brand-purple'
+                    }`}
+                  >
+                    {cat.label}
+                    <span className={`text-[10px] ${active ? 'text-white/70' : 'text-brand-gray/60'}`}>{cat.count}</span>
+                  </button>
+                );
+              }
+
+              const style = catStyle(cat.id);
+              return (
+                <button
+                  key={cat.id}
+                  onClick={() => setSelectedCategory(cat.id)}
+                  className={`shrink-0 inline-flex items-center gap-1.5 text-sm font-medium px-4 py-2 rounded-full border transition-all ${
+                    active ? `${style.solid} text-white border-transparent shadow-sm` : `bg-white ${style.text}`
+                  }`}
+                  style={!active ? { borderWidth: 1, borderStyle: 'solid', borderColor: `${style.accent}40` } : undefined}
+                >
+                  {cat.label}
+                  <span className={`text-[10px] ${active ? 'text-white/70' : 'opacity-60'}`}>{cat.count}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* ---------- GRILLE DE CARTES-DOCUMENTS ---------- */}
+        {loading ? (
+          <div className="flex justify-center p-16">
+            <Loader2 className="animate-spin h-7 w-7 text-brand-turquoise" />
+          </div>
+        ) : filteredDocuments.length === 0 ? (
+          <div className="text-center py-20">
+            <div className="w-14 h-14 rounded-full bg-brand-purple/8 flex items-center justify-center mx-auto mb-4">
+              <FileText className="h-6 w-6 text-brand-purple" />
             </div>
-          ) : (
-            <div className="w-full overflow-x-auto rounded-3xl border border-gray-200">
-              <Table className="min-w-[720px]">
-                <TableHeader className="bg-[#F6F6F6]">
-                  <TableRow>
-                    <TableHead>Document</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Ajouté par</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {paginatedDocuments.map((doc) => {
-                    const isContract = doc.type?.toLowerCase() === 'contrat' && Boolean(doc.contract_id);
-                    const dsStatusRaw = String(doc?.docusign?.status || doc.status || '').toLowerCase();
-                    const dsRecipients = doc?.docusign?.recipients || null;
-                    const adminRecipientStatus = String(dsRecipients?.planner?.status || '').toLowerCase();
-                    const clientRecipientStatus = String(dsRecipients?.client?.status || '').toLowerCase();
+            <p className="text-brand-gray text-sm">Aucun document trouvé</p>
+          </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {paginatedDocuments.map((doc) => {
+                const isContract = doc.type?.toLowerCase() === 'contrat' && Boolean(doc.contract_id);
+                const dsStatusRaw = String(doc?.docusign?.status || doc.status || '').toLowerCase();
+                const dsRecipients = doc?.docusign?.recipients || null;
+                const adminRecipientStatus = String(dsRecipients?.planner?.status || '').toLowerCase();
+                const clientRecipientStatus = String(dsRecipients?.client?.status || '').toLowerCase();
 
-                    const adminSigned = adminRecipientStatus === 'completed';
-                    const clientSigned = clientRecipientStatus === 'completed';
-                    const fullySigned = doc.status === 'signed' || dsStatusRaw === 'completed' || (adminSigned && clientSigned);
+                const adminSigned = adminRecipientStatus === 'completed';
+                const clientSigned = clientRecipientStatus === 'completed';
+                const fullySigned = doc.status === 'signed' || dsStatusRaw === 'completed' || (adminSigned && clientSigned);
 
-                    const canSign = isContract && !fullySigned && !clientSigned && signingContractId !== doc.contract_id;
-                    const isSigning = isContract && signingContractId === doc.contract_id;
-                    const isDevis = doc.type?.toLowerCase() === 'devis' && Boolean(doc.devis_id);
-                    const devisBusy = isDevis && savingDevisId === doc.devis_id;
-                    const devisCanDecide = isDevis && (doc.status === 'sent' || !doc.status);
-                    const devisClientSigned = isDevis && clientRecipientStatus === 'completed';
-                    const devisFullySigned = isDevis && (doc.status === 'signed' || dsStatusRaw === 'completed');
-                    const devisCanSign = devisCanDecide && !devisClientSigned && !devisFullySigned;
-                    return (
-                      <TableRow key={doc.id}>
-                        <TableCell>
-                          <div className="flex items-center gap-3">
-                            <div className="p-2 bg-white rounded-lg shadow-sm">
-                              {getTypeIcon(doc.type)}
-                            </div>
-                            <div className="min-w-0">
-                              <p className="font-medium text-brand-purple text-sm sm:text-base truncate">{doc.name}</p>
-                              {isContract ? (
-                                fullySigned ? (
-                                  <p className="text-xs text-green-700 font-medium">Contrat signé</p>
-                                ) : clientSigned ? (
-                                  <p className="text-xs text-brand-gray">Vous avez signé — en attente du planner</p>
-                                ) : adminSigned ? (
-                                  <p className="text-xs text-brand-gray">Planner a signé — il reste votre signature</p>
-                                ) : doc.status ? (
-                                  <p className="text-xs text-brand-gray">{doc.status}</p>
-                                ) : null
-                              ) : doc.status ? (
-                                <p className="text-xs text-brand-gray">{doc.status}</p>
-                              ) : null}
-                            </div>
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-brand-gray">
-                          <Badge className={getTypeBadgeClass(doc.type)}>
-                            {docTypeLabels[(doc.type || '').toLowerCase()] || doc.type}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-brand-gray">{formatDocDate(doc.uploaded_at)}</TableCell>
-                        <TableCell className="text-brand-gray">
-                          {doc.uploaded_by === 'client' ? 'Vous' : 'Votre planner'}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon">
-                                <MoreVertical className="h-4 w-4 text-brand-gray" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => handlePreview(doc)}>
-                                Aperçu
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => handleOpenFile(doc)}>
-                                Ouvrir
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => handleDownload(doc)}>
-                                Télécharger
-                              </DropdownMenuItem>
-                              {isDevis ? (
-                                <>
-                                  <DropdownMenuItem
-                                    onClick={() => void acceptDevisFromDoc(doc)}
-                                    disabled={!devisCanSign || devisBusy}
-                                  >
-                                    {devisBusy ? 'Ouverture...' : 'Valider / Signer'}
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem
-                                    onClick={() => void rejectDevisFromDoc(doc)}
-                                    disabled={!devisCanDecide || devisBusy}
-                                  >
-                                    {devisBusy ? 'Refus...' : 'Refuser'}
-                                  </DropdownMenuItem>
-                                </>
-                              ) : null}
-                              {isContract ? (
+                const canSign = isContract && !fullySigned && !clientSigned && signingContractId !== doc.contract_id;
+                const isSigning = isContract && signingContractId === doc.contract_id;
+                const isDevis = doc.type?.toLowerCase() === 'devis' && Boolean(doc.devis_id);
+                const devisBusy = isDevis && savingDevisId === doc.devis_id;
+                const devisCanDecide = isDevis && (doc.status === 'sent' || !doc.status);
+                const devisClientSigned = isDevis && clientRecipientStatus === 'completed';
+                const devisFullySigned = isDevis && (doc.status === 'signed' || dsStatusRaw === 'completed');
+                const devisCanSign = devisCanDecide && !devisClientSigned && !devisFullySigned;
+
+                const style = catStyle((doc.type || '').toLowerCase());
+                const showPrimaryAction = (isContract && canSign) || (isDevis && devisCanSign);
+
+                return (
+                  <div
+                    key={doc.id}
+                    className="group relative bg-white rounded-2xl border border-brand-purple/8 overflow-hidden hover:shadow-[0_16px_40px_-12px_rgba(75,68,86,0.18)] hover:-translate-y-0.5 transition-all duration-200"
+                  >
+                    <div className={`h-1.5 ${style.solid}`} />
+                    <div className="p-5">
+                      <div className="flex items-start justify-between mb-4">
+                        <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${style.bg}`}>
+                          {getTypeIcon(doc.type, `w-5 h-5 ${style.text}`)}
+                        </div>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <button className="w-8 h-8 rounded-full flex items-center justify-center text-brand-gray hover:bg-brand-purple/8 hover:text-brand-purple transition-colors opacity-0 group-hover:opacity-100">
+                              <MoreVertical className="h-4 w-4" />
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="rounded-xl">
+                            {isDevis ? (
+                              <>
                                 <DropdownMenuItem
-                                  onClick={() => void handleSignContract(doc)}
-                                  disabled={!canSign || isSigning}
+                                  onClick={() => void acceptDevisFromDoc(doc)}
+                                  disabled={!devisCanSign || devisBusy}
                                 >
-                                  {fullySigned
-                                    ? 'Déjà signé'
-                                    : clientSigned
-                                      ? 'Vous avez déjà signé'
-                                      : (isSigning ? 'Validation...' : 'Signer / Valider')}
+                                  {devisBusy ? 'Ouverture...' : 'Valider / Signer'}
                                 </DropdownMenuItem>
-                              ) : null}
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
+                                <DropdownMenuItem
+                                  onClick={() => void rejectDevisFromDoc(doc)}
+                                  disabled={!devisCanDecide || devisBusy}
+                                >
+                                  {devisBusy ? 'Refus...' : 'Refuser'}
+                                </DropdownMenuItem>
+                              </>
+                            ) : null}
+                            {isContract ? (
+                              <DropdownMenuItem
+                                onClick={() => void handleSignContract(doc)}
+                                disabled={!canSign || isSigning}
+                              >
+                                {fullySigned
+                                  ? 'Déjà signé'
+                                  : clientSigned
+                                    ? 'Vous avez déjà signé'
+                                    : (isSigning ? 'Validation...' : 'Signer / Valider')}
+                              </DropdownMenuItem>
+                            ) : null}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
 
-              {sortedDocuments.length > itemsPerPage ? (
-                <div className="flex items-center justify-center gap-2 mt-4">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                    disabled={currentPage === 1}
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                  </Button>
-                  <span className="text-sm text-brand-gray">
-                    Page {currentPage} sur {totalPages}
-                  </span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                    disabled={currentPage === totalPages}
-                  >
-                    <ChevronRight className="h-4 w-4" />
-                  </Button>
-                </div>
-              ) : null}
+                      <p className="font-medium text-brand-purple text-sm leading-snug line-clamp-2 mb-2 min-h-[2.5em]">
+                        {doc.name}
+                      </p>
+
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className={`${style.bg} ${style.text} px-2 py-0.5 rounded-full font-semibold text-[10px] uppercase tracking-wide`}>
+                          {docTypeLabels[(doc.type || '').toLowerCase()] || doc.type}
+                        </span>
+                        <span className="text-xs text-brand-gray">{formatDocDate(doc.uploaded_at)}</span>
+                      </div>
+
+                      {isContract && (
+                        <p className="text-[11px] mt-1 text-brand-gray">
+                          {fullySigned
+                            ? '✓ Contrat signé'
+                            : clientSigned
+                              ? 'Vous avez signé — en attente du planner'
+                              : adminSigned
+                                ? 'Planner a signé — il reste votre signature'
+                                : doc.status || ''}
+                        </p>
+                      )}
+
+                      <div className="flex items-center justify-between mt-4 pt-4 border-t border-brand-purple/6">
+                        <span className="text-[11px] text-brand-gray">
+                          {doc.uploaded_by === 'client' ? 'Ajouté par vous' : 'Ajouté par le planner'}
+                        </span>
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => handlePreview(doc)}
+                            title="Aperçu"
+                            className="w-7 h-7 rounded-full flex items-center justify-center text-brand-gray hover:bg-brand-purple/8 hover:text-brand-purple transition-colors"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => handleOpenFile(doc)}
+                            title="Ouvrir"
+                            className="w-7 h-7 rounded-full flex items-center justify-center text-brand-gray hover:bg-brand-purple/8 hover:text-brand-purple transition-colors"
+                          >
+                            <ExternalLink className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => handleDownload(doc)}
+                            title="Télécharger"
+                            className="w-7 h-7 rounded-full flex items-center justify-center text-brand-gray hover:bg-brand-purple/8 hover:text-brand-purple transition-colors"
+                          >
+                            <Download className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+
+                      {showPrimaryAction && (
+                        <button
+                          onClick={() =>
+                            isContract ? void handleSignContract(doc) : void acceptDevisFromDoc(doc)
+                          }
+                          disabled={isSigning || devisBusy}
+                          className="w-full mt-3 inline-flex items-center justify-center gap-2 bg-brand-turquoise hover:bg-brand-turquoise-hover text-white text-xs font-semibold py-2.5 rounded-xl transition-colors"
+                        >
+                          {isSigning || devisBusy ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <PenLine className="w-3.5 h-3.5" />
+                          )}
+                          Signer / Valider
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-          )}
 
-          {!loading && filteredDocuments.length === 0 && (
-            <div className="text-center py-12">
-              <FileText className="h-12 w-12 text-brand-gray mx-auto mb-4" />
-              <p className="text-brand-gray">Aucun document trouvé</p>
-            </div>
-          )}
-        </Card>
+            {sortedDocuments.length > itemsPerPage ? (
+              <div className="flex items-center justify-center gap-2 pt-2">
+                <button
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  className="w-8 h-8 rounded-full border border-brand-purple/15 flex items-center justify-center text-brand-purple disabled:opacity-30 hover:bg-brand-purple/5 transition-colors"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+                <span className="text-xs text-brand-gray">
+                  Page {currentPage} sur {totalPages}
+                </span>
+                <button
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                  className="w-8 h-8 rounded-full border border-brand-purple/15 flex items-center justify-center text-brand-purple disabled:opacity-30 hover:bg-brand-purple/5 transition-colors"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </div>
+            ) : null}
+          </>
+        )}
 
+        {/* ---------- APERÇU ---------- */}
         <Dialog open={isPreviewOpen} onOpenChange={setIsPreviewOpen}>
-          <DialogContent className="sm:max-w-2xl w-[95vw] sm:w-full max-h-[90vh] overflow-y-auto">
+          <DialogContent className="sm:max-w-2xl w-[95vw] sm:w-full max-h-[90vh] overflow-y-auto rounded-3xl">
             <DialogHeader>
-              <DialogTitle className="text-brand-purple flex items-center gap-2">
-                <FileText className="h-5 w-5 text-brand-turquoise" />
+              <DialogTitle className="font-baskerville text-2xl text-brand-purple flex items-center gap-3">
+                <span className="w-9 h-9 rounded-full bg-brand-turquoise/15 flex items-center justify-center shrink-0">
+                  <FileText className="h-4 w-4 text-brand-turquoise-hover" />
+                </span>
                 {selectedDocument?.name}
               </DialogTitle>
               <DialogDescription>
@@ -795,10 +867,10 @@ export default function DocumentsPage() {
               </DialogDescription>
             </DialogHeader>
             <div className="py-4">
-              <div className="bg-gray-100 rounded-lg p-8 min-h-[200px] flex items-center justify-center">
+              <div className="bg-brand-beige rounded-2xl p-10 min-h-[200px] flex items-center justify-center">
                 <div className="text-center space-y-2">
-                  <FileText className="h-12 w-12 text-brand-gray mx-auto" />
-                  <p className="text-brand-gray">Ouvrir le document</p>
+                  <FileText className="h-10 w-10 text-brand-purple/40 mx-auto" />
+                  <p className="text-brand-purple font-baskerville text-lg">Ouvrir le document</p>
                   <p className="text-sm text-brand-gray">
                     Cliquez sur &quot;Voir&quot; pour l&apos;ouvrir dans un nouvel onglet.
                   </p>
@@ -806,11 +878,11 @@ export default function DocumentsPage() {
               </div>
             </div>
             <DialogFooter className="gap-2">
-              <Button variant="outline" onClick={() => setIsPreviewOpen(false)}>
+              <Button variant="outline" className="rounded-full" onClick={() => setIsPreviewOpen(false)}>
                 Fermer
               </Button>
-              <Button 
-                className="bg-brand-turquoise hover:bg-brand-turquoise-hover gap-2"
+              <Button
+                className="bg-brand-turquoise hover:bg-brand-turquoise-hover rounded-full gap-2"
                 onClick={() => {
                   if (selectedDocument) handleOpenFile(selectedDocument);
                 }}
@@ -822,20 +894,21 @@ export default function DocumentsPage() {
           </DialogContent>
         </Dialog>
 
+        {/* ---------- SUCCÈS TÉLÉCHARGEMENT ---------- */}
         <Dialog open={isDownloadSuccess} onOpenChange={setIsDownloadSuccess}>
-          <DialogContent className="sm:max-w-md w-[95vw] sm:w-full text-center">
+          <DialogContent className="sm:max-w-md w-[95vw] sm:w-full text-center rounded-3xl">
             <div className="flex flex-col items-center py-6">
-              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
-                <CheckCircle className="h-8 w-8 text-green-600" />
+              <div className="w-16 h-16 bg-brand-turquoise/15 rounded-full flex items-center justify-center mb-4">
+                <CheckCircle className="h-7 w-7 text-brand-turquoise-hover" />
               </div>
-              <DialogTitle className="text-brand-purple text-xl">Téléchargement lancé !</DialogTitle>
+              <DialogTitle className="font-baskerville text-brand-purple text-xl">Téléchargement lancé !</DialogTitle>
               <DialogDescription className="mt-2">
                 Le document &quot;{selectedDocument?.name}&quot; est en cours de téléchargement.
               </DialogDescription>
             </div>
             <DialogFooter className="justify-center">
-              <Button 
-                className="bg-brand-turquoise hover:bg-brand-turquoise-hover"
+              <Button
+                className="bg-brand-turquoise hover:bg-brand-turquoise-hover rounded-full"
                 onClick={() => {
                   if (selectedDocument) handleOpenFile(selectedDocument);
                   setIsDownloadSuccess(false);
@@ -847,41 +920,54 @@ export default function DocumentsPage() {
           </DialogContent>
         </Dialog>
 
+        {/* ---------- AJOUT DOCUMENT ---------- */}
         <Dialog open={isUploadOpen} onOpenChange={setIsUploadOpen}>
-          <DialogContent className="sm:max-w-md w-[95vw] sm:w-full">
+          <DialogContent className="sm:max-w-md w-[95vw] sm:w-full rounded-3xl">
             <DialogHeader>
-              <DialogTitle className="text-brand-purple">Ajouter un document</DialogTitle>
+              <DialogTitle className="font-baskerville text-2xl text-brand-purple">Ajouter un document</DialogTitle>
               <DialogDescription>
                 Ajoutez un document pour le partager avec votre Wedding Planner.
               </DialogDescription>
             </DialogHeader>
 
-            <div className="space-y-4 py-4">
+            <div className="space-y-5 py-4">
               <div className="space-y-2">
-                <Label>Nom du document</Label>
-                <Input value={docName} onChange={(e) => setDocName(e.target.value)} placeholder="Ex: Devis DJ" />
+                <Label className="text-[10px] tracking-label uppercase text-brand-gray">Nom du document</Label>
+                <Input
+                  value={docName}
+                  onChange={(e) => setDocName(e.target.value)}
+                  placeholder="Ex: Devis DJ"
+                  className="rounded-xl"
+                />
               </div>
 
               <div className="space-y-2">
-                <Label>Type</Label>
+                <Label className="text-[10px] tracking-label uppercase text-brand-gray">Type</Label>
                 <div className="grid grid-cols-2 gap-2">
-                  {(['contrat', 'facture', 'planning', 'photo', 'autre'] as const).map((t) => (
-                    <Button
-                      key={t}
-                      type="button"
-                      variant={docType === t ? 'default' : 'outline'}
-                      className={docType === t ? 'bg-brand-turquoise hover:bg-brand-turquoise-hover' : ''}
-                      onClick={() => setDocType(t)}
-                    >
-                      {docTypeLabels[t]}
-                    </Button>
-                  ))}
+                  {(['contrat', 'facture', 'planning', 'photo', 'autre'] as const).map((t) => {
+                    const active = docType === t;
+                    const style = catStyle(t);
+                    return (
+                      <button
+                        key={t}
+                        type="button"
+                        onClick={() => setDocType(t)}
+                        className={`text-sm font-medium rounded-xl px-3 py-2.5 border transition-colors ${
+                          active
+                            ? `${style.solid} text-white border-transparent`
+                            : 'bg-white border-brand-purple/12 text-brand-purple hover:border-brand-purple/25'
+                        }`}
+                      >
+                        {docTypeLabels[t]}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
               <div className="space-y-2">
-                <Label>Fichier</Label>
-                <Input type="file" onChange={handleFileSelect} />
+                <Label className="text-[10px] tracking-label uppercase text-brand-gray">Fichier</Label>
+                <Input type="file" onChange={handleFileSelect} className="rounded-xl" />
                 {selectedFile ? (
                   <p className="text-xs text-brand-gray">
                     {selectedFile.name} ({(selectedFile.size / 1024).toFixed(2)} KB)
@@ -891,11 +977,11 @@ export default function DocumentsPage() {
             </div>
 
             <DialogFooter className="gap-2">
-              <Button variant="outline" onClick={() => setIsUploadOpen(false)} disabled={uploading}>
+              <Button variant="outline" className="rounded-full" onClick={() => setIsUploadOpen(false)} disabled={uploading}>
                 Annuler
               </Button>
               <Button
-                className="bg-brand-turquoise hover:bg-brand-turquoise-hover"
+                className="bg-brand-turquoise hover:bg-brand-turquoise-hover rounded-full"
                 onClick={() => void handleUploadDocument()}
                 disabled={uploading || !selectedFile || !docName}
               >

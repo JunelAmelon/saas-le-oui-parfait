@@ -10,22 +10,18 @@ interface ClientDashboardLayoutProps {
   daysRemaining?: number;
 }
 
-export function ClientDashboardLayout({ 
-  children, 
-  clientName = 'Julie & Frédérick',
-  daysRemaining = 165
+export function ClientDashboardLayout({
+  children,
+  clientName = 'Marie & Thomas',
+  daysRemaining = 214,
 }: ClientDashboardLayoutProps) {
   return (
-    <div className="min-h-screen bg-[#F4F4F2]">
+    <div className="min-h-screen bg-white text-[#4A4A4A] font-sans flex overflow-hidden">
       <ClientSidebar />
-      <ClientTopbar clientName={clientName} daysRemaining={daysRemaining} />
-      <main className="ml-0 md:ml-64 pt-16">
-        <div className="p-4 sm:p-6">
-          <div className="mx-auto max-w-6xl rounded-[28px] bg-white/70 backdrop-blur border border-white/60 shadow-[0_18px_60px_rgba(0,0,0,0.08)] p-4 sm:p-6">
-            {children}
-          </div>
-        </div>
-      </main>
+      <div className="flex-1 flex flex-col min-w-0 h-screen">
+        <ClientTopbar clientName={clientName} daysRemaining={daysRemaining} />
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 min-w-0">{children}</main>
+      </div>
       <AssistantWidget />
     </div>
   );

@@ -2,7 +2,6 @@
 
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { ClientDashboardLayout } from '@/components/layout/ClientDashboardLayout';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -25,8 +24,7 @@ import {
   Image as ImageIcon,
   Upload,
   Download,
-  Star,
-  FolderOpen,
+  Heart,
   Grid,
   List,
   X,
@@ -60,7 +58,6 @@ type PhotoWithAlbum = GalleryPhoto & {
   displayUrl: string;
   displayThumbUrl?: string;
 };
-
 
 export default function GaleriePage() {
   const { client, event, loading: dataLoading } = useClientData();
@@ -305,7 +302,7 @@ export default function GaleriePage() {
   };
 
   const navigatePhoto = (direction: 'prev' | 'next') => {
-    const currentIndex = filteredPhotos.findIndex(p => p.id === selectedPhoto);
+    const currentIndex = filteredPhotos.findIndex((p) => p.id === selectedPhoto);
     if (direction === 'prev' && currentIndex > 0) {
       setSelectedPhoto(filteredPhotos[currentIndex - 1].id);
     } else if (direction === 'next' && currentIndex < filteredPhotos.length - 1) {
@@ -334,126 +331,138 @@ export default function GaleriePage() {
   return (
     <ClientDashboardLayout clientName={clientName} daysRemaining={daysRemaining}>
       <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-brand-purple flex items-center gap-2 sm:gap-3">
-              <ImageIcon className="h-6 w-6 sm:h-8 sm:w-8 text-brand-turquoise" />
-              Galerie Photos
-            </h1>
-            <p className="text-sm sm:text-base text-brand-gray mt-1">
-              Vos inspirations et souvenirs
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button 
-              variant="outline" 
-              className="gap-2 flex-1 sm:flex-none"
+
+        {/* ---------- HERO ---------- */}
+        <div className="relative overflow-hidden rounded-3xl bg-brand-purple px-7 py-9 sm:px-10 sm:py-11">
+          <div className="absolute -top-10 -right-10 w-56 h-56 rounded-full bg-brand-turquoise/10 blur-3xl pointer-events-none" />
+          <svg
+            className="absolute right-6 top-1/2 -translate-y-1/2 opacity-[0.12] pointer-events-none hidden sm:block"
+            width="140" height="140" viewBox="0 0 100 100" fill="none"
+          >
+            <path d="M50 5 L56 44 L95 50 L56 56 L50 95 L44 56 L5 50 L44 44 Z" fill="white" />
+          </svg>
+
+          <div className="relative flex flex-col sm:flex-row sm:items-end sm:justify-between gap-6">
+            <div>
+              <span className="inline-block text-[10px] tracking-label uppercase text-brand-purple bg-white/90 px-3 py-1.5 rounded-full mb-4">
+                Galerie
+              </span>
+              <h1 className="font-baskerville text-3xl sm:text-4xl text-brand-beige mb-2">
+                Vos inspirations et souvenirs
+              </h1>
+              <p className="text-brand-beige/60 text-sm">
+                {allPhotos.length} photo{allPhotos.length > 1 ? 's' : ''} · {albums.length} album{albums.length > 1 ? 's' : ''}
+              </p>
+            </div>
+
+            <button
               onClick={() => setIsUploadModalOpen(true)}
+              className="inline-flex items-center gap-3 bg-[#2E2937] hover:bg-[#221f2a] text-white text-sm font-semibold pl-5 pr-1.5 py-1.5 rounded-full transition-colors shrink-0"
             >
-              <Upload className="h-4 w-4" />
-              <span className="hidden sm:inline">Ajouter des photos</span>
-              <span className="sm:hidden">Ajouter</span>
-            </Button>
-            <div className="flex border rounded-lg overflow-hidden">
-              <Button
-                variant={viewMode === 'grid' ? 'default' : 'ghost'}
-                size="icon"
-                className={viewMode === 'grid' ? 'bg-brand-turquoise' : ''}
+              Ajouter des photos
+              <span className="w-8 h-8 rounded-full bg-brand-turquoise flex items-center justify-center">
+                <Upload className="w-3.5 h-3.5 text-white" />
+              </span>
+            </button>
+          </div>
+        </div>
+
+        {/* ---------- ALBUMS EN PILULES AVATAR ---------- */}
+        <div className="flex items-center gap-3 overflow-x-auto no-scrollbar pb-1">
+          <button
+            onClick={() => setSelectedAlbumId(null)}
+            className={`shrink-0 flex items-center gap-2.5 pl-2 pr-4 py-2 rounded-full border transition-all ${
+              !selectedAlbumId
+                ? 'bg-brand-purple text-white border-brand-purple'
+                : 'bg-white text-brand-purple border-brand-purple/15 hover:border-brand-purple/30'
+            }`}
+          >
+            <span className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${!selectedAlbumId ? 'bg-white/15' : 'bg-brand-purple/8'}`}>
+              <Grid className={`w-3.5 h-3.5 ${!selectedAlbumId ? 'text-white' : 'text-brand-purple'}`} />
+            </span>
+            <span className="text-sm font-medium">Tous</span>
+            <span className={`text-[10px] ${!selectedAlbumId ? 'text-white/70' : 'text-brand-gray/60'}`}>{allPhotos.length}</span>
+          </button>
+
+          {albums.map((album) => {
+            const active = selectedAlbumId === album.id;
+            return (
+              <button
+                key={album.id}
+                onClick={() => setSelectedAlbumId(album.id)}
+                className={`shrink-0 flex items-center gap-2.5 pl-2 pr-4 py-2 rounded-full border transition-all ${
+                  active
+                    ? 'bg-brand-purple text-white border-brand-purple'
+                    : 'bg-white text-brand-purple border-brand-purple/15 hover:border-brand-purple/30'
+                }`}
+              >
+                <span className="w-8 h-8 rounded-full overflow-hidden shrink-0 bg-brand-beige flex items-center justify-center">
+                  {album.coverUrl ? (
+                    <img src={album.coverUrl} alt={album.name} className="w-full h-full object-cover" />
+                  ) : (
+                    <ImageIcon className="w-3.5 h-3.5 text-brand-gray" />
+                  )}
+                </span>
+                <span className="text-sm font-medium truncate max-w-[120px]">{album.name}</span>
+                <span className={`text-[10px] ${active ? 'text-white/70' : 'text-brand-gray/60'}`}>{album.count}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* ---------- CONTENU ---------- */}
+        <Card className="p-6 sm:p-8 border border-brand-purple/8 shadow-sm rounded-3xl bg-white">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h2 className="font-baskerville text-xl text-brand-purple">
+                {selectedAlbumId ? (albums.find((a) => a.id === selectedAlbumId)?.name || 'Album') : 'Toutes les photos'}
+              </h2>
+              <p className="text-xs text-brand-gray mt-0.5">{filteredPhotos.length} photos</p>
+            </div>
+            <div className="flex items-center gap-1 bg-brand-beige rounded-full p-1">
+              <button
                 onClick={() => setViewMode('grid')}
+                className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${
+                  viewMode === 'grid' ? 'bg-brand-turquoise text-white' : 'text-brand-gray hover:text-brand-purple'
+                }`}
               >
                 <Grid className="h-4 w-4" />
-              </Button>
-              <Button
-                variant={viewMode === 'list' ? 'default' : 'ghost'}
-                size="icon"
-                className={viewMode === 'list' ? 'bg-brand-turquoise' : ''}
+              </button>
+              <button
                 onClick={() => setViewMode('list')}
+                className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${
+                  viewMode === 'list' ? 'bg-brand-turquoise text-white' : 'text-brand-gray hover:text-brand-purple'
+                }`}
               >
                 <List className="h-4 w-4" />
-              </Button>
+              </button>
             </div>
           </div>
-        </div>
 
-        {loading ? (
-          <Card className="p-10 shadow-xl border-0">
-            <div className="flex items-center justify-center gap-3 text-brand-gray">
-              <Loader2 className="h-5 w-5 animate-spin" />
+          {loading ? (
+            <div className="flex items-center justify-center gap-3 text-brand-gray py-16">
+              <Loader2 className="h-5 w-5 animate-spin text-brand-turquoise" />
               Chargement de la galerie...
             </div>
-          </Card>
-        ) : null}
-
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-          <Card
-            className={`p-4 cursor-pointer transition-all hover:shadow-lg ${
-              !selectedAlbumId ? 'ring-2 ring-brand-turquoise' : ''
-            }`}
-            onClick={() => setSelectedAlbumId(null)}
-          >
-            <div className="text-center">
-              <div className="w-12 h-12 mx-auto mb-2 rounded-full bg-brand-turquoise/10 flex items-center justify-center">
-                <FolderOpen className="h-6 w-6 text-brand-turquoise" />
+          ) : filteredPhotos.length === 0 ? (
+            <div className="text-center py-16">
+              <div className="w-14 h-14 rounded-full bg-brand-purple/8 flex items-center justify-center mx-auto mb-4">
+                <ImageIcon className="h-6 w-6 text-brand-purple" />
               </div>
-              <p className="font-medium text-brand-purple">Tous</p>
-              <p className="text-xs text-brand-gray">{allPhotos.length} photos</p>
+              <p className="text-brand-gray text-sm">Aucune photo pour le moment</p>
             </div>
-          </Card>
-          {albums.map((album) => (
-            <Card
-              key={album.id}
-              className={`p-4 cursor-pointer transition-all hover:shadow-lg ${
-                selectedAlbumId === album.id ? 'ring-2 ring-brand-turquoise' : ''
-              }`}
-              onClick={() => setSelectedAlbumId(album.id)}
-            >
-              <div className="text-center">
-                <div className="w-12 h-12 mx-auto mb-2 rounded-full bg-gray-100 flex items-center justify-center overflow-hidden">
-                  {album.coverUrl ? (
-                    <img
-                      src={album.coverUrl}
-                      alt={album.name}
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        const img = e.currentTarget as HTMLImageElement;
-                        const fallback = img.dataset.fallback || '';
-                        if (fallback && img.src !== fallback) img.src = fallback;
-                      }}
-                      data-fallback={album.coverUrl}
-                    />
-                  ) : (
-                    <ImageIcon className="h-6 w-6 text-brand-gray" />
-                  )}
-                </div>
-                <p className="font-medium text-brand-purple text-sm">{album.name}</p>
-                <p className="text-xs text-brand-gray">{album.count} photos</p>
-              </div>
-            </Card>
-          ))}
-        </div>
-
-        <Card className="p-6 shadow-xl border-0">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-bold text-brand-purple">
-              {selectedAlbumId ? (albums.find((a) => a.id === selectedAlbumId)?.name || 'Album') : 'Toutes les photos'}
-            </h2>
-            <p className="text-sm text-brand-gray">
-              {filteredPhotos.length} photos
-            </p>
-          </div>
-
-          {viewMode === 'grid' ? (
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+          ) : viewMode === 'grid' ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
               {filteredPhotos.map((photo) => (
                 <div
                   key={photo.id}
-                  className="relative group aspect-square rounded-lg overflow-hidden cursor-pointer"
+                  className="relative group aspect-square rounded-2xl overflow-hidden cursor-pointer bg-brand-beige"
                   onClick={() => setSelectedPhoto(photo.id)}
                 >
-                  <img 
-                    src={photo.displayThumbUrl || photo.displayUrl} 
+                  <img
+                    src={photo.displayThumbUrl || photo.displayUrl}
                     alt={`Photo ${photo.id}`}
-                    className="w-full h-full object-cover"
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                     data-fallback={photo.displayUrl}
                     onError={(e) => {
                       const img = e.currentTarget as HTMLImageElement;
@@ -461,21 +470,19 @@ export default function GaleriePage() {
                       if (fallback && img.src !== fallback) img.src = fallback;
                     }}
                   />
-                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
-                    <ZoomIn className="h-6 w-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end justify-center pb-3">
+                    <ZoomIn className="h-5 w-5 text-white" />
                   </div>
                   <button
-                    className="absolute top-2 right-2 p-1"
+                    className="absolute top-2 right-2 w-8 h-8 rounded-full bg-white/85 backdrop-blur flex items-center justify-center transition-transform hover:scale-110"
                     onClick={(e) => {
                       e.stopPropagation();
                       void toggleLike(photo.id);
                     }}
                   >
-                    <Star
-                      className={`h-5 w-5 ${
-                        likedPhotos.includes(photo.id)
-                          ? 'text-red-500 fill-red-500'
-                          : 'text-gray-400'
+                    <Heart
+                      className={`h-4 w-4 ${
+                        likedPhotos.includes(photo.id) ? 'text-brand-turquoise-hover fill-brand-turquoise' : 'text-brand-gray'
                       }`}
                     />
                   </button>
@@ -483,16 +490,16 @@ export default function GaleriePage() {
               ))}
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-2">
               {filteredPhotos.map((photo) => (
                 <div
                   key={photo.id}
-                  className="flex items-center gap-4 p-3 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors"
+                  className="flex items-center gap-4 p-3 rounded-2xl bg-brand-beige/60 hover:bg-brand-beige transition-colors"
                 >
-                  <img 
-                    src={photo.displayThumbUrl || photo.displayUrl} 
+                  <img
+                    src={photo.displayThumbUrl || photo.displayUrl}
                     alt={`Photo ${photo.id}`}
-                    className="w-16 h-16 rounded-lg object-cover"
+                    className="w-16 h-16 rounded-xl object-cover shrink-0"
                     data-fallback={photo.displayUrl}
                     onError={(e) => {
                       const img = e.currentTarget as HTMLImageElement;
@@ -500,27 +507,28 @@ export default function GaleriePage() {
                       if (fallback && img.src !== fallback) img.src = fallback;
                     }}
                   />
-                  <div className="flex-1">
-                    <p className="font-medium text-brand-purple">Photo {photo.id}</p>
-                    <p className="text-sm text-brand-gray">{photo.albumName} • {photo.date || ''}</p>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-brand-purple text-sm">Photo {photo.id.slice(0, 8)}</p>
+                    <p className="text-xs text-brand-gray mt-0.5">{photo.albumName} · {photo.date || ''}</p>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="ghost"
-                      size="icon"
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
                       onClick={() => void toggleLike(photo.id)}
+                      className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-white transition-colors"
                     >
-                      <Star
-                        className={`h-5 w-5 ${
-                          likedPhotos.includes(photo.id)
-                            ? 'text-red-500 fill-red-500'
-                            : 'text-gray-400'
+                      <Heart
+                        className={`h-4 w-4 ${
+                          likedPhotos.includes(photo.id) ? 'text-brand-turquoise-hover fill-brand-turquoise' : 'text-brand-gray'
                         }`}
                       />
-                    </Button>
-                    <Button variant="ghost" size="icon">
-                      <Download className="h-5 w-5 text-brand-turquoise" />
-                    </Button>
+                    </button>
+                    <a
+                      href={photo.displayUrl}
+                      download
+                      className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-white transition-colors"
+                    >
+                      <Download className="h-4 w-4 text-brand-turquoise-hover" />
+                    </a>
                   </div>
                 </div>
               ))}
@@ -528,51 +536,49 @@ export default function GaleriePage() {
           )}
         </Card>
 
+        {/* ---------- LIGHTBOX ---------- */}
         {selectedPhoto && (
-          <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="absolute top-4 right-4 text-white hover:bg-white/10"
+          <div className="fixed inset-0 z-50 bg-brand-purple/95 backdrop-blur-sm flex items-center justify-center">
+            <button
+              className="absolute top-5 right-5 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors"
               onClick={() => setSelectedPhoto(null)}
             >
-              <X className="h-6 w-6" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="absolute left-4 text-white hover:bg-white/10"
+              <X className="h-5 w-5" />
+            </button>
+            <button
+              className="absolute left-5 w-11 h-11 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors"
               onClick={() => navigatePhoto('prev')}
             >
-              <ChevronLeft className="h-8 w-8" />
-            </Button>
-            <img 
-              src={filteredPhotos.find(p => p.id === selectedPhoto)?.displayUrl} 
+              <ChevronLeft className="h-6 w-6" />
+            </button>
+            <img
+              src={filteredPhotos.find((p) => p.id === selectedPhoto)?.displayUrl}
               alt="Photo agrandie"
-              className="w-[80vw] h-[80vh] rounded-lg object-contain"
+              className="max-w-[85vw] max-h-[80vh] rounded-2xl object-contain shadow-2xl"
             />
-            <Button
-              variant="ghost"
-              size="icon"
-              className="absolute right-4 text-white hover:bg-white/10"
+            <button
+              className="absolute right-5 w-11 h-11 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors"
               onClick={() => navigatePhoto('next')}
             >
-              <ChevronRight className="h-8 w-8" />
-            </Button>
+              <ChevronRight className="h-6 w-6" />
+            </button>
           </div>
         )}
 
+        {/* ---------- MODAL UPLOAD ---------- */}
         <Dialog open={isUploadModalOpen} onOpenChange={setIsUploadModalOpen}>
-          <DialogContent className="sm:max-w-md">
+          <DialogContent className="sm:max-w-md rounded-3xl">
             <DialogHeader>
-              <DialogTitle className="text-brand-purple">Ajouter des photos</DialogTitle>
+              <DialogTitle className="font-baskerville text-2xl text-brand-purple">Ajouter des photos</DialogTitle>
               <DialogDescription>
                 Téléchargez vos photos et choisissez un album
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
-              <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-brand-turquoise transition-colors">
-                <Upload className="h-10 w-10 mx-auto text-brand-gray mb-2" />
+              <div className="border-2 border-dashed border-brand-purple/15 rounded-2xl p-8 text-center hover:border-brand-turquoise transition-colors bg-brand-beige/40">
+                <div className="w-12 h-12 rounded-full bg-brand-turquoise/15 flex items-center justify-center mx-auto mb-3">
+                  <Upload className="h-5 w-5 text-brand-turquoise-hover" />
+                </div>
                 <p className="text-sm text-brand-gray">
                   Glissez vos photos ici ou cliquez pour parcourir
                 </p>
@@ -581,16 +587,16 @@ export default function GaleriePage() {
                   multiple
                   accept="image/*"
                   onChange={(e) => setUploadFiles(Array.from(e.target.files || []))}
-                  className="mt-4 w-full text-sm text-brand-gray file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-brand-turquoise file:text-white hover:file:bg-brand-turquoise-hover"
+                  className="mt-4 w-full text-sm text-brand-gray file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-brand-turquoise file:text-white hover:file:bg-brand-turquoise-hover"
                 />
                 {uploadFiles.length ? (
                   <p className="text-xs text-brand-gray mt-2">{uploadFiles.length} fichier(s) sélectionné(s)</p>
                 ) : null}
               </div>
               <div className="space-y-2">
-                <Label>Album de destination</Label>
+                <Label className="text-[10px] tracking-label uppercase text-brand-gray">Album de destination</Label>
                 <Select value={selectedUploadAlbumId} onValueChange={setSelectedUploadAlbumId}>
-                  <SelectTrigger>
+                  <SelectTrigger className="rounded-xl">
                     <SelectValue placeholder="Choisir un album" />
                   </SelectTrigger>
                   <SelectContent>
@@ -606,17 +612,22 @@ export default function GaleriePage() {
 
               {selectedUploadAlbumId === 'new' ? (
                 <div className="space-y-2">
-                  <Label>Nom du nouvel album</Label>
-                  <Input value={newAlbumName} onChange={(e) => setNewAlbumName(e.target.value)} placeholder="Ex: Inspiration" />
+                  <Label className="text-[10px] tracking-label uppercase text-brand-gray">Nom du nouvel album</Label>
+                  <Input
+                    value={newAlbumName}
+                    onChange={(e) => setNewAlbumName(e.target.value)}
+                    placeholder="Ex: Inspiration"
+                    className="rounded-xl"
+                  />
                 </div>
               ) : null}
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setIsUploadModalOpen(false)}>
+              <Button variant="outline" className="rounded-full" onClick={() => setIsUploadModalOpen(false)}>
                 Annuler
               </Button>
-              <Button 
-                className="bg-brand-turquoise hover:bg-brand-turquoise-hover"
+              <Button
+                className="bg-brand-turquoise hover:bg-brand-turquoise-hover rounded-full"
                 onClick={() => void handleUpload()}
                 disabled={uploading || !selectedUploadAlbumId || uploadFiles.length === 0 || (selectedUploadAlbumId === 'new' && !newAlbumName.trim())}
               >
@@ -626,20 +637,21 @@ export default function GaleriePage() {
           </DialogContent>
         </Dialog>
 
+        {/* ---------- SUCCÈS ---------- */}
         <Dialog open={isSuccessModalOpen} onOpenChange={setIsSuccessModalOpen}>
-          <DialogContent className="sm:max-w-md text-center">
+          <DialogContent className="sm:max-w-md text-center rounded-3xl">
             <div className="flex flex-col items-center py-6">
-              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
-                <CheckCircle className="h-8 w-8 text-green-600" />
+              <div className="w-16 h-16 bg-brand-turquoise/15 rounded-full flex items-center justify-center mb-4">
+                <CheckCircle className="h-7 w-7 text-brand-turquoise-hover" />
               </div>
-              <DialogTitle className="text-brand-purple text-xl">Photos ajoutées !</DialogTitle>
+              <DialogTitle className="font-baskerville text-brand-purple text-xl">Photos ajoutées !</DialogTitle>
               <DialogDescription className="mt-2">
                 Vos photos ont été ajoutées avec succès à l&apos;album.
               </DialogDescription>
             </div>
             <DialogFooter className="justify-center">
-              <Button 
-                className="bg-brand-turquoise hover:bg-brand-turquoise-hover"
+              <Button
+                className="bg-brand-turquoise hover:bg-brand-turquoise-hover rounded-full"
                 onClick={() => setIsSuccessModalOpen(false)}
               >
                 Fermer
