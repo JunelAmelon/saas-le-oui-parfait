@@ -5,6 +5,7 @@ import { AuthProvider } from '@/contexts/AuthContext';
 import { TimerProvider } from '@/contexts/TimerContext';
 import { Toaster } from '@/components/ui/toaster';
 import { Toaster as SonnerToaster } from 'sonner';
+import { WhatsAppChat } from '@/components/WhatsAppChat';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -52,6 +53,7 @@ export default function RootLayout({
             {children}
             <Toaster />
             <SonnerToaster position="top-right" richColors closeButton />
+            <WhatsAppChat />
           </TimerProvider>
         </AuthProvider>
       </body>

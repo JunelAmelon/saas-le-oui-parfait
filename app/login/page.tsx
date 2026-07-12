@@ -4,11 +4,12 @@ import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Loader2, Mail, Lock, Eye, EyeOff, Infinity as InfinityIcon } from 'lucide-react';
+import { Loader2, Mail, Lock, Eye, EyeOff, Infinity as InfinityIcon, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { Playfair_Display } from 'next/font/google';
+import { ForgotPasswordModal } from '@/components/ForgotPasswordModal';
 
 const playfair = Playfair_Display({
   subsets: ['latin'],
@@ -21,6 +22,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [forgotOpen, setForgotOpen] = useState(false);
   const { signIn } = useAuth();
   const { toast } = useToast();
   const router = useRouter();
@@ -65,12 +67,12 @@ export default function LoginPage() {
         </div>
 
         {/* citation flottante sur la photo */}
-        <div className="absolute bottom-6 left-6 right-6 lg:bottom-10 lg:left-10 lg:right-10">
+        <div className="absolute inset-0 flex items-center justify-center p-6 lg:p-10">
           <p
-            className="text-white/95 text-xl sm:text-2xl lg:text-3xl leading-snug drop-shadow-sm"
+            className="text-white/95 text-center text-2xl sm:text-3xl lg:text-4xl leading-snug drop-shadow-sm max-w-md"
             style={{ fontFamily: 'var(--font-playfair)' }}
           >
-            « Le plus beau jour<br className="hidden lg:block" /> commence ici. »
+            « Le plus beau jour<br className="hidden sm:block" /> commence ici. »
           </p>
         </div>
 
@@ -143,12 +145,12 @@ export default function LoginPage() {
                 <label htmlFor="password" className="block text-sm font-medium text-brand-purple">
                   Mot de passe
                 </label>
-<a
-  href="/mot-de-passe-oublie"
+<button
+  type="button" onClick={() => setForgotOpen(true)}
   className="text-xs text-brand-turquoise hover:text-brand-turquoise-hover transition-colors"
 >
-  Oublié ?
-</a>
+                  Oublié ?
+                </button>
               </div>
               <div className="relative">
                 <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-gray" />
@@ -196,6 +198,7 @@ export default function LoginPage() {
           </p>
         </div>
       </div>
+      <ForgotPasswordModal open={forgotOpen} onOpenChange={setForgotOpen} />
     </div>
   );
 }

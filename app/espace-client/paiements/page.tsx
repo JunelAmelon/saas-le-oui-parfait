@@ -36,6 +36,7 @@ import {
   Copy,
   Wallet,
   Download,
+  GripHorizontal,
 } from 'lucide-react';
 
 import { toast } from 'sonner';
@@ -630,6 +631,11 @@ export default function PaiementsPage() {
                   onChange={(next) => setHistoryPage(next)}
                 />
               )}
+
+              <div className="sm:hidden flex items-center justify-center gap-2 mt-3 text-[10px] text-brand-gray/70 animate-pulse">
+                <GripHorizontal className="w-4 h-4" />
+                <span>Glissez le tableau pour tout voir</span>
+              </div>
             </Card>
           )}
         </div>

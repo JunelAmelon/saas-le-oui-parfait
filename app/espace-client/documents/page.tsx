@@ -34,7 +34,6 @@ import {
   ChevronRight,
   ExternalLink,
   Download,
-  PenLine,
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useClientData } from '@/contexts/ClientDataContext';
@@ -506,8 +505,25 @@ export default function DocumentsPage() {
     window.open(doc.file_url, '_blank');
   };
 
+  const isAllowedFile = (file: File) => {
+    const allowedTypes = [
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    ];
+    const allowedExts = ['.pdf', '.doc', '.docx'];
+    const ext = file.name.slice(file.name.lastIndexOf('.')).toLowerCase();
+    return allowedTypes.includes(file.type) || allowedExts.includes(ext);
+  };
+
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] || null;
+    if (file && !isAllowedFile(file)) {
+      toast.error('Format non autorisé. Veuillez choisir un PDF ou un document Word.');
+      e.target.value = '';
+      setSelectedFile(null);
+      return;
+    }
     setSelectedFile(file);
     if (file && !docName) {
       setDocName(file.name.replace(/\.[^/.]+$/, ''));
@@ -521,6 +537,10 @@ export default function DocumentsPage() {
     }
     if (!selectedFile || !docName) {
       toast.error('Veuillez sélectionner un fichier et un nom');
+      return;
+    }
+    if (!isAllowedFile(selectedFile)) {
+      toast.error('Format non autorisé. Veuillez choisir un PDF ou un document Word.');
       return;
     }
     if (!client.planner_id) {
@@ -720,34 +740,7 @@ export default function DocumentsPage() {
                             </button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="rounded-xl">
-                            {isDevis ? (
-                              <>
-                                <DropdownMenuItem
-                                  onClick={() => void acceptDevisFromDoc(doc)}
-                                  disabled={!devisCanSign || devisBusy}
-                                >
-                                  {devisBusy ? 'Ouverture...' : 'Valider / Signer'}
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  onClick={() => void rejectDevisFromDoc(doc)}
-                                  disabled={!devisCanDecide || devisBusy}
-                                >
-                                  {devisBusy ? 'Refus...' : 'Refuser'}
-                                </DropdownMenuItem>
-                              </>
-                            ) : null}
-                            {isContract ? (
-                              <DropdownMenuItem
-                                onClick={() => void handleSignContract(doc)}
-                                disabled={!canSign || isSigning}
-                              >
-                                {fullySigned
-                                  ? 'Déjà signé'
-                                  : clientSigned
-                                    ? 'Vous avez déjà signé'
-                                    : (isSigning ? 'Validation...' : 'Signer / Valider')}
-                              </DropdownMenuItem>
-                            ) : null}
+                            {/* Signature électronique temporairement désactivée — options conservées en arrière-plan */}
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </div>
@@ -804,22 +797,6 @@ export default function DocumentsPage() {
                         </div>
                       </div>
 
-                      {showPrimaryAction && (
-                        <button
-                          onClick={() =>
-                            isContract ? void handleSignContract(doc) : void acceptDevisFromDoc(doc)
-                          }
-                          disabled={isSigning || devisBusy}
-                          className="w-full mt-3 inline-flex items-center justify-center gap-2 bg-brand-turquoise hover:bg-brand-turquoise-hover text-white text-xs font-semibold py-2.5 rounded-xl transition-colors"
-                        >
-                          {isSigning || devisBusy ? (
-                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                          ) : (
-                            <PenLine className="w-3.5 h-3.5" />
-                          )}
-                          Signer / Valider
-                        </button>
-                      )}
                     </div>
                   </div>
                 );
@@ -944,7 +921,7 @@ export default function DocumentsPage() {
               <div className="space-y-2">
                 <Label className="text-[10px] tracking-label uppercase text-brand-gray">Type</Label>
                 <div className="grid grid-cols-2 gap-2">
-                  {(['contrat', 'facture', 'planning', 'photo', 'autre'] as const).map((t) => {
+                  {(['contrat', 'facture', 'planning', 'autre'] as const).map((t) => {
                     const active = docType === t;
                     const style = catStyle(t);
                     return (
@@ -967,7 +944,13 @@ export default function DocumentsPage() {
 
               <div className="space-y-2">
                 <Label className="text-[10px] tracking-label uppercase text-brand-gray">Fichier</Label>
-                <Input type="file" onChange={handleFileSelect} className="rounded-xl" />
+                <Input
+                  type="file"
+                  accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                  onChange={handleFileSelect}
+                  className="rounded-xl"
+                />
+                <p className="text-[10px] text-brand-gray">Formats acceptés : PDF, Word (.doc, .docx)</p>
                 {selectedFile ? (
                   <p className="text-xs text-brand-gray">
                     {selectedFile.name} ({(selectedFile.size / 1024).toFixed(2)} KB)

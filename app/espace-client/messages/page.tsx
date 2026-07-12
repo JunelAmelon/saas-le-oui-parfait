@@ -2,16 +2,27 @@
 
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog';
 import {
   MessageSquare,
   Send,
   Paperclip,
-  Search,
   MoreVertical,
   Check,
   CheckCheck,
   ArrowLeft,
+  Phone,
+  Mail,
+  MapPin,
+  X,
 } from 'lucide-react';
 
 import { useEffect, useMemo, useState } from 'react';
@@ -60,8 +71,9 @@ export default function MessagesPage() {
   const [showChatOnMobile, setShowChatOnMobile] = useState(false);
 
   const [plannerPhotoUrl, setPlannerPhotoUrl] = useState<string | null>(null);
-  const [agencyLogoUrl, setAgencyLogoUrl] = useState<string | null>(null);
+  const [agencyProfile, setAgencyProfile] = useState<any | null>(null);
   const [uploadingAttachment, setUploadingAttachment] = useState(false);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
   const fileInputId = 'client-chat-attachment-input';
 
   const clientName = useMemo(() => {
@@ -108,13 +120,12 @@ export default function MessagesPage() {
     }
   };
 
-  const fetchAgencyLogo = async () => {
+  const fetchAgencyProfile = async () => {
     try {
       const a = (await getDocument('agency', 'leOuiParfait')) as any;
-      const url = a?.logoUrl || null;
-      setAgencyLogoUrl(url);
+      setAgencyProfile(a || null);
     } catch {
-      setAgencyLogoUrl(null);
+      setAgencyProfile(null);
     }
   };
 
@@ -152,7 +163,7 @@ export default function MessagesPage() {
       setLoading(true);
       try {
         void fetchPlannerPhoto();
-        void fetchAgencyLogo();
+        void fetchAgencyProfile();
         const conv = await ensureConversation();
         if (!conv?.id) {
           setLoading(false);
@@ -370,98 +381,22 @@ export default function MessagesPage() {
         </div>
 
         {/* ---------- CHAT ---------- */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 flex-1 min-h-0">
-
-          {/* Liste des conversations */}
-          <Card
-            className={`p-4 border border-brand-purple/8 shadow-sm rounded-3xl bg-white overflow-hidden flex flex-col ${
-              showChatOnMobile ? 'hidden lg:flex' : 'flex'
-            }`}
-          >
-            <div className="relative mb-4 shrink-0">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-brand-gray" />
-              <Input
-                placeholder="Rechercher..."
-                className="pl-11 h-11 rounded-xl border-brand-purple/10 bg-brand-beige/60"
-              />
-            </div>
-            <div className="flex-1 overflow-y-auto space-y-1.5">
-              {loading ? null : conversations.length === 0 ? (
-                <div className="text-center text-brand-gray py-10">
-                  <p className="font-medium text-brand-purple text-sm">Aucune conversation</p>
-                  <p className="text-xs mt-1">Démarrez une conversation en envoyant un premier message.</p>
-                </div>
-              ) : (
-                conversations.map((conv) => (
-                  <button
-                    key={conv.id}
-                    onClick={() => {
-                      setSelectedConversation(conv);
-                      setShowChatOnMobile(true);
-                    }}
-                    className={`w-full text-left p-3 rounded-2xl transition-colors ${
-                      selectedConversation?.id === conv.id ? 'bg-brand-turquoise/12' : 'hover:bg-brand-beige/60'
-                    }`}
-                  >
-                    <div className="flex items-start gap-3">
-                      <div className="relative shrink-0">
-                        <Avatar className="h-11 w-11 ring-2 ring-white shadow-sm">
-                          {agencyLogoUrl || plannerPhotoUrl ? (
-                            <AvatarImage src={agencyLogoUrl || plannerPhotoUrl || undefined} alt="Wedding Planner" />
-                          ) : null}
-                          <AvatarFallback className="bg-brand-purple text-white text-sm">
-                            {conv.avatar}
-                          </AvatarFallback>
-                        </Avatar>
-                        {conv.online && (
-                          <span className="absolute bottom-0 right-0 w-3 h-3 bg-brand-turquoise border-2 border-white rounded-full" />
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between gap-2">
-                          <p className="font-semibold text-brand-purple text-sm truncate">{conv.name}</p>
-                          <span className="text-[10px] text-brand-gray shrink-0">{conv.time}</span>
-                        </div>
-                        <p className="text-xs text-brand-gray truncate mt-0.5">{conv.lastMessage || 'Aucun message'}</p>
-                      </div>
-                      {conv.unread > 0 && (
-                        <span className="bg-brand-turquoise text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center shrink-0">
-                          {conv.unread}
-                        </span>
-                      )}
-                    </div>
-                  </button>
-                ))
-              )}
-            </div>
-          </Card>
-
-          {/* Fenêtre de chat */}
-          <Card
-            className={`lg:col-span-2 border border-brand-purple/8 shadow-sm rounded-3xl bg-white flex flex-col overflow-hidden ${
-              showChatOnMobile ? 'flex' : 'hidden lg:flex'
-            }`}
-          >
+        <div className="flex-1 min-h-0">
+          <Card className="h-full border border-brand-purple/8 shadow-sm rounded-none bg-white flex flex-col overflow-hidden">
             {/* Header conversation */}
             <div className="px-5 py-4 border-b border-brand-purple/8 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-3">
-                <button
-                  className="lg:hidden w-8 h-8 rounded-full flex items-center justify-center text-brand-gray hover:bg-brand-purple/8"
-                  onClick={() => setShowChatOnMobile(false)}
-                >
-                  <ArrowLeft className="h-4 w-4" />
-                </button>
-                <Avatar className="h-10 w-10 ring-2 ring-brand-turquoise/20">
-                  {agencyLogoUrl || plannerPhotoUrl ? (
-                    <AvatarImage src={agencyLogoUrl || plannerPhotoUrl || undefined} alt="Wedding Planner" />
+                <Avatar className="h-10 w-10 ring-2 ring-brand-turquoise/20 rounded-none">
+                  {agencyProfile?.logoUrl || plannerPhotoUrl ? (
+                    <AvatarImage src={agencyProfile?.logoUrl || plannerPhotoUrl || undefined} alt="Wedding Planner" />
                   ) : null}
-                  <AvatarFallback className="bg-brand-purple text-white">
+                  <AvatarFallback className="bg-brand-purple text-white rounded-none">
                     {selectedConversation?.avatar || '—'}
                   </AvatarFallback>
                 </Avatar>
                 <div>
                   <p className="font-baskerville text-brand-purple">
-                    {selectedConversation?.name || 'Sélectionnez une conversation'}
+                    {selectedConversation?.name || 'Votre Wedding Planner'}
                   </p>
                   {selectedConversation?.online && (
                     <p className="text-[11px] text-brand-turquoise-hover flex items-center gap-1">
@@ -470,7 +405,11 @@ export default function MessagesPage() {
                   )}
                 </div>
               </div>
-              <button className="w-9 h-9 rounded-full flex items-center justify-center text-brand-gray hover:bg-brand-purple/8">
+              <button
+                onClick={() => setIsProfileOpen(true)}
+                className="w-9 h-9 rounded-full flex items-center justify-center text-brand-gray hover:bg-brand-purple/8"
+                title="Profil de l'entreprise"
+              >
                 <MoreVertical className="h-4 w-4" />
               </button>
             </div>
@@ -498,8 +437,8 @@ export default function MessagesPage() {
                   >
                     <Avatar className="h-7 w-7 shrink-0">
                       {message.isMe && client?.photo ? <AvatarImage src={client.photo} alt="Moi" /> : null}
-                      {!message.isMe && (agencyLogoUrl || plannerPhotoUrl) ? (
-                        <AvatarImage src={agencyLogoUrl || plannerPhotoUrl || undefined} alt="Wedding Planner" />
+                      {!message.isMe && (agencyProfile?.logoUrl || plannerPhotoUrl) ? (
+                        <AvatarImage src={agencyProfile?.logoUrl || plannerPhotoUrl || undefined} alt="Wedding Planner" />
                       ) : null}
                       <AvatarFallback
                         className={`text-[10px] ${message.isMe ? 'bg-brand-purple' : 'bg-brand-turquoise'} text-white`}
@@ -511,8 +450,8 @@ export default function MessagesPage() {
                     <div
                       className={`p-3.5 shadow-sm ${
                         message.isMe
-                          ? 'bg-brand-turquoise text-white rounded-2xl rounded-br-sm'
-                          : 'bg-white text-brand-purple rounded-2xl rounded-bl-sm border border-brand-purple/6'
+                          ? 'bg-brand-turquoise text-white rounded-none'
+                          : 'bg-white text-brand-purple rounded-none border border-brand-purple/6'
                       }`}
                     >
                       {message.content ? <p className="text-sm leading-relaxed">{message.content}</p> : null}
@@ -551,7 +490,7 @@ export default function MessagesPage() {
 
             {/* Input */}
             <div className="p-4 border-t border-brand-purple/8 shrink-0">
-              <div className="flex items-center gap-2 bg-brand-beige/60 rounded-full pl-2 pr-2 py-2">
+              <div className="flex items-center gap-2 bg-brand-beige/60 rounded-none pl-2 pr-2 py-2 border border-brand-purple/8">
                 <input
                   id={fileInputId}
                   type="file"
@@ -591,6 +530,79 @@ export default function MessagesPage() {
             </div>
           </Card>
         </div>
+
+        {/* ---------- PROFIL ENTREPRISE ---------- */}
+        <Dialog open={isProfileOpen} onOpenChange={setIsProfileOpen}>
+          <DialogContent className="sm:max-w-md w-[95vw] sm:w-full rounded-none border border-brand-purple/8 p-0 overflow-hidden">
+            <div className="relative h-28 bg-brand-purple">
+              <div className="absolute inset-0 opacity-20">
+                <svg width="100%" height="100%">
+                  <pattern id="pattern-dots" x="0" y="0" width="20" height="20" patternUnits="userSpaceOnUse">
+                    <circle cx="2" cy="2" r="1" className="text-white" fill="currentColor" />
+                  </pattern>
+                  <rect width="100%" height="100%" fill="url(#pattern-dots)" />
+                </svg>
+              </div>
+              <button
+                onClick={() => setIsProfileOpen(false)}
+                className="absolute top-3 right-3 w-8 h-8 bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="px-6 pb-6 -mt-10">
+              <div className="flex items-end gap-4 mb-4">
+                <Avatar className="h-20 w-20 ring-4 ring-white rounded-none bg-white">
+                  {agencyProfile?.logoUrl || plannerPhotoUrl ? (
+                    <AvatarImage src={agencyProfile?.logoUrl || plannerPhotoUrl || undefined} alt={agencyProfile?.name || 'Le Oui Parfait'} />
+                  ) : null}
+                  <AvatarFallback className="bg-brand-purple text-white text-2xl rounded-none">
+                    {agencyProfile?.name?.slice(0, 2).toUpperCase() || 'WP'}
+                  </AvatarFallback>
+                </Avatar>
+              </div>
+              <DialogHeader className="text-left mb-4">
+                <DialogTitle className="font-baskerville text-xl text-brand-purple">
+                  {agencyProfile?.name || 'Le Oui Parfait'}
+                </DialogTitle>
+                <DialogDescription className="text-brand-gray text-sm mt-1">
+                  {agencyProfile?.tagline || 'Votre wedding planner'}
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="space-y-3 text-sm">
+                {agencyProfile?.phone && (
+                  <a href={`tel:${agencyProfile.phone}`} className="flex items-center gap-3 p-3 bg-brand-beige/60 hover:bg-brand-purple/6 transition-colors">
+                    <Phone className="w-4 h-4 text-brand-turquoise-hover shrink-0" />
+                    <span className="text-brand-purple">{agencyProfile.phone}</span>
+                  </a>
+                )}
+                {agencyProfile?.email && (
+                  <a href={`mailto:${agencyProfile.email}`} className="flex items-center gap-3 p-3 bg-brand-beige/60 hover:bg-brand-purple/6 transition-colors">
+                    <Mail className="w-4 h-4 text-brand-turquoise-hover shrink-0" />
+                    <span className="text-brand-purple">{agencyProfile.email}</span>
+                  </a>
+                )}
+                {(agencyProfile?.address || agencyProfile?.location) && (
+                  <div className="flex items-start gap-3 p-3 bg-brand-beige/60">
+                    <MapPin className="w-4 h-4 text-brand-turquoise-hover shrink-0 mt-0.5" />
+                    <span className="text-brand-purple">{agencyProfile?.address || agencyProfile?.location}</span>
+                  </div>
+                )}
+                {agencyProfile?.description && (
+                  <p className="text-brand-gray leading-relaxed pt-2">{agencyProfile.description}</p>
+                )}
+              </div>
+
+              <Button
+                onClick={() => setIsProfileOpen(false)}
+                className="w-full mt-6 bg-brand-turquoise hover:bg-brand-turquoise-hover rounded-none h-11"
+              >
+                Fermer
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </ClientDashboardLayout>
   );

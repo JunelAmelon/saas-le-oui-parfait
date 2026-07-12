@@ -525,27 +525,24 @@ export default function ClientPortalPage() {
                           <span className="text-[13px] text-[#5A5A5A]">{m.description || 'À valider'}</span>
                         </td>
                         <td className="py-3">
-                          <button
-                            onClick={() => void confirmMilestone(m)}
-                            className={cn(
-                              'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-semibold transition-colors',
-                              m.client_confirmed
-                                ? 'bg-[#F3E3E6] text-[#B98A96] hover:bg-[#EAD0D6]'
-                                : 'bg-[rgba(136,183,181,0.16)] text-[#6a9a98] hover:bg-[rgba(136,183,181,0.28)]'
-                            )}
-                          >
-                            {m.client_confirmed ? (
-                              <>
-                                <X className="w-3 h-3" />
-                                Annuler
-                              </>
-                            ) : (
-                              <>
-                                <Check className="w-3 h-3" />
-                                Confirmer
-                              </>
-                            )}
-                          </button>
+                          {!m.client_confirmed && (
+                            <button
+                              onClick={() => void confirmMilestone(m)}
+                              className={cn(
+                                'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-semibold transition-colors',
+                                'bg-[rgba(136,183,181,0.16)] text-[#6a9a98] hover:bg-[rgba(136,183,181,0.28)]'
+                              )}
+                            >
+                              <Check className="w-3 h-3" />
+                              Confirmer
+                            </button>
+                          )}
+                          {m.client_confirmed && (
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-semibold bg-[rgba(136,183,181,0.16)] text-[#6a9a98]">
+                              <Check className="w-3 h-3" />
+                              Confirmé
+                            </span>
+                          )}
                         </td>
                       </tr>
                     ))}

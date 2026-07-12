@@ -24,6 +24,8 @@ import {
   Loader2,
   ChevronLeft,
   ChevronRight,
+  X,
+  GripHorizontal,
 } from 'lucide-react';
 import { updateDocument } from '@/lib/db';
 
@@ -367,7 +369,7 @@ export default function PlanningPage() {
 
         {/* ---------- PILLS ---------- */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="flex items-center gap-3 bg-white rounded-2xl shadow-sm p-4">
+          <div className="flex items-center gap-3 bg-white rounded-none shadow-sm border border-brand-purple/8 p-4">
             <div className="w-10 h-10 rounded-xl bg-brand-turquoise/15 flex items-center justify-center shrink-0">
               <CalendarIcon className="w-4.5 h-4.5 text-brand-turquoise-hover" />
             </div>
@@ -379,7 +381,7 @@ export default function PlanningPage() {
             </div>
           </div>
 
-          <div className="flex items-center gap-3 bg-white rounded-2xl shadow-sm p-4">
+          <div className="flex items-center gap-3 bg-white rounded-none shadow-sm border border-brand-purple/8 p-4">
             <div className="w-10 h-10 rounded-xl bg-[#F1EADD] flex items-center justify-center shrink-0">
               <CheckCircle className="w-4.5 h-4.5 text-[#C9A96E]" />
             </div>
@@ -391,7 +393,7 @@ export default function PlanningPage() {
             </div>
           </div>
 
-          <div className="flex items-center gap-3 bg-white rounded-2xl shadow-sm p-4">
+          <div className="flex items-center gap-3 bg-white rounded-none shadow-sm border border-brand-purple/8 p-4">
             <div className="w-10 h-10 rounded-xl bg-brand-purple/8 flex items-center justify-center shrink-0">
               <Clock className="w-4.5 h-4.5 text-brand-purple" />
             </div>
@@ -403,7 +405,7 @@ export default function PlanningPage() {
         </div>
 
         {/* ---------- FRISE CHRONOLOGIQUE (pleine largeur) ---------- */}
-        <Card className="p-6 sm:p-8 border-0 shadow-sm rounded-3xl bg-white overflow-hidden">
+        <Card className="p-6 sm:p-8 border border-brand-purple/8 shadow-sm rounded-none bg-white overflow-hidden">
           <div className="flex items-center justify-between mb-6">
             <h2 className="font-baskerville text-xl text-brand-purple">Frise chronologique</h2>
             <div className="flex items-center gap-5 text-xs text-brand-gray">
@@ -420,47 +422,60 @@ export default function PlanningPage() {
             <p className="text-sm text-brand-gray py-6 text-center">Rien de planifié pour le moment.</p>
           ) : (
             <>
-              <div className="relative">
-                <div className="absolute inset-0 flex justify-between pointer-events-none">
-                  {[0, 20, 40, 60, 80, 100].map((p) => (
-                    <div key={p} className="flex flex-col items-center" style={{ width: 1 }}>
-                      <span className="text-[9px] text-brand-gray/50 -translate-x-1/2 mb-2">{p}%</span>
-                      <div className="w-px bg-brand-purple/6 flex-1" style={{ minHeight: timelineItems.length * 52 }} />
-                    </div>
-                  ))}
-                </div>
-
-                <div className="relative pt-6 space-y-2.5">
-                  {timelineItems.map((item) => {
-                    const isRdv = item.kind === 'rdv';
-                    const solid = isRdv ? 'bg-brand-turquoise' : 'bg-[#C9A96E]';
-                    const left = percentFor(item.date);
-                    return (
-                      <div key={item.id} className="flex items-center gap-3">
-                        <div className="w-40 sm:w-56 shrink-0 flex items-center gap-2 pr-2">
-                          <span className={`w-2 h-2 rounded-full shrink-0 ${solid}`} />
-                          <span className="text-xs font-medium text-brand-purple truncate">{item.title}</span>
-                        </div>
-                        <div className="relative flex-1 h-9">
-                          <div className="absolute inset-y-0 left-0 right-0 my-auto h-px bg-brand-purple/6" />
-                          <button
-                            onClick={() => (isRdv ? handleEventClick(item.raw as Event) : undefined)}
-                            className={`absolute top-1/2 -translate-y-1/2 -translate-x-1/2 flex items-center gap-1.5 px-3 py-1.5 rounded-full ${solid} text-white text-[11px] font-medium whitespace-nowrap shadow-sm ${isRdv ? 'cursor-pointer hover:opacity-90' : 'cursor-default'}`}
-                            style={{ left: `${left}%` }}
-                          >
-                            <CalendarIcon className="w-3 h-3" />
-                            {new Date(item.date).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })}
-                          </button>
-                        </div>
+              <div className="relative -mx-6 sm:-mx-8">
+                <div className="overflow-x-auto sm:overflow-visible scrollbar-hide pb-2" style={{ WebkitOverflowScrolling: 'touch' }}>
+                  <div className="min-w-[640px] px-6 sm:px-8">
+                    <div className="relative">
+                      <div className="absolute inset-0 flex justify-between pointer-events-none">
+                        {[0, 20, 40, 60, 80, 100].map((p) => (
+                          <div key={p} className="flex flex-col items-center" style={{ width: 1 }}>
+                            <span className="text-[9px] text-brand-gray/50 -translate-x-1/2 mb-2">{p}%</span>
+                            <div className="w-px bg-brand-purple/6 flex-1" style={{ minHeight: timelineItems.length * 52 }} />
+                          </div>
+                        ))}
                       </div>
-                    );
-                  })}
-                </div>
-              </div>
 
-              <div className="flex justify-between mt-6 pt-4 border-t border-brand-purple/6 text-xs text-brand-gray">
-                <span>{new Date(minTime).toLocaleDateString('fr-FR')}</span>
-                <span>{new Date(maxTime).toLocaleDateString('fr-FR')}</span>
+                      <div className="relative pt-6 space-y-2.5">
+                        {timelineItems.map((item) => {
+                          const isRdv = item.kind === 'rdv';
+                          const solid = isRdv ? 'bg-brand-turquoise' : 'bg-[#C9A96E]';
+                          const left = percentFor(item.date);
+                          return (
+                            <div key={item.id} className="flex items-center gap-3">
+                              <div className="w-40 sm:w-56 shrink-0 flex items-center gap-2 pr-2">
+                                <span className={`w-2 h-2 rounded-full shrink-0 ${solid}`} />
+                                <span className="text-xs font-medium text-brand-purple truncate">{item.title}</span>
+                              </div>
+                              <div className="relative flex-1 h-9 min-w-0">
+                                <div className="absolute inset-y-0 left-0 right-0 my-auto h-px bg-brand-purple/6" />
+                                <button
+                                  onClick={() => (isRdv ? handleEventClick(item.raw as Event) : undefined)}
+                                  className={`absolute top-1/2 -translate-y-1/2 -translate-x-1/2 flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-full ${solid} text-white text-[10px] sm:text-[11px] font-medium whitespace-nowrap shadow-sm ${isRdv ? 'cursor-pointer hover:opacity-90' : 'cursor-default'}`}
+                                  style={{ left: `${left}%` }}
+                                >
+                                  <CalendarIcon className="w-3 h-3" />
+                                  {new Date(item.date).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })}
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <div className="flex justify-between mt-6 pt-4 border-t border-brand-purple/6 text-xs text-brand-gray">
+                      <span>{new Date(minTime).toLocaleDateString('fr-FR')}</span>
+                      <span>{new Date(maxTime).toLocaleDateString('fr-FR')}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="sm:hidden absolute right-0 top-0 bottom-0 w-10 bg-gradient-to-l from-white to-transparent pointer-events-none" />
+
+                <div className="sm:hidden flex items-center justify-center gap-2 mt-2 text-[10px] text-brand-gray/70 animate-pulse">
+                  <GripHorizontal className="w-4 h-4" />
+                  <span>Glissez pour parcourir</span>
+                </div>
               </div>
             </>
           )}
@@ -479,7 +494,7 @@ export default function PlanningPage() {
               <>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {rdvPaginated.map((e) => (
-                    <div key={e.id} className="rounded-2xl overflow-hidden bg-white shadow-sm flex flex-col">
+                    <div key={e.id} className="rounded-2xl overflow-hidden bg-white shadow-sm border border-brand-purple/8 flex flex-col">
                       <div className="flex items-center justify-between px-4 py-2.5 bg-brand-turquoise/15">
                         <span className="text-xs font-semibold truncate text-brand-turquoise-hover">{e.title}</span>
                         <span className="w-2 h-2 rounded-full bg-brand-turquoise shrink-0" />
@@ -533,11 +548,21 @@ export default function PlanningPage() {
                   {stepsPaginated.map((s) => {
                     const done = Boolean(s.admin_confirmed) && Boolean(s.client_confirmed);
                     return (
-                      <div key={s.id} className="rounded-2xl overflow-hidden bg-white shadow-sm flex flex-col">
+                      <div
+                        key={s.id}
+                        onClick={() => {
+                          if (!done) void toggleClientConfirm(s);
+                        }}
+                        className={`rounded-2xl overflow-hidden bg-white shadow-sm border border-brand-purple/8 flex flex-col ${
+                          done ? 'opacity-70' : 'cursor-pointer hover:shadow-md transition-shadow'
+                        }`}
+                      >
                         <div className="flex items-center justify-between px-4 py-2.5 bg-[#F1EADD]">
-                          <span className="text-xs font-semibold truncate text-[#C9A96E]">{s.title}</span>
+                          <span className={`text-xs font-semibold truncate ${done ? 'text-[#C9A96E] line-through' : 'text-[#C9A96E]'}`}>
+                            {s.title}
+                          </span>
                           {done ? (
-                            <CheckCircle className="h-4 w-4 text-[#C9A96E] shrink-0" />
+                            <X className="h-4 w-4 text-[#C9A96E] shrink-0" />
                           ) : (
                             <Circle className="h-4 w-4 text-[#C9A96E]/50 shrink-0" />
                           )}
@@ -545,10 +570,10 @@ export default function PlanningPage() {
                         <div className="p-4 flex flex-col gap-2 flex-1">
                           <div className="flex items-center gap-2 text-xs text-brand-gray">
                             <CalendarIcon className="h-3.5 w-3.5 text-[#C9A96E] shrink-0" />
-                            <span className="truncate">{s.deadline ? `Échéance : ${s.deadline}` : 'Aucune échéance'}</span>
+                            <span className={`truncate ${done ? 'line-through' : ''}`}>{s.deadline ? `Échéance : ${s.deadline}` : 'Aucune échéance'}</span>
                           </div>
                           <div className="flex items-center gap-2 text-xs text-brand-gray min-h-[18px]">
-                            <span className="truncate text-brand-gray/70">
+                            <span className={`truncate text-brand-gray/70 ${done ? 'line-through' : ''}`}>
                               {s.description ? s.description : ''}
                             </span>
                           </div>
@@ -560,16 +585,21 @@ export default function PlanningPage() {
                             >
                               {done ? 'Validée' : 'En cours'}
                             </span>
-                            <button
-                              onClick={() => void toggleClientConfirm(s)}
-                              className={`text-[10.5px] font-bold uppercase tracking-wide px-3 py-1.5 rounded-full transition-colors ${
-                                s.client_confirmed
-                                  ? 'text-brand-gray hover:bg-brand-purple/8'
-                                  : 'bg-[#C9A96E] text-white hover:opacity-90'
-                              }`}
-                            >
-                              {s.client_confirmed ? 'Annuler' : 'Valider'}
-                            </button>
+                            {done ? (
+                              <span className="text-[10.5px] font-bold uppercase tracking-wide px-3 py-1.5 rounded-full bg-brand-turquoise/15 text-brand-turquoise-hover">
+                                Confirmé
+                              </span>
+                            ) : (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  void toggleClientConfirm(s);
+                                }}
+                                className="text-[10.5px] font-bold uppercase tracking-wide px-3 py-1.5 rounded-full bg-[#C9A96E] text-white hover:opacity-90 transition-colors"
+                              >
+                                Valider
+                              </button>
+                            )}
                           </div>
                         </div>
                       </div>
