@@ -399,7 +399,7 @@ export default function ClientPortalPage() {
             >
               <div className="relative h-[120px] flex items-center justify-center overflow-hidden bg-gradient-to-br from-[#9FBDBB] to-[#6a9a98]">
                 <Image
-                  src="/ia.jpg"
+                  src="couple-mariage.jpg"
                   alt="Documents"
                   fill
                   className="object-cover opacity-60"

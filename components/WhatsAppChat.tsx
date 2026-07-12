@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Image from 'next/image';
-import { MessageCircle, X, Phone } from 'lucide-react';
+import { X, Phone } from 'lucide-react';
 
 const WHATSAPP_NUMBER = '+33687217118';
 
@@ -24,12 +24,12 @@ export function WhatsAppChat() {
           </div>
           <div className="px-5 pb-5 -mt-10">
             <div className="flex items-end gap-3 mb-4">
-              <div className="relative w-16 h-16 rounded-none ring-4 ring-white overflow-hidden bg-brand-beige shrink-0">
+              <div className="relative w-16 h-16 rounded-full ring-4 ring-white overflow-hidden bg-brand-beige shrink-0">
                 <Image
                   src="/kathy.png"
-                  alt="Cathy"
+                  alt="Kathy"
                   fill
-                  className="object-cover"
+                  className="object-cover object-center scale-110"
                   sizes="64px"
                 />
               </div>
@@ -53,13 +53,21 @@ export function WhatsAppChat() {
 
       <button
         onClick={() => setOpen((v) => !v)}
-        className="group flex items-center justify-center w-14 h-14 rounded-none bg-[#25D366] hover:bg-[#128C7E] text-white shadow-lg transition-all duration-200 hover:scale-105"
+        className="group relative w-14 h-14 rounded-full overflow-hidden ring-4 ring-white shadow-[0_8px_24px_-8px_rgba(75,68,86,0.35)] transition-all duration-200 hover:scale-105 bg-brand-purple"
         aria-label="Ouvrir le chat WhatsApp"
       >
         {open ? (
-          <X className="w-6 h-6" />
+          <div className="absolute inset-0 flex items-center justify-center bg-brand-purple/90 text-white">
+            <X className="w-6 h-6" />
+          </div>
         ) : (
-          <MessageCircle className="w-6 h-6 fill-current" />
+          <Image
+            src="/kathy.png"
+            alt="Kathy"
+            fill
+            className="object-cover object-center scale-110"
+            sizes="56px"
+          />
         )}
       </button>
     </div>

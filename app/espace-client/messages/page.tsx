@@ -360,7 +360,7 @@ export default function MessagesPage() {
 
   return (
     <ClientDashboardLayout clientName={clientName} daysRemaining={daysRemaining}>
-      <div className="space-y-5 h-[calc(100vh-120px)] flex flex-col">
+      <div className="space-y-5 h-[calc(100vh-80px)] flex flex-col">
 
         {/* ---------- HERO COMPACT ---------- */}
         <div className="relative overflow-hidden rounded-3xl bg-brand-purple px-6 py-5 sm:px-8 sm:py-6 shrink-0">
