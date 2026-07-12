@@ -258,8 +258,8 @@ export default function PrestatairesPage() {
                     key={presta.id}
                     className="group relative bg-white rounded-3xl border border-brand-purple/8 hover:shadow-[0_20px_45px_-20px_rgba(75,68,86,0.3)] hover:-translate-y-1 transition-all duration-200"
                   >
-                    {/* Bannière colorée avec avatar chevauchant */}
-                    <div className={`h-16 bg-gradient-to-br ${style.banner} relative`}>
+                    {/* Bannière colorée avec avatar bien visible au-dessus */}
+                    <div className={`h-20 sm:h-24 bg-gradient-to-br ${style.banner} relative rounded-t-3xl`}>
                       {presta.status === 'confirmed' ? (
                         <span className="absolute top-3 right-3 text-[9px] font-bold uppercase tracking-wide px-2.5 py-1 rounded-full bg-white/90 text-brand-purple">
                           Confirmé
@@ -271,20 +271,20 @@ export default function PrestatairesPage() {
                       )}
                     </div>
 
-                    <div className="px-6 pb-6">
-                      <div className="-mt-10 mb-3 flex items-end justify-between">
-                        <div className="w-20 h-20 rounded-2xl bg-white border-4 border-white shadow-lg overflow-hidden flex items-center justify-center shrink-0 pt-1">
+                    <div className="px-5 sm:px-6 pb-5 sm:pb-6">
+                      <div className="relative -mt-10 sm:-mt-12 mb-3 flex items-end justify-between">
+                        <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-white border-[5px] border-white shadow-[0_8px_24px_-8px_rgba(75,68,86,0.28)] overflow-hidden flex items-center justify-center shrink-0 z-10 relative">
                           {presta.logoUrl ? (
                             <img src={presta.logoUrl} alt={presta.name} className="h-full w-full object-cover" />
                           ) : (
-                            <span className={`text-lg font-baskerville text-white h-full w-full flex items-start justify-center pt-1 pb-3 ${style.solid}`}>
+                            <span className={`text-xl sm:text-2xl font-baskerville text-white h-full w-full flex items-center justify-center ${style.solid}`}>
                               {presta.avatar}
                             </span>
                           )}
                         </div>
                       </div>
 
-                      <h3 className="font-baskerville text-lg text-brand-purple leading-snug">{presta.name}</h3>
+                      <h3 className="font-baskerville text-lg sm:text-xl text-brand-purple leading-snug">{presta.name}</h3>
                       <span className={`inline-block mt-1.5 text-[10px] font-bold uppercase tracking-wide px-2.5 py-1 rounded-full ${style.bg} ${style.text}`}>
                         {presta.category}
                       </span>

@@ -20,6 +20,7 @@ import {
   Loader2,
   Euro,
   ArrowRight,
+  Eye,
 } from 'lucide-react';
 import { ColorPalette } from '@/components/wedding/ColorPalette';
 import {
@@ -196,7 +197,7 @@ export default function MariagePage() {
     <ClientDashboardLayout clientName={coupleNames} daysRemaining={daysRemaining}>
       <div className="space-y-6">
 
-        {/* ---------- HERO (identique DA dashboard) ---------- */}
+        {/* ---------- HERO (identique au reste du produit) ---------- */}
         <div className="relative overflow-hidden rounded-3xl bg-brand-purple px-7 py-9 sm:px-10 sm:py-11">
           <div className="absolute -top-10 -right-10 w-56 h-56 rounded-full bg-brand-turquoise/10 blur-3xl pointer-events-none" />
           <svg
@@ -244,115 +245,93 @@ export default function MariagePage() {
           </div>
         </div>
 
-        {/* ---------- PILLS (icônes multicolores comme le dashboard) ---------- */}
+        {/* ---------- PILLS INFOS (design carré, sans border-radius) ---------- */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="flex items-center gap-3 bg-white rounded-2xl border border-brand-purple/8 shadow-sm p-4">
-            <div className="w-10 h-10 rounded-xl bg-brand-purple/8 flex items-center justify-center shrink-0">
-              <Calendar className="w-4.5 h-4.5 text-brand-purple" />
+          <div className="flex flex-col items-center justify-center gap-2 bg-white border-2 border-brand-purple/30 p-5 sm:p-6 text-center">
+            <p className="text-[10px] tracking-label uppercase text-brand-gray">Date</p>
+            <p className="font-baskerville text-xl sm:text-2xl text-brand-purple">
+              {eventDate ? new Date(eventDate).toLocaleDateString('fr-FR') : 'À définir'}
+            </p>
+            <Calendar className="w-5 h-5 text-brand-purple/60 mt-1" />
+          </div>
+
+          <div className="flex flex-col items-center justify-center gap-2 bg-white border-2 border-[#B98A96]/40 p-5 sm:p-6 text-center">
+            <p className="text-[10px] tracking-label uppercase text-brand-gray">Lieu</p>
+            <p className="font-baskerville text-xl sm:text-2xl text-brand-purple">{location || 'À définir'}</p>
+            <MapPin className="w-5 h-5 text-[#B98A96]/70 mt-1" />
+          </div>
+
+          <div className="flex flex-col items-center justify-center gap-2 bg-white border-2 border-brand-turquoise/40 p-5 sm:p-6 text-center">
+            <p className="text-[10px] tracking-label uppercase text-brand-gray">Invités</p>
+            <p className="font-baskerville text-xl sm:text-2xl text-brand-purple">{guestCount || 0}</p>
+            <Users className="w-5 h-5 text-brand-turquoise-hover/70 mt-1" />
+          </div>
+
+          <div className="flex flex-col items-center justify-center gap-2 bg-white border-2 border-[#C9A96E]/40 p-5 sm:p-6 text-center">
+            <p className="text-[10px] tracking-label uppercase text-brand-gray">Budget</p>
+            <p className="font-baskerville text-xl sm:text-2xl text-brand-purple">{(budget || 0).toLocaleString('fr-FR')} €</p>
+            <Euro className="w-5 h-5 text-[#C9A96E]/70 mt-1" />
+          </div>
+        </div>
+
+        {/* ---------- THÈME & DÉCORATION (spread ouvert, bordure renforcée) ---------- */}
+        <div className="relative bg-white border border-brand-purple/20 shadow-sm overflow-hidden">
+          <p className="text-center text-[10px] tracking-[0.25em] uppercase text-brand-gray pt-6 mb-2">
+            Thème &amp; décoration
+          </p>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 relative">
+            {/* Ligne de reliure centrale (visible desktop) */}
+            <div className="hidden md:block absolute top-6 bottom-6 left-1/2 -translate-x-1/2 w-px bg-brand-purple/15" />
+
+            {/* Page gauche : style + palette */}
+            <div className="p-6 sm:p-10">
+              <div className="flex items-center gap-2 mb-4">
+                <Palette className="w-4 h-4 text-brand-purple" />
+                <span className="text-[10px] tracking-[0.15em] uppercase text-brand-purple font-semibold">
+                  Style retenu
+                </span>
+              </div>
+              <p className="font-baskerville text-2xl text-brand-purple mb-6">
+                {themeStyle || 'À définir'}
+              </p>
+
+              <span className="text-[10px] tracking-[0.15em] uppercase text-brand-gray block mb-3">
+                Palette de couleurs
+              </span>
+              <div className="flex gap-2 flex-wrap">
+                {themeColors.length > 0 ? (
+                  themeColors.map((c) => (
+                    <div
+                      key={c}
+                      className="w-9 h-9 rounded-full border-2 border-white shadow-sm"
+                      style={{ backgroundColor: c }}
+                      title={c}
+                    />
+                  ))
+                ) : (
+                  <p className="text-sm text-brand-gray">Couleurs à définir</p>
+                )}
+              </div>
             </div>
-            <div className="min-w-0">
-              <p className="text-[10px] tracking-label uppercase text-brand-gray mb-0.5">Date</p>
-              <p className="font-baskerville text-brand-purple truncate">
-                {eventDate ? new Date(eventDate).toLocaleDateString('fr-FR') : 'À définir'}
+
+            {/* Page droite : ambiance */}
+            <div className="p-6 sm:p-10 bg-brand-beige/40 border-t md:border-t-0 border-brand-purple/15">
+              <div className="flex items-center gap-2 mb-4">
+                <Clock className="w-4 h-4 text-[#C9A96E]" />
+                <span className="text-[10px] tracking-[0.15em] uppercase text-[#C9A96E] font-semibold">
+                  Ambiance souhaitée
+                </span>
+              </div>
+              <p className="text-sm text-brand-gray leading-relaxed whitespace-pre-wrap">
+                {themeDescription || 'Description à venir'}
               </p>
             </div>
           </div>
-
-          <div className="flex items-center gap-3 bg-white rounded-2xl border border-brand-purple/8 shadow-sm p-4">
-            <div className="w-10 h-10 rounded-xl bg-[#F3E3E6] flex items-center justify-center shrink-0">
-              <MapPin className="w-4.5 h-4.5 text-[#B98A96]" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-[10px] tracking-label uppercase text-brand-gray mb-0.5">Lieu</p>
-              <p className="font-baskerville text-brand-purple truncate">{location || 'À définir'}</p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3 bg-white rounded-2xl border border-brand-purple/8 shadow-sm p-4">
-            <div className="w-10 h-10 rounded-xl bg-brand-turquoise/15 flex items-center justify-center shrink-0">
-              <Users className="w-4.5 h-4.5 text-brand-turquoise-hover" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-[10px] tracking-label uppercase text-brand-gray mb-0.5">Invités</p>
-              <p className="font-baskerville text-brand-purple">{guestCount || 0}</p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3 bg-white rounded-2xl border border-brand-purple/8 shadow-sm p-4">
-            <div className="w-10 h-10 rounded-xl bg-[#F1EADD] flex items-center justify-center shrink-0">
-              <Euro className="w-4.5 h-4.5 text-[#C9A96E]" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-[10px] tracking-label uppercase text-brand-gray mb-0.5">Budget</p>
-              <p className="font-baskerville text-brand-purple">{(budget || 0).toLocaleString('fr-FR')} €</p>
-            </div>
-          </div>
         </div>
 
-        {/* ---------- THÈME & DÉCORATION (façon "mood cards") ---------- */}
-        <div>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="font-baskerville text-xl text-brand-purple">Thème &amp; décoration</h2>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* Card Style */}
-            <div className="bg-white rounded-3xl border border-brand-purple/6 shadow-sm overflow-hidden">
-              <div className="h-24 bg-gradient-to-br from-brand-purple to-[#6a6178] flex items-center justify-center">
-                <Palette className="w-7 h-7 text-white/80" />
-              </div>
-              <div className="p-5 border-t-2 border-brand-purple">
-                <span className="inline-block text-[10px] font-bold tracking-wide uppercase text-brand-purple bg-brand-purple/8 px-2.5 py-1 rounded-full mb-3">
-                  Style
-                </span>
-                <p className="font-baskerville text-lg text-brand-purple leading-snug">
-                  {themeStyle || 'À définir'}
-                </p>
-              </div>
-            </div>
-
-            {/* Card Palette */}
-            <div className="bg-white rounded-3xl border border-brand-purple/6 shadow-sm overflow-hidden">
-              <div className="h-24 flex">
-                {(themeColors.length > 0 ? themeColors : ['#88b7b5', '#4B4456', '#C9A96E', '#B98A96']).map((c, i) => (
-                  <div key={i} className="flex-1" style={{ backgroundColor: c }} />
-                ))}
-              </div>
-              <div className="p-5 border-t-2 border-brand-turquoise">
-                <span className="inline-block text-[10px] font-bold tracking-wide uppercase text-brand-turquoise-hover bg-brand-turquoise/15 px-2.5 py-1 rounded-full mb-3">
-                  Palette
-                </span>
-                <div className="flex gap-2 flex-wrap">
-                  {themeColors.length > 0 ? (
-                    themeColors.map((c) => (
-                      <div key={c} className="w-6 h-6 rounded-lg shadow-sm" style={{ backgroundColor: c }} title={c} />
-                    ))
-                  ) : (
-                    <p className="text-sm text-brand-gray">Couleurs à définir</p>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Card Description */}
-            <div className="bg-white rounded-3xl border border-brand-purple/6 shadow-sm overflow-hidden">
-              <div className="h-24 bg-gradient-to-br from-[#C9A96E] to-[#e0c395] flex items-center justify-center">
-                <Clock className="w-7 h-7 text-white/80" />
-              </div>
-              <div className="p-5 border-t-2 border-[#C9A96E]">
-                <span className="inline-block text-[10px] font-bold tracking-wide uppercase text-[#C9A96E] bg-[#F1EADD] px-2.5 py-1 rounded-full mb-3">
-                  Ambiance
-                </span>
-                <p className="text-sm text-brand-gray leading-relaxed whitespace-pre-wrap line-clamp-4">
-                  {themeDescription || 'Description à venir'}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* ---------- NOTES ---------- */}
-        <Card className="p-6 sm:p-8 border border-brand-purple/8 shadow-sm rounded-3xl bg-white">
+        {/* ---------- NOTES (bordure renforcée) ---------- */}
+        <Card className="p-6 sm:p-8 border border-brand-purple/20 shadow-sm bg-white">
           <div className="flex items-center justify-between gap-4 mb-1">
             <h2 className="font-baskerville text-xl text-brand-purple">Notes</h2>
             <div className="w-9 h-9 rounded-full bg-brand-purple/8 flex items-center justify-center shrink-0">

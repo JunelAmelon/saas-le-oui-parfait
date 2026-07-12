@@ -9,7 +9,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { MessagesModal } from '@/components/modals/MessagesModal';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { NotificationsModal } from '@/components/modals/NotificationsModal';
 import { useNotifications } from '@/hooks/use-notifications';
 import { useAuth } from '@/contexts/AuthContext';
@@ -23,7 +23,6 @@ interface ClientTopbarProps {
 }
 
 export function ClientTopbar({ clientName = 'Marie & Thomas' }: ClientTopbarProps) {
-  const [showMessages, setShowMessages] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const { signOut, user } = useAuth();
   const { client } = useClientData();
@@ -85,7 +84,7 @@ export function ClientTopbar({ clientName = 'Marie & Thomas' }: ClientTopbarProp
       <header className="flex items-center justify-end gap-3.5 sm:gap-4 pt-6 pb-0 px-6 sm:px-8 lg:px-8 mb-7">
         <div className="flex items-center gap-3.5 sm:gap-4">
           <button
-            onClick={() => setShowMessages(true)}
+            onClick={() => router.push('/espace-client/messages')}
             className="w-[38px] h-[38px] rounded-full bg-[#FAF9F7] flex items-center justify-center text-[#4B4456] hover:bg-[rgba(75,68,86,0.07)] transition-colors"
             aria-label="Messages"
           >
@@ -110,9 +109,12 @@ export function ClientTopbar({ clientName = 'Marie & Thomas' }: ClientTopbarProp
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button className="flex items-center gap-2.5 shrink-0" aria-label="Menu utilisateur">
-                <div className="w-[34px] h-[34px] rounded-full bg-[#4B4456] flex items-center justify-center text-white text-[12px] font-semibold">
-                  {initials}
-                </div>
+                <Avatar className="w-[34px] h-[34px] ring-2 ring-white shadow-sm">
+                  {client?.photo ? <AvatarImage src={client.photo} alt={computedClientName} className="object-cover" /> : null}
+                  <AvatarFallback className="bg-[#4B4456] text-white text-[12px] font-semibold">
+                    {initials}
+                  </AvatarFallback>
+                </Avatar>
                 <span className="hidden sm:block text-[13.5px] font-semibold text-[#4B4456] whitespace-nowrap">
                   {computedClientName}
                 </span>
@@ -135,7 +137,6 @@ export function ClientTopbar({ clientName = 'Marie & Thomas' }: ClientTopbarProp
         </div>
       </header>
 
-      <MessagesModal open={showMessages} onOpenChange={setShowMessages} />
       <NotificationsModal
         open={showNotifications}
         onOpenChange={setShowNotifications}

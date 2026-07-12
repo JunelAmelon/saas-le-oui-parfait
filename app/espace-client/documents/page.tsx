@@ -6,12 +6,6 @@ import { ClientDashboardLayout } from '@/components/layout/ClientDashboardLayout
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -21,7 +15,6 @@ import {
 } from '@/components/ui/dialog';
 import {
   FileText,
-  Eye,
   Search,
   File,
   FileCheck,
@@ -29,11 +22,9 @@ import {
   CheckCircle,
   Upload,
   Loader2,
-  MoreVertical,
   ChevronLeft,
   ChevronRight,
   ExternalLink,
-  Download,
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useClientData } from '@/contexts/ClientDataContext';
@@ -607,10 +598,6 @@ export default function DocumentsPage() {
               </h1>
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-brand-beige/70">
                 <span>{documents.length} document{documents.length > 1 ? 's' : ''}</span>
-                <span className="text-brand-beige/25">·</span>
-                <span className={pendingSignatures > 0 ? 'text-[#E8C9CE]' : ''}>
-                  {pendingSignatures} en attente de signature
-                </span>
                 {lastAddedLabel && (
                   <>
                     <span className="text-brand-beige/25">·</span>
@@ -725,78 +712,54 @@ export default function DocumentsPage() {
                 return (
                   <div
                     key={doc.id}
-                    className="group relative bg-white rounded-2xl border border-brand-purple/8 overflow-hidden hover:shadow-[0_16px_40px_-12px_rgba(75,68,86,0.18)] hover:-translate-y-0.5 transition-all duration-200"
+                    className={`group relative rounded-3xl border border-brand-purple/8 overflow-hidden hover:shadow-[0_16px_40px_-12px_rgba(75,68,86,0.18)] hover:-translate-y-0.5 transition-all duration-200 ${style.bg}`}
                   >
                     <div className={`h-1.5 ${style.solid}`} />
                     <div className="p-5">
-                      <div className="flex items-start justify-between mb-4">
-                        <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${style.bg}`}>
-                          {getTypeIcon(doc.type, `w-5 h-5 ${style.text}`)}
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="w-12 h-12 rounded-2xl bg-white/80 backdrop-blur-sm flex items-center justify-center mb-3 shadow-sm">
+                            {getTypeIcon(doc.type, `w-5 h-5 ${style.text}`)}
+                          </div>
+
+                          <p className="font-baskerville text-brand-purple text-base leading-snug line-clamp-2 mb-2 min-h-[2.5em]">
+                            {doc.name}
+                          </p>
+
+                          <div className="flex flex-wrap items-center gap-2 mb-2">
+                            <span className={`bg-white/70 text-brand-purple px-2 py-0.5 rounded-full font-semibold text-[10px] uppercase tracking-wide`}>
+                              {docTypeLabels[(doc.type || '').toLowerCase()] || doc.type}
+                            </span>
+                            <span className="text-xs text-brand-gray/80">{formatDocDate(doc.uploaded_at)}</span>
+                          </div>
+
+                          {isContract && (
+                            <p className="text-[11px] text-brand-gray/80">
+                              {fullySigned
+                                ? '✓ Contrat signé'
+                                : clientSigned
+                                  ? 'Vous avez signé — en attente du planner'
+                                  : adminSigned
+                                    ? 'Planner a signé — il reste votre signature'
+                                    : doc.status || ''}
+                            </p>
+                          )}
                         </div>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <button className="w-8 h-8 rounded-full flex items-center justify-center text-brand-gray hover:bg-brand-purple/8 hover:text-brand-purple transition-colors opacity-0 group-hover:opacity-100">
-                              <MoreVertical className="h-4 w-4" />
-                            </button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="rounded-xl">
-                            {/* Signature électronique temporairement désactivée — options conservées en arrière-plan */}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+
+                        <button
+                          onClick={() => handleOpenFile(doc)}
+                          title="Ouvrir"
+                          className="shrink-0 w-9 h-9 rounded-full bg-white/70 hover:bg-white flex items-center justify-center text-brand-purple hover:text-brand-turquoise-hover transition-colors shadow-sm"
+                        >
+                          <ExternalLink className="w-4 h-4" />
+                        </button>
                       </div>
 
-                      <p className="font-medium text-brand-purple text-sm leading-snug line-clamp-2 mb-2 min-h-[2.5em]">
-                        {doc.name}
-                      </p>
-
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className={`${style.bg} ${style.text} px-2 py-0.5 rounded-full font-semibold text-[10px] uppercase tracking-wide`}>
-                          {docTypeLabels[(doc.type || '').toLowerCase()] || doc.type}
-                        </span>
-                        <span className="text-xs text-brand-gray">{formatDocDate(doc.uploaded_at)}</span>
-                      </div>
-
-                      {isContract && (
-                        <p className="text-[11px] mt-1 text-brand-gray">
-                          {fullySigned
-                            ? '✓ Contrat signé'
-                            : clientSigned
-                              ? 'Vous avez signé — en attente du planner'
-                              : adminSigned
-                                ? 'Planner a signé — il reste votre signature'
-                                : doc.status || ''}
-                        </p>
-                      )}
-
-                      <div className="flex items-center justify-between mt-4 pt-4 border-t border-brand-purple/6">
-                        <span className="text-[11px] text-brand-gray">
+                      <div className="mt-4 pt-3 border-t border-brand-purple/8">
+                        <span className="text-[11px] text-brand-gray/80">
                           {doc.uploaded_by === 'client' ? 'Ajouté par vous' : 'Ajouté par le planner'}
                         </span>
-                        <div className="flex items-center gap-1">
-                          <button
-                            onClick={() => handlePreview(doc)}
-                            title="Aperçu"
-                            className="w-7 h-7 rounded-full flex items-center justify-center text-brand-gray hover:bg-brand-purple/8 hover:text-brand-purple transition-colors"
-                          >
-                            <Eye className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            onClick={() => handleOpenFile(doc)}
-                            title="Ouvrir"
-                            className="w-7 h-7 rounded-full flex items-center justify-center text-brand-gray hover:bg-brand-purple/8 hover:text-brand-purple transition-colors"
-                          >
-                            <ExternalLink className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            onClick={() => handleDownload(doc)}
-                            title="Télécharger"
-                            className="w-7 h-7 rounded-full flex items-center justify-center text-brand-gray hover:bg-brand-purple/8 hover:text-brand-purple transition-colors"
-                          >
-                            <Download className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
                       </div>
-
                     </div>
                   </div>
                 );
@@ -864,8 +827,8 @@ export default function DocumentsPage() {
                   if (selectedDocument) handleOpenFile(selectedDocument);
                 }}
               >
-                <Eye className="h-4 w-4" />
-                Voir
+                <ExternalLink className="h-4 w-4" />
+                Ouvrir
               </Button>
             </DialogFooter>
           </DialogContent>
