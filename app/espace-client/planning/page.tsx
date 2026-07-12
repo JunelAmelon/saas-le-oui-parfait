@@ -20,10 +20,10 @@ import {
   Clock,
   CheckCircle,
   Circle,
-  ChevronLeft,
-  ChevronRight,
   MapPin,
   Loader2,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { updateDocument } from '@/lib/db';
 
@@ -72,16 +72,18 @@ const months = [
   'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'
 ];
 
+const ITEMS_PER_PAGE = 4;
+
 export default function PlanningPage() {
   const { client, event, loading: dataLoading } = useClientData();
   const [rdvEvents, setRdvEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
-  const [currentMonth, setCurrentMonth] = useState(new Date());
   const [steps, setSteps] = useState<Step[]>([]);
   const [stepsLoading, setStepsLoading] = useState(true);
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [isEventDetailOpen, setIsEventDetailOpen] = useState(false);
+  const [rdvPage, setRdvPage] = useState(1);
+  const [stepsPage, setStepsPage] = useState(1);
 
   const coupleNames = useMemo(() => {
     const n1 = client?.name || '';
@@ -204,6 +206,14 @@ export default function PlanningPage() {
     }
   }, [event?.id, client?.id, dataLoading]);
 
+  useEffect(() => {
+    setRdvPage(1);
+  }, [rdvEvents.length]);
+
+  useEffect(() => {
+    setStepsPage(1);
+  }, [steps.length]);
+
   const toggleClientConfirm = async (step: Step) => {
     if (!step?.id) return;
     const next = !step.client_confirmed;
@@ -222,33 +232,96 @@ export default function PlanningPage() {
     setIsEventDetailOpen(true);
   };
 
-  const isSameDay = (d1: Date, d2: Date) =>
-    d1.getFullYear() === d2.getFullYear() && d1.getMonth() === d2.getMonth() && d1.getDate() === d2.getDate();
-
-  const rdvOnDay = (d: Date) => rdvEvents.filter((e) => e.date && isSameDay(new Date(e.date), d));
-  const stepsOnDay = (d: Date) => steps.filter((s) => s.deadline && isSameDay(new Date(s.deadline), d));
-
-  const today = new Date();
-
-  const calendarCells = useMemo(() => {
-    const year = currentMonth.getFullYear();
-    const month = currentMonth.getMonth();
-    const firstDayOfMonth = new Date(year, month, 1);
-    const startOffset = (firstDayOfMonth.getDay() + 6) % 7;
-    const daysInMonth = new Date(year, month + 1, 0).getDate();
-    const cells: (Date | null)[] = [];
-    for (let i = 0; i < startOffset; i++) cells.push(null);
-    for (let d = 1; d <= daysInMonth; d++) cells.push(new Date(year, month, d));
-    while (cells.length % 7 !== 0) cells.push(null);
-    return cells;
-  }, [currentMonth]);
-
-  const selectedDayItems = useMemo(() => {
-    if (!selectedDate) return { rdv: [], steps: [] };
-    return { rdv: rdvOnDay(selectedDate), steps: stepsOnDay(selectedDate) };
-  }, [selectedDate, rdvEvents, steps]);
-
   const nextRdv = rdvEvents[0];
+
+  // ---------- Frise chronologique : fusion RDV + étapes ----------
+  type TimelineItem = {
+    id: string;
+    title: string;
+    date: string;
+    kind: 'rdv' | 'step';
+    raw: any;
+  };
+
+  const timelineItems: TimelineItem[] = useMemo(() => {
+    const rdvItems: TimelineItem[] = rdvEvents
+      .filter((e) => e.date)
+      .map((e) => ({ id: `rdv-${e.id}`, title: e.title, date: e.date, kind: 'rdv', raw: e }));
+    const stepItems: TimelineItem[] = steps
+      .filter((s) => s.deadline)
+      .map((s) => ({ id: `step-${s.id}`, title: s.title, date: s.deadline as string, kind: 'step', raw: s }));
+    return [...rdvItems, ...stepItems].sort(
+      (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+    );
+  }, [rdvEvents, steps]);
+
+  const { minTime, maxTime } = useMemo(() => {
+    if (timelineItems.length === 0) {
+      const now = Date.now();
+      return { minTime: now, maxTime: now + 1000 * 60 * 60 * 24 * 30 };
+    }
+    const times = timelineItems.map((i) => new Date(i.date).getTime());
+    let min = Math.min(...times);
+    let max = Math.max(...times);
+    if (min === max) {
+      min -= 1000 * 60 * 60 * 24 * 7;
+      max += 1000 * 60 * 60 * 24 * 7;
+    } else {
+      const pad = (max - min) * 0.08;
+      min -= pad;
+      max += pad;
+    }
+    return { minTime: min, maxTime: max };
+  }, [timelineItems]);
+
+  const percentFor = (dateStr: string) => {
+    const t = new Date(dateStr).getTime();
+    return Math.min(100, Math.max(0, ((t - minTime) / (maxTime - minTime)) * 100));
+  };
+
+  // ---------- Pagination ----------
+  const rdvTotalPages = Math.max(1, Math.ceil(rdvEvents.length / ITEMS_PER_PAGE));
+  const rdvPaginated = rdvEvents.slice((rdvPage - 1) * ITEMS_PER_PAGE, (rdvPage - 1) * ITEMS_PER_PAGE + ITEMS_PER_PAGE);
+
+  const sortedSteps = useMemo(
+    () => steps.slice().sort((a, b) => (a.deadline || '').localeCompare(b.deadline || '')),
+    [steps]
+  );
+  const stepsTotalPages = Math.max(1, Math.ceil(sortedSteps.length / ITEMS_PER_PAGE));
+  const stepsPaginated = sortedSteps.slice((stepsPage - 1) * ITEMS_PER_PAGE, (stepsPage - 1) * ITEMS_PER_PAGE + ITEMS_PER_PAGE);
+
+  const MiniPagination = ({
+    page,
+    totalPages,
+    onChange,
+  }: {
+    page: number;
+    totalPages: number;
+    onChange: (p: number) => void;
+  }) => {
+    if (totalPages <= 1) return null;
+    return (
+      <div className="flex items-center justify-center gap-2 mt-4">
+        <button
+          onClick={() => onChange(Math.max(1, page - 1))}
+          disabled={page === 1}
+          className="w-8 h-8 rounded-full flex items-center justify-center text-brand-purple disabled:opacity-30 hover:bg-brand-purple/6 transition-colors"
+        >
+          <ChevronLeft className="h-4 w-4" />
+        </button>
+        <span className="text-xs text-brand-gray">
+          {page} / {totalPages}
+        </span>
+        <button
+          onClick={() => onChange(Math.min(totalPages, page + 1))}
+          disabled={page === totalPages}
+          className="w-8 h-8 rounded-full flex items-center justify-center text-brand-purple disabled:opacity-30 hover:bg-brand-purple/6 transition-colors"
+        >
+          <ChevronRight className="h-4 w-4" />
+        </button>
+      </div>
+    );
+  };
 
   if (dataLoading || loading) {
     return (
@@ -294,7 +367,7 @@ export default function PlanningPage() {
 
         {/* ---------- PILLS ---------- */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="flex items-center gap-3 bg-white rounded-2xl border border-brand-purple/8 shadow-sm p-4">
+          <div className="flex items-center gap-3 bg-white rounded-2xl shadow-sm p-4">
             <div className="w-10 h-10 rounded-xl bg-brand-turquoise/15 flex items-center justify-center shrink-0">
               <CalendarIcon className="w-4.5 h-4.5 text-brand-turquoise-hover" />
             </div>
@@ -306,7 +379,7 @@ export default function PlanningPage() {
             </div>
           </div>
 
-          <div className="flex items-center gap-3 bg-white rounded-2xl border border-brand-purple/8 shadow-sm p-4">
+          <div className="flex items-center gap-3 bg-white rounded-2xl shadow-sm p-4">
             <div className="w-10 h-10 rounded-xl bg-[#F1EADD] flex items-center justify-center shrink-0">
               <CheckCircle className="w-4.5 h-4.5 text-[#C9A96E]" />
             </div>
@@ -318,7 +391,7 @@ export default function PlanningPage() {
             </div>
           </div>
 
-          <div className="flex items-center gap-3 bg-white rounded-2xl border border-brand-purple/8 shadow-sm p-4">
+          <div className="flex items-center gap-3 bg-white rounded-2xl shadow-sm p-4">
             <div className="w-10 h-10 rounded-xl bg-brand-purple/8 flex items-center justify-center shrink-0">
               <Clock className="w-4.5 h-4.5 text-brand-purple" />
             </div>
@@ -329,40 +402,11 @@ export default function PlanningPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-          {/* ---------- GRAND CALENDRIER ---------- */}
-          <Card className="xl:col-span-2 p-6 sm:p-8 border border-brand-purple/8 shadow-sm rounded-3xl bg-white">
-            <div className="flex items-center justify-between mb-6">
-              <button
-                onClick={() => {
-                  if (currentMonth.getMonth() === 0) {
-                    setCurrentMonth(new Date(currentMonth.getFullYear() - 1, 11));
-                  } else {
-                    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1));
-                  }
-                }}
-                className="w-9 h-9 rounded-full flex items-center justify-center text-brand-purple hover:bg-brand-purple/8 transition-colors"
-              >
-                <ChevronLeft className="h-4.5 w-4.5" />
-              </button>
-              <h2 className="font-baskerville text-2xl text-brand-purple">
-                {months[currentMonth.getMonth()]} {currentMonth.getFullYear()}
-              </h2>
-              <button
-                onClick={() => {
-                  if (currentMonth.getMonth() === 11) {
-                    setCurrentMonth(new Date(currentMonth.getFullYear() + 1, 0));
-                  } else {
-                    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1));
-                  }
-                }}
-                className="w-9 h-9 rounded-full flex items-center justify-center text-brand-purple hover:bg-brand-purple/8 transition-colors"
-              >
-                <ChevronRight className="h-4.5 w-4.5" />
-              </button>
-            </div>
-
-            <div className="flex items-center gap-5 mb-5 text-xs text-brand-gray">
+        {/* ---------- FRISE CHRONOLOGIQUE (pleine largeur) ---------- */}
+        <Card className="p-6 sm:p-8 border-0 shadow-sm rounded-3xl bg-white overflow-hidden">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="font-baskerville text-xl text-brand-purple">Frise chronologique</h2>
+            <div className="flex items-center gap-5 text-xs text-brand-gray">
               <span className="flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-brand-turquoise" /> Rendez-vous
               </span>
@@ -370,193 +414,171 @@ export default function PlanningPage() {
                 <span className="w-2 h-2 rounded-full bg-[#C9A96E]" /> Étape clé
               </span>
             </div>
+          </div>
 
-            <div className="grid grid-cols-7 mb-2">
-              {['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'].map((day) => (
-                <div key={day} className="text-center text-[10px] tracking-label uppercase text-brand-gray py-2">
-                  {day}
-                </div>
-              ))}
-            </div>
-
-            <div className="grid grid-cols-7 gap-1.5 sm:gap-2">
-              {calendarCells.map((d, i) => {
-                if (!d) return <div key={i} className="aspect-square" />;
-
-                const isToday = isSameDay(d, today);
-                const isSelected = selectedDate ? isSameDay(d, selectedDate) : false;
-                const rdvCount = rdvOnDay(d).length;
-                const stepCount = stepsOnDay(d).length;
-                const hasEvents = rdvCount > 0 || stepCount > 0;
-
-                return (
-                  <button
-                    key={i}
-                    onClick={() => setSelectedDate(d)}
-                    className={`relative aspect-square rounded-xl sm:rounded-2xl flex flex-col items-center justify-center gap-1 transition-all ${
-                      isSelected
-                        ? 'bg-brand-purple text-white shadow-md'
-                        : isToday
-                          ? 'bg-brand-turquoise/12 text-brand-purple ring-1 ring-brand-turquoise'
-                          : hasEvents
-                            ? 'bg-brand-beige text-brand-purple hover:bg-brand-beige/70'
-                            : 'text-brand-purple/70 hover:bg-brand-purple/5'
-                    }`}
-                  >
-                    <span className={`text-sm sm:text-base ${isToday && !isSelected ? 'font-bold' : 'font-medium'}`}>
-                      {d.getDate()}
-                    </span>
-                    {hasEvents && (
-                      <div className="flex items-center gap-0.5">
-                        {rdvCount > 0 && (
-                          <span className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-white' : 'bg-brand-turquoise'}`} />
-                        )}
-                        {stepCount > 0 && (
-                          <span className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-white/70' : 'bg-[#C9A96E]'}`} />
-                        )}
-                      </div>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-
-            {selectedDate && (
-              <div className="mt-6 pt-6 border-t border-brand-purple/8">
-                <p className="text-[11px] tracking-label uppercase text-brand-gray mb-3">
-                  {selectedDate.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
-                </p>
-
-                {selectedDayItems.rdv.length === 0 && selectedDayItems.steps.length === 0 ? (
-                  <p className="text-sm text-brand-gray">Rien de prévu ce jour-là.</p>
-                ) : (
-                  <div className="space-y-2">
-                    {selectedDayItems.rdv.map((e) => (
-                      <button
-                        key={e.id}
-                        onClick={() => handleEventClick(e as Event)}
-                        className="w-full flex items-center gap-3 p-3 rounded-xl bg-brand-turquoise/10 hover:bg-brand-turquoise/15 transition-colors text-left"
-                      >
-                        <span className="w-1.5 h-8 rounded-full bg-brand-turquoise shrink-0" />
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium text-brand-purple truncate">{e.title}</p>
-                          <p className="text-xs text-brand-gray">{e.time} {e.location ? `· ${e.location}` : ''}</p>
-                        </div>
-                      </button>
-                    ))}
-                    {selectedDayItems.steps.map((s) => (
-                      <div key={s.id} className="flex items-center gap-3 p-3 rounded-xl bg-[#F1EADD]">
-                        <span className="w-1.5 h-8 rounded-full bg-[#C9A96E] shrink-0" />
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium text-brand-purple truncate">{s.title}</p>
-                          <p className="text-xs text-brand-gray">Échéance de l'étape clé</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* ---------- VOS ÉTAPES CLÉS (tableau) ---------- */}
-            <div className="mt-8">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="font-baskerville text-xl text-brand-purple">Vos étapes clés</h2>
-                <a href="#" className="text-xs font-semibold text-brand-turquoise-hover">Voir tout</a>
-              </div>
-              <div className="rounded-2xl border border-brand-purple/8 p-5 sm:p-6">
-                {stepsLoading ? (
-                  <div className="flex items-center justify-center py-8">
-                    <Loader2 className="h-5 w-5 animate-spin text-brand-turquoise" />
-                  </div>
-                ) : steps.length === 0 ? (
-                  <p className="text-sm text-brand-gray py-4 text-center">Aucune étape pour le moment</p>
-                ) : (
-                  <table className="w-full border-collapse">
-                    <thead>
-                      <tr>
-                        <th className="text-left text-[10px] tracking-label uppercase text-brand-gray font-semibold pb-3">Étape</th>
-                        <th className="text-left text-[10px] tracking-label uppercase text-brand-gray font-semibold pb-3">Échéance</th>
-                        <th className="text-left text-[10px] tracking-label uppercase text-brand-gray font-semibold pb-3">Statut</th>
-                        <th className="pb-3" />
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {steps
-                        .slice()
-                        .sort((a, b) => (a.deadline || '').localeCompare(b.deadline || ''))
-                        .map((s) => {
-                          const done = Boolean(s.admin_confirmed) && Boolean(s.client_confirmed);
-                          return (
-                            <tr key={s.id} className="border-t border-brand-purple/6">
-                              <td className="py-3 text-sm font-semibold text-brand-purple">{s.title}</td>
-                              <td className="py-3 text-xs text-brand-gray">{s.deadline || '—'}</td>
-                              <td className="py-3">
-                                <span
-                                  className={`inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-1 rounded-full ${
-                                    done ? 'bg-[#F1EADD] text-[#C9A96E]' : 'bg-brand-purple/8 text-brand-gray'
-                                  }`}
-                                >
-                                  {done ? 'Validée' : 'En cours'}
-                                </span>
-                              </td>
-                              <td className="py-3 text-right">
-                                <button
-                                  onClick={() => void toggleClientConfirm(s)}
-                                  className={`text-[10.5px] font-bold uppercase tracking-wide px-3 py-1.5 rounded-full transition-colors ${
-                                    done || s.client_confirmed
-                                      ? 'text-brand-gray hover:bg-brand-purple/8'
-                                      : 'bg-brand-turquoise text-white hover:bg-brand-turquoise-hover'
-                                  }`}
-                                >
-                                  {done ? 'Détail' : s.client_confirmed ? 'Annuler' : 'Valider'}
-                                </button>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                    </tbody>
-                  </table>
-                )}
-              </div>
-            </div>
-          </Card>
-
-          {/* ---------- COLONNE LATÉRALE : PROCHAINS RENDEZ-VOUS ---------- */}
-          <div className="space-y-6">
-            <Card className="p-6 sm:p-8 border border-brand-purple/8 shadow-sm rounded-3xl bg-white">
-              <h3 className="font-baskerville text-xl text-brand-purple">Prochains rendez-vous</h3>
-              <div className="w-10 h-px bg-brand-turquoise my-3" />
-
-              {rdvEvents.length === 0 ? (
-                <p className="text-sm text-brand-gray py-4">Aucun rendez-vous de prévu</p>
-              ) : (
-                <div className="space-y-2.5">
-                  {rdvEvents.slice(0, 5).map((e) => (
-                    <button
-                      key={e.id}
-                      onClick={() => handleEventClick(e as Event)}
-                      className="w-full flex items-center gap-3 p-3 rounded-2xl bg-brand-beige/60 hover:bg-brand-beige transition-colors text-left"
-                    >
-                      <div className="w-11 h-11 rounded-xl bg-brand-turquoise/15 flex flex-col items-center justify-center shrink-0 leading-none">
-                        <span className="text-sm font-baskerville text-brand-turquoise-hover">
-                          {new Date(e.date).getDate()}
-                        </span>
-                        <span className="text-[8px] uppercase text-brand-turquoise-hover/80 mt-0.5">
-                          {months[new Date(e.date).getMonth()].slice(0, 3)}
-                        </span>
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium text-brand-purple truncate">{e.title}</p>
-                        <p className="text-xs text-brand-gray flex items-center gap-1">
-                          <Clock className="h-3 w-3" /> {e.time} {e.location ? `· ${e.location}` : ''}
-                        </p>
-                      </div>
-                    </button>
+          {timelineItems.length === 0 ? (
+            <p className="text-sm text-brand-gray py-6 text-center">Rien de planifié pour le moment.</p>
+          ) : (
+            <>
+              <div className="relative">
+                <div className="absolute inset-0 flex justify-between pointer-events-none">
+                  {[0, 20, 40, 60, 80, 100].map((p) => (
+                    <div key={p} className="flex flex-col items-center" style={{ width: 1 }}>
+                      <span className="text-[9px] text-brand-gray/50 -translate-x-1/2 mb-2">{p}%</span>
+                      <div className="w-px bg-brand-purple/6 flex-1" style={{ minHeight: timelineItems.length * 52 }} />
+                    </div>
                   ))}
                 </div>
-              )}
-            </Card>
+
+                <div className="relative pt-6 space-y-2.5">
+                  {timelineItems.map((item) => {
+                    const isRdv = item.kind === 'rdv';
+                    const solid = isRdv ? 'bg-brand-turquoise' : 'bg-[#C9A96E]';
+                    const left = percentFor(item.date);
+                    return (
+                      <div key={item.id} className="flex items-center gap-3">
+                        <div className="w-40 sm:w-56 shrink-0 flex items-center gap-2 pr-2">
+                          <span className={`w-2 h-2 rounded-full shrink-0 ${solid}`} />
+                          <span className="text-xs font-medium text-brand-purple truncate">{item.title}</span>
+                        </div>
+                        <div className="relative flex-1 h-9">
+                          <div className="absolute inset-y-0 left-0 right-0 my-auto h-px bg-brand-purple/6" />
+                          <button
+                            onClick={() => (isRdv ? handleEventClick(item.raw as Event) : undefined)}
+                            className={`absolute top-1/2 -translate-y-1/2 -translate-x-1/2 flex items-center gap-1.5 px-3 py-1.5 rounded-full ${solid} text-white text-[11px] font-medium whitespace-nowrap shadow-sm ${isRdv ? 'cursor-pointer hover:opacity-90' : 'cursor-default'}`}
+                            style={{ left: `${left}%` }}
+                          >
+                            <CalendarIcon className="w-3 h-3" />
+                            {new Date(item.date).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="flex justify-between mt-6 pt-4 border-t border-brand-purple/6 text-xs text-brand-gray">
+                <span>{new Date(minTime).toLocaleDateString('fr-FR')}</span>
+                <span>{new Date(maxTime).toLocaleDateString('fr-FR')}</span>
+              </div>
+            </>
+          )}
+        </Card>
+
+        {/* ---------- DEUX COLONNES SYMÉTRIQUES, SÉPARATION VISIBLE SUR DESKTOP ---------- */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-0 lg:divide-x lg:divide-brand-purple/10">
+          {/* Prochains rendez-vous */}
+          <div className="lg:pr-8">
+            <h3 className="font-baskerville text-xl text-brand-purple mb-4">Prochains rendez-vous</h3>
+            {rdvEvents.length === 0 ? (
+              <div className="rounded-2xl shadow-sm bg-white p-6 text-center">
+                <p className="text-sm text-brand-gray">Aucun rendez-vous de prévu</p>
+              </div>
+            ) : (
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {rdvPaginated.map((e) => (
+                    <div key={e.id} className="rounded-2xl overflow-hidden bg-white shadow-sm flex flex-col">
+                      <div className="flex items-center justify-between px-4 py-2.5 bg-brand-turquoise/15">
+                        <span className="text-xs font-semibold truncate text-brand-turquoise-hover">{e.title}</span>
+                        <span className="w-2 h-2 rounded-full bg-brand-turquoise shrink-0" />
+                      </div>
+                      <div className="p-4 flex flex-col gap-2 flex-1">
+                        <div className="flex items-center gap-2 text-xs text-brand-gray">
+                          <CalendarIcon className="h-3.5 w-3.5 text-brand-turquoise-hover shrink-0" />
+                          <span className="truncate">
+                            {new Date(e.date).toLocaleDateString('fr-FR')}
+                            {e.time ? ` · ${e.time}` : ''}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 text-xs text-brand-gray min-h-[18px]">
+                          <MapPin className="h-3.5 w-3.5 text-brand-turquoise-hover shrink-0" />
+                          <span className="truncate">{e.location || '—'}</span>
+                        </div>
+                        <div className="flex items-center justify-between pt-1 mt-auto">
+                          <span className="text-[10px] font-bold uppercase tracking-wide px-2.5 py-1 rounded-full bg-brand-turquoise/15 text-brand-turquoise-hover">
+                            Confirmé
+                          </span>
+                          <button
+                            onClick={() => handleEventClick(e as Event)}
+                            className="text-[10.5px] font-bold uppercase tracking-wide px-3 py-1.5 rounded-full bg-brand-turquoise text-white hover:bg-brand-turquoise-hover transition-colors"
+                          >
+                            Détail
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <MiniPagination page={rdvPage} totalPages={rdvTotalPages} onChange={setRdvPage} />
+              </>
+            )}
+          </div>
+
+          {/* Étapes clés */}
+          <div className="lg:pl-8">
+            <h3 className="font-baskerville text-xl text-brand-purple mb-4">Étapes clés</h3>
+            {stepsLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-5 w-5 animate-spin text-brand-turquoise" />
+              </div>
+            ) : steps.length === 0 ? (
+              <div className="rounded-2xl shadow-sm bg-white p-6 text-center">
+                <p className="text-sm text-brand-gray">Aucune étape pour le moment</p>
+              </div>
+            ) : (
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {stepsPaginated.map((s) => {
+                    const done = Boolean(s.admin_confirmed) && Boolean(s.client_confirmed);
+                    return (
+                      <div key={s.id} className="rounded-2xl overflow-hidden bg-white shadow-sm flex flex-col">
+                        <div className="flex items-center justify-between px-4 py-2.5 bg-[#F1EADD]">
+                          <span className="text-xs font-semibold truncate text-[#C9A96E]">{s.title}</span>
+                          {done ? (
+                            <CheckCircle className="h-4 w-4 text-[#C9A96E] shrink-0" />
+                          ) : (
+                            <Circle className="h-4 w-4 text-[#C9A96E]/50 shrink-0" />
+                          )}
+                        </div>
+                        <div className="p-4 flex flex-col gap-2 flex-1">
+                          <div className="flex items-center gap-2 text-xs text-brand-gray">
+                            <CalendarIcon className="h-3.5 w-3.5 text-[#C9A96E] shrink-0" />
+                            <span className="truncate">{s.deadline ? `Échéance : ${s.deadline}` : 'Aucune échéance'}</span>
+                          </div>
+                          <div className="flex items-center gap-2 text-xs text-brand-gray min-h-[18px]">
+                            <span className="truncate text-brand-gray/70">
+                              {s.description ? s.description : ''}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between pt-1 mt-auto">
+                            <span
+                              className={`text-[10px] font-bold uppercase tracking-wide px-2.5 py-1 rounded-full ${
+                                done ? 'bg-[#F1EADD] text-[#C9A96E]' : 'bg-brand-purple/8 text-brand-gray'
+                              }`}
+                            >
+                              {done ? 'Validée' : 'En cours'}
+                            </span>
+                            <button
+                              onClick={() => void toggleClientConfirm(s)}
+                              className={`text-[10.5px] font-bold uppercase tracking-wide px-3 py-1.5 rounded-full transition-colors ${
+                                s.client_confirmed
+                                  ? 'text-brand-gray hover:bg-brand-purple/8'
+                                  : 'bg-[#C9A96E] text-white hover:opacity-90'
+                              }`}
+                            >
+                              {s.client_confirmed ? 'Annuler' : 'Valider'}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <MiniPagination page={stepsPage} totalPages={stepsTotalPages} onChange={setStepsPage} />
+              </>
+            )}
           </div>
         </div>
 

@@ -403,12 +403,9 @@ export default function PaiementsPage() {
           <p className={`text-xs font-semibold truncate ${style.text}`}>
             {payment.description}{payment.vendor ? ` — ${payment.vendor}` : ''}
           </p>
-          <span className={`text-[10px] font-bold uppercase tracking-wide shrink-0 ${style.text}`}>
-            {style.label}
-          </span>
         </div>
 
-        <div className="flex divide-x divide-brand-purple/6 bg-white">
+        <div className="flex flex-wrap sm:flex-nowrap divide-x divide-brand-purple/6 bg-white">
           <MetricCell
             icon={<Euro className="w-4 h-4 text-white" />}
             label="Montant"
@@ -416,10 +413,10 @@ export default function PaiementsPage() {
             accent={style.solid}
           />
           <MetricCell
-            icon={<Wallet className="w-4 h-4 text-white" />}
-            label="Reste à payer"
-            value={Number(payment.amount_due ?? 0) > 0 ? `${Number(payment.amount_due).toLocaleString()} €` : '—'}
-            accent="bg-brand-purple"
+            icon={st === 'paid' || st === 'completed' ? <CheckCircle className="w-4 h-4 text-white" /> : st === 'overdue' ? <Clock className="w-4 h-4 text-white" /> : st === 'partial' ? <Wallet className="w-4 h-4 text-white" /> : <Clock className="w-4 h-4 text-white" />}
+            label="Statut"
+            value={style.label}
+            accent={style.solid}
           />
           <MetricCell
             icon={<Calendar className="w-4 h-4 text-white" />}

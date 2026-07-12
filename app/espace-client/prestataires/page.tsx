@@ -277,7 +277,7 @@ export default function PrestatairesPage() {
                           {presta.logoUrl ? (
                             <img src={presta.logoUrl} alt={presta.name} className="h-full w-full object-cover" />
                           ) : (
-                            <span className={`text-lg font-baskerville text-white h-full w-full flex items-start justify-center pt-2 ${style.solid}`}>
+                            <span className={`text-lg font-baskerville text-white h-full w-full flex items-start justify-center pt-1 pb-3 ${style.solid}`}>
                               {presta.avatar}
                             </span>
                           )}
