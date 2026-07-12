@@ -387,7 +387,7 @@ export default function PlanningPage() {
             </div>
             <div className="min-w-0">
               <p className="text-[10px] tracking-label uppercase text-brand-gray mb-0.5">
-                {steps.filter((s) => s.admin_confirmed && s.client_confirmed).length}/{steps.length} validées
+                {steps.filter((s) => Boolean(s.client_confirmed)).length}/{steps.length} validées
               </p>
               <p className="font-baskerville text-brand-purple">Étapes clés</p>
             </div>
@@ -546,7 +546,7 @@ export default function PlanningPage() {
               <>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {stepsPaginated.map((s) => {
-                    const done = Boolean(s.admin_confirmed) && Boolean(s.client_confirmed);
+                    const done = Boolean(s.client_confirmed);
                     return (
                       <div
                         key={s.id}

@@ -193,6 +193,44 @@ export default function MariagePage() {
     }
   };
 
+  // ---------- Configuration des "visas/tampons" ----------
+  const stamps = [
+    {
+      icon: Calendar,
+      label: 'Date',
+      value: eventDate
+        ? new Date(eventDate).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })
+        : 'À définir',
+      color: '#4B4456',
+      bg: 'rgba(75,68,86,0.06)',
+      rotate: '-3deg',
+    },
+    {
+      icon: MapPin,
+      label: 'Lieu',
+      value: location || 'À définir',
+      color: '#B98A96',
+      bg: 'rgba(185,138,150,0.08)',
+      rotate: '2deg',
+    },
+    {
+      icon: Users,
+      label: 'Invités',
+      value: `${guestCount || 0} pers.`,
+      color: '#6a9a98',
+      bg: 'rgba(136,183,181,0.1)',
+      rotate: '-1.5deg',
+    },
+    {
+      icon: Euro,
+      label: 'Budget',
+      value: `${(budget || 0).toLocaleString('fr-FR')} €`,
+      color: '#C9A96E',
+      bg: 'rgba(201,169,110,0.1)',
+      rotate: '2.5deg',
+    },
+  ];
+
   return (
     <ClientDashboardLayout clientName={coupleNames} daysRemaining={daysRemaining}>
       <div className="space-y-6">
@@ -235,42 +273,55 @@ export default function MariagePage() {
             <button
               onClick={openRequest}
               disabled={sending}
-              className="inline-flex items-center gap-3 bg-[#2E2937] hover:bg-[#221f2a] text-white text-sm font-semibold pl-5 pr-1.5 py-1.5 rounded-full transition-colors shrink-0"
+              className="inline-flex items-center justify-between gap-3 w-full sm:w-auto bg-[#2E2937] hover:bg-[#221f2a] text-white text-sm font-semibold pl-5 pr-1.5 py-1.5 rounded-full transition-colors shrink-0"
             >
               Demander une modification
-              <span className="w-8 h-8 rounded-full bg-brand-turquoise flex items-center justify-center">
+              <span className="w-8 h-8 rounded-full bg-brand-turquoise flex items-center justify-center shrink-0">
                 <ArrowRight className="w-4 h-4 text-white" />
               </span>
             </button>
           </div>
         </div>
 
-        {/* ---------- PILLS INFOS (design carré, sans border-radius) ---------- */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="flex flex-col items-center justify-center gap-2 bg-white border-2 border-brand-purple/30 p-5 sm:p-6 text-center">
-            <p className="text-[10px] tracking-label uppercase text-brand-gray">Date</p>
-            <p className="font-baskerville text-xl sm:text-2xl text-brand-purple">
-              {eventDate ? new Date(eventDate).toLocaleDateString('fr-FR') : 'À définir'}
-            </p>
-            <Calendar className="w-5 h-5 text-brand-purple/60 mt-1" />
-          </div>
+        {/* ---------- PAGE DE VISAS (tampons, style template, sans border-radius) ---------- */}
+        <div className="bg-brand-beige p-6 sm:p-10">
+          <p className="text-center text-[10px] tracking-[0.25em] uppercase text-brand-gray mb-8">
+            — Informations générales —
+          </p>
 
-          <div className="flex flex-col items-center justify-center gap-2 bg-white border-2 border-[#B98A96]/40 p-5 sm:p-6 text-center">
-            <p className="text-[10px] tracking-label uppercase text-brand-gray">Lieu</p>
-            <p className="font-baskerville text-xl sm:text-2xl text-brand-purple">{location || 'À définir'}</p>
-            <MapPin className="w-5 h-5 text-[#B98A96]/70 mt-1" />
-          </div>
-
-          <div className="flex flex-col items-center justify-center gap-2 bg-white border-2 border-brand-turquoise/40 p-5 sm:p-6 text-center">
-            <p className="text-[10px] tracking-label uppercase text-brand-gray">Invités</p>
-            <p className="font-baskerville text-xl sm:text-2xl text-brand-purple">{guestCount || 0}</p>
-            <Users className="w-5 h-5 text-brand-turquoise-hover/70 mt-1" />
-          </div>
-
-          <div className="flex flex-col items-center justify-center gap-2 bg-white border-2 border-[#C9A96E]/40 p-5 sm:p-6 text-center">
-            <p className="text-[10px] tracking-label uppercase text-brand-gray">Budget</p>
-            <p className="font-baskerville text-xl sm:text-2xl text-brand-purple">{(budget || 0).toLocaleString('fr-FR')} €</p>
-            <Euro className="w-5 h-5 text-[#C9A96E]/70 mt-1" />
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 sm:gap-8">
+            {stamps.map((s, i) => {
+              const Icon = s.icon;
+              return (
+                <div key={i} className="flex justify-center">
+                  <div
+                    className="relative w-full max-w-[160px] border-2 border-dashed p-4 text-center bg-white/70"
+                    style={{
+                      borderColor: s.color,
+                      transform: `rotate(${s.rotate})`,
+                    }}
+                  >
+                    <div
+                      className="w-10 h-10 flex items-center justify-center mx-auto mb-2"
+                      style={{ backgroundColor: s.bg }}
+                    >
+                      <Icon className="w-4.5 h-4.5" style={{ color: s.color }} />
+                    </div>
+                    <p className="text-[9px] tracking-[0.15em] uppercase mb-1" style={{ color: s.color }}>
+                      {s.label}
+                    </p>
+                    <p className="font-baskerville text-sm text-brand-purple leading-snug">{s.value}</p>
+                    {/* petit cachet dans le coin */}
+                    <div
+                      className="absolute -top-2 -right-2 w-6 h-6 border-2 flex items-center justify-center bg-white text-[8px] font-bold"
+                      style={{ borderColor: s.color, color: s.color, transform: 'rotate(12deg)' }}
+                    >
+                      OK
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
 

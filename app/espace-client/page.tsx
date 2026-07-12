@@ -28,6 +28,7 @@ type TeamMember = {
   role: string;
   initials: string;
   color: string;
+  logoUrl?: string;
 };
 
 const teamColors = ['#4B4456', '#6a9a98', '#C9A96E', '#B98A96', '#88b7b5', '#B7A6C0'];
@@ -63,7 +64,7 @@ export default function ClientPortalPage() {
   }, [milestones]);
 
   const milestonesDone = useMemo(() => {
-    return sortedMilestones.filter((m) => Boolean(m.admin_confirmed) && Boolean(m.client_confirmed)).length;
+    return sortedMilestones.filter((m) => Boolean(m.client_confirmed)).length;
   }, [sortedMilestones]);
 
   const milestonesTotal = sortedMilestones.length;
@@ -71,8 +72,12 @@ export default function ClientPortalPage() {
 
   const nextMilestones = useMemo(() => {
     return sortedMilestones
-      .filter((m) => !(Boolean(m.admin_confirmed) && Boolean(m.client_confirmed)))
+      .filter((m) => !Boolean(m.client_confirmed))
       .slice(0, 4);
+  }, [sortedMilestones]);
+
+  const itineraryMilestones = useMemo(() => {
+    return sortedMilestones.slice(0, 5);
   }, [sortedMilestones]);
 
   useEffect(() => {
@@ -138,7 +143,8 @@ export default function ClientPortalPage() {
             .slice(0, 2)
             .map((x) => x[0]?.toUpperCase())
             .join('') || 'PR').slice(0, 2);
-          return { id: l.vendor_id, name, role, initials, color: teamColors[idx % teamColors.length] };
+          const logoUrl = v?.logo || v?.logoUrl || v?.photo_url || v?.logo_url || l.vendor_logo || undefined;
+          return { id: l.vendor_id, name, role, initials, color: teamColors[idx % teamColors.length], logoUrl };
         });
         setTeam(mapped.slice(0, 5));
       } catch (e) {
@@ -281,10 +287,10 @@ export default function ClientPortalPage() {
             </h1>
             <button
               onClick={() => router.push('/espace-client/mariage')}
-              className="inline-flex items-center gap-2.5 bg-[#2E2937] text-white text-[13px] font-semibold pl-5 pr-2.5 py-2.5 rounded-full hover:bg-[#1f1c26] transition-colors"
+              className="inline-flex items-center justify-between gap-2.5 w-full sm:w-auto bg-[#2E2937] text-white text-[13px] font-semibold pl-5 pr-2.5 py-2.5 rounded-full hover:bg-[#1f1c26] transition-colors"
             >
               Voir mon mariage
-              <span className="w-6 h-6 rounded-full bg-[#88b7b5] flex items-center justify-center">
+              <span className="w-6 h-6 rounded-full bg-[#88b7b5] flex items-center justify-center shrink-0">
                 <ChevronRight className="w-3 h-3 text-[#4B4456]" />
               </span>
             </button>
@@ -342,14 +348,6 @@ export default function ClientPortalPage() {
           {/* Aperçu fonctionnel */}
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-baskerville text-xl text-[#4B4456]">En un coup d&apos;œil</h2>
-            <div className="flex gap-2">
-              <button className="w-[30px] h-[30px] rounded-full bg-[#FAF9F7] text-[#4B4456] flex items-center justify-center hover:bg-[rgba(75,68,86,0.07)] transition-colors">
-                <ChevronRight className="w-3.5 h-3.5 rotate-180" />
-              </button>
-              <button className="w-[30px] h-[30px] rounded-full bg-[#88b7b5] text-white flex items-center justify-center hover:bg-[#6a9a98] transition-colors">
-                <ChevronRight className="w-3.5 h-3.5" />
-              </button>
-            </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-7">
@@ -381,13 +379,7 @@ export default function ClientPortalPage() {
                   Restant dû : {pendingPaymentsTotal.toLocaleString('fr-FR')} €
                 </p>
                 <div className="flex items-center justify-between pt-2.5 border-t-2 border-[#B98A96]">
-                  <div className="flex items-center gap-2">
-                    <div className="w-[26px] h-[26px] rounded-full bg-[#B98A96] flex items-center justify-center text-[10px] font-semibold text-white">{initials}</div>
-                    <div>
-                      <div className="text-[11.5px] font-semibold text-[#4B4456] leading-tight truncate max-w-[110px]">{coupleNames}</div>
-                      <div className="text-[10.5px] text-[#9C97A3]">Votre mariage</div>
-                    </div>
-                  </div>
+                  <div className="w-[26px] h-[26px] rounded-full bg-[#B98A96] flex items-center justify-center text-[10px] font-semibold text-white">{initials}</div>
                   <span className="text-[10.5px] font-semibold text-[#B98A96]">Accéder →</span>
                 </div>
               </div>
@@ -421,13 +413,7 @@ export default function ClientPortalPage() {
                   {documents[0]?.name || 'Aucun document'}
                 </p>
                 <div className="flex items-center justify-between pt-2.5 border-t-2 border-[#88b7b5]">
-                  <div className="flex items-center gap-2">
-                    <div className="w-[26px] h-[26px] rounded-full bg-[#88b7b5] flex items-center justify-center text-[10px] font-semibold text-white">{initials}</div>
-                    <div>
-                      <div className="text-[11.5px] font-semibold text-[#4B4456] leading-tight truncate max-w-[110px]">{coupleNames}</div>
-                      <div className="text-[10.5px] text-[#9C97A3]">Votre mariage</div>
-                    </div>
-                  </div>
+                  <div className="w-[26px] h-[26px] rounded-full bg-[#88b7b5] flex items-center justify-center text-[10px] font-semibold text-white">{initials}</div>
                   <span className="text-[10.5px] font-semibold text-[#6a9a98]">Accéder →</span>
                 </div>
               </div>
@@ -463,13 +449,7 @@ export default function ClientPortalPage() {
                     : `${milestonesTotal - milestonesDone} étape${milestonesTotal - milestonesDone > 1 ? 's' : ''} restante`}
                 </p>
                 <div className="flex items-center justify-between pt-2.5 border-t-2 border-[#C9A96E]">
-                  <div className="flex items-center gap-2">
-                    <div className="w-[26px] h-[26px] rounded-full bg-[#C9A96E] flex items-center justify-center text-[10px] font-semibold text-white">{initials}</div>
-                    <div>
-                      <div className="text-[11.5px] font-semibold text-[#4B4456] leading-tight truncate max-w-[110px]">{coupleNames}</div>
-                      <div className="text-[10.5px] text-[#9C97A3]">Votre mariage</div>
-                    </div>
-                  </div>
+                  <div className="w-[26px] h-[26px] rounded-full bg-[#C9A96E] flex items-center justify-center text-[10px] font-semibold text-white">{initials}</div>
                   <span className="text-[10.5px] font-semibold text-[#C9A96E]">Accéder →</span>
                 </div>
               </div>
@@ -489,7 +469,7 @@ export default function ClientPortalPage() {
               <div className="flex items-center justify-center py-10">
                 <Loader2 className="h-5 w-5 animate-spin text-[#88b7b5]" />
               </div>
-            ) : nextMilestones.length === 0 ? (
+            ) : itineraryMilestones.length === 0 ? (
               <p className="text-sm text-[#5A5A5A] py-6 text-center">
                 Vos prochaines étapes apparaîtront ici à mesure que votre mariage prend forme.
               </p>
@@ -505,7 +485,7 @@ export default function ClientPortalPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {nextMilestones.map((m) => (
+                    {itineraryMilestones.map((m) => (
                       <tr key={m.id} className="border-t border-[rgba(75,68,86,0.06)]">
                         <td className="py-3">
                           <div className="flex items-center gap-2.5">
@@ -525,24 +505,18 @@ export default function ClientPortalPage() {
                           <span className="text-[13px] text-[#5A5A5A]">{m.description || 'À valider'}</span>
                         </td>
                         <td className="py-3">
-                          {!m.client_confirmed && (
-                            <button
-                              onClick={() => void confirmMilestone(m)}
-                              className={cn(
-                                'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-semibold transition-colors',
-                                'bg-[rgba(136,183,181,0.16)] text-[#6a9a98] hover:bg-[rgba(136,183,181,0.28)]'
-                              )}
-                            >
-                              <Check className="w-3 h-3" />
-                              Confirmer
-                            </button>
-                          )}
-                          {m.client_confirmed && (
-                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-semibold bg-[rgba(136,183,181,0.16)] text-[#6a9a98]">
-                              <Check className="w-3 h-3" />
-                              Confirmé
-                            </span>
-                          )}
+                          <button
+                            onClick={() => void confirmMilestone(m)}
+                            className={cn(
+                              'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-semibold transition-colors',
+                              m.client_confirmed
+                                ? 'bg-[rgba(136,183,181,0.16)] text-[#6a9a98] hover:bg-[rgba(136,183,181,0.28)]'
+                                : 'bg-[#6a9a98] text-white hover:bg-[#5a8a88]'
+                            )}
+                          >
+                            <Check className="w-3 h-3" />
+                            {m.client_confirmed ? 'Confirmé' : 'Confirmer'}
+                          </button>
                         </td>
                       </tr>
                     ))}
@@ -634,12 +608,22 @@ export default function ClientPortalPage() {
               <>
                 {team.map((member) => (
                   <div key={member.id} className="flex items-center gap-2.5 py-2">
-                    <div
-                      className="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-semibold text-white shrink-0"
-                      style={{ backgroundColor: member.color }}
-                    >
-                      {member.initials}
-                    </div>
+                    {member.logoUrl ? (
+                      <div className="w-8 h-8 rounded-full overflow-hidden bg-white ring-1 ring-[rgba(75,68,86,0.1)] shrink-0">
+                        <img
+                          src={member.logoUrl}
+                          alt={member.name}
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                    ) : (
+                      <div
+                        className="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-semibold text-white shrink-0"
+                        style={{ backgroundColor: member.color }}
+                      >
+                        {member.initials}
+                      </div>
+                    )}
                     <div className="flex-1 min-w-0">
                       <div className="text-[12.5px] font-semibold text-[#4B4456] truncate">{member.name}</div>
                       <div className="text-[10.5px] text-[#9C97A3] truncate">{member.role}</div>

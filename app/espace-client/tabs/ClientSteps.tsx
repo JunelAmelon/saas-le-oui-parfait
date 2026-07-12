@@ -88,7 +88,7 @@ export function ClientSteps({ eventId }: ClientStepsProps) {
       ) : (
         <div className="space-y-3">
           {sortedSteps.slice(0, 5).map((s) => {
-            const done = Boolean(s.admin_confirmed) && Boolean(s.client_confirmed);
+            const done = Boolean(s.client_confirmed);
             return (
               <div key={s.id} className="p-4 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors">
                 <div className="flex items-start justify-between gap-4">

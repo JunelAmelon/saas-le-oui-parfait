@@ -609,10 +609,10 @@ export default function DocumentsPage() {
 
             <button
               onClick={() => setIsUploadOpen(true)}
-              className="inline-flex items-center gap-3 bg-[#2E2937] hover:bg-[#221f2a] text-white text-sm font-semibold pl-5 pr-1.5 py-1.5 rounded-full transition-colors shrink-0"
+              className="inline-flex items-center justify-between gap-3 w-full sm:w-auto bg-[#2E2937] hover:bg-[#221f2a] text-white text-sm font-semibold pl-5 pr-1.5 py-1.5 rounded-full transition-colors shrink-0"
             >
               Ajouter un document
-              <span className="w-8 h-8 rounded-full bg-brand-turquoise flex items-center justify-center">
+              <span className="w-8 h-8 rounded-full bg-brand-turquoise flex items-center justify-center shrink-0">
                 <Upload className="w-3.5 h-3.5 text-white" />
               </span>
             </button>

@@ -29,7 +29,7 @@ export function WhatsAppChat() {
                   src="/kathy.png"
                   alt="Kathy"
                   fill
-                  className="object-cover object-center scale-110"
+                  className="object-cover object-top scale-110"
                   sizes="64px"
                 />
               </div>
@@ -65,7 +65,7 @@ export function WhatsAppChat() {
             src="/kathy.png"
             alt="Kathy"
             fill
-            className="object-cover object-center scale-110"
+            className="object-cover object-top scale-110"
             sizes="56px"
           />
         )}
