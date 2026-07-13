@@ -40,35 +40,30 @@ export function resolveBaseUrl(req: Request) {
 }
 
 /**
- * Génère un lien de réinitialisation Firebase pointant vers notre page
- * personnalisée /reset-password, et envoie l'email de marque correspondant.
- * Utilisé à la fois pour l'invitation initiale d'un client et pour le
- * renvoi d'un lien lorsque le précédent a expiré.
+ * Génère un lien de réinitialisation vers notre page personnalisée
+ * /reset-password, et envoie l'email de marque correspondant.
+ *
+ * Firebase ne permet pas de faire pointer generatePasswordResetLink()
+ * directement vers un domaine tiers (handleCodeInApp/url ne changent que le
+ * bouton "Continuer" affiché APRÈS coup sur la page Firebase générique — ils
+ * ne remplacent jamais l'hébergeur du lien lui-même ; c'était l'erreur de la
+ * version précédente). On génère donc le lien Firebase normalement, on en
+ * extrait uniquement le "oobCode", et on construit nous-mêmes l'URL finale
+ * vers /reset-password : notre page vérifie ce code côté client avec le SDK
+ * Firebase (verifyPasswordResetCode / confirmPasswordReset), donc la page
+ * Firebase générique n'intervient jamais.
  */
 export async function sendPasswordResetEmail(params: { email: string; baseUrl: string }) {
   const email = params.email.trim().toLowerCase();
   const baseUrl = params.baseUrl;
-  const continueUrl = `${baseUrl.replace(/\/$/, '')}/reset-password`;
 
-  let resetLink = '';
-  try {
-    resetLink = await adminAuth.generatePasswordResetLink(email, {
-      url: continueUrl,
-      handleCodeInApp: true,
-    });
-  } catch (e: any) {
-    const code = String(e?.errorInfo?.code || e?.code || '');
-    if (code.includes('auth/invalid-continue-uri') || code.includes('auth/unauthorized-continue-uri')) {
-      console.warn(
-        `[password-reset-email] "${continueUrl}" is not in Firebase Auth's authorized domains ` +
-          `(Console > Authentication > Settings > Authorized domains). Falling back to the generic ` +
-          `Firebase-hosted reset page instead of the branded /reset-password page. Add the domain to fix this.`
-      );
-      resetLink = await adminAuth.generatePasswordResetLink(email);
-    } else {
-      throw e;
-    }
+  const firebaseLink = await adminAuth.generatePasswordResetLink(email);
+  const oobCode = new URL(firebaseLink).searchParams.get('oobCode');
+  if (!oobCode) {
+    throw new Error('Unable to extract oobCode from the generated Firebase reset link');
   }
+
+  const resetLink = `${baseUrl.replace(/\/$/, '')}/reset-password?oobCode=${encodeURIComponent(oobCode)}`;
 
   const from = process.env.SMTP_FROM || process.env.SMTP_USER;
   if (!from) throw new Error('Missing SMTP_FROM');
