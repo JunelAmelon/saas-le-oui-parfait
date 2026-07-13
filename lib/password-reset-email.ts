@@ -59,6 +59,11 @@ export async function sendPasswordResetEmail(params: { email: string; baseUrl: s
   } catch (e: any) {
     const code = String(e?.errorInfo?.code || e?.code || '');
     if (code.includes('auth/invalid-continue-uri') || code.includes('auth/unauthorized-continue-uri')) {
+      console.warn(
+        `[password-reset-email] "${continueUrl}" is not in Firebase Auth's authorized domains ` +
+          `(Console > Authentication > Settings > Authorized domains). Falling back to the generic ` +
+          `Firebase-hosted reset page instead of the branded /reset-password page. Add the domain to fix this.`
+      );
       resetLink = await adminAuth.generatePasswordResetLink(email);
     } else {
       throw e;

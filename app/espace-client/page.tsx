@@ -433,7 +433,7 @@ export default function ClientPortalPage() {
 
   return (
     <ClientDashboardLayout clientName={coupleNames} daysRemaining={daysRemaining}>
-      <div className="grid grid-cols-1 xl:grid-cols-[1fr_280px] gap-6">
+      <div className="grid grid-cols-1 xl:grid-cols-[1fr_280px] gap-6 items-start">
         <div>
           {/* Hero */}
           <div className="relative overflow-hidden rounded-3xl bg-[#4B4456] px-7 py-7 sm:px-8 sm:py-8 mb-5">

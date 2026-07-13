@@ -188,7 +188,7 @@ export function ClientSidebar() {
         <Menu className="h-5 w-5" />
       </Button>
 
-      <aside className="hidden md:flex w-[230px] shrink-0 flex-col border-r border-[rgba(75,68,86,0.08)] py-8 px-5">
+      <aside className="hidden md:flex w-[230px] h-screen shrink-0 flex-col border-r border-[rgba(75,68,86,0.08)] py-8 px-5">
         <SidebarContent />
       </aside>
 
