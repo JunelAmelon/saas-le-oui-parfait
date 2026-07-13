@@ -5,10 +5,9 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useClientData } from '@/contexts/ClientDataContext';
 import { ClientDashboardLayout } from '@/components/layout/ClientDashboardLayout';
-import { cn } from '@/lib/utils';
-import { getDocuments, updateDocument } from '@/lib/db';
+import { getDocuments } from '@/lib/db';
 import { calculateDaysRemaining, PaymentData, getClientPayments, DocumentData, getClientDocuments } from '@/lib/client-helpers';
-import { Loader2, ChevronRight, Users, Euro, Sparkles, Calendar, FileText, CreditCard, Heart, Check, X } from 'lucide-react';
+import { Loader2, ChevronRight, ChevronLeft, Users, Euro, Sparkles, Calendar, FileText, CreditCard, Heart, Check } from 'lucide-react';
 import Image from 'next/image';
 
 type Milestone = {
@@ -42,8 +41,10 @@ export default function ClientPortalPage() {
   const [milestonesLoading, setMilestonesLoading] = useState(false);
   const [team, setTeam] = useState<TeamMember[]>([]);
   const [teamLoading, setTeamLoading] = useState(false);
-  const [expenses, setExpenses] = useState<{ label: string; amount: number; heightClass: string }[]>([]);
+  const [expenseMonths, setExpenseMonths] = useState<{ key: string; label: string; amount: number }[]>([]);
   const [expensesLoading, setExpensesLoading] = useState(false);
+  const [expensePage, setExpensePage] = useState(0);
+  const EXPENSE_WINDOW_SIZE = 3;
   const [paidAmount, setPaidAmount] = useState(0);
   const [pendingPaymentsCount, setPendingPaymentsCount] = useState(0);
   const [pendingPaymentsTotal, setPendingPaymentsTotal] = useState(0);
@@ -161,38 +162,48 @@ export default function ClientPortalPage() {
   useEffect(() => {
     const fetchExpenses = async () => {
       if (!client?.id) {
-        setExpenses([]);
+        setExpenseMonths([]);
         return;
       }
       setExpensesLoading(true);
       try {
         const payments = await getClientPayments(client.id);
         const months = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sept', 'Oct', 'Nov', 'Déc'];
-        const now = new Date();
-        const last3: { label: string; amount: number }[] = [];
-        for (let i = 2; i >= 0; i--) {
-          const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-          last3.push({ label: months[d.getMonth()], amount: 0 });
-        }
+        const monthKey = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+
+        const amountsByMonth = new Map<string, number>();
+        let minDate: Date | null = null;
         payments.forEach((p: PaymentData) => {
           const raw = p.date || p.due_date || p.paid_at;
           if (!raw) return;
           const d = new Date(String(raw));
           if (Number.isNaN(d.getTime())) return;
-          const label = months[d.getMonth()];
-          const bucket = last3.find((m) => m.label === label);
-          if (bucket) bucket.amount += Number(p.amount || 0);
+          const key = monthKey(d);
+          amountsByMonth.set(key, (amountsByMonth.get(key) || 0) + Number(p.amount || 0));
+          if (!minDate || d < minDate) minDate = d;
         });
-        const max = Math.max(...last3.map((m) => m.amount), 1);
-        const withHeight = last3.map((m, i) => {
-          const pct = Math.round((m.amount / max) * 100);
-          let heightClass = 'h-[34%]';
-          if (pct >= 70) heightClass = 'h-[88%]';
-          else if (pct >= 40) heightClass = 'h-[62%]';
-          else if (pct >= 20) heightClass = 'h-[45%]';
-          return { ...m, heightClass, barClass: i === 0 ? 'bg-[rgba(136,183,181,0.16)]' : 'bg-[#88b7b5]' };
-        });
-        setExpenses(withHeight);
+
+        const now = new Date();
+        const start = minDate
+          ? new Date((minDate as Date).getFullYear(), (minDate as Date).getMonth(), 1)
+          : new Date(now.getFullYear(), now.getMonth(), 1);
+        const end = new Date(now.getFullYear(), now.getMonth(), 1);
+
+        const allMonths: { key: string; label: string; amount: number }[] = [];
+        const cursor = new Date(start);
+        while (cursor <= end) {
+          const key = monthKey(cursor);
+          allMonths.push({
+            key,
+            label: `${months[cursor.getMonth()]} ${String(cursor.getFullYear()).slice(2)}`,
+            amount: amountsByMonth.get(key) || 0,
+          });
+          cursor.setMonth(cursor.getMonth() + 1);
+        }
+
+        setExpenseMonths(allMonths);
+        setExpensePage(Math.max(0, Math.ceil(allMonths.length / EXPENSE_WINDOW_SIZE) - 1));
+
         const totalPaid = payments.reduce(
           (sum, p) => sum + (Number(p.paid_amount || 0) || (p.status === 'paid' || p.status === 'completed' ? Number(p.amount || 0) : 0)),
           0
@@ -203,7 +214,7 @@ export default function ClientPortalPage() {
         setPaidAmount(totalPaid);
       } catch (e) {
         console.error('Error fetching expenses (home):', e);
-        setExpenses([]);
+        setExpenseMonths([]);
       } finally {
         setExpensesLoading(false);
       }
@@ -241,18 +252,6 @@ export default function ClientPortalPage() {
     );
   }
 
-  const confirmMilestone = async (m: Milestone) => {
-    if (!m?.id) return;
-    const next = !m.client_confirmed;
-    setMilestones((prev) => prev.map((x) => (x.id === m.id ? { ...x, client_confirmed: next } : x)));
-    try {
-      await updateDocument('tasks', m.id, { client_confirmed: next });
-    } catch (e) {
-      console.error('Error updating milestone confirmation (home):', e);
-      setMilestones((prev) => prev.map((x) => (x.id === m.id ? { ...x, client_confirmed: !next } : x)));
-    }
-  };
-
   const ringCircumference = 2 * Math.PI * 44;
   const ringOffset = ringCircumference * (1 - Math.min(progressPct, 100) / 100);
 
@@ -269,7 +268,168 @@ export default function ClientPortalPage() {
     );
   })();
 
-  const chartMax = Math.max(...expenses.map((e) => e.amount), 1);
+  const expenseTotalPages = Math.max(1, Math.ceil(expenseMonths.length / EXPENSE_WINDOW_SIZE));
+  const currentExpensePage = Math.min(expensePage, expenseTotalPages - 1);
+  const expenseWindowStart = currentExpensePage * EXPENSE_WINDOW_SIZE;
+  const visibleExpenseMonths = expenseMonths.slice(expenseWindowStart, expenseWindowStart + EXPENSE_WINDOW_SIZE);
+  const chartMax = Math.max(...visibleExpenseMonths.map((e) => e.amount), 1);
+  const expenseHeightClass = (amount: number) => {
+    const pct = Math.round((amount / chartMax) * 100);
+    if (pct >= 70) return 'h-[88%]';
+    if (pct >= 40) return 'h-[62%]';
+    if (pct >= 20) return 'h-[45%]';
+    if (pct > 0) return 'h-[34%]';
+    return 'h-[4%]';
+  };
+
+  // Ces trois blocs sont définis une seule fois puis rendus à deux endroits du DOM :
+  // une fois dans le flux mobile réordonné (xl:hidden), une fois dans la colonne de
+  // droite d'origine (hidden xl:block). Ça permet un ordre différent sur mobile sans
+  // coupler la hauteur de la colonne gauche/droite en desktop (cf. bug précédent).
+  const countdownCard = (
+    <div className="bg-white rounded-[18px] border border-[rgba(75,68,86,0.06)] p-5">
+      <div className="text-[15px] font-semibold text-[#4B4456] mb-5">Compte à rebours</div>
+      <div className="relative w-[100px] h-[100px] mx-auto mb-4">
+        <svg
+          width="100"
+          height="100"
+          viewBox="0 0 100 100"
+          className="absolute inset-0"
+          style={{ transform: 'rotate(-90deg)' }}
+        >
+          <circle cx="50" cy="50" r="44" fill="none" stroke="rgba(75,68,86,0.07)" strokeWidth="7" />
+          <circle
+            cx="50"
+            cy="50"
+            r="44"
+            fill="none"
+            stroke="#88b7b5"
+            strokeWidth="7"
+            strokeLinecap="round"
+            strokeDasharray={ringCircumference}
+            strokeDashoffset={ringOffset}
+          />
+        </svg>
+        <div className="absolute inset-2 rounded-full bg-[rgba(75,68,86,0.07)] flex items-center justify-center font-baskerville text-xl text-[#4B4456]">
+          {initials}
+        </div>
+        <div className="absolute -top-1 -right-1 bg-[#4B4456] text-white text-[11px] font-bold px-2 py-0.5 rounded-full">
+          {progressPct}%
+        </div>
+      </div>
+      <div className="text-center">
+        <div className="text-[14.5px] font-bold text-[#4B4456]">Bonjour {coupleNames} 💍</div>
+        <div className="text-[11.5px] text-[#9C97A3] mt-1 leading-snug">
+          Plus que {daysRemaining} jours avant votre grand jour !
+        </div>
+      </div>
+    </div>
+  );
+
+  const expensesCard = (
+    <div className="bg-white rounded-[18px] border border-[rgba(75,68,86,0.06)] p-5">
+      <div className="flex items-center justify-between mb-5">
+        <div className="text-[15px] font-semibold text-[#4B4456]">Dépenses</div>
+        {expenseMonths.length > EXPENSE_WINDOW_SIZE ? (
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setExpensePage((p) => Math.max(0, p - 1))}
+              disabled={currentExpensePage === 0}
+              className="w-6 h-6 rounded-full flex items-center justify-center text-[#4B4456] disabled:opacity-30 hover:bg-[rgba(75,68,86,0.06)] transition-colors"
+            >
+              <ChevronLeft className="h-3.5 w-3.5" />
+            </button>
+            <button
+              onClick={() => setExpensePage((p) => Math.min(expenseTotalPages - 1, p + 1))}
+              disabled={currentExpensePage >= expenseTotalPages - 1}
+              className="w-6 h-6 rounded-full flex items-center justify-center text-[#4B4456] disabled:opacity-30 hover:bg-[rgba(75,68,86,0.06)] transition-colors"
+            >
+              <ChevronRight className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        ) : null}
+      </div>
+      {expensesLoading ? (
+        <div className="flex items-center justify-center h-[90px]">
+          <Loader2 className="h-5 w-5 animate-spin text-[#88b7b5]" />
+        </div>
+      ) : expenseMonths.length === 0 ? (
+        <p className="text-sm text-[#9C97A3] text-center py-6">Aucune dépense enregistrée.</p>
+      ) : (
+        <>
+          <div className="flex items-end gap-4 h-[90px] mb-2 pl-8 relative">
+            <div className="absolute left-0 top-0 bottom-4 flex flex-col justify-between text-[9.5px] text-[#9C97A3]">
+              <span>{Math.round(chartMax).toLocaleString('fr-FR')}€</span>
+              <span>{Math.round(chartMax / 2).toLocaleString('fr-FR')}€</span>
+              <span>0€</span>
+            </div>
+            {visibleExpenseMonths.map((e, i) => (
+              <div key={e.key} className="flex-1 flex flex-col items-center gap-2">
+                <div
+                  className={`w-6 rounded-t-md ${i === visibleExpenseMonths.length - 1 ? 'bg-[#88b7b5]' : 'bg-[rgba(136,183,181,0.4)]'} ${expenseHeightClass(e.amount)}`}
+                  title={`${e.amount.toLocaleString('fr-FR')} €`}
+                />
+                <span className="text-[10px] text-[#9C97A3]">{e.label}</span>
+              </div>
+            ))}
+          </div>
+          {expenseTotalPages > 1 ? (
+            <p className="text-center text-[10px] text-[#9C97A3]">
+              {currentExpensePage + 1} / {expenseTotalPages}
+            </p>
+          ) : null}
+        </>
+      )}
+    </div>
+  );
+
+  const teamCard = (
+    <div className="bg-white rounded-[18px] border border-[rgba(75,68,86,0.06)] p-5">
+      <div className="text-[15px] font-semibold text-[#4B4456] mb-5">Votre équipe</div>
+      {teamLoading ? (
+        <div className="flex items-center justify-center py-6">
+          <Loader2 className="h-5 w-5 animate-spin text-[#88b7b5]" />
+        </div>
+      ) : team.length === 0 ? (
+        <p className="text-sm text-[#9C97A3] text-center py-4">Aucun prestataire ajouté pour le moment.</p>
+      ) : (
+        <>
+          {team.map((member) => (
+            <div key={member.id} className="flex items-center gap-2.5 py-2">
+              {member.logoUrl ? (
+                <div className="w-8 h-8 rounded-full overflow-hidden bg-white ring-1 ring-[rgba(75,68,86,0.1)] shrink-0">
+                  <img src={member.logoUrl} alt={member.name} className="w-full h-full object-cover" />
+                </div>
+              ) : (
+                <div
+                  className="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-semibold text-white shrink-0"
+                  style={{ backgroundColor: member.color }}
+                >
+                  {member.initials}
+                </div>
+              )}
+              <div className="flex-1 min-w-0">
+                <div className="text-[12.5px] font-semibold text-[#4B4456] truncate">{member.name}</div>
+                <div className="text-[10.5px] text-[#9C97A3] truncate">{member.role}</div>
+              </div>
+              <button
+                onClick={() => router.push('/espace-client/prestataires')}
+                className="text-[11px] font-semibold text-[#4B4456] border border-[rgba(75,68,86,0.18)] px-3 py-1.5 rounded-full hover:bg-[rgba(75,68,86,0.05)] transition-colors shrink-0"
+              >
+                Voir
+              </button>
+            </div>
+          ))}
+          <button
+            onClick={() => router.push('/espace-client/prestataires')}
+            className="w-full mt-3 bg-[#4B4456] text-white text-[12.5px] font-semibold py-2.5 rounded-xl hover:bg-[#3a3446] transition-colors"
+          >
+            Voir toute l&apos;équipe
+          </button>
+        </>
+      )}
+    </div>
+  );
 
   return (
     <ClientDashboardLayout clientName={coupleNames} daysRemaining={daysRemaining}>
@@ -305,6 +465,9 @@ export default function ClientPortalPage() {
             </svg>
           </div>
 
+          {/* Compte à rebours (mobile uniquement, cf. ordre demandé) */}
+          <div className="xl:hidden mb-5">{countdownCard}</div>
+
           {/* Pills */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 mb-7">
             <div className="flex items-center gap-3 bg-white border border-[rgba(75,68,86,0.08)] rounded-2xl px-4 py-3.5">
@@ -315,7 +478,6 @@ export default function ClientPortalPage() {
                 <div className="text-[11px] text-[#9C97A3] mb-0.5">{displayGuests || 0} invités</div>
                 <div className="text-[13.5px] font-semibold text-[#4B4456]">Invités</div>
               </div>
-              <div className="ml-auto text-[#C9C4CE]">⋮</div>
             </div>
 
             <div className="flex items-center gap-3 bg-white border border-[rgba(75,68,86,0.08)] rounded-2xl px-4 py-3.5">
@@ -328,7 +490,6 @@ export default function ClientPortalPage() {
                 </div>
                 <div className="text-[13.5px] font-semibold text-[#4B4456]">Budget</div>
               </div>
-              <div className="ml-auto text-[#C9C4CE]">⋮</div>
             </div>
 
             <div className="flex items-center gap-3 bg-white border border-[rgba(75,68,86,0.08)] rounded-2xl px-4 py-3.5">
@@ -341,9 +502,11 @@ export default function ClientPortalPage() {
                 </div>
                 <div className="text-[13.5px] font-semibold text-[#4B4456]">Préparatifs</div>
               </div>
-              <div className="ml-auto text-[#C9C4CE]">⋮</div>
             </div>
           </div>
+
+          {/* Dépenses (mobile uniquement, cf. ordre demandé) */}
+          <div className="xl:hidden mb-7">{expensesCard}</div>
 
           {/* Aperçu fonctionnel */}
           <div className="flex items-center justify-between mb-4">
@@ -456,6 +619,9 @@ export default function ClientPortalPage() {
             </button>
           </div>
 
+          {/* Équipe (mobile uniquement, cf. ordre demandé) */}
+          <div className="xl:hidden mb-7">{teamCard}</div>
+
           {/* Itinerary */}
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-baskerville text-xl text-[#4B4456]">Votre itinéraire</h2>
@@ -481,7 +647,7 @@ export default function ClientPortalPage() {
                       <th className="text-left text-[10px] tracking-[0.1em] uppercase text-[#9C97A3] pb-3.5 font-semibold">Étape</th>
                       <th className="text-left text-[10px] tracking-[0.1em] uppercase text-[#9C97A3] pb-3.5 font-semibold">Type</th>
                       <th className="text-left text-[10px] tracking-[0.1em] uppercase text-[#9C97A3] pb-3.5 font-semibold">Description</th>
-                      <th className="text-left text-[10px] tracking-[0.1em] uppercase text-[#9C97A3] pb-3.5 font-semibold">Action</th>
+                      <th className="text-left text-[10px] tracking-[0.1em] uppercase text-[#9C97A3] pb-3.5 font-semibold">Statut</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -505,18 +671,16 @@ export default function ClientPortalPage() {
                           <span className="text-[13px] text-[#5A5A5A]">{m.description || 'À valider'}</span>
                         </td>
                         <td className="py-3">
-                          <button
-                            onClick={() => void confirmMilestone(m)}
-                            className={cn(
-                              'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-semibold transition-colors',
-                              m.client_confirmed
-                                ? 'bg-[rgba(136,183,181,0.16)] text-[#6a9a98] hover:bg-[rgba(136,183,181,0.28)]'
-                                : 'bg-[#6a9a98] text-white hover:bg-[#5a8a88]'
-                            )}
-                          >
-                            <Check className="w-3 h-3" />
-                            {m.client_confirmed ? 'Confirmé' : 'Confirmer'}
-                          </button>
+                          {m.client_confirmed ? (
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-semibold bg-[rgba(136,183,181,0.16)] text-[#6a9a98]">
+                              <Check className="w-3 h-3" />
+                              Validé
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-semibold bg-[rgba(75,68,86,0.06)] text-[#9C97A3]">
+                              En attente
+                            </span>
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -528,123 +692,11 @@ export default function ClientPortalPage() {
 
         </div>
 
-        {/* Right column */}
-        <div>
-          <div className="bg-white rounded-[18px] border border-[rgba(75,68,86,0.06)] p-5 mb-4">
-            <div className="flex items-center justify-between text-[15px] font-semibold text-[#4B4456] mb-5">
-              Compte à rebours
-              <span className="text-[#C9C4CE] cursor-pointer">⋮</span>
-            </div>
-            <div className="relative w-[100px] h-[100px] mx-auto mb-4">
-              <svg
-                width="100"
-                height="100"
-                viewBox="0 0 100 100"
-                className="absolute inset-0"
-                style={{ transform: 'rotate(-90deg)' }}
-              >
-                <circle cx="50" cy="50" r="44" fill="none" stroke="rgba(75,68,86,0.07)" strokeWidth="7" />
-                <circle
-                  cx="50"
-                  cy="50"
-                  r="44"
-                  fill="none"
-                  stroke="#88b7b5"
-                  strokeWidth="7"
-                  strokeLinecap="round"
-                  strokeDasharray={ringCircumference}
-                  strokeDashoffset={ringOffset}
-                />
-              </svg>
-              <div className="absolute inset-2 rounded-full bg-[rgba(75,68,86,0.07)] flex items-center justify-center font-baskerville text-xl text-[#4B4456]">
-                {initials}
-              </div>
-              <div className="absolute -top-1 -right-1 bg-[#4B4456] text-white text-[11px] font-bold px-2 py-0.5 rounded-full">
-                {progressPct}%
-              </div>
-            </div>
-            <div className="text-center">
-              <div className="text-[14.5px] font-bold text-[#4B4456]">Bonjour {coupleNames} 💍</div>
-              <div className="text-[11.5px] text-[#9C97A3] mt-1 leading-snug">
-                Plus que {daysRemaining} jours avant votre grand jour !
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-[18px] border border-[rgba(75,68,86,0.06)] p-5 mb-4">
-            <div className="text-[15px] font-semibold text-[#4B4456] mb-5">Dépenses</div>
-            {expensesLoading ? (
-              <div className="flex items-center justify-center h-[90px]">
-                <Loader2 className="h-5 w-5 animate-spin text-[#88b7b5]" />
-              </div>
-            ) : expenses.length === 0 ? (
-              <p className="text-sm text-[#9C97A3] text-center py-6">Aucune dépense enregistrée.</p>
-            ) : (
-              <div className="flex items-end gap-4 h-[90px] mb-2 pl-8 relative">
-                <div className="absolute left-0 top-0 bottom-4 flex flex-col justify-between text-[9.5px] text-[#9C97A3]">
-                  <span>{Math.round(chartMax).toLocaleString('fr-FR')}€</span>
-                  <span>{Math.round(chartMax / 2).toLocaleString('fr-FR')}€</span>
-                  <span>0€</span>
-                </div>
-                {expenses.map((e, i) => (
-                  <div key={i} className="flex-1 flex flex-col items-center gap-2">
-                    <div className={`w-6 rounded-t-md ${i === 0 ? 'bg-[rgba(136,183,181,0.16)]' : 'bg-[#88b7b5]'} ${e.heightClass}`} />
-                    <span className="text-[10px] text-[#9C97A3]">{e.label}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="bg-white rounded-[18px] border border-[rgba(75,68,86,0.06)] p-5">
-            <div className="text-[15px] font-semibold text-[#4B4456] mb-5">Votre équipe</div>
-            {teamLoading ? (
-              <div className="flex items-center justify-center py-6">
-                <Loader2 className="h-5 w-5 animate-spin text-[#88b7b5]" />
-              </div>
-            ) : team.length === 0 ? (
-              <p className="text-sm text-[#9C97A3] text-center py-4">Aucun prestataire ajouté pour le moment.</p>
-            ) : (
-              <>
-                {team.map((member) => (
-                  <div key={member.id} className="flex items-center gap-2.5 py-2">
-                    {member.logoUrl ? (
-                      <div className="w-8 h-8 rounded-full overflow-hidden bg-white ring-1 ring-[rgba(75,68,86,0.1)] shrink-0">
-                        <img
-                          src={member.logoUrl}
-                          alt={member.name}
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
-                    ) : (
-                      <div
-                        className="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-semibold text-white shrink-0"
-                        style={{ backgroundColor: member.color }}
-                      >
-                        {member.initials}
-                      </div>
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <div className="text-[12.5px] font-semibold text-[#4B4456] truncate">{member.name}</div>
-                      <div className="text-[10.5px] text-[#9C97A3] truncate">{member.role}</div>
-                    </div>
-                    <button
-                      onClick={() => router.push('/espace-client/prestataires')}
-                      className="text-[11px] font-semibold text-[#4B4456] border border-[rgba(75,68,86,0.18)] px-3 py-1.5 rounded-full hover:bg-[rgba(75,68,86,0.05)] transition-colors shrink-0"
-                    >
-                      Voir
-                    </button>
-                  </div>
-                ))}
-                <button
-                  onClick={() => router.push('/espace-client/prestataires')}
-                  className="w-full mt-3 bg-[#4B4456] text-white text-[12.5px] font-semibold py-2.5 rounded-xl hover:bg-[#3a3446] transition-colors"
-                >
-                  Voir toute l&apos;équipe
-                </button>
-              </>
-            )}
-          </div>
+        {/* Right column (desktop uniquement, cf. blocs mobiles ci-dessus) */}
+        <div className="hidden xl:block">
+          <div className="mb-4">{countdownCard}</div>
+          <div className="mb-4">{expensesCard}</div>
+          {teamCard}
         </div>
       </div>
     </ClientDashboardLayout>

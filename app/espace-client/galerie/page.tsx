@@ -600,7 +600,7 @@ export default function GaleriePage() {
                     <SelectValue placeholder="Choisir un album" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="new">+ Nouvel album</SelectItem>
+                    <SelectItem value="new">+ Créer votre album</SelectItem>
                     {albums.map((album) => (
                       <SelectItem key={album.id} value={album.id}>
                         {album.name}

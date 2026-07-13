@@ -382,15 +382,15 @@ export default function MessagesPage() {
 
         {/* ---------- CHAT ---------- */}
         <div className="flex-1 min-h-0">
-          <Card className="h-full border border-brand-purple/8 shadow-sm rounded-none bg-white flex flex-col overflow-hidden">
+          <Card className="h-full border border-brand-purple/8 shadow-sm rounded-3xl bg-white flex flex-col overflow-hidden">
             {/* Header conversation */}
             <div className="px-5 py-4 border-b border-brand-purple/8 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-3">
-                <Avatar className="h-10 w-10 ring-2 ring-brand-turquoise/20 rounded-none">
+                <Avatar className="h-10 w-10 ring-2 ring-brand-turquoise/20">
                   {agencyProfile?.logoUrl || plannerPhotoUrl ? (
                     <AvatarImage src={agencyProfile?.logoUrl || plannerPhotoUrl || undefined} alt="Wedding Planner" />
                   ) : null}
-                  <AvatarFallback className="bg-brand-purple text-white rounded-none">
+                  <AvatarFallback className="bg-brand-purple text-white">
                     {selectedConversation?.avatar || '—'}
                   </AvatarFallback>
                 </Avatar>
@@ -450,8 +450,8 @@ export default function MessagesPage() {
                     <div
                       className={`p-3.5 shadow-sm ${
                         message.isMe
-                          ? 'bg-brand-turquoise text-white rounded-none'
-                          : 'bg-white text-brand-purple rounded-none border border-brand-purple/6'
+                          ? 'bg-brand-turquoise text-white rounded-2xl rounded-br-md'
+                          : 'bg-white text-brand-purple rounded-2xl rounded-bl-md border border-brand-purple/6'
                       }`}
                     >
                       {message.content ? <p className="text-sm leading-relaxed">{message.content}</p> : null}
@@ -490,7 +490,7 @@ export default function MessagesPage() {
 
             {/* Input */}
             <div className="p-4 border-t border-brand-purple/8 shrink-0">
-              <div className="flex items-center gap-2 bg-brand-beige/60 rounded-none pl-2 pr-2 py-2 border border-brand-purple/8">
+              <div className="flex items-center gap-2 bg-brand-beige/60 rounded-full pl-2 pr-2 py-2 border border-brand-purple/8">
                 <input
                   id={fileInputId}
                   type="file"
@@ -533,7 +533,7 @@ export default function MessagesPage() {
 
         {/* ---------- PROFIL ENTREPRISE ---------- */}
         <Dialog open={isProfileOpen} onOpenChange={setIsProfileOpen}>
-          <DialogContent className="sm:max-w-md w-[95vw] sm:w-full rounded-none border border-brand-purple/8 p-0 overflow-hidden">
+          <DialogContent className="sm:max-w-md w-[95vw] sm:w-full rounded-3xl border border-brand-purple/8 p-0 overflow-hidden">
             <div className="relative h-28 bg-brand-purple">
               <div className="absolute inset-0 opacity-20">
                 <svg width="100%" height="100%">
@@ -545,18 +545,18 @@ export default function MessagesPage() {
               </div>
               <button
                 onClick={() => setIsProfileOpen(false)}
-                className="absolute top-3 right-3 w-8 h-8 bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors"
+                className="absolute top-3 right-3 w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
             <div className="px-6 pb-6 -mt-10">
               <div className="flex items-end gap-4 mb-4">
-                <Avatar className="h-20 w-20 ring-4 ring-white rounded-none bg-white">
+                <Avatar className="h-20 w-20 ring-4 ring-white bg-white">
                   {agencyProfile?.logoUrl || plannerPhotoUrl ? (
                     <AvatarImage src={agencyProfile?.logoUrl || plannerPhotoUrl || undefined} alt={agencyProfile?.name || 'Le Oui Parfait'} />
                   ) : null}
-                  <AvatarFallback className="bg-brand-purple text-white text-2xl rounded-none">
+                  <AvatarFallback className="bg-brand-purple text-white text-2xl">
                     {agencyProfile?.name?.slice(0, 2).toUpperCase() || 'WP'}
                   </AvatarFallback>
                 </Avatar>
@@ -572,19 +572,19 @@ export default function MessagesPage() {
 
               <div className="space-y-3 text-sm">
                 {agencyProfile?.phone && (
-                  <a href={`tel:${agencyProfile.phone}`} className="flex items-center gap-3 p-3 bg-brand-beige/60 hover:bg-brand-purple/6 transition-colors">
+                  <a href={`tel:${agencyProfile.phone}`} className="flex items-center gap-3 p-3 rounded-xl bg-brand-beige/60 hover:bg-brand-purple/6 transition-colors">
                     <Phone className="w-4 h-4 text-brand-turquoise-hover shrink-0" />
                     <span className="text-brand-purple">{agencyProfile.phone}</span>
                   </a>
                 )}
                 {agencyProfile?.email && (
-                  <a href={`mailto:${agencyProfile.email}`} className="flex items-center gap-3 p-3 bg-brand-beige/60 hover:bg-brand-purple/6 transition-colors">
+                  <a href={`mailto:${agencyProfile.email}`} className="flex items-center gap-3 p-3 rounded-xl bg-brand-beige/60 hover:bg-brand-purple/6 transition-colors">
                     <Mail className="w-4 h-4 text-brand-turquoise-hover shrink-0" />
                     <span className="text-brand-purple">{agencyProfile.email}</span>
                   </a>
                 )}
                 {(agencyProfile?.address || agencyProfile?.location) && (
-                  <div className="flex items-start gap-3 p-3 bg-brand-beige/60">
+                  <div className="flex items-start gap-3 p-3 rounded-xl bg-brand-beige/60">
                     <MapPin className="w-4 h-4 text-brand-turquoise-hover shrink-0 mt-0.5" />
                     <span className="text-brand-purple">{agencyProfile?.address || agencyProfile?.location}</span>
                   </div>
@@ -596,7 +596,7 @@ export default function MessagesPage() {
 
               <Button
                 onClick={() => setIsProfileOpen(false)}
-                className="w-full mt-6 bg-brand-turquoise hover:bg-brand-turquoise-hover rounded-none h-11"
+                className="w-full mt-6 bg-brand-turquoise hover:bg-brand-turquoise-hover rounded-full h-11"
               >
                 Fermer
               </Button>

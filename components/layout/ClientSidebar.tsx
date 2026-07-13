@@ -99,7 +99,7 @@ export function ClientSidebar() {
         </Button>
       </div>
 
-      <div className="flex-1 overflow-y-auto pr-1">
+      <div className="flex-1 min-h-0 overflow-y-auto pr-1">
         <div className="text-[10.5px] tracking-[0.15em] uppercase text-[#9C97A3] px-2 mb-2.5">
           Espace client
         </div>
@@ -198,7 +198,7 @@ export function ClientSidebar() {
             className="fixed inset-0 z-40 bg-black/50 md:hidden"
             onClick={() => setIsMobileMenuOpen(false)}
           />
-          <aside className="fixed left-0 top-0 z-50 h-screen w-[260px] bg-white flex flex-col md:hidden py-8 px-5">
+          <aside className="fixed left-0 top-0 z-50 h-screen w-[260px] bg-white flex flex-col md:hidden py-8 px-5 overflow-y-auto">
             <SidebarContent />
           </aside>
         </>
