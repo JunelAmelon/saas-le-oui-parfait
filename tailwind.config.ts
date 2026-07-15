@@ -12,6 +12,7 @@ const config: Config = {
       fontFamily: {
         sans: ['var(--font-inter)'],
         baskerville: ['var(--font-baskerville)'],
+        playfair: ['var(--font-playfair)'],
       },
       backgroundImage: {
         'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',

@@ -294,8 +294,7 @@ export default function ClientPortalPage() {
           width="100"
           height="100"
           viewBox="0 0 100 100"
-          className="absolute inset-0"
-          style={{ transform: 'rotate(-90deg)' }}
+          className="absolute inset-0 rotate-[-90deg]"
         >
           <circle cx="50" cy="50" r="44" fill="none" stroke="rgba(75,68,86,0.07)" strokeWidth="7" />
           <circle
@@ -333,6 +332,7 @@ export default function ClientPortalPage() {
         {expenseMonths.length > EXPENSE_WINDOW_SIZE ? (
           <div className="flex items-center gap-1">
             <button
+              title="Mois précédent"
               onClick={() => setExpensePage((p) => Math.max(0, p - 1))}
               disabled={currentExpensePage === 0}
               className="w-6 h-6 rounded-full flex items-center justify-center text-[#4B4456] disabled:opacity-30 hover:bg-[rgba(75,68,86,0.06)] transition-colors"
@@ -340,6 +340,7 @@ export default function ClientPortalPage() {
               <ChevronLeft className="h-3.5 w-3.5" />
             </button>
             <button
+              title="Mois suivant"
               onClick={() => setExpensePage((p) => Math.min(expenseTotalPages - 1, p + 1))}
               disabled={currentExpensePage >= expenseTotalPages - 1}
               className="w-6 h-6 rounded-full flex items-center justify-center text-[#4B4456] disabled:opacity-30 hover:bg-[rgba(75,68,86,0.06)] transition-colors"

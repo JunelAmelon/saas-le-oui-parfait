@@ -494,6 +494,7 @@ export default function MessagesPage() {
                 <input
                   id={fileInputId}
                   type="file"
+                  aria-label="Joindre un fichier"
                   className="hidden"
                   onChange={(e) => {
                     const f = e.target.files?.[0] || null;
@@ -502,6 +503,7 @@ export default function MessagesPage() {
                   }}
                 />
                 <button
+                  title="Joindre un fichier"
                   disabled={!selectedConversation?.id || uploadingAttachment}
                   onClick={() => document.getElementById(fileInputId)?.click()}
                   className="w-9 h-9 rounded-full flex items-center justify-center text-brand-gray hover:bg-white transition-colors shrink-0 disabled:opacity-40"
@@ -520,6 +522,7 @@ export default function MessagesPage() {
                   }}
                 />
                 <button
+                  title="Envoyer le message"
                   disabled={!newMessage.trim() || !selectedConversation?.id || sending || uploadingAttachment}
                   onClick={() => void handleSend()}
                   className="w-9 h-9 rounded-full bg-brand-turquoise hover:bg-brand-turquoise-hover disabled:opacity-40 disabled:hover:bg-brand-turquoise flex items-center justify-center text-white transition-colors shrink-0"
@@ -544,6 +547,7 @@ export default function MessagesPage() {
                 </svg>
               </div>
               <button
+                title="Fermer"
                 onClick={() => setIsProfileOpen(false)}
                 className="absolute top-3 right-3 w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors"
               >

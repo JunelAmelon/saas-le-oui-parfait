@@ -421,6 +421,7 @@ export default function GaleriePage() {
             </div>
             <div className="flex items-center gap-1 bg-brand-beige rounded-full p-1">
               <button
+                title="Vue grille"
                 onClick={() => setViewMode('grid')}
                 className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${
                   viewMode === 'grid' ? 'bg-brand-turquoise text-white' : 'text-brand-gray hover:text-brand-purple'
@@ -429,6 +430,7 @@ export default function GaleriePage() {
                 <Grid className="h-4 w-4" />
               </button>
               <button
+                title="Vue liste"
                 onClick={() => setViewMode('list')}
                 className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${
                   viewMode === 'list' ? 'bg-brand-turquoise text-white' : 'text-brand-gray hover:text-brand-purple'
@@ -474,6 +476,7 @@ export default function GaleriePage() {
                     <ZoomIn className="h-5 w-5 text-white" />
                   </div>
                   <button
+                    title={likedPhotos.includes(photo.id) ? "Retirer des favoris" : "Ajouter aux favoris"}
                     className="absolute top-2 right-2 w-8 h-8 rounded-full bg-white/85 backdrop-blur flex items-center justify-center transition-transform hover:scale-110"
                     onClick={(e) => {
                       e.stopPropagation();
@@ -513,6 +516,7 @@ export default function GaleriePage() {
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
                     <button
+                      title={likedPhotos.includes(photo.id) ? "Retirer des favoris" : "Ajouter aux favoris"}
                       onClick={() => void toggleLike(photo.id)}
                       className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-white transition-colors"
                     >
@@ -525,6 +529,7 @@ export default function GaleriePage() {
                     <a
                       href={photo.displayUrl}
                       download
+                      title="Télécharger la photo"
                       className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-white transition-colors"
                     >
                       <Download className="h-4 w-4 text-brand-turquoise-hover" />
@@ -540,12 +545,14 @@ export default function GaleriePage() {
         {selectedPhoto && (
           <div className="fixed inset-0 z-50 bg-brand-purple/95 backdrop-blur-sm flex items-center justify-center">
             <button
+              title="Fermer"
               className="absolute top-5 right-5 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors"
               onClick={() => setSelectedPhoto(null)}
             >
               <X className="h-5 w-5" />
             </button>
             <button
+              title="Photo précédente"
               className="absolute left-5 w-11 h-11 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors"
               onClick={() => navigatePhoto('prev')}
             >
@@ -557,6 +564,7 @@ export default function GaleriePage() {
               className="max-w-[85vw] max-h-[80vh] rounded-2xl object-contain shadow-2xl"
             />
             <button
+              title="Photo suivante"
               className="absolute right-5 w-11 h-11 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors"
               onClick={() => navigatePhoto('next')}
             >
@@ -583,6 +591,7 @@ export default function GaleriePage() {
                   Glissez vos photos ici ou cliquez pour parcourir
                 </p>
                 <input
+                  aria-label="Sélectionner des photos"
                   type="file"
                   multiple
                   accept="image/*"

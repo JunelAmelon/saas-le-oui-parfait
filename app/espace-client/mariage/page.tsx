@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useClientData } from '@/contexts/ClientDataContext';
 import { calculateDaysRemaining } from '@/lib/client-helpers';
-import { addDocument, getDocuments, updateDocument } from '@/lib/db';
+import { addDocument } from '@/lib/db';
 import { useToast } from '@/hooks/use-toast';
 import {
   Calendar,
@@ -20,12 +20,8 @@ import {
   Loader2,
   Euro,
   ArrowRight,
-  Eye,
   Wind,
   StickyNote,
-  CheckCircle2,
-  Circle,
-  RotateCcw,
 } from 'lucide-react';
 import { ColorPalette } from '@/components/wedding/ColorPalette';
 import {
@@ -37,25 +33,12 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 
-type Milestone = {
-  id: string;
-  kind?: 'milestone';
-  event_id: string;
-  title: string;
-  description?: string;
-  deadline?: string;
-  admin_confirmed?: boolean;
-  client_confirmed?: boolean;
-};
-
 export default function MariagePage() {
   const { client, event, loading: dataLoading } = useClientData();
   const { toast } = useToast();
   const [requestOpen, setRequestOpen] = useState(false);
   const [sending, setSending] = useState(false);
   const [requestNote, setRequestNote] = useState('');
-  const [milestones, setMilestones] = useState<Milestone[]>([]);
-  const [milestonesLoading, setMilestonesLoading] = useState(false);
 
   const coupleNames = useMemo(() => {
     const n1 = client?.name || '';
@@ -97,48 +80,6 @@ export default function MariagePage() {
     );
     setNotes((event as any)?.notes || (client as any)?.notes || '');
   }, [event, client]);
-
-  useEffect(() => {
-    const fetchMilestones = async () => {
-      const eventId = String(event?.id || '').trim();
-      const clId = String(client?.id || '').trim();
-      if (!eventId && !clId) {
-        setMilestones([]);
-        return;
-      }
-      setMilestonesLoading(true);
-      try {
-        const items = await getDocuments('tasks', [
-          eventId
-            ? { field: 'event_id', operator: '==', value: eventId }
-            : { field: 'client_id', operator: '==', value: clId },
-        ]);
-        const only = (items as any[]).filter((t) => t?.kind === 'milestone') as Milestone[];
-        setMilestones(
-          only.slice().sort((a, b) => String(a.deadline || '').localeCompare(String(b.deadline || '')))
-        );
-      } catch (e) {
-        console.error('Error fetching milestones (mariage):', e);
-        setMilestones([]);
-      } finally {
-        setMilestonesLoading(false);
-      }
-    };
-
-    fetchMilestones();
-  }, [event?.id, client?.id]);
-
-  const toggleMilestoneConfirm = async (m: Milestone) => {
-    if (!m?.id) return;
-    const next = !m.client_confirmed;
-    setMilestones((prev) => prev.map((x) => (x.id === m.id ? { ...x, client_confirmed: next } : x)));
-    try {
-      await updateDocument('tasks', m.id, { client_confirmed: next });
-    } catch (e) {
-      console.error('Error updating milestone confirmation (mariage):', e);
-      setMilestones((prev) => prev.map((x) => (x.id === m.id ? { ...x, client_confirmed: !next } : x)));
-    }
-  };
 
   if (dataLoading) {
     return (
@@ -261,33 +202,37 @@ export default function MariagePage() {
       value: eventDate
         ? new Date(eventDate).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })
         : 'À définir',
-      color: '#4B4456',
-      bg: 'rgba(75,68,86,0.06)',
-      rotate: '-3deg',
+      borderClass: 'border-[#4B4456]',
+      bgClass: 'bg-[rgba(75,68,86,0.06)]',
+      textClass: 'text-[#4B4456]',
+      rotateClass: 'rotate-[-3deg]',
     },
     {
       icon: MapPin,
       label: 'Lieu',
       value: location || 'À définir',
-      color: '#B98A96',
-      bg: 'rgba(185,138,150,0.08)',
-      rotate: '2deg',
+      borderClass: 'border-[#B98A96]',
+      bgClass: 'bg-[rgba(185,138,150,0.08)]',
+      textClass: 'text-[#B98A96]',
+      rotateClass: 'rotate-[2deg]',
     },
     {
       icon: Users,
       label: 'Invités',
       value: `${guestCount || 0} pers.`,
-      color: '#6a9a98',
-      bg: 'rgba(136,183,181,0.1)',
-      rotate: '-1.5deg',
+      borderClass: 'border-[#6a9a98]',
+      bgClass: 'bg-[rgba(136,183,181,0.1)]',
+      textClass: 'text-[#6a9a98]',
+      rotateClass: 'rotate-[-1.5deg]',
     },
     {
       icon: Euro,
       label: 'Budget',
       value: `${(budget || 0).toLocaleString('fr-FR')} €`,
-      color: '#C9A96E',
-      bg: 'rgba(201,169,110,0.1)',
-      rotate: '2.5deg',
+      borderClass: 'border-[#C9A96E]',
+      bgClass: 'bg-[rgba(201,169,110,0.1)]',
+      textClass: 'text-[#C9A96E]',
+      rotateClass: 'rotate-[2.5deg]',
     },
   ];
 
@@ -355,26 +300,20 @@ export default function MariagePage() {
               return (
                 <div key={i} className="flex justify-center">
                   <div
-                    className="relative w-full max-w-[160px] border-2 border-dashed p-4 text-center bg-white/70"
-                    style={{
-                      borderColor: s.color,
-                      transform: `rotate(${s.rotate})`,
-                    }}
+                    className={`relative w-full max-w-[160px] border-2 border-dashed p-4 text-center bg-white/70 ${s.borderClass} ${s.rotateClass}`}
                   >
                     <div
-                      className="w-10 h-10 flex items-center justify-center mx-auto mb-2"
-                      style={{ backgroundColor: s.bg }}
+                      className={`w-10 h-10 flex items-center justify-center mx-auto mb-2 ${s.bgClass}`}
                     >
-                      <Icon className="w-4.5 h-4.5" style={{ color: s.color }} />
+                      <Icon className={`w-4.5 h-4.5 ${s.textClass}`} />
                     </div>
-                    <p className="text-[9px] tracking-[0.15em] uppercase mb-1" style={{ color: s.color }}>
+                    <p className={`text-[9px] tracking-[0.15em] uppercase mb-1 ${s.textClass}`}>
                       {s.label}
                     </p>
                     <p className="font-baskerville text-sm text-brand-purple leading-snug">{s.value}</p>
                     {/* petit cachet dans le coin */}
                     <div
-                      className="absolute -top-2 -right-2 w-6 h-6 border-2 flex items-center justify-center bg-white text-[8px] font-bold"
-                      style={{ borderColor: s.color, color: s.color, transform: 'rotate(12deg)' }}
+                      className={`absolute -top-2 -right-2 w-6 h-6 border-2 flex items-center justify-center bg-white text-[8px] font-bold rotate-[12deg] ${s.borderClass} ${s.textClass}`}
                     >
                       OK
                     </div>
@@ -440,76 +379,6 @@ export default function MariagePage() {
             </div>
           </div>
         </div>
-
-        {/* ---------- ÉTAPES CLÉS (validation / annulation) ---------- */}
-        <Card className="p-6 sm:p-8 border border-brand-purple/20 shadow-sm bg-white">
-          <div className="flex items-center justify-between gap-4 mb-1">
-            <h2 className="font-baskerville text-xl text-brand-purple">Étapes clés</h2>
-            <div className="w-9 h-9 rounded-full bg-brand-purple/8 flex items-center justify-center shrink-0">
-              <CheckCircle2 className="h-4 w-4 text-brand-purple" />
-            </div>
-          </div>
-          <div className="w-10 h-px bg-brand-turquoise mb-6" />
-
-          {milestonesLoading ? (
-            <div className="flex items-center justify-center py-10">
-              <Loader2 className="h-5 w-5 animate-spin text-brand-turquoise" />
-            </div>
-          ) : milestones.length === 0 ? (
-            <p className="text-sm text-brand-gray py-4 text-center">
-              Vos étapes apparaîtront ici à mesure que votre mariage prend forme.
-            </p>
-          ) : (
-            <div className="space-y-3">
-              {milestones.map((m) => {
-                const done = Boolean(m.client_confirmed);
-                return (
-                  <div
-                    key={m.id}
-                    className="flex items-start justify-between gap-4 p-4 rounded-2xl bg-brand-beige/40 border border-brand-purple/6"
-                  >
-                    <div className="flex items-start gap-3 min-w-0">
-                      {done ? (
-                        <CheckCircle2 className="h-5 w-5 text-brand-turquoise-hover shrink-0 mt-0.5" />
-                      ) : (
-                        <Circle className="h-5 w-5 text-brand-gray/40 shrink-0 mt-0.5" />
-                      )}
-                      <div className="min-w-0">
-                        <p className="font-medium text-brand-purple truncate">{m.title}</p>
-                        {m.deadline ? (
-                          <p className="text-xs text-brand-gray mt-0.5">Échéance : {m.deadline}</p>
-                        ) : null}
-                        {m.description ? (
-                          <p className="text-xs text-brand-gray mt-1">{m.description}</p>
-                        ) : null}
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => void toggleMilestoneConfirm(m)}
-                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-semibold whitespace-nowrap shrink-0 transition-colors ${
-                        done
-                          ? 'bg-brand-purple/8 text-brand-purple hover:bg-brand-purple/15'
-                          : 'bg-brand-turquoise text-white hover:bg-brand-turquoise-hover'
-                      }`}
-                    >
-                      {done ? (
-                        <>
-                          <RotateCcw className="w-3 h-3" />
-                          Annuler la validation
-                        </>
-                      ) : (
-                        <>
-                          <CheckCircle2 className="w-3 h-3" />
-                          Valider
-                        </>
-                      )}
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </Card>
 
         {/* ---------- NOTES (bordure renforcée) ---------- */}
         <Card className="p-6 sm:p-8 border border-brand-purple/20 shadow-sm bg-white">

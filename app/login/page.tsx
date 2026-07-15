@@ -69,8 +69,7 @@ export default function LoginPage() {
         {/* citation flottante sur la photo */}
         <div className="absolute inset-0 flex items-center justify-center p-6 lg:p-10">
           <p
-            className="text-white/95 text-center text-2xl sm:text-3xl lg:text-4xl leading-snug drop-shadow-sm max-w-md"
-            style={{ fontFamily: 'var(--font-playfair)' }}
+            className="text-white/95 text-center text-2xl sm:text-3xl lg:text-4xl leading-snug drop-shadow-sm max-w-md font-playfair"
           >
             « Le plus beau jour<br className="hidden sm:block" /> commence ici. »
           </p>
@@ -111,8 +110,7 @@ export default function LoginPage() {
               />
             </div>
             <h1
-              className="text-2xl sm:text-3xl text-brand-purple mb-2"
-              style={{ fontFamily: 'var(--font-playfair)' }}
+              className="text-2xl sm:text-3xl text-brand-purple mb-2 font-playfair"
             >
               Bienvenue
             </h1>
