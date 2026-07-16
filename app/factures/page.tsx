@@ -1,399 +1,304 @@
 'use client';
 
-import { DashboardLayout } from '@/components/layout/DashboardLayout';
-import { Card } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
-import { Plus, Search, FileText, Eye, Download, Clock, CheckCircle, AlertCircle, DollarSign, Loader2 } from 'lucide-react';
-import { useState, useEffect } from 'react';
-import { NewInvoiceModal } from '@/components/modals/NewInvoiceModal';
-import { RecordPaymentModal } from '@/components/modals/RecordPaymentModal';
+import { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { getDocuments } from '@/lib/db';
-import { toast } from 'sonner';
-
-interface Facture {
-  id: string;
-  reference: string;
-  client: string;
-  date: string;
-  dueDate: string;
-  montantHT: number;
-  montantTTC: number;
-  paid: number;
-  status: 'paid' | 'pending' | 'partial' | 'overdue';
-  type: 'invoice' | 'deposit';
-  pdfUrl?: string;
-  createdAt?: any;
-}
-
-const statusConfig = {
-  paid: {
-    label: 'Payée',
-    color: 'bg-green-100 text-green-700',
-    icon: CheckCircle,
-  },
-  pending: {
-    label: 'En attente',
-    color: 'bg-blue-100 text-blue-700',
-    icon: Clock,
-  },
-  partial: {
-    label: 'Partiel',
-    color: 'bg-orange-100 text-orange-700',
-    icon: AlertCircle,
-  },
-  overdue: {
-    label: 'En retard',
-    color: 'bg-red-100 text-red-700',
-    icon: AlertCircle,
-  },
-};
-
-const typeLabels = {
-  invoice: 'Facture',
-  deposit: 'Acompte',
-};
+import { DashboardLayout } from '@/components/layout/DashboardLayout';
+import { PageHeader } from '@/components/layout/PageHeader';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Plus, FileText, Eye, Check, X, Loader2, AlertCircle, Download } from 'lucide-react';
+import { Invoice, Payment } from '@/types/invoice';
+import { getDocuments, getDocument } from '@/lib/db';
+import { CreateInvoiceModal } from '@/components/modals/CreateInvoiceModal';
+import { ViewInvoiceModal } from '@/components/modals/ViewInvoiceModal';
+import { ValidatePaymentModal } from '@/components/modals/ValidatePaymentModal';
+import { useToast } from '@/hooks/use-toast';
 
 export default function FacturesPage() {
   const { user } = useAuth();
-  const [factures, setFactures] = useState<Facture[]>([]);
+  const { toast } = useToast();
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [pendingPayments, setPendingPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [isNewInvoiceOpen, setIsNewInvoiceOpen] = useState(false);
-  const [isRecordPaymentOpen, setIsRecordPaymentOpen] = useState(false);
-  const [recordPaymentInvoiceId, setRecordPaymentInvoiceId] = useState<string | null>(null);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
+  const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null);
+  const [filter, setFilter] = useState<'all' | 'sent' | 'payment_pending' | 'paid' | 'overdue'>('all');
 
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 3;
+  useEffect(() => {
+    if (user) {
+      fetchData();
+    }
+  }, [user]);
 
-  const fetchFactures = async () => {
+  const fetchData = async () => {
     if (!user) return;
-    setLoading(true);
+    
     try {
-      const data = await getDocuments('invoices', [
+      setLoading(true);
+      
+      const invoicesData = await getDocuments('invoices', [
         { field: 'planner_id', operator: '==', value: user.uid }
       ]);
-      const mapped = data.map((f: any) => ({
-        id: f.id,
-        reference: f.reference,
-        client: f.client,
-        date: f.date,
-        dueDate: f.due_date,
-        montantHT: f.montant_ht || 0,
-        montantTTC: f.montant_ttc || 0,
-        paid: f.paid || 0,
-        status: f.status,
-        type: f.type,
-        pdfUrl: f.pdf_url || f.pdfUrl || '',
-        createdAt: f.created_at || null,
+      
+      const paymentsData = await getDocuments('payments', [
+        { field: 'planner_id', operator: '==', value: user.uid },
+        { field: 'status', operator: '==', value: 'pending' }
+      ]);
+      
+      setInvoices((invoicesData as Invoice[]).sort((a: any, b: any) => {
+        const aTime = a.created_at?.toMillis?.() || 0;
+        const bTime = b.created_at?.toMillis?.() || 0;
+        return bTime - aTime;
       }));
-
-      const parseCreatedAt = (v: any) => {
-        if (!v) return 0;
-        const d = v?.toDate?.() || new Date(v);
-        return Number.isNaN(d.getTime()) ? 0 : d.getTime();
-      };
-
-      const parseDateFallback = (v?: string) => {
-        if (!v) return 0;
-        const iso = new Date(v);
-        if (!Number.isNaN(iso.getTime())) return iso.getTime();
-        const m = v.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-        if (m) {
-          const d = new Date(parseInt(m[3], 10), parseInt(m[2], 10) - 1, parseInt(m[1], 10));
-          return d.getTime();
-        }
-        return 0;
-      };
-
-      const sorted = mapped
-        .slice()
-        .sort((a, b) => {
-          const aTime = parseCreatedAt(a.createdAt) || parseDateFallback(a.date);
-          const bTime = parseCreatedAt(b.createdAt) || parseDateFallback(b.date);
-          return bTime - aTime;
-        });
-
-      setFactures(sorted);
-    } catch (e) {
-      console.error('Error fetching invoices:', e);
-      toast.error('Erreur lors du chargement des factures');
+      
+      setPendingPayments(paymentsData as Payment[]);
+    } catch (error) {
+      console.error('Error fetching data:', error);
+      toast({
+        title: 'Erreur',
+        description: 'Impossible de charger les factures',
+        variant: 'destructive',
+      });
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    fetchFactures();
-  }, [user]);
-  
-  const totalCA = factures.reduce((acc, f) => acc + f.paid, 0);
-  const totalEnAttente = factures.filter(f => f.status !== 'paid').reduce((acc, f) => acc + (f.montantTTC - f.paid), 0);
+  const filteredInvoices = invoices.filter(inv => {
+    if (filter === 'all') return true;
+    return inv.status === filter;
+  });
 
-  const filteredFactures = factures.filter(f =>
-    f.reference.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    f.client.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchTerm, factures.length]);
-
-  const totalPages = Math.max(1, Math.ceil(filteredFactures.length / itemsPerPage));
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const paginatedFactures = filteredFactures.slice(startIndex, startIndex + itemsPerPage);
-
-  const handleViewInvoice = (facture: Facture) => {
-    if (facture.pdfUrl) {
-      window.open(facture.pdfUrl, '_blank');
-    } else {
-      toast.error('Aucun PDF disponible');
-    }
+  const getStatusBadge = (status: string) => {
+    const variants: Record<string, { label: string; variant: any }> = {
+      draft: { label: 'Brouillon', variant: 'secondary' },
+      sent: { label: 'Envoyée', variant: 'default' },
+      payment_pending: { label: 'En attente', variant: 'warning' },
+      paid: { label: 'Payée', variant: 'success' },
+      overdue: { label: 'En retard', variant: 'destructive' },
+      cancelled: { label: 'Annulée', variant: 'secondary' },
+    };
+    
+    const config = variants[status] || variants.draft;
+    return <Badge variant={config.variant as any}>{config.label}</Badge>;
   };
 
-  const handleDownloadInvoice = (facture: Facture) => {
-    if (facture.pdfUrl) {
-      const link = document.createElement('a');
-      link.href = facture.pdfUrl;
-      link.download = `${facture.reference}.pdf`;
-      link.target = '_blank';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      toast.success('Téléchargement lancé');
-    } else {
-      toast.error('Aucun PDF disponible');
-    }
+  const formatDate = (dateStr?: string) => {
+    if (!dateStr) return '-';
+    return new Date(dateStr).toLocaleDateString('fr-FR');
   };
+
+  const formatAmount = (amount: number) => {
+    return new Intl.NumberFormat('fr-FR', {
+      style: 'currency',
+      currency: 'EUR',
+    }).format(amount);
+  };
+
+  if (loading) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <Loader2 className="h-8 w-8 animate-spin text-brand-turquoise" />
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-brand-purple mb-1 sm:mb-2">
-              Factures
-            </h1>
-            <p className="text-sm sm:text-base text-brand-gray">
-              Gérez vos factures et paiements clients
-            </p>
-          </div>
-          <div className="flex gap-2 w-full sm:w-auto">
-            <Button 
-              className="bg-brand-turquoise hover:bg-brand-turquoise-hover gap-2 flex-1 sm:flex-none"
-              onClick={() => setIsNewInvoiceOpen(true)}
-            >
-              <Plus className="h-4 w-4" />
-              <span className="hidden sm:inline">Nouvelle facture</span>
-              <span className="sm:hidden">Nouvelle</span>
-            </Button>
-            <Button 
-              variant="outline"
-              className="gap-2 flex-1 sm:flex-none border-brand-turquoise text-brand-turquoise hover:bg-brand-turquoise hover:text-white"
-              onClick={() => {
-                setRecordPaymentInvoiceId(null);
-                setIsRecordPaymentOpen(true);
-              }}
-            >
-              <DollarSign className="h-4 w-4" />
-              <span className="hidden sm:inline">Enregistrer un paiement</span>
-              <span className="sm:hidden">Paiement</span>
-            </Button>
-          </div>
-        </div>
+      <PageHeader
+        title="Facturation"
+        description="Gérez vos factures et validez les paiements"
+      >
+        <Button onClick={() => setShowCreateModal(true)}>
+          <Plus className="h-4 w-4 mr-2" />
+          Nouvelle facture
+        </Button>
+      </PageHeader>
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          <Card className="p-6 shadow-xl border-0 bg-gradient-to-br from-green-50 to-white">
-            <p className="text-sm text-brand-gray uppercase tracking-label mb-1">Payées</p>
-            <p className="text-3xl font-bold text-brand-purple">
-              {factures.filter(f => f.status === 'paid').length}
-            </p>
-          </Card>
-          <Card className="p-6 shadow-xl border-0 bg-gradient-to-br from-blue-50 to-white">
-            <p className="text-sm text-brand-gray uppercase tracking-label mb-1">En attente</p>
-            <p className="text-3xl font-bold text-brand-purple">
-              {factures.filter(f => f.status === 'pending').length}
-            </p>
-          </Card>
-          <Card className="p-6 shadow-xl border-0 bg-gradient-to-br from-brand-beige to-white">
-            <p className="text-sm text-brand-gray uppercase tracking-label mb-1">CA encaissé</p>
-            <p className="text-2xl font-bold text-brand-purple">
-              {totalCA.toLocaleString()} €
-            </p>
-          </Card>
-          <Card className="p-6 shadow-xl border-0 bg-gradient-to-br from-orange-50 to-white">
-            <p className="text-sm text-brand-gray uppercase tracking-label mb-1">À encaisser</p>
-            <p className="text-2xl font-bold text-brand-purple">
-              {totalEnAttente.toLocaleString()} €
-            </p>
-          </Card>
-        </div>
-
-        <Card className="p-4 shadow-xl border-0">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-brand-gray" />
-            <Input
-              placeholder="Rechercher une facture..."
-              className="pl-10 border-[#E5E5E5] focus-visible:ring-brand-turquoise"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
+      {pendingPayments.length > 0 && (
+        <Card className="p-6 mb-6 border-orange-200 bg-orange-50">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="h-5 w-5 text-orange-600 mt-0.5" />
+            <div className="flex-1">
+              <h3 className="font-semibold text-orange-900 mb-2">
+                {pendingPayments.length} paiement{pendingPayments.length > 1 ? 's' : ''} en attente de validation
+              </h3>
+              <div className="space-y-2">
+                {pendingPayments.map((payment) => (
+                  <div
+                    key={payment.id}
+                    className="flex items-center justify-between bg-white p-3 rounded-lg"
+                  >
+                    <div className="flex-1">
+                      <p className="font-medium text-sm">
+                        Facture {payment.invoice_id.substring(0, 8)}...
+                      </p>
+                      <p className="text-sm text-gray-600">
+                        {formatAmount(payment.amount)} • {formatDate(payment.transfer_date)}
+                      </p>
+                    </div>
+                    <Button
+                      size="sm"
+                      onClick={() => setSelectedPayment(payment)}
+                    >
+                      Valider
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         </Card>
+      )}
 
-        {loading ? (
-          <div className="flex justify-center py-20">
-            <Loader2 className="h-10 w-10 animate-spin text-brand-turquoise" />
-          </div>
-        ) : filteredFactures.length === 0 ? (
-          <Card className="p-12 text-center">
-            <FileText className="h-16 w-16 text-brand-gray mx-auto mb-4" />
-            <h3 className="text-xl font-bold text-brand-purple mb-2">
-              {searchTerm ? 'Aucun résultat' : 'Aucune facture'}
-            </h3>
-            <p className="text-brand-gray mb-6">
-              {searchTerm ? 'Essayez avec d\'autres mots-clés' : 'Créez votre première facture'}
-            </p>
-            {!searchTerm && (
-              <Button onClick={() => setIsNewInvoiceOpen(true)} className="bg-brand-turquoise hover:bg-brand-turquoise-hover">
-                <Plus className="h-4 w-4 mr-2" /> Créer une facture
-              </Button>
-            )}
-          </Card>
-        ) : (
-          <div className="space-y-4">
-            {paginatedFactures.map((facture) => {
-            const config = statusConfig[facture.status as keyof typeof statusConfig];
-            const StatusIcon = config.icon;
-            const restant = facture.montantTTC - facture.paid;
-
-            return (
-              <Card key={facture.id} className="p-6 shadow-xl border-0 hover:shadow-2xl transition-shadow">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2">
-                      <FileText className="h-5 w-5 text-brand-turquoise" />
-                      <h3 className="text-lg font-bold text-brand-purple">
-                        {facture.reference}
-                      </h3>
-                      <Badge variant="outline" className="border-brand-turquoise text-brand-turquoise">
-                        {typeLabels[facture.type as keyof typeof typeLabels]}
-                      </Badge>
-                    </div>
-                    <p className="text-sm text-brand-gray mb-1">{facture.client}</p>
-                    <p className="text-xs text-brand-gray">Émise le {facture.date} • Échéance: {facture.dueDate}</p>
-                  </div>
-                  <Badge className={config.color}>
-                    <StatusIcon className="h-3 w-3 mr-1" />
-                    {config.label}
-                  </Badge>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4 p-4 rounded-lg bg-gray-50">
-                  <div>
-                    <p className="text-xs text-brand-gray uppercase tracking-label mb-1">Montant TTC</p>
-                    <p className="text-lg font-bold text-brand-purple">
-                      {facture.montantTTC.toLocaleString()} €
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-brand-gray uppercase tracking-label mb-1">Payé</p>
-                    <p className="text-lg font-bold text-green-600">
-                      {facture.paid.toLocaleString()} €
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-brand-gray uppercase tracking-label mb-1">Restant</p>
-                    <p className={`text-lg font-bold ${restant > 0 ? 'text-orange-600' : 'text-green-600'}`}>
-                      {restant.toLocaleString()} €
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-brand-gray uppercase tracking-label mb-1">% Payé</p>
-                    <p className="text-lg font-bold text-brand-purple">
-                      {Math.round((facture.paid / facture.montantTTC) * 100)}%
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex gap-2">
-                  <Button size="sm" className="bg-brand-turquoise hover:bg-brand-turquoise-hover gap-2" onClick={() => handleViewInvoice(facture)}>
-                    <Eye className="h-3 w-3" />
-                    Voir
-                  </Button>
-                  <Button size="sm" variant="outline" className="border-2 border-brand-turquoise text-brand-gray hover:bg-brand-turquoise hover:text-white gap-2" onClick={() => handleDownloadInvoice(facture)}>
-                    <Download className="h-3 w-3" />
-                    PDF
-                  </Button>
-                  {facture.status !== 'paid' && (
-                    <Button 
-                      size="sm" 
-                      variant="outline" 
-                      className="border-2 border-green-500 text-green-600 hover:bg-green-500 hover:text-white"
-                      onClick={() => {
-                        setRecordPaymentInvoiceId(facture.id);
-                        setIsRecordPaymentOpen(true);
-                      }}
-                    >
-                      Enregistrer un paiement
-                    </Button>
-                  )}
-                </div>
-              </Card>
-            );
-          })}
-          </div>
-        )}
-
-        {filteredFactures.length > itemsPerPage ? (
-          <Card className="p-4 shadow-xl border-0">
-            <div className="flex items-center justify-between">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                disabled={currentPage === 1}
-                className="gap-2"
-              >
-                ← Précédent
-              </Button>
-              <span className="text-sm text-brand-gray">
-                Page {currentPage} sur {totalPages}
-              </span>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                disabled={currentPage === totalPages}
-                className="gap-2"
-              >
-                Suivant →
-              </Button>
-            </div>
-          </Card>
-        ) : null}
+      <div className="flex gap-2 mb-6 flex-wrap">
+        <Button
+          variant={filter === 'all' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => setFilter('all')}
+        >
+          Toutes
+        </Button>
+        <Button
+          variant={filter === 'sent' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => setFilter('sent')}
+        >
+          Envoyées
+        </Button>
+        <Button
+          variant={filter === 'payment_pending' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => setFilter('payment_pending')}
+        >
+          En attente
+        </Button>
+        <Button
+          variant={filter === 'paid' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => setFilter('paid')}
+        >
+          Payées
+        </Button>
+        <Button
+          variant={filter === 'overdue' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => setFilter('overdue')}
+        >
+          En retard
+        </Button>
       </div>
 
-      <NewInvoiceModal isOpen={isNewInvoiceOpen} onClose={() => { setIsNewInvoiceOpen(false); fetchFactures(); }} />
-      <RecordPaymentModal
-        isOpen={isRecordPaymentOpen}
-        onClose={() => {
-          setIsRecordPaymentOpen(false);
-          setRecordPaymentInvoiceId(null);
-          fetchFactures();
-        }}
-        invoices={factures.map((f) => ({
-          id: f.id,
-          reference: f.reference,
-          client: f.client,
-          type: f.type,
-          montantTTC: f.montantTTC,
-          paid: f.paid,
-        }))}
-        defaultInvoiceId={recordPaymentInvoiceId}
+      <div className="overflow-x-auto">
+        <table className="w-full">
+          <thead>
+            <tr className="border-b border-gray-200">
+              <th className="text-left py-3 px-4 font-medium text-sm text-gray-600">Numéro</th>
+              <th className="text-left py-3 px-4 font-medium text-sm text-gray-600">Client</th>
+              <th className="text-left py-3 px-4 font-medium text-sm text-gray-600">Libellé</th>
+              <th className="text-left py-3 px-4 font-medium text-sm text-gray-600">Montant</th>
+              <th className="text-left py-3 px-4 font-medium text-sm text-gray-600">Échéance</th>
+              <th className="text-left py-3 px-4 font-medium text-sm text-gray-600">Statut</th>
+              <th className="text-left py-3 px-4 font-medium text-sm text-gray-600">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredInvoices.length === 0 ? (
+              <tr>
+                <td colSpan={7} className="text-center py-12 text-gray-500">
+                  <FileText className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+                  <p>Aucune facture trouvée</p>
+                </td>
+              </tr>
+            ) : (
+              filteredInvoices.map((invoice) => (
+                <tr key={invoice.id} className="border-b border-gray-100 hover:bg-gray-50">
+                  <td className="py-3 px-4">
+                    <span className="font-mono text-sm">{invoice.number}</span>
+                  </td>
+                  <td className="py-3 px-4">
+                    <ClientName clientId={invoice.client_id} />
+                  </td>
+                  <td className="py-3 px-4">
+                    <span className="text-sm">{invoice.label}</span>
+                  </td>
+                  <td className="py-3 px-4">
+                    <span className="font-medium">{formatAmount(invoice.amount_ttc)}</span>
+                  </td>
+                  <td className="py-3 px-4">
+                    <span className="text-sm">{formatDate(invoice.due_date)}</span>
+                  </td>
+                  <td className="py-3 px-4">
+                    {getStatusBadge(invoice.status)}
+                  </td>
+                  <td className="py-3 px-4">
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setSelectedInvoice(invoice)}
+                      >
+                        <Eye className="h-4 w-4" />
+                      </Button>
+                      {invoice.file_url && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => window.open(invoice.file_url, '_blank')}
+                        >
+                          <Download className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <CreateInvoiceModal
+        open={showCreateModal}
+        onOpenChange={setShowCreateModal}
+        onSuccess={fetchData}
       />
+
+      {selectedInvoice && (
+        <ViewInvoiceModal
+          invoice={selectedInvoice}
+          open={!!selectedInvoice}
+          onOpenChange={(open) => !open && setSelectedInvoice(null)}
+          onUpdate={fetchData}
+        />
+      )}
+
+      {selectedPayment && (
+        <ValidatePaymentModal
+          payment={selectedPayment}
+          open={!!selectedPayment}
+          onOpenChange={(open) => !open && setSelectedPayment(null)}
+          onSuccess={fetchData}
+        />
+      )}
     </DashboardLayout>
   );
+}
+
+function ClientName({ clientId }: { clientId: string }) {
+  const [name, setName] = useState('...');
+
+  useEffect(() => {
+    getDocument('clients', clientId).then((client: any) => {
+      if (client) {
+        setName(client.names || client.name || 'Client inconnu');
+      }
+    });
+  }, [clientId]);
+
+  return <span className="text-sm">{name}</span>;
 }

@@ -17,6 +17,7 @@ import {
   Plus,
   Users,
   ArrowLeft,
+  Trash2,
 } from 'lucide-react';
 import { useMemo, useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
@@ -38,6 +39,7 @@ interface Conversation {
   lastMessageAtMs?: number;
   unread: number;
   online: boolean;
+  deletedForPlanner?: boolean;
 }
 
 interface Message {
@@ -96,10 +98,12 @@ export default function AdminMessagesPage() {
   }, [conversations]);
 
   const filteredClientList = useMemo(() => {
-    const items = clients.map((c) => ({
-      ...c,
-      conv: convByClientId.get(c.id) || null,
-    }));
+    const items = clients
+      .map((c) => ({
+        ...c,
+        conv: convByClientId.get(c.id) || null,
+      }))
+      .filter((item) => !item.conv?.deletedForPlanner);
     if (filter !== 'all' && filter !== 'client') return [];
     return items
       .slice()
@@ -144,6 +148,7 @@ export default function AdminMessagesPage() {
           lastMessageAtMs: lastAtMs,
           unread: Number(c.unread_count_planner ?? 0),
           online: false,
+          deletedForPlanner: c.deleted_for_planner === true,
         } as Conversation;
       });
 
@@ -241,6 +246,10 @@ export default function AdminMessagesPage() {
     ]).catch(() => []);
     const existing0 = (existingItems as any[])?.find((c) => (c?.type || 'client') === 'client') || (existingItems as any[])?.[0] || null;
     if (existing0?.id) {
+      if (existing0.deleted_for_planner === true) {
+        await updateDocument('conversations', existing0.id, { deleted_for_planner: false });
+        existing0.deleted_for_planner = false;
+      }
       const clientDoc = await getDocuments('clients', [{ field: '__name__', operator: '==', value: cid }]).catch(() => []);
       const c0 = (clientDoc as any[])?.[0] || null;
       const clientName = c0 ? `${c0.name || ''}${c0.partner ? ' & ' + c0.partner : ''}`.trim() : 'Client';
@@ -299,6 +308,7 @@ export default function AdminMessagesPage() {
     return conv;
   };
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!user?.uid) return;
     void fetchConversations();
@@ -406,6 +416,23 @@ export default function AdminMessagesPage() {
       toast.error("Impossible d'envoyer le message");
     } finally {
       setSending(false);
+    }
+  };
+
+  const handleDeleteConversation = async (convId: string) => {
+    if (!user?.uid || !convId) return;
+    if (!confirm('Supprimer cette discussion de votre interface ? Les messages resteront conservés et le client continuera de voir son historique.')) return;
+    try {
+      await updateDocument('conversations', convId, { deleted_for_planner: true });
+      if (selectedConversation?.id === convId) {
+        setSelectedConversation(null);
+        setShowChatOnMobile(false);
+      }
+      await fetchConversations();
+      toast.success('Discussion masquée');
+    } catch (e) {
+      console.error('Error hiding conversation:', e);
+      toast.error('Impossible de masquer la discussion');
     }
   };
 
@@ -591,6 +618,18 @@ export default function AdminMessagesPage() {
                       {unread > 0 ? (
                         <Badge className="bg-brand-turquoise text-white text-xs px-2 flex-shrink-0">{unread}</Badge>
                       ) : null}
+                      {conv ? (
+                        <button
+                          title="Masquer la discussion"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void handleDeleteConversation(conv.id);
+                          }}
+                          className="p-1.5 rounded-full text-brand-gray hover:text-red-500 hover:bg-red-50 transition-colors shrink-0"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      ) : null}
                     </div>
                   </div>
                 );
@@ -711,6 +750,8 @@ export default function AdminMessagesPage() {
                 <input
                   id={fileInputId}
                   type="file"
+                  title="Joindre un fichier"
+                  aria-label="Joindre un fichier"
                   className="hidden"
                   onChange={(e) => {
                     const f = e.target.files?.[0] || null;

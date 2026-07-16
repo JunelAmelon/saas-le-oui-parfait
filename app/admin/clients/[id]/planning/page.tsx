@@ -7,7 +7,8 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
-import { Calendar, Clock, MapPin, Loader2, Plus, Trash2, Pencil } from 'lucide-react';
+import { Calendar, Clock, MapPin, Loader2, Plus, Trash2, Pencil, ArrowLeft } from 'lucide-react';
+import { PageHeader } from '@/components/layout/PageHeader';
 import { useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 
@@ -235,25 +236,20 @@ export default function ClientPlanningPage() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-brand-purple mb-2">Planning</h1>
-            <p className="text-brand-gray">Planning du client</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={() => router.back()}>
-              ← Retour
-            </Button>
-            <Button
-              className="bg-brand-turquoise hover:bg-brand-turquoise-hover gap-2"
-              onClick={() => setIsAddOpen(true)}
-              disabled={loading}
-            >
-              <Plus className="h-4 w-4" />
-              Ajouter un RDV
-            </Button>
-          </div>
-        </div>
+        <PageHeader title="Planning" description="Planning du client">
+          <Button variant="outline" onClick={() => router.back()} className="w-full sm:w-auto gap-2">
+            <ArrowLeft className="h-4 w-4" />
+            Retour
+          </Button>
+          <Button
+            className="bg-brand-turquoise hover:bg-brand-turquoise-hover w-full sm:w-auto gap-2"
+            onClick={() => setIsAddOpen(true)}
+            disabled={loading}
+          >
+            <Plus className="h-4 w-4" />
+            Ajouter un RDV
+          </Button>
+        </PageHeader>
 
         {loading ? (
           <Card className="p-10 shadow-xl border-0">
@@ -277,7 +273,7 @@ export default function ClientPlanningPage() {
               <div className="space-y-3">
                 {sortedAppointments.map((a) => (
                   <div key={a.id} className="p-4 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors">
-                    <div className="flex items-start justify-between gap-4">
+                    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
                       <div className="min-w-0">
                         <p className="font-medium text-brand-purple truncate">{a.title}</p>
                         <div className="flex flex-wrap items-center gap-3 text-sm text-brand-gray mt-1">

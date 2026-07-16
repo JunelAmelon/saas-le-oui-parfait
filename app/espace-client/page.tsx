@@ -402,6 +402,7 @@ export default function ClientPortalPage() {
                   <img src={member.logoUrl} alt={member.name} className="w-full h-full object-cover" />
                 </div>
               ) : (
+                /* eslint-disable-next-line react/forbid-dom-props */
                 <div
                   className="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-semibold text-white shrink-0"
                   style={{ backgroundColor: member.color }}

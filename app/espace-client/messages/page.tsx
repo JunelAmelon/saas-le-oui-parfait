@@ -228,6 +228,7 @@ export default function MessagesPage() {
         last_message: content,
         last_message_at: new Date(),
         unread_count_planner: 1,
+        deleted_for_planner: false,
       });
 
       try {
@@ -302,6 +303,7 @@ export default function MessagesPage() {
         last_message: `📎 ${file.name}`,
         last_message_at: new Date(),
         unread_count_planner: 1,
+        deleted_for_planner: false,
       });
 
       try {

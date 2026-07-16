@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { useAuth } from '@/contexts/AuthContext';
 import { addDocument, deleteDocument, getDocuments } from '@/lib/db';
 import { ArrowLeft, Euro, Loader2, Plus, Receipt, Trash2 } from 'lucide-react';
+import { PageHeader } from '@/components/layout/PageHeader';
 import { useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
@@ -163,22 +164,16 @@ export default function ClientDepensesAdminPage() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-brand-purple mb-1 sm:mb-2">Dépenses</h1>
-            <p className="text-sm sm:text-base text-brand-gray">Gérez les dépenses liées à ce client</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={() => router.back()} className="gap-2">
-              <ArrowLeft className="h-4 w-4" />
-              Retour
-            </Button>
-            <Button className="bg-brand-turquoise hover:bg-brand-turquoise-hover gap-2" onClick={() => setIsAddOpen(true)}>
-              <Plus className="h-4 w-4" />
-              Ajouter
-            </Button>
-          </div>
-        </div>
+        <PageHeader title="Dépenses" description="Gérez les dépenses liées à ce client">
+          <Button variant="outline" onClick={() => router.back()} className="w-full sm:w-auto gap-2">
+            <ArrowLeft className="h-4 w-4" />
+            Retour
+          </Button>
+          <Button className="bg-brand-turquoise hover:bg-brand-turquoise-hover w-full sm:w-auto gap-2" onClick={() => setIsAddOpen(true)}>
+            <Plus className="h-4 w-4" />
+            Ajouter
+          </Button>
+        </PageHeader>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <Card className="p-6 shadow-xl border-0 bg-gradient-to-br from-brand-beige to-white">
@@ -217,7 +212,7 @@ export default function ClientDepensesAdminPage() {
               <div className="space-y-3">
                 {expenses.map((e) => (
                   <div key={e.id} className="p-4 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors">
-                    <div className="flex items-start justify-between gap-4">
+                    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
                       <div className="min-w-0">
                         <p className="font-medium text-brand-purple truncate flex items-center gap-2">
                           <Receipt className="h-4 w-4 text-brand-gray" />

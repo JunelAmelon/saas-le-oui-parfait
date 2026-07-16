@@ -19,6 +19,7 @@ import {
   X,
   ChevronLeft,
   ChevronRight,
+  ArrowLeft,
 } from 'lucide-react';
 import {
   Table,
@@ -39,7 +40,8 @@ import {
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useState, useEffect } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
+import { PageHeader } from '@/components/layout/PageHeader';
 import { useAuth } from '@/contexts/AuthContext';
 import { getDocuments, updateDocument } from '@/lib/db';
 import { toast } from 'sonner';
@@ -47,8 +49,9 @@ import { toast } from 'sonner';
 export default function DocumentsPage() {
   const { user } = useAuth();
   const searchParams = useSearchParams();
+  const router = useRouter();
   const clientId = searchParams.get('clientId');
-  
+
   const [documents, setDocuments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -66,6 +69,7 @@ export default function DocumentsPage() {
   const [editName, setEditName] = useState('');
   const [editType, setEditType] = useState('contrat');
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (user) {
       fetchDocuments();
@@ -320,25 +324,28 @@ export default function DocumentsPage() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-brand-purple mb-2">
-              Documents
-            </h1>
-            <p className="text-brand-gray">
-              {clientId 
-                ? 'Documents du client'
-                : 'Gérez tous vos documents et fichiers'}
-            </p>
-          </div>
-          <Button 
-            className="bg-brand-turquoise hover:bg-brand-turquoise-hover gap-2"
+        <PageHeader
+          title="Documents"
+          description={clientId ? 'Documents du client' : 'Gérez tous vos documents et fichiers'}
+        >
+          {clientId && (
+            <Button
+              variant="outline"
+              onClick={() => router.push('/agence/clients')}
+              className="w-full sm:w-auto gap-2"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Retour
+            </Button>
+          )}
+          <Button
+            className="bg-brand-turquoise hover:bg-brand-turquoise-hover w-full sm:w-auto gap-2"
             onClick={() => setIsUploadModalOpen(true)}
           >
             <Upload className="h-4 w-4" />
-            Uploader un document
+            Uploader
           </Button>
-        </div>
+        </PageHeader>
 
         <Card className="p-4 shadow-xl border-0">
           <div className="relative">
@@ -380,15 +387,16 @@ export default function DocumentsPage() {
           </Card>
         ) : (
           <>
-            <Card className="shadow-xl border-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="font-bold text-brand-purple">Nom</TableHead>
-                    <TableHead className="font-bold text-brand-purple">Type</TableHead>
-                    <TableHead className="font-bold text-brand-purple">Date</TableHead>
-                    <TableHead className="font-bold text-brand-purple">Taille</TableHead>
-                    <TableHead className="font-bold text-brand-purple text-center">Actions</TableHead>
+            <Card className="shadow-xl border-0 overflow-hidden">
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="font-bold text-brand-purple whitespace-nowrap">Nom</TableHead>
+                      <TableHead className="font-bold text-brand-purple whitespace-nowrap">Type</TableHead>
+                      <TableHead className="font-bold text-brand-purple whitespace-nowrap">Date</TableHead>
+                      <TableHead className="font-bold text-brand-purple whitespace-nowrap">Taille</TableHead>
+                      <TableHead className="font-bold text-brand-purple text-center whitespace-nowrap">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -451,7 +459,8 @@ export default function DocumentsPage() {
                     </TableRow>
                   ))}
                 </TableBody>
-              </Table>
+                </Table>
+              </div>
             </Card>
 
             {filteredDocuments.length > documentsPerPage && (
@@ -529,6 +538,7 @@ export default function DocumentsPage() {
               <div className="mt-1">
                 <input
                   type="file"
+                  aria-label="Sélectionner un fichier"
                   onChange={handleFileSelect}
                   className="w-full text-sm text-brand-gray file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-brand-turquoise file:text-white hover:file:bg-brand-turquoise-hover"
                 />

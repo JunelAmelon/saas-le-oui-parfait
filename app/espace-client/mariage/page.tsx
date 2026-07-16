@@ -352,6 +352,7 @@ export default function MariagePage() {
               <div className="flex gap-2 flex-wrap">
                 {themeColors.length > 0 ? (
                   themeColors.map((c) => (
+                    /* eslint-disable-next-line react/forbid-dom-props */
                     <div
                       key={c}
                       className="w-9 h-9 rounded-full border-2 border-white shadow-sm"

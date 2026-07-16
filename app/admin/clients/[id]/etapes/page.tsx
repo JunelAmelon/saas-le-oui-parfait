@@ -18,6 +18,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { addDocument, deleteDocument, getDocuments, updateDocument } from '@/lib/db';
 import { ArrowLeft, CheckCircle, Circle, Loader2, Plus, Trash2, Pencil } from 'lucide-react';
+import { PageHeader } from '@/components/layout/PageHeader';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -239,26 +240,20 @@ export default function ClientStepsAdminPage() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-brand-purple mb-2">Étapes</h1>
-            <p className="text-brand-gray">Créez et validez les étapes clés pour ce client</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={() => router.back()} className="gap-2">
-              <ArrowLeft className="h-4 w-4" />
-              Retour
-            </Button>
-            <Button
-              className="bg-brand-turquoise hover:bg-brand-turquoise-hover gap-2"
-              onClick={() => setIsAddOpen(true)}
-              disabled={loading}
-            >
-              <Plus className="h-4 w-4" />
-              Ajouter
-            </Button>
-          </div>
-        </div>
+        <PageHeader title="Étapes" description="Créez et validez les étapes clés pour ce client">
+          <Button variant="outline" onClick={() => router.back()} className="w-full sm:w-auto gap-2">
+            <ArrowLeft className="h-4 w-4" />
+            Retour
+          </Button>
+          <Button
+            className="bg-brand-turquoise hover:bg-brand-turquoise-hover w-full sm:w-auto gap-2"
+            onClick={() => setIsAddOpen(true)}
+            disabled={loading}
+          >
+            <Plus className="h-4 w-4" />
+            Ajouter
+          </Button>
+        </PageHeader>
 
         {loading ? (
           <Card className="p-10 shadow-xl border-0">
@@ -284,7 +279,7 @@ export default function ClientStepsAdminPage() {
                   const done = Boolean(s.admin_confirmed) && Boolean(s.client_confirmed);
                   return (
                     <div key={s.id} className="p-4 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors">
-                      <div className="flex items-start justify-between gap-4">
+                      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
                         <div className="flex items-start gap-3 min-w-0">
                           <div className="mt-0.5">
                             {done ? (

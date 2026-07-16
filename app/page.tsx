@@ -9,7 +9,8 @@ import { BudgetCard } from '@/components/dashboard/BudgetCard';
 import { QuoteList } from '@/components/dashboard/QuoteList';
 import { TaskList } from '@/components/dashboard/TaskList';
 import { TimeTracker } from '@/components/dashboard/TimeTracker';
-import { Euro, Calendar, Users, TrendingUp, Loader2, Heart, Eye, MoreVertical, Edit, MessageSquare } from 'lucide-react';
+import { Euro, Calendar, Users, Loader2, Heart, Eye, MoreVertical, Edit, MessageSquare } from 'lucide-react';
+import Image from 'next/image';
 
 import { getDocuments } from '@/lib/db';
 import { Badge } from '@/components/ui/badge';
@@ -23,14 +24,15 @@ import {
 } from '@/components/ui/dropdown-menu';
 
 interface DashboardStats {
-  prospectsCount: number;
+  clientsCount: number;
   eventsCount: number;
+  caSigne: number;
+  paidAmount: number;
+  upcomingAppointments: number;
   activeEvents: any[];
   upcomingTasks: any[];
-  revenueCollected: number;
   revenueRemaining: number;
   expensesTotal: number;
-  conversionRate: number;
 }
 
 interface Client {
@@ -61,14 +63,15 @@ export default function Home() {
   const router = useRouter();
 
   const [stats, setStats] = useState<DashboardStats>({
-    prospectsCount: 0,
+    clientsCount: 0,
     eventsCount: 0,
+    caSigne: 0,
+    paidAmount: 0,
+    upcomingAppointments: 0,
     activeEvents: [],
     upcomingTasks: [],
-    revenueCollected: 0,
     revenueRemaining: 0,
     expensesTotal: 0,
-    conversionRate: 0
   });
   const [dataLoading, setDataLoading] = useState(true);
   const [lastClient, setLastClient] = useState<Client | null>(null);
@@ -88,13 +91,13 @@ export default function Home() {
       if (!user || user.role !== 'planner') return;
 
       try {
-        const [prospectsByPlanner, events, tasks, clients, devis, invoices, expenses] = await Promise.all([
-          getDocuments('prospects', [{ field: 'planner_id', operator: '==', value: user.uid }]),
+        const [events, tasks, plannerTasks, clients, devis, invoices, expenses] = await Promise.all([
           getDocuments('events', [{ field: 'planner_id', operator: '==', value: user.uid }]),
           getDocuments('tasks', [
             { field: 'assigned_to', operator: '==', value: user.uid },
             { field: 'status', operator: '==', value: 'todo' }
           ]),
+          getDocuments('tasks', [{ field: 'planner_id', operator: '==', value: user.uid }]),
 
           getDocuments('clients', [{ field: 'planner_id', operator: '==', value: user.uid }]),
 
@@ -103,16 +106,22 @@ export default function Home() {
           getDocuments('expenses', [{ field: 'planner_id', operator: '==', value: user.uid }]),
         ]);
 
-        const activeProspects = (prospectsByPlanner as any[]).filter((p: any) => p?.archived !== true);
-
         const signedEvents = events.filter((e: any) =>
           ['confirmed', 'in_progress', 'completed'].includes(e.status)
         );
 
-        const revenueCollected = (invoices as any[]).reduce(
-          (acc: number, inv: any) => acc + Number(inv?.paid || 0),
+        const activeEventsList = events.filter((e: any) =>
+          ['confirmed', 'in_progress'].includes(e.status)
+        );
+
+        const caSigne = activeEventsList.reduce(
+          (acc: number, e: any) => acc + Number(e?.budget || 0),
           0
         );
+
+        const paidAmount = (invoices as any[])
+          .filter((inv: any) => ['paid', 'completed'].includes(String(inv?.status || '').toLowerCase()))
+          .reduce((acc: number, inv: any) => acc + Number(inv?.montant_ttc || inv?.amount || 0), 0);
 
         const revenueRemaining = (invoices as any[])
           .filter((inv: any) => String(inv?.status || '') !== 'paid')
@@ -127,12 +136,16 @@ export default function Home() {
           0
         );
 
-        const normalizeProspectStatus = (status: any) =>
-          String(status || '').trim().toLowerCase();
-
-        const conversionRate = activeProspects.length
-          ? Math.round((activeProspects.filter((p: any) => normalizeProspectStatus(p?.status) === 'converted').length / activeProspects.length) * 100)
-          : 0;
+        const upcomingAppointments = (plannerTasks as any[]).filter((t: any) => {
+          if (t?.kind !== 'appointment') return false;
+          const status = String(t?.status || '').toLowerCase();
+          if (['cancelled', 'canceled', 'declined'].includes(status)) return false;
+          const dateStr = t?.confirmed_date || t?.date;
+          const timeStr = t?.confirmed_time || t?.time || '00:00';
+          if (!dateStr) return true;
+          const aptDate = new Date(`${dateStr}T${timeStr}`);
+          return !Number.isNaN(aptDate.getTime()) ? aptDate >= new Date() : true;
+        }).length;
 
         const activeEvents = events
           .filter((e: any) => ['confirmed', 'in_progress'].includes(e.status))
@@ -165,14 +178,15 @@ export default function Home() {
         setRecentDevis(sortedDevis);
 
         setStats({
-          prospectsCount: activeProspects.length,
+          clientsCount: clients.length,
           eventsCount: signedEvents.length,
+          caSigne,
+          paidAmount,
+          upcomingAppointments,
           activeEvents,
           upcomingTasks: tasks.slice(0, 5),
-          revenueCollected,
           revenueRemaining,
           expensesTotal,
-          conversionRate
         });
 
         // Dernier client
@@ -246,28 +260,28 @@ export default function Home() {
         {/* Stats - 4 cartes */}
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
           <StatCard
-            title="Chiffre d'affaires"
-            value={`${stats.revenueCollected.toLocaleString('fr-FR')} €`}
-            icon={Euro}
-            trend={{ value: 12.5, isPositive: true }}
-          />
-          <StatCard
-            title="Événements actifs"
-            value={stats.eventsCount.toString()}
-            icon={Calendar}
-            description="En cours de préparation"
-          />
-          <StatCard
-            title="Prospects"
-            value={stats.prospectsCount.toString()}
+            title="Fiches clients actives"
+            value={stats.clientsCount.toString()}
             icon={Users}
-            trend={{ value: 8.3, isPositive: true }}
+            description="Clients en cours"
           />
           <StatCard
-            title="Taux de conversion"
-            value={`${stats.conversionRate}%`}
-            icon={TrendingUp}
-            trend={{ value: 5.2, isPositive: true }}
+            title="CA signé"
+            value={`${stats.caSigne.toLocaleString('fr-FR')} €`}
+            icon={Euro}
+            description="Budgets événements actifs"
+          />
+          <StatCard
+            title="Encaissé"
+            value={`${stats.paidAmount.toLocaleString('fr-FR')} €`}
+            icon={Euro}
+            description="Factures payées / terminées"
+          />
+          <StatCard
+            title="Prochains rendez-vous"
+            value={stats.upcomingAppointments.toString()}
+            icon={Calendar}
+            description="À venir"
           />
         </div>
 
@@ -283,10 +297,12 @@ export default function Home() {
                     onClick={() => handleViewDetail(lastClient)}
                   >
                     {lastClient.photo ? (
-                      <img
+                      <Image
                         src={lastClient.photo}
                         alt={lastClient.names}
-                        className="h-full w-full object-cover group-hover:scale-110 transition-transform duration-300"
+                        fill
+                        sizes="96px"
+                        className="object-cover group-hover:scale-110 transition-transform duration-300"
                       />
                     ) : (
                       <div className="h-full w-full bg-gradient-to-br from-brand-beige to-brand-turquoise/20 flex items-center justify-center">
@@ -372,7 +388,7 @@ export default function Home() {
         {/* Dernière ligne : BudgetCard + QuoteList + TaskList (3 colonnes) */}
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           <BudgetCard
-            total={stats.revenueCollected + stats.revenueRemaining}
+            total={stats.caSigne}
             spent={stats.expensesTotal}
           />
 

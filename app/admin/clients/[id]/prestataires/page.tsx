@@ -2,12 +2,14 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { ArrowLeft, Loader2, Users } from 'lucide-react';
+import { PageHeader } from '@/components/layout/PageHeader';
 import { useAuth } from '@/contexts/AuthContext';
 import { addDocument, deleteDocument, getDocuments } from '@/lib/db';
 import { toast } from 'sonner';
@@ -153,22 +155,20 @@ export default function ClientPrestatairesAdminPage() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-3">
-              <Button variant="outline" size="icon" onClick={() => router.back()}>
-                <ArrowLeft className="h-4 w-4" />
-              </Button>
-              <h1 className="text-2xl sm:text-3xl font-bold text-brand-purple flex items-center gap-2 sm:gap-3">
-                <Users className="h-6 w-6 sm:h-8 sm:w-8 text-brand-turquoise" />
-                Prestataires
-              </h1>
-            </div>
-            <p className="text-sm sm:text-base text-brand-gray mt-1">
-              Assignez les prestataires qui doivent apparaître côté client.
-            </p>
-          </div>
-        </div>
+        <PageHeader
+          title={
+            <span className="flex items-center gap-2 sm:gap-3">
+              <Users className="h-6 w-6 sm:h-8 sm:w-8 text-brand-turquoise" />
+              Prestataires
+            </span>
+          }
+          description="Assignez les prestataires qui doivent apparaître côté client."
+        >
+          <Button variant="outline" onClick={() => router.back()} className="w-full sm:w-auto gap-2">
+            <ArrowLeft className="h-4 w-4" />
+            Retour
+          </Button>
+        </PageHeader>
 
         {loading ? (
           <div className="flex items-center justify-center py-16">
@@ -187,11 +187,11 @@ export default function ClientPrestatairesAdminPage() {
               ) : (
                 <div className="space-y-2">
                   {assignedVendors.map((v) => (
-                    <div key={v.id} className="flex items-center justify-between p-3 rounded-lg bg-gray-50">
+                    <div key={v.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-lg bg-gray-50 gap-3">
                       <div className="min-w-0 flex items-center gap-3">
-                        <div className="h-10 w-10 rounded-full bg-white border border-gray-200 overflow-hidden flex-shrink-0">
+                        <div className="relative h-10 w-10 rounded-full bg-white border border-gray-200 overflow-hidden flex-shrink-0">
                           {v.logoUrl ? (
-                            <img src={v.logoUrl} alt={v.name} className="h-full w-full object-cover" />
+                            <Image src={v.logoUrl} alt={v.name} fill sizes="40px" className="object-cover" />
                           ) : null}
                         </div>
                         <div className="min-w-0">
@@ -199,7 +199,7 @@ export default function ClientPrestatairesAdminPage() {
                           <p className="text-xs text-brand-gray">{v.category}</p>
                         </div>
                       </div>
-                      <Button size="sm" variant="destructive" onClick={() => void unassignVendor(v.id)}>
+                      <Button size="sm" variant="destructive" className="w-full sm:w-auto" onClick={() => void unassignVendor(v.id)}>
                         Retirer
                       </Button>
                     </div>
@@ -225,7 +225,7 @@ export default function ClientPrestatairesAdminPage() {
                   {filteredVendors.map((v) => {
                     const assigned = assignedVendorIds.has(v.id);
                     return (
-                      <div key={v.id} className="flex items-center justify-between p-3 rounded-lg bg-gray-50">
+                      <div key={v.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-lg bg-gray-50 gap-3">
                         <div className="min-w-0 flex items-center gap-3">
                           <div className="h-10 w-10 rounded-full bg-white border border-gray-200 overflow-hidden flex-shrink-0">
                             {v.logoUrl ? (
@@ -243,7 +243,7 @@ export default function ClientPrestatairesAdminPage() {
                         <Button
                           size="sm"
                           variant={assigned ? 'outline' : 'default'}
-                          className={assigned ? '' : 'bg-brand-turquoise hover:bg-brand-turquoise-hover'}
+                          className={assigned ? 'w-full sm:w-auto' : 'bg-brand-turquoise hover:bg-brand-turquoise-hover w-full sm:w-auto'}
                           onClick={() => void assignVendor(v)}
                           disabled={assigned}
                         >

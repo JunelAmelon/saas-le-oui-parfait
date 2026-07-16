@@ -14,6 +14,9 @@ import {
 
 export async function addDocument(collectionName: string, data: any) {
     try {
+        if (!db) {
+            throw new Error('Firebase is not initialized. Please check your environment variables.');
+        }
         const docRef = await addDoc(collection(db, collectionName), data);
         return { id: docRef.id, ...data };
     } catch (error) {
@@ -24,6 +27,9 @@ export async function addDocument(collectionName: string, data: any) {
 
 export async function getDocument(collectionName: string, id: string) {
     try {
+        if (!db) {
+            throw new Error('Firebase is not initialized. Please check your environment variables.');
+        }
         const docRef = doc(db, collectionName, id);
         const docSnap = await getDoc(docRef);
 
@@ -41,6 +47,9 @@ export async function getDocument(collectionName: string, id: string) {
 // Function to set a document with a specific ID (useful for user profiles linked to Auth UID)
 export async function setDocument(collectionName: string, id: string, data: any) {
     try {
+        if (!db) {
+            throw new Error('Firebase is not initialized. Please check your environment variables.');
+        }
         const { setDoc } = await import('firebase/firestore'); // Dynamic import to avoid circular dep if needed, or just import at top
         await setDoc(doc(db, collectionName, id), data);
         return { id, ...data };
@@ -52,6 +61,9 @@ export async function setDocument(collectionName: string, id: string, data: any)
 
 export async function getDocuments(collectionName: string, filters: { field: string; operator: any; value: any }[] = []) {
     try {
+        if (!db) {
+            throw new Error('Firebase is not initialized. Please check your environment variables.');
+        }
         let q = collection(db, collectionName);
         let queryRef: any = q;
 
@@ -75,6 +87,9 @@ export async function getDocuments(collectionName: string, filters: { field: str
 
 export async function updateDocument(collectionName: string, id: string, data: any) {
     try {
+        if (!db) {
+            throw new Error('Firebase is not initialized. Please check your environment variables.');
+        }
         const docRef = doc(db, collectionName, id);
         await updateDoc(docRef, data);
         return { id, ...data };
@@ -86,6 +101,9 @@ export async function updateDocument(collectionName: string, id: string, data: a
 
 export async function deleteDocument(collectionName: string, id: string) {
     try {
+        if (!db) {
+            throw new Error('Firebase is not initialized. Please check your environment variables.');
+        }
         await deleteDoc(doc(db, collectionName, id));
         return true;
     } catch (error) {

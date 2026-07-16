@@ -6,7 +6,9 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
+import Image from 'next/image';
 import { Loader2, Image as ImageIcon, ArrowLeft, ExternalLink, Upload } from 'lucide-react';
+import { PageHeader } from '@/components/layout/PageHeader';
 import { addDocument, getDocument, getDocuments, updateDocument } from '@/lib/db';
 import { getEventGalleries, GalleryData } from '@/lib/client-helpers';
 import { uploadImage } from '@/lib/storage';
@@ -276,26 +278,20 @@ export default function ClientGalleryAdminPage() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-brand-purple mb-2">Galerie</h1>
-            <p className="text-brand-gray">Albums et photos envoyés par le client et/ou la wedding planner</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button
-              className="bg-brand-turquoise hover:bg-brand-turquoise-hover gap-2"
-              onClick={() => setIsUploadModalOpen(true)}
-              disabled={loading}
-            >
-              <Upload className="h-4 w-4" />
-              Ajouter des photos
-            </Button>
-            <Button variant="outline" onClick={() => router.back()} className="gap-2">
-              <ArrowLeft className="h-4 w-4" />
-              Retour
-            </Button>
-          </div>
-        </div>
+        <PageHeader title="Galerie" description="Albums et photos envoyés par le client et/ou la wedding planner">
+          <Button
+            className="bg-brand-turquoise hover:bg-brand-turquoise-hover w-full sm:w-auto gap-2"
+            onClick={() => setIsUploadModalOpen(true)}
+            disabled={loading}
+          >
+            <Upload className="h-4 w-4" />
+            Ajouter des photos
+          </Button>
+          <Button variant="outline" onClick={() => router.back()} className="w-full sm:w-auto gap-2">
+            <ArrowLeft className="h-4 w-4" />
+            Retour
+          </Button>
+        </PageHeader>
 
         {loading ? (
           <Card className="p-10 shadow-xl border-0">
@@ -331,18 +327,14 @@ export default function ClientGalleryAdminPage() {
                   onClick={() => setSelectedAlbumId(album.id)}
                 >
                   <div className="text-center">
-                    <div className="w-12 h-12 mx-auto mb-2 rounded-full bg-gray-100 flex items-center justify-center overflow-hidden">
+                    <div className="relative w-12 h-12 mx-auto mb-2 rounded-full bg-gray-100 flex items-center justify-center overflow-hidden">
                       {album.coverUrl ? (
-                        <img
+                        <Image
                           src={album.coverUrl}
                           alt={album.name}
-                          className="w-full h-full object-cover"
-                          onError={(e) => {
-                            const img = e.currentTarget as HTMLImageElement;
-                            const fallback = img.dataset.fallback || '';
-                            if (fallback && img.src !== fallback) img.src = fallback;
-                          }}
-                          data-fallback={album.coverUrl}
+                          fill
+                          sizes="48px"
+                          className="object-cover"
                         />
                       ) : (
                         <ImageIcon className="h-6 w-6 text-brand-gray" />
@@ -373,16 +365,12 @@ export default function ClientGalleryAdminPage() {
                 <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
                   {photos.map((p: any) => (
                     <div key={p.id} className="group relative aspect-square rounded-lg overflow-hidden bg-gray-100">
-                      <img
+                      <Image
                         src={p.displayThumbUrl || p.displayUrl}
                         alt={p.id}
-                        className="w-full h-full object-cover"
-                        data-fallback={p.displayUrl}
-                        onError={(e) => {
-                          const img = e.currentTarget as HTMLImageElement;
-                          const fallback = img.dataset.fallback || '';
-                          if (fallback && img.src !== fallback) img.src = fallback;
-                        }}
+                        fill
+                        sizes="(max-width: 768px) 50vw, 16vw"
+                        className="object-cover"
                       />
                       <div className="absolute inset-x-0 bottom-0 bg-black/50 text-white p-2 opacity-0 group-hover:opacity-100 transition-opacity">
                         <div className="flex items-center justify-between gap-2">

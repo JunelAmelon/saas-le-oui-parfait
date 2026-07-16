@@ -18,18 +18,17 @@ import {
   Menu,
   X,
   MessageSquare,
+  Mail,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-
 interface MenuItem {
   label: string;
   icon: React.ElementType;
   href?: string;
   subItems?: { label: string; href: string }[];
-  disabled?: boolean;
-  comingSoonLabel?: string;
+  isComingSoon?: boolean;
 }
 
 const menuItems: MenuItem[] = [
@@ -39,32 +38,21 @@ const menuItems: MenuItem[] = [
     href: '/',
   },
   {
+    label: 'Fiches Clients',
+    icon: Users,
+    href: '/agence/clients',
+  },
+  {
     label: 'Agence',
     icon: Building2,
     subItems: [
       { label: 'Informations', href: '/agence' },
-      { label: 'Fiches Clients', href: '/agence/clients' },
       { label: 'Todo', href: '/agence/todo' },
       { label: 'Mes post-it', href: '/agence/postit' },
-       
+
       // { label: 'Signatures', href: '/agence/signatures' },
       // { label: 'Ma fiche annuaire', href: '/agence/annuaire' },
-      { label: 'Campagnes email', href: '/agence/campagnes' },
     ],
-  },
-  {
-    label: 'Prospects',
-    icon: Users,
-    subItems: [
-      { label: 'Liste', href: '/prospects' },
-      { label: 'Archives', href: '/prospects/archives' },
-    ],
-  },
-  {
-    label: 'Événements',
-    icon: Calendar,
-    disabled: true,
-    comingSoonLabel: 'À venir',
   },
   {
     label: 'Mes prestataires',
@@ -77,38 +65,39 @@ const menuItems: MenuItem[] = [
     href: '/messages',
   },
   {
-    label: 'Devis & Facturation',
+    label: 'Prospects',
+    icon: Users,
+    isComingSoon: true,
+  },
+  {
+    label: 'Événements',
+    icon: Calendar,
+    isComingSoon: true,
+  },
+  {
+    label: 'Facturation',
     icon: FileText,
-    subItems: [
-      { label: 'Devis', href: '/devis' },
-      { label: 'Factures', href: '/factures' },
-      { label: 'Contrats', href: '/contrats' },
-    ],
+    href: '/factures',
   },
   {
     label: 'Gestion de stock',
     icon: Package,
-    subItems: [
-      { label: 'Articles', href: '/stock/articles' },
-      { label: 'Inventaire', href: '/stock/inventaire' },
-      { label: 'Fournisseurs', href: '/stock/fournisseurs' },
-      { label: 'Entrepôts', href: '/stock/entrepots' },
-    ],
+    isComingSoon: true,
   },
   {
     label: 'Composition florale',
     icon: Flower2,
-    href: '/fleurs',
+    isComingSoon: true,
   },
-  // {
-  //   label: 'E-shop',
-  //   icon: ShoppingBag,
-  //   href: '/eshop',
-  // },
+  {
+    label: 'Campagnes email',
+    icon: Mail,
+    isComingSoon: true,
+  },
   {
     label: 'Statistiques',
     icon: BarChart3,
-    href: '/statistiques',
+    isComingSoon: true,
   },
 ];
 
@@ -150,6 +139,9 @@ export function Sidebar() {
     return false;
   };
 
+  const mainItems = menuItems.filter((i) => !i.isComingSoon);
+  const comingItems = menuItems.filter((i) => i.isComingSoon);
+
   const SidebarContent = () => (
     <>
       <div className="flex h-16 items-center justify-between border-b border-[#E5E5E5] px-4">
@@ -174,22 +166,9 @@ export function Sidebar() {
 
       <nav className="flex-1 overflow-y-auto px-3 py-4">
         <ul className="space-y-1">
-          {menuItems.map((item) => (
+          {mainItems.map((item) => (
             <li key={item.label}>
-              {item.disabled ? (
-                <div
-                  className={cn(
-                    'flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium',
-                    'text-brand-gray/50 cursor-not-allowed bg-gray-50'
-                  )}
-                >
-                  <item.icon className="h-5 w-5" />
-                  <span className="flex-1 text-left">{item.label}</span>
-                  <span className="text-[11px] px-2 py-0.5 rounded-full bg-gray-200 text-gray-600">
-                    {item.comingSoonLabel || 'À venir'}
-                  </span>
-                </div>
-              ) : item.subItems ? (
+              {item.subItems ? (
                 <div>
                   <button
                     onClick={() => toggleExpand(item.label)}
@@ -246,6 +225,27 @@ export function Sidebar() {
             </li>
           ))}
         </ul>
+
+        {comingItems.length > 0 && (
+          <>
+            <div className="mt-6 mb-2 px-3 text-[11px] uppercase tracking-wider text-brand-gray/60 font-medium">
+              À venir
+            </div>
+            <ul className="space-y-1">
+              {comingItems.map((item) => (
+                <li key={item.label}>
+                  <div className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-brand-gray/50 cursor-not-allowed opacity-60">
+                    <item.icon className="h-5 w-5" />
+                    <span className="flex-1 text-left">{item.label}</span>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
+                      Bientôt
+                    </span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
       </nav>
     </>
   );
