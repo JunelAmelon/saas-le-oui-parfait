@@ -62,6 +62,23 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ received: true });
       }
 
+      const existingPaymentSnap = await adminDb
+        .collection('payments')
+        .where('stripe_session_id', '==', session.id)
+        .limit(1)
+        .get();
+
+      if (!existingPaymentSnap.empty) {
+        await invoiceRef.update({
+          status: 'paid',
+          paid_at: Timestamp.now(),
+          stripe_session_id: session.id,
+          stripe_payment_intent_id: session.payment_intent as string,
+          updated_at: Timestamp.now(),
+        });
+        return NextResponse.json({ received: true });
+      }
+
       const paymentData = {
         invoice_id,
         client_id,

@@ -5,11 +5,18 @@ import { useAuth } from '@/contexts/AuthContext';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Plus, FileText, Eye, Check, X, Loader2, AlertCircle, Download } from 'lucide-react';
+import { Plus, FileText, Eye, Check, X, Loader2, AlertCircle, Download, Trash2, BadgeCheck, MoreVertical } from 'lucide-react';
 import { Invoice, Payment } from '@/types/invoice';
-import { getDocuments, getDocument } from '@/lib/db';
+import { deleteDocument, getDocuments, getDocument } from '@/lib/db';
 import { CreateInvoiceModal } from '@/components/modals/CreateInvoiceModal';
 import { ViewInvoiceModal } from '@/components/modals/ViewInvoiceModal';
 import { ValidatePaymentModal } from '@/components/modals/ValidatePaymentModal';
@@ -25,6 +32,73 @@ export default function FacturesPage() {
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null);
   const [filter, setFilter] = useState<'all' | 'sent' | 'payment_pending' | 'paid' | 'overdue'>('all');
+
+  const handleDeleteInvoice = async (invoice: Invoice) => {
+    if (!invoice?.id) return;
+    const ok = confirm('Supprimer définitivement cette facture ? Cette action est irréversible.');
+    if (!ok) return;
+
+    try {
+      await deleteDocument('invoices', invoice.id);
+
+      const relatedPayments = await getDocuments('payments', [
+        { field: 'invoice_id', operator: '==', value: invoice.id },
+      ]);
+      await Promise.all((relatedPayments as any[]).map((p) => deleteDocument('payments', p.id)));
+
+      toast({
+        title: 'Supprimée',
+        description: 'La facture a été supprimée définitivement.',
+      });
+
+      await fetchData();
+    } catch (error) {
+      console.error('Error deleting invoice:', error);
+      toast({
+        title: 'Erreur',
+        description: 'Impossible de supprimer la facture',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleMarkInvoicePaid = async (invoice: Invoice) => {
+    if (!user?.uid || !invoice?.id) return;
+    if (invoice.status === 'paid') return;
+
+    const ok = confirm('Marquer cette facture comme payée ? (Validation manuelle virement)');
+    if (!ok) return;
+
+    try {
+      const response = await fetch('/api/invoices/mark-paid', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          invoice_id: invoice.id,
+          validated_by: user.uid,
+          method: 'bank_transfer',
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to mark invoice paid');
+      }
+
+      toast({
+        title: 'Facture payée',
+        description: 'La facture a été marquée comme payée.',
+      });
+
+      await fetchData();
+    } catch (error) {
+      console.error('Error marking invoice paid:', error);
+      toast({
+        title: 'Erreur',
+        description: 'Impossible de marquer la facture comme payée',
+        variant: 'destructive',
+      });
+    }
+  };
 
   useEffect(() => {
     if (user) {
@@ -109,104 +183,105 @@ export default function FacturesPage() {
 
   return (
     <DashboardLayout>
-      <PageHeader
-        title="Facturation"
-        description="Gérez vos factures et validez les paiements"
-      >
-        <Button onClick={() => setShowCreateModal(true)}>
-          <Plus className="h-4 w-4 mr-2" />
-          Nouvelle facture
-        </Button>
-      </PageHeader>
+      <div className="space-y-6">
+        <PageHeader
+          title="Facturation"
+          description="Gérez vos factures et validez les paiements"
+        >
+          <Button onClick={() => setShowCreateModal(true)} className="w-full sm:w-auto">
+            <Plus className="h-4 w-4 mr-2" />
+            Nouvelle facture
+          </Button>
+        </PageHeader>
 
-      {pendingPayments.length > 0 && (
-        <Card className="p-6 mb-6 border-orange-200 bg-orange-50">
-          <div className="flex items-start gap-3">
-            <AlertCircle className="h-5 w-5 text-orange-600 mt-0.5" />
-            <div className="flex-1">
-              <h3 className="font-semibold text-orange-900 mb-2">
-                {pendingPayments.length} paiement{pendingPayments.length > 1 ? 's' : ''} en attente de validation
-              </h3>
-              <div className="space-y-2">
-                {pendingPayments.map((payment) => (
-                  <div
-                    key={payment.id}
-                    className="flex items-center justify-between bg-white p-3 rounded-lg"
-                  >
-                    <div className="flex-1">
-                      <p className="font-medium text-sm">
-                        Facture {payment.invoice_id.substring(0, 8)}...
-                      </p>
-                      <p className="text-sm text-gray-600">
-                        {formatAmount(payment.amount)} • {formatDate(payment.transfer_date)}
-                      </p>
-                    </div>
-                    <Button
-                      size="sm"
-                      onClick={() => setSelectedPayment(payment)}
+        {pendingPayments.length > 0 && (
+          <Card className="p-6 border-orange-200 bg-orange-50">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="h-5 w-5 text-orange-600 mt-0.5" />
+              <div className="flex-1">
+                <h3 className="font-semibold text-orange-900 mb-2">
+                  {pendingPayments.length} paiement{pendingPayments.length > 1 ? 's' : ''} en attente de validation
+                </h3>
+                <div className="space-y-2">
+                  {pendingPayments.map((payment) => (
+                    <div
+                      key={payment.id}
+                      className="flex items-center justify-between bg-white p-3 rounded-lg"
                     >
-                      Valider
-                    </Button>
-                  </div>
-                ))}
+                      <div className="flex-1">
+                        <p className="font-medium text-sm">
+                          Facture {payment.invoice_id.substring(0, 8)}...
+                        </p>
+                        <p className="text-sm text-gray-600">
+                          {formatAmount(payment.amount)} • {formatDate(payment.transfer_date)}
+                        </p>
+                      </div>
+                      <Button
+                        size="sm"
+                        onClick={() => setSelectedPayment(payment)}
+                      >
+                        Valider
+                      </Button>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
-          </div>
-        </Card>
-      )}
+          </Card>
+        )}
 
-      <div className="flex gap-2 mb-6 flex-wrap">
-        <Button
-          variant={filter === 'all' ? 'default' : 'outline'}
-          size="sm"
-          onClick={() => setFilter('all')}
-        >
-          Toutes
-        </Button>
-        <Button
-          variant={filter === 'sent' ? 'default' : 'outline'}
-          size="sm"
-          onClick={() => setFilter('sent')}
-        >
-          Envoyées
-        </Button>
-        <Button
-          variant={filter === 'payment_pending' ? 'default' : 'outline'}
-          size="sm"
-          onClick={() => setFilter('payment_pending')}
-        >
-          En attente
-        </Button>
-        <Button
-          variant={filter === 'paid' ? 'default' : 'outline'}
-          size="sm"
-          onClick={() => setFilter('paid')}
-        >
-          Payées
-        </Button>
-        <Button
-          variant={filter === 'overdue' ? 'default' : 'outline'}
-          size="sm"
-          onClick={() => setFilter('overdue')}
-        >
-          En retard
-        </Button>
-      </div>
+        <div className="flex gap-2 flex-wrap mt-2">
+          <Button
+            variant={filter === 'all' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setFilter('all')}
+          >
+            Toutes
+          </Button>
+          <Button
+            variant={filter === 'sent' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setFilter('sent')}
+          >
+            Envoyées
+          </Button>
+          <Button
+            variant={filter === 'payment_pending' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setFilter('payment_pending')}
+          >
+            En attente
+          </Button>
+          <Button
+            variant={filter === 'paid' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setFilter('paid')}
+          >
+            Payées
+          </Button>
+          <Button
+            variant={filter === 'overdue' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setFilter('overdue')}
+          >
+            En retard
+          </Button>
+        </div>
 
-      <div className="overflow-x-auto">
-        <table className="w-full">
-          <thead>
-            <tr className="border-b border-gray-200">
-              <th className="text-left py-3 px-4 font-medium text-sm text-gray-600">Numéro</th>
-              <th className="text-left py-3 px-4 font-medium text-sm text-gray-600">Client</th>
-              <th className="text-left py-3 px-4 font-medium text-sm text-gray-600">Libellé</th>
-              <th className="text-left py-3 px-4 font-medium text-sm text-gray-600">Montant</th>
-              <th className="text-left py-3 px-4 font-medium text-sm text-gray-600">Échéance</th>
-              <th className="text-left py-3 px-4 font-medium text-sm text-gray-600">Statut</th>
-              <th className="text-left py-3 px-4 font-medium text-sm text-gray-600">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-gray-200">
+                <th className="text-left py-3 px-4 font-medium text-sm text-gray-600">Numéro</th>
+                <th className="text-left py-3 px-4 font-medium text-sm text-gray-600">Client</th>
+                <th className="text-left py-3 px-4 font-medium text-sm text-gray-600">Libellé</th>
+                <th className="text-left py-3 px-4 font-medium text-sm text-gray-600">Montant</th>
+                <th className="text-left py-3 px-4 font-medium text-sm text-gray-600">Échéance</th>
+                <th className="text-left py-3 px-4 font-medium text-sm text-gray-600">Statut</th>
+                <th className="text-left py-3 px-4 font-medium text-sm text-gray-600">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
             {filteredInvoices.length === 0 ? (
               <tr>
                 <td colSpan={7} className="text-center py-12 text-gray-500">
@@ -236,30 +311,47 @@ export default function FacturesPage() {
                     {getStatusBadge(invoice.status)}
                   </td>
                   <td className="py-3 px-4">
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => setSelectedInvoice(invoice)}
-                      >
-                        <Eye className="h-4 w-4" />
-                      </Button>
-                      {invoice.file_url && (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => window.open(invoice.file_url, '_blank')}
-                        >
-                          <Download className="h-4 w-4" />
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" aria-label="Actions">
+                          <MoreVertical className="h-4 w-4" />
                         </Button>
-                      )}
-                    </div>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-56">
+                        <DropdownMenuItem onClick={() => setSelectedInvoice(invoice)}>
+                          <Eye className="mr-2 h-4 w-4" />
+                          Voir la facture
+                        </DropdownMenuItem>
+
+                        {invoice.status !== 'paid' && (
+                          <DropdownMenuItem onClick={() => handleMarkInvoicePaid(invoice)}>
+                            <BadgeCheck className="mr-2 h-4 w-4 text-emerald-600" />
+                            Marquer comme payée
+                          </DropdownMenuItem>
+                        )}
+
+                        {invoice.file_url && (
+                          <DropdownMenuItem onClick={() => window.open(invoice.file_url!, '_blank')}>
+                            <Download className="mr-2 h-4 w-4" />
+                            Télécharger
+                          </DropdownMenuItem>
+                        )}
+
+                        <DropdownMenuSeparator />
+
+                        <DropdownMenuItem onClick={() => handleDeleteInvoice(invoice)} className="text-red-600">
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          Supprimer
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </td>
                 </tr>
               ))
             )}
-          </tbody>
-        </table>
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <CreateInvoiceModal
@@ -293,6 +385,11 @@ function ClientName({ clientId }: { clientId: string }) {
   const [name, setName] = useState('...');
 
   useEffect(() => {
+    if (!clientId) {
+      setName('Client inconnu');
+      return;
+    }
+
     getDocument('clients', clientId).then((client: any) => {
       if (client) {
         setName(client.names || client.name || 'Client inconnu');

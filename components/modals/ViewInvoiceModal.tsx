@@ -26,6 +26,17 @@ export function ViewInvoiceModal({ invoice, open, onOpenChange, onUpdate }: View
   const [payments, setPayments] = useState<Payment[]>([]);
   const [clientName, setClientName] = useState('');
 
+  const dedupPayments = (items: Payment[]) => {
+    const map = new Map<string, Payment>();
+    items.forEach((p) => {
+      const key = p.stripe_session_id
+        ? `stripe:${p.stripe_session_id}`
+        : `other:${p.method}:${p.amount}:${p.transfer_date || ''}:${p.transfer_reference || ''}:${p.proof_url || ''}`;
+      if (!map.has(key)) map.set(key, p);
+    });
+    return Array.from(map.values());
+  };
+
   useEffect(() => {
     if (open && invoice) {
       fetchData();
@@ -38,7 +49,7 @@ export function ViewInvoiceModal({ invoice, open, onOpenChange, onUpdate }: View
       getDocument('clients', invoice.client_id),
     ]);
     
-    setPayments(paymentsData);
+    setPayments(dedupPayments(paymentsData));
     setClientName((client as any)?.names || (client as any)?.name || 'Client inconnu');
   };
 

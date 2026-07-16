@@ -16,6 +16,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const envBaseUrl = (process.env.NEXT_PUBLIC_URL || '').trim();
+    const baseUrl = /^https?:\/\//i.test(envBaseUrl)
+      ? envBaseUrl.replace(/\/$/, '')
+      : request.nextUrl.origin;
+
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
       line_items: [
@@ -37,8 +42,8 @@ export async function POST(request: NextRequest) {
         planner_id: invoice.planner_id,
         invoice_number: invoice.number,
       },
-      success_url: `${process.env.NEXT_PUBLIC_URL}/espace-client/paiements?success=true&invoice=${invoice.id}`,
-      cancel_url: `${process.env.NEXT_PUBLIC_URL}/espace-client/paiements?cancelled=true`,
+      success_url: `${baseUrl}/espace-client/paiements?success=true&invoice=${invoice.id}&session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${baseUrl}/espace-client/paiements?cancelled=true`,
     });
 
     return NextResponse.json({ url: session.url });

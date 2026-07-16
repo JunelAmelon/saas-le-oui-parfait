@@ -30,6 +30,9 @@ export async function getDocument(collectionName: string, id: string) {
         if (!db) {
             throw new Error('Firebase is not initialized. Please check your environment variables.');
         }
+        if (!collectionName || !id) {
+            return null;
+        }
         const docRef = doc(db, collectionName, id);
         const docSnap = await getDoc(docRef);
 
@@ -90,6 +93,9 @@ export async function updateDocument(collectionName: string, id: string, data: a
         if (!db) {
             throw new Error('Firebase is not initialized. Please check your environment variables.');
         }
+        if (!collectionName || !id) {
+            throw new Error('Invalid arguments: collectionName and id are required');
+        }
         const docRef = doc(db, collectionName, id);
         await updateDoc(docRef, data);
         return { id, ...data };
@@ -103,6 +109,9 @@ export async function deleteDocument(collectionName: string, id: string) {
     try {
         if (!db) {
             throw new Error('Firebase is not initialized. Please check your environment variables.');
+        }
+        if (!collectionName || !id) {
+            throw new Error('Invalid arguments: collectionName and id are required');
         }
         await deleteDoc(doc(db, collectionName, id));
         return true;

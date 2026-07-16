@@ -24,11 +24,13 @@ import {
 } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
+import { useRouter } from 'next/navigation';
 
 export default function PaiementsPage() {
   const { client, event, loading: dataLoading } = useClientData();
   const { toast } = useToast();
   const searchParams = useSearchParams();
+  const router = useRouter();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
@@ -37,13 +39,32 @@ export default function PaiementsPage() {
   const itemsPerPage = 10;
 
   useEffect(() => {
-    if (searchParams.get('success') === 'true') {
+    const success = searchParams.get('success') === 'true';
+    const sessionId = searchParams.get('session_id');
+
+    if (success) {
       toast({
         title: 'Paiement réussi',
         description: 'Votre paiement a été traité avec succès',
       });
     }
-  }, [searchParams, toast]);
+    if (success && sessionId) {
+      void (async () => {
+        try {
+          await fetch('/api/stripe/verify-session', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ session_id: sessionId }),
+          });
+        } catch (e) {
+          console.warn('Unable to verify Stripe session:', e);
+        } finally {
+          await fetchInvoices();
+          router.replace('/espace-client/paiements');
+        }
+      })();
+    }
+  }, [searchParams, toast, router]);
 
   useEffect(() => {
     if (client?.id && !dataLoading) {
@@ -83,7 +104,7 @@ export default function PaiementsPage() {
   );
 
   // Factures payées (paid)
-  const paidInvoices = invoices.filter(inv => inv.status === 'paid');
+  const paidInvoices = invoices.filter(inv => inv.status === 'paid' && (inv.amount_ttc ?? 0) > 0);
 
   // Pagination
   const totalPages = Math.ceil(paidInvoices.length / itemsPerPage);
@@ -91,9 +112,9 @@ export default function PaiementsPage() {
   const paginatedInvoices = paidInvoices.slice(startIndex, startIndex + itemsPerPage);
 
   // Calculs budget
-  const totalBudget = invoices.reduce((sum, inv) => sum + (inv.amount_ttc || 0), 0);
-  const totalPaid = paidInvoices.reduce((sum, inv) => sum + (inv.amount_ttc || 0), 0);
-  const totalUnpaid = unpaidInvoices.reduce((sum, inv) => sum + (inv.amount_ttc || 0), 0);
+  const totalBudget = invoices.reduce((sum, inv) => sum + (inv.amount_ttc ?? 0), 0);
+  const totalPaid = paidInvoices.reduce((sum, inv) => sum + (inv.amount_ttc ?? 0), 0);
+  const totalUnpaid = unpaidInvoices.reduce((sum, inv) => sum + (inv.amount_ttc ?? 0), 0);
 
   const progressPercentage = totalBudget > 0 ? (totalPaid / totalBudget) * 100 : 0;
 
