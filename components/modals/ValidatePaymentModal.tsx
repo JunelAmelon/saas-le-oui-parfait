@@ -18,7 +18,6 @@ import { useToast } from '@/hooks/use-toast';
 import { Payment } from '@/types/invoice';
 import { getDocument } from '@/lib/db';
 import { Loader2, Check, X, FileText, ExternalLink } from 'lucide-react';
-import Image from 'next/image';
 
 interface ValidatePaymentModalProps {
   payment: Payment;
@@ -148,8 +147,19 @@ export function ValidatePaymentModal({ payment, open, onOpenChange, onSuccess }:
     }).format(amount);
   };
 
+  const formatTimestamp = (ts: any) => {
+    const raw = ts?.toDate?.() ? ts.toDate() : ts;
+    const d = raw instanceof Date ? raw : raw ? new Date(String(raw)) : null;
+    if (!d || Number.isNaN(d.getTime())) return '-';
+    return d.toLocaleString('fr-FR');
+  };
+
   const isImage = (url: string) => {
     return /\.(jpg|jpeg|png|gif|webp)$/i.test(url);
+  };
+
+  const isPdf = (url: string) => {
+    return /\.(pdf)$/i.test(url);
   };
 
   return (
@@ -189,26 +199,89 @@ export function ValidatePaymentModal({ payment, open, onOpenChange, onSuccess }:
                 <p className="text-sm text-gray-600 mb-1">Référence</p>
                 <p className="font-medium font-mono">{payment.transfer_reference}</p>
               </div>
+
+              <div>
+                <p className="text-sm text-gray-600 mb-1">Méthode</p>
+                <p className="font-medium">{payment.method || '-'}</p>
+              </div>
+
+              <div>
+                <p className="text-sm text-gray-600 mb-1">Statut</p>
+                <p className="font-medium">{payment.status || '-'}</p>
+              </div>
+
+              <div>
+                <p className="text-sm text-gray-600 mb-1">Source</p>
+                <p className="font-medium">{payment.source || '-'}</p>
+              </div>
+
+              <div>
+                <p className="text-sm text-gray-600 mb-1">Déclaré le</p>
+                <p className="font-medium">{formatTimestamp((payment as any).declared_at)}</p>
+              </div>
+
+              <div>
+                <p className="text-sm text-gray-600 mb-1">Validé le</p>
+                <p className="font-medium">{formatTimestamp((payment as any).validated_at)}</p>
+              </div>
+
+              <div>
+                <p className="text-sm text-gray-600 mb-1">Validé par</p>
+                <p className="font-medium font-mono">{payment.validated_by || '-'}</p>
+              </div>
+
+              {(payment.note || payment.rejected_reason) && (
+                <div className="col-span-2">
+                  <p className="text-sm text-gray-600 mb-1">Message / note</p>
+                  <p className="font-medium whitespace-pre-wrap">
+                    {payment.note || payment.rejected_reason}
+                  </p>
+                </div>
+              )}
+
+              <div className="col-span-2">
+                <p className="text-sm text-gray-600 mb-1">Identifiants</p>
+                <p className="font-medium font-mono text-sm break-all">
+                  paiement: {payment.id}
+                  <br />
+                  facture: {payment.invoice_id}
+                  <br />
+                  client: {payment.client_id}
+                </p>
+              </div>
             </div>
 
-            {payment.proof_url && (
-              <div>
-                <p className="text-sm text-gray-600 mb-2">Justificatif de paiement</p>
-                <div className="border rounded-lg p-4 bg-gray-50">
-                  {isImage(payment.proof_url) ? (
-                    <div className="relative w-full h-64">
-                      <Image
-                        src={payment.proof_url}
-                        alt="Justificatif"
-                        fill
-                        className="object-contain"
-                      />
-                    </div>
-                  ) : (
-                    <div className="flex items-center justify-center py-8">
-                      <FileText className="h-12 w-12 text-gray-400 mb-2" />
-                    </div>
-                  )}
+            <div>
+              <p className="text-sm text-gray-600 mb-2">Justificatif de paiement</p>
+              <div className="border rounded-lg p-4 bg-gray-50">
+                {!payment.proof_url ? (
+                  <div className="flex items-center justify-center py-8 text-sm text-gray-500">
+                    Aucun justificatif joint
+                  </div>
+                ) : isImage(payment.proof_url) ? (
+                  <div className="w-full">
+                    <img
+                      src={payment.proof_url}
+                      alt="Justificatif"
+                      className="w-full max-h-96 object-contain rounded-md bg-white"
+                      loading="lazy"
+                    />
+                  </div>
+                ) : isPdf(payment.proof_url) ? (
+                  <div className="w-full">
+                    <iframe
+                      title="Justificatif PDF"
+                      src={payment.proof_url}
+                      className="w-full h-96 rounded-md bg-white"
+                    />
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center py-8">
+                    <FileText className="h-12 w-12 text-gray-400 mb-2" />
+                  </div>
+                )}
+
+                {payment.proof_url && (
                   <Button
                     variant="outline"
                     size="sm"
@@ -216,11 +289,11 @@ export function ValidatePaymentModal({ payment, open, onOpenChange, onSuccess }:
                     className="w-full mt-3"
                   >
                     <ExternalLink className="h-4 w-4 mr-2" />
-                    Ouvrir dans un nouvel onglet
+                    Ouvrir / Télécharger
                   </Button>
-                </div>
+                )}
               </div>
-            )}
+            </div>
 
             <DialogFooter className="gap-2">
               <Button

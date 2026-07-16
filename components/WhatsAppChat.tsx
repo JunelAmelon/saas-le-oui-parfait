@@ -3,11 +3,15 @@
 import { useState } from 'react';
 import Image from 'next/image';
 import { X, Phone } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
 
 const WHATSAPP_NUMBER = '+33687217118';
 
 export function WhatsAppChat() {
+  const { user } = useAuth();
   const [open, setOpen] = useState(false);
+
+  if (user?.role === 'planner') return null;
 
   return (
     <div className="fixed bottom-5 right-5 z-50 flex flex-col items-end">

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { ClientDashboardLayout } from '@/components/layout/ClientDashboardLayout';
 import { useClientData } from '@/contexts/ClientDataContext';
 import { Invoice } from '@/types/invoice';
@@ -35,6 +36,7 @@ export default function PaiementsPage() {
   const [loading, setLoading] = useState(true);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [showChooseInvoiceModal, setShowChooseInvoiceModal] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
@@ -158,6 +160,23 @@ export default function PaiementsPage() {
     setShowPaymentModal(true);
   };
 
+  const handleHeroPayClick = () => {
+    if (unpaidInvoices.length === 0) {
+      toast({
+        title: 'Aucune facture à payer',
+        description: 'Toutes vos factures sont déjà réglées.',
+      });
+      return;
+    }
+
+    if (unpaidInvoices.length === 1) {
+      handlePayClick(unpaidInvoices[0]);
+      return;
+    }
+
+    setShowChooseInvoiceModal(true);
+  };
+
   const daysRemaining = event?.event_date ? 
     Math.ceil((new Date(event.event_date).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)) : 0;
 
@@ -214,6 +233,19 @@ export default function PaiementsPage() {
                 {progressPercentage.toFixed(0)}% de votre budget réglé
               </p>
             </div>
+
+            <button
+              onClick={handleHeroPayClick}
+              className="inline-flex items-center justify-between gap-2.5 w-full sm:w-auto bg-[#2E2937] text-white text-[13px] font-semibold pl-5 pr-2.5 py-2.5 rounded-full hover:bg-[#1f1c26] transition-colors"
+            >
+              <span className="inline-flex items-center gap-2">
+                <CreditCard className="w-4 h-4" />
+                Effectuer un paiement
+              </span>
+              <span className="w-6 h-6 rounded-full bg-brand-turquoise flex items-center justify-center shrink-0">
+                <ChevronRight className="w-3 h-3 text-[#4B4456]" />
+              </span>
+            </button>
           </div>
         </div>
 
@@ -483,6 +515,40 @@ export default function PaiementsPage() {
           onSuccess={fetchInvoices}
         />
       )}
+
+      <Dialog open={showChooseInvoiceModal} onOpenChange={setShowChooseInvoiceModal}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Choisir une facture à payer</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-2">
+            {unpaidInvoices.map((inv) => (
+              <button
+                key={inv.id}
+                type="button"
+                onClick={() => {
+                  setShowChooseInvoiceModal(false);
+                  handlePayClick(inv);
+                }}
+                className="w-full text-left rounded-xl border border-brand-purple/10 bg-white hover:bg-[#FAF9F7] transition-colors px-4 py-3"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold text-brand-purple truncate">
+                      {inv.number} — {inv.label}
+                    </div>
+                    <div className="text-xs text-brand-gray mt-0.5">
+                      {formatAmount(inv.amount_ttc ?? 0)}
+                    </div>
+                  </div>
+                  <span className="text-xs font-semibold text-brand-turquoise-hover shrink-0">Payer →</span>
+                </div>
+              </button>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
     </ClientDashboardLayout>
   );
 }

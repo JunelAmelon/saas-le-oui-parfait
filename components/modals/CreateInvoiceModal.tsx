@@ -23,7 +23,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { createInvoice, generateInvoiceNumber } from '@/lib/invoice-helpers';
+import { createInvoice } from '@/lib/invoice-helpers';
 import { getDocuments } from '@/lib/db';
 import { Loader2, Upload } from 'lucide-react';
 
@@ -42,6 +42,7 @@ export function CreateInvoiceModal({ open, onOpenChange, onSuccess }: CreateInvo
   const [events, setEvents] = useState<any[]>([]);
   
   const [formData, setFormData] = useState({
+    number: '',
     client_id: '',
     event_id: '',
     label: '',
@@ -126,7 +127,7 @@ export function CreateInvoiceModal({ open, onOpenChange, onSuccess }: CreateInvo
     
     if (!user) return;
 
-    if (!formData.client_id || !formData.label || !formData.amount_ttc || !formData.due_date) {
+    if (!formData.client_id || !formData.number || !formData.label || !formData.amount_ttc || !formData.due_date || !formData.file_url) {
       toast({
         title: 'Erreur',
         description: 'Veuillez remplir tous les champs obligatoires',
@@ -138,12 +139,11 @@ export function CreateInvoiceModal({ open, onOpenChange, onSuccess }: CreateInvo
     try {
       setLoading(true);
       
-      const invoiceNumber = await generateInvoiceNumber(user.uid);
       
       const invoiceData: any = {
         client_id: formData.client_id,
         planner_id: user.uid,
-        number: invoiceNumber,
+        number: formData.number,
         label: formData.label,
         amount_ttc: parseFloat(formData.amount_ttc),
         due_date: formData.due_date,
@@ -174,7 +174,7 @@ export function CreateInvoiceModal({ open, onOpenChange, onSuccess }: CreateInvo
         await sendInvoiceCreatedEmail({
           client_email: selectedClient.email,
           client_name: selectedClient.name || 'Client',
-          invoice_number: invoiceNumber,
+          invoice_number: formData.number,
           amount: parseFloat(formData.amount_ttc),
           due_date: formData.due_date,
           invoice_url: formData.file_url,
@@ -183,7 +183,7 @@ export function CreateInvoiceModal({ open, onOpenChange, onSuccess }: CreateInvo
 
       toast({
         title: 'Succès',
-        description: `Facture ${invoiceNumber} créée avec succès`,
+        description: `Facture ${formData.number} créée avec succès`,
       });
 
       onSuccess();
@@ -203,6 +203,7 @@ export function CreateInvoiceModal({ open, onOpenChange, onSuccess }: CreateInvo
 
   const resetForm = () => {
     setFormData({
+      number: '',
       client_id: '',
       event_id: '',
       label: '',
@@ -268,6 +269,17 @@ export function CreateInvoiceModal({ open, onOpenChange, onSuccess }: CreateInvo
             )}
 
             <div className="col-span-2">
+              <Label htmlFor="number">Numéro de facture *</Label>
+              <Input
+                id="number"
+                value={formData.number}
+                onChange={(e) => setFormData(prev => ({ ...prev, number: e.target.value }))}
+                placeholder="Ex: F-2026-001"
+                required
+              />
+            </div>
+
+            <div className="col-span-2">
               <Label htmlFor="label">Libellé *</Label>
               <Input
                 id="label"
@@ -301,7 +313,7 @@ export function CreateInvoiceModal({ open, onOpenChange, onSuccess }: CreateInvo
             </div>
 
             <div className="col-span-2">
-              <Label htmlFor="file">Facture PDF (optionnel)</Label>
+              <Label htmlFor="file">Facture PDF *</Label>
               <div className="flex items-center gap-2">
                 <Input
                   id="file"
