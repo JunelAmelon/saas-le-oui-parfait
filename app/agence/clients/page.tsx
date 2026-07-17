@@ -16,7 +16,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { Search, Plus, Heart, MapPin, Calendar, Euro, Phone, Mail, FileText, Image as ImageIcon, X, Users, CheckCircle, Clock, Edit, MessageSquare, Eye, MoreVertical, ChevronLeft, ChevronRight, Trash2, Loader2 } from 'lucide-react';
+import { Search, Plus, Heart, MapPin, Calendar, Euro, Phone, Mail, FileText, Image as ImageIcon, X, Users, CheckCircle, Clock, Edit, MessageSquare, Eye, MoreVertical, ChevronLeft, ChevronRight, Trash2, Loader2, LayoutGrid, List } from 'lucide-react';
 
 import {
   DropdownMenu,
@@ -71,7 +71,10 @@ export default function ClientFilesPage() {
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 2;
+
+  // Vue liste ou grille
+  const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
+  const itemsPerPage = viewMode === 'grid' ? 3 : 2;
 
   // Fetch clients from Firestore
   useEffect(() => {
@@ -176,6 +179,20 @@ export default function ClientFilesPage() {
       `/agence/clients?clientId=${encodeURIComponent(client.id)}&tab=general`,
       { scroll: false }
     );
+  };
+
+  const handleCloseDetail = () => {
+    setIsDetailOpen(false);
+    setActiveSection('general');
+    if (typeof window !== 'undefined') {
+      const currentState = (window.history.state as any) || {};
+      window.history.replaceState(
+        { ...currentState, modalReturn: undefined },
+        '',
+        '/agence/clients'
+      );
+    }
+    router.replace('/agence/clients', { scroll: false });
   };
 
   const fetchChangeRequests = async (clientId: string) => {
@@ -316,7 +333,7 @@ export default function ClientFilesPage() {
       setClients((prev) => prev.filter((c) => c.id !== clientId));
       if (selectedClient?.id === clientId) {
         setSelectedClient(null);
-        setIsDetailOpen(false);
+        handleCloseDetail();
         setIsEditOpen(false);
       }
 
@@ -382,6 +399,20 @@ export default function ClientFilesPage() {
   useEffect(() => {
     setCurrentPage(1);
   }, [searchQuery]);
+
+  // Restore saved view mode
+  useEffect(() => {
+    const saved = localStorage.getItem('clients-view-mode');
+    if (saved === 'list' || saved === 'grid') {
+      setViewMode(saved as 'list' | 'grid');
+    }
+  }, []);
+
+  // Persist view mode and reset pagination when it changes
+  useEffect(() => {
+    localStorage.setItem('clients-view-mode', viewMode);
+    setCurrentPage(1);
+  }, [viewMode]);
 
   const handlePreviousPage = () => {
     setCurrentPage(prev => Math.max(prev - 1, 1));
@@ -456,14 +487,36 @@ export default function ClientFilesPage() {
               Gérez les dossiers complets de vos mariés
             </p>
           </div>
-          <Button
-            className="bg-brand-turquoise hover:bg-brand-turquoise-hover gap-2 w-full sm:w-auto"
-            onClick={() => setIsNewClientOpen(true)}
-          >
-            <Plus className="h-4 w-4" />
-            <span className="hidden sm:inline">Nouvelle fiche client</span>
-            <span className="sm:hidden">Nouveau</span>
-          </Button>
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <div className="flex items-center bg-white border border-gray-200 rounded-lg p-1 shadow-sm">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setViewMode('list')}
+                className={`h-9 w-9 rounded-md ${viewMode === 'list' ? 'bg-brand-turquoise text-white hover:bg-brand-turquoise-hover' : 'text-brand-gray hover:bg-gray-100'}`}
+                aria-label="Vue liste"
+              >
+                <List className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setViewMode('grid')}
+                className={`h-9 w-9 rounded-md ${viewMode === 'grid' ? 'bg-brand-turquoise text-white hover:bg-brand-turquoise-hover' : 'text-brand-gray hover:bg-gray-100'}`}
+                aria-label="Vue cartes"
+              >
+                <LayoutGrid className="h-4 w-4" />
+              </Button>
+            </div>
+            <Button
+              className="bg-brand-turquoise hover:bg-brand-turquoise-hover gap-2 flex-1 sm:flex-initial"
+              onClick={() => setIsNewClientOpen(true)}
+            >
+              <Plus className="h-4 w-4" />
+              <span className="hidden sm:inline">Nouvelle fiche client</span>
+              <span className="sm:hidden">Nouveau</span>
+            </Button>
+          </div>
         </div>
 
         <Card className="p-4 shadow-xl border-0">
@@ -499,89 +552,206 @@ export default function ClientFilesPage() {
           </Card>
         ) : (
           <>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {currentClients.map((client) => (
-                <Card key={client.id} className="p-3 shadow-xl border-0 hover:shadow-2xl transition-shadow cursor-pointer group">
-                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-                    <div
-                      className="relative h-20 w-full sm:w-20 overflow-hidden rounded-lg bg-gray-100 flex-shrink-0"
-                      onClick={() => handleViewDetail(client)}
-                    >
+            {viewMode === 'list' ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {currentClients.map((client) => (
+                  <Card key={client.id} className="p-3 shadow-xl border-0 hover:shadow-2xl transition-shadow cursor-pointer group">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+                      <div
+                        className="relative h-20 w-full sm:w-20 overflow-hidden rounded-lg bg-gray-100 flex-shrink-0"
+                        onClick={() => handleViewDetail(client)}
+                      >
+                        {client.photo ? (
+                          <img
+                            src={client.photo}
+                            alt={client.names}
+                            className="h-full w-full object-cover group-hover:scale-110 transition-transform duration-300"
+                          />
+                        ) : (
+                          <div className="h-full w-full bg-gradient-to-br from-brand-beige to-brand-turquoise/20 flex items-center justify-center">
+                            <Heart className="h-12 w-12 text-white" />
+                          </div>
+                        )}
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                          <Eye className="h-8 w-8 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </div>
+                      </div>
+
+                      <div className="flex-1 w-full">
+                        <div className="mb-1 flex items-start justify-between">
+                          <h3
+                            className="text-lg font-bold text-brand-purple font-baskerville cursor-pointer hover:text-brand-turquoise transition-colors"
+                            onClick={() => handleViewDetail(client)}
+                          >
+                            {client.names}
+                          </h3>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-8 w-8 -mr-2">
+                                <MoreVertical className="h-4 w-4 text-brand-gray" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => handleViewDetail(client)}>
+                                <Eye className="h-4 w-4 mr-2" />
+                                Voir détails
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleEdit(client)}>
+                                <Edit className="h-4 w-4 mr-2" />
+                                Modifier
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => router.push('/messages')}>
+                                <MessageSquare className="h-4 w-4 mr-2" />
+                                Message
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => void handleDeleteClient(client)}
+                                className="text-red-600 focus:text-red-600"
+                              >
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                Supprimer
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                        <p className="text-sm text-brand-gray mb-2">
+                          {client.eventDate} | {client.eventLocation}
+                        </p>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <Badge className="bg-[#C4A26A] hover:bg-[#B59260] text-white border-0">
+                            {client.status}
+                          </Badge>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="text-brand-turquoise hover:text-brand-turquoise-hover text-xs sm:text-sm"
+                            onClick={() => handleViewDetail(client)}
+                          >
+                            <Eye className="h-3 w-3 mr-1" />
+                            Voir détails
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                {currentClients.map((client) => (
+                  <Card
+                    key={client.id}
+                    className="overflow-hidden shadow-xl border-0 hover:shadow-2xl transition-shadow cursor-pointer group flex flex-col"
+                    onClick={() => handleViewDetail(client)}
+                  >
+                    <div className="relative aspect-square overflow-hidden bg-gray-100">
                       {client.photo ? (
                         <img
                           src={client.photo}
                           alt={client.names}
-                          className="h-full w-full object-cover group-hover:scale-110 transition-transform duration-300"
+                          className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
                         />
                       ) : (
                         <div className="h-full w-full bg-gradient-to-br from-brand-beige to-brand-turquoise/20 flex items-center justify-center">
-                          <Heart className="h-12 w-12 text-white" />
+                          <Heart className="h-20 w-20 text-white" />
                         </div>
                       )}
-                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
-                        <Eye className="h-8 w-8 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-                      </div>
-                    </div>
-
-                    <div className="flex-1 w-full">
-                      <div className="mb-1 flex items-start justify-between">
-                        <h3
-                          className="text-lg font-bold text-brand-purple font-baskerville cursor-pointer hover:text-brand-turquoise transition-colors"
-                          onClick={() => handleViewDetail(client)}
-                        >
-                          {client.names}
-                        </h3>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8 -mr-2">
-                              <MoreVertical className="h-4 w-4 text-brand-gray" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => handleViewDetail(client)}>
-                              <Eye className="h-4 w-4 mr-2" />
-                              Voir détails
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleEdit(client)}>
-                              <Edit className="h-4 w-4 mr-2" />
-                              Modifier
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => router.push('/messages')}>
-                              <MessageSquare className="h-4 w-4 mr-2" />
-                              Message
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={() => void handleDeleteClient(client)}
-                              className="text-red-600 focus:text-red-600"
-                            >
-                              <Trash2 className="h-4 w-4 mr-2" />
-                              Supprimer
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-                      <p className="text-sm text-brand-gray mb-2">
-                        {client.eventDate} | {client.eventLocation}
-                      </p>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <Badge className="bg-[#C4A26A] hover:bg-[#B59260] text-white border-0">
-                          {client.status}
-                        </Badge>
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                      <div className="absolute bottom-0 left-0 right-0 p-4 flex justify-center translate-y-full group-hover:translate-y-0 transition-transform duration-300">
                         <Button
                           size="sm"
-                          variant="ghost"
-                          className="text-brand-turquoise hover:text-brand-turquoise-hover text-xs sm:text-sm"
-                          onClick={() => handleViewDetail(client)}
+                          variant="secondary"
+                          className="w-full bg-white/90 text-brand-purple hover:bg-white"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleViewDetail(client);
+                          }}
                         >
-                          <Eye className="h-3 w-3 mr-1" />
+                          <Eye className="h-4 w-4 mr-2" />
                           Voir détails
                         </Button>
                       </div>
                     </div>
-                  </div>
-                </Card>
-              ))}
-            </div>
+
+                    <div className="p-4 flex flex-col flex-1">
+                      <div className="flex items-start justify-between gap-2 mb-3">
+                        <h3 className="text-lg font-bold text-brand-purple font-baskerville truncate">
+                          {client.names}
+                        </h3>
+                        <Badge className="bg-[#C4A26A] hover:bg-[#B59260] text-white border-0 shrink-0">
+                          {client.status}
+                        </Badge>
+                      </div>
+
+                      <div className="space-y-2 text-sm text-brand-gray mb-4">
+                        <div className="flex items-center gap-2">
+                          <Calendar className="h-4 w-4 text-brand-turquoise shrink-0" />
+                          <span>{client.eventDate}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <MapPin className="h-4 w-4 text-brand-turquoise shrink-0" />
+                          <span className="truncate">{client.eventLocation}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Euro className="h-4 w-4 text-brand-turquoise shrink-0" />
+                          <span>{client.budget.toLocaleString('fr-FR')} €</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Users className="h-4 w-4 text-brand-turquoise shrink-0" />
+                          <span>{client.guests} invités</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Phone className="h-4 w-4 text-brand-turquoise shrink-0" />
+                          <span className="truncate">{client.phone}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Mail className="h-4 w-4 text-brand-turquoise shrink-0" />
+                          <span className="truncate">{client.email}</span>
+                        </div>
+                      </div>
+
+                      <div className="mt-auto flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="flex-1 text-xs"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleEdit(client);
+                          }}
+                        >
+                          <Edit className="h-3 w-3 mr-1" />
+                          Modifier
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="flex-1 text-xs"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            router.push('/messages');
+                          }}
+                        >
+                          <MessageSquare className="h-3 w-3 mr-1" />
+                          Message
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200 px-2"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void handleDeleteClient(client);
+                          }}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            )}
 
             {/* Pagination améliorée */}
             {totalPages > 1 && (
@@ -637,7 +807,7 @@ export default function ClientFilesPage() {
       </div>
 
       {/* Modal Détail Client */}
-      <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
+      <Dialog open={isDetailOpen} onOpenChange={(open) => { if (open) setIsDetailOpen(true); else handleCloseDetail(); }}>
         <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto w-[95vw] sm:w-full">
           <DialogHeader>
             <DialogTitle className="text-brand-purple flex items-center gap-2">
@@ -862,18 +1032,14 @@ export default function ClientFilesPage() {
           <DialogFooter>
             <Button
               variant="outline"
-              onClick={() => {
-                setIsDetailOpen(false);
-                setActiveSection('general');
-                router.replace('/agence/clients', { scroll: false });
-              }}
+              onClick={handleCloseDetail}
             >
               Fermer
             </Button>
             <Button
               className="bg-brand-turquoise hover:bg-brand-turquoise-hover gap-2"
               onClick={() => {
-                setIsDetailOpen(false);
+                handleCloseDetail();
                 if (selectedClient) handleEdit(selectedClient);
               }}
             >
