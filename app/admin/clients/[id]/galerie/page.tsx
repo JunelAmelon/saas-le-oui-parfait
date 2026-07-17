@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
-import { Loader2, Image as ImageIcon, ArrowLeft, ExternalLink, Upload } from 'lucide-react';
+import { Loader2, Image as ImageIcon, ArrowLeft, ExternalLink, Upload, Trash2 } from 'lucide-react';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { addDocument, getDocument, getDocuments, updateDocument } from '@/lib/db';
 import { getEventGalleries, GalleryData } from '@/lib/client-helpers';
@@ -31,6 +31,31 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 
+function getPhotoUrls(p: any): { url: string; thumb: string } {
+  if (typeof p === 'string') {
+    const url = String(p || '').trim();
+    return { url, thumb: '' };
+  }
+  const url =
+    p?.url ||
+    p?.file_url ||
+    p?.fileUrl ||
+    p?.secure_url ||
+    p?.secureUrl ||
+    p?.photo_url ||
+    p?.photoUrl ||
+    p?.image_url ||
+    p?.imageUrl ||
+    '';
+  const thumb =
+    p?.thumbnail_url ||
+    p?.thumbnailUrl ||
+    p?.thumb_url ||
+    p?.thumbUrl ||
+    '';
+  return { url: String(url || ''), thumb: String(thumb || '') };
+}
+
 export default function ClientGalleryAdminPage() {
   const params = useParams();
   const router = useRouter();
@@ -46,6 +71,7 @@ export default function ClientGalleryAdminPage() {
   const [newAlbumName, setNewAlbumName] = useState('');
   const [uploadFiles, setUploadFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchAll() {
@@ -94,31 +120,6 @@ export default function ClientGalleryAdminPage() {
   }, [clientId]);
 
   const albums = useMemo(() => {
-    const getPhotoUrls = (p: any) => {
-      if (typeof p === 'string') {
-        const url = String(p || '').trim();
-        return { url, thumb: '' };
-      }
-      const url =
-        p?.url ||
-        p?.file_url ||
-        p?.fileUrl ||
-        p?.secure_url ||
-        p?.secureUrl ||
-        p?.photo_url ||
-        p?.photoUrl ||
-        p?.image_url ||
-        p?.imageUrl ||
-        '';
-      const thumb =
-        p?.thumbnail_url ||
-        p?.thumbnailUrl ||
-        p?.thumb_url ||
-        p?.thumbUrl ||
-        '';
-      return { url: String(url || ''), thumb: String(thumb || '') };
-    };
-
     return galleries
       .map((g) => ({
         id: g.id,
@@ -229,32 +230,70 @@ export default function ClientGalleryAdminPage() {
     }
   };
 
-  const photos = useMemo(() => {
-    const getPhotoUrls = (p: any) => {
-      if (typeof p === 'string') {
-        const url = String(p || '').trim();
-        return { url, thumb: '' };
-      }
-      const url =
-        p?.url ||
-        p?.file_url ||
-        p?.fileUrl ||
-        p?.secure_url ||
-        p?.secureUrl ||
-        p?.photo_url ||
-        p?.photoUrl ||
-        p?.image_url ||
-        p?.imageUrl ||
-        '';
-      const thumb =
-        p?.thumbnail_url ||
-        p?.thumbnailUrl ||
-        p?.thumb_url ||
-        p?.thumbUrl ||
-        '';
-      return { url: String(url || ''), thumb: String(thumb || '') };
-    };
+  const handleDeletePhoto = async (photo: any) => {
+    if (!photo?.albumId) return;
+    if (!confirm('Supprimer cette image de la galerie ? Cette action est irréversible.')) return;
 
+    const photoKey = photo.id || photo.displayUrl;
+    setDeletingId(photoKey);
+
+    try {
+      const albumDoc = await getDocument('galleries', photo.albumId);
+      if (!albumDoc) {
+        toast.error('Album introuvable');
+        return;
+      }
+
+      const rawPhotos = ((albumDoc as any).photos || []) as any[];
+      const photoIndex = rawPhotos.findIndex((p) => {
+        if (photo.id && typeof p !== 'string' && p?.id === photo.id) return true;
+        const u = getPhotoUrls(p);
+        return (u.url || u.thumb) === photo.displayUrl;
+      });
+
+      if (photoIndex === -1) {
+        toast.error('Photo introuvable');
+        return;
+      }
+
+      const deletedUrls = getPhotoUrls(rawPhotos[photoIndex]);
+      const deletedDisplayUrl = deletedUrls.url || deletedUrls.thumb;
+
+      const updatedPhotos = rawPhotos.filter((_, idx) => idx !== photoIndex);
+
+      const oldCover = String((albumDoc as any).cover || '');
+      const isDeletedCover =
+        oldCover &&
+        (oldCover === deletedUrls.url || oldCover === deletedUrls.thumb || oldCover === deletedDisplayUrl);
+
+      const newCover = isDeletedCover
+        ? getPhotoUrls(updatedPhotos[0] || '').url || getPhotoUrls(updatedPhotos[0] || '').thumb || ''
+        : oldCover;
+
+      await updateDocument('galleries', photo.albumId, {
+        photos: updatedPhotos,
+        count: updatedPhotos.length,
+        cover: newCover,
+      });
+
+      setGalleries((prev) =>
+        prev.map((g) =>
+          g.id === photo.albumId
+            ? { ...g, photos: updatedPhotos, count: updatedPhotos.length, cover: newCover }
+            : g
+        )
+      );
+
+      toast.success('Photo supprimée');
+    } catch (e) {
+      console.error('Error deleting gallery photo:', e);
+      toast.error('Erreur lors de la suppression');
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const photos = useMemo(() => {
     const all = galleries.flatMap((g) =>
       (g.photos || [])
         .map((p: any) => {
@@ -364,14 +403,27 @@ export default function ClientGalleryAdminPage() {
               ) : (
                 <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
                   {photos.map((p: any) => (
-                    <div key={p.id} className="group relative aspect-square rounded-lg overflow-hidden bg-gray-100">
+                    <div key={p.id || p.displayUrl} className="group relative aspect-square rounded-lg overflow-hidden bg-gray-100">
                       <Image
                         src={p.displayThumbUrl || p.displayUrl}
-                        alt={p.id}
+                        alt={p.id || 'photo'}
                         fill
                         sizes="(max-width: 768px) 50vw, 16vw"
                         className="object-cover"
                       />
+                      <Button
+                        size="icon"
+                        variant="destructive"
+                        className="absolute top-2 right-2 z-10 h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity focus:opacity-100"
+                        disabled={deletingId === (p.id || p.displayUrl)}
+                        onClick={() => handleDeletePhoto(p)}
+                      >
+                        {deletingId === (p.id || p.displayUrl) ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-3.5 w-3.5" />
+                        )}
+                      </Button>
                       <div className="absolute inset-x-0 bottom-0 bg-black/50 text-white p-2 opacity-0 group-hover:opacity-100 transition-opacity">
                         <div className="flex items-center justify-between gap-2">
                           <div className="min-w-0">

@@ -137,7 +137,7 @@ export default function PaiementsPage() {
   const getStatusBadge = (status: string) => {
     const variants: Record<string, { label: string; bg: string; text: string }> = {
       sent: { label: 'À payer', bg: 'bg-[#F1EADD]', text: 'text-[#C9A96E]' },
-      payment_pending: { label: 'En validation', bg: 'bg-orange-100', text: 'text-orange-700' },
+      payment_pending: { label: 'Non payée', bg: 'bg-red-100', text: 'text-red-700' },
       paid: { label: 'Payée', bg: 'bg-brand-turquoise/15', text: 'text-brand-turquoise-hover' },
       overdue: { label: 'En retard', bg: 'bg-[#F5DEDE]', text: 'text-[#B15C5C]' },
     };
@@ -310,7 +310,7 @@ export default function PaiementsPage() {
                 return (
                   <div key={invoice.id} className="rounded-2xl overflow-hidden border border-brand-purple/8">
                     <div className={`flex items-center justify-between px-4 py-2.5 ${
-                      invoice.status === 'payment_pending' ? 'bg-orange-50' :
+                      invoice.status === 'payment_pending' ? 'bg-red-50' :
                       overdueStatus ? 'bg-red-50' : 'bg-[#F1EADD]'
                     }`}>
                       <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -338,11 +338,11 @@ export default function PaiementsPage() {
                       {invoice.status === 'payment_pending' ? (
                         <div className="flex-1 flex items-center justify-center px-3 py-4 min-w-0">
                           <div className="flex flex-col items-center gap-2">
-                            <div className="w-9 h-9 rounded-full bg-orange-500 flex items-center justify-center">
+                            <div className="w-9 h-9 rounded-full bg-red-400 flex items-center justify-center">
                               <Clock className="w-4 h-4 text-white" />
                             </div>
-                            <span className="text-[9px] tracking-label uppercase text-orange-600 font-bold">
-                              En validation
+                            <span className="text-[9px] tracking-label uppercase text-red-600 font-bold">
+                              Non payée
                             </span>
                           </div>
                         </div>

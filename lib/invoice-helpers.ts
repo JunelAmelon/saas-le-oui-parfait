@@ -19,7 +19,7 @@ export async function generateInvoiceNumber(plannerId: string): Promise<string> 
 export async function createInvoice(data: Partial<Invoice>): Promise<string> {
   const invoiceData = {
     ...data,
-    status: data.status || 'draft',
+    status: (data.status as InvoiceStatus) || 'payment_pending',
     created_at: Timestamp.now(),
     updated_at: Timestamp.now(),
   };

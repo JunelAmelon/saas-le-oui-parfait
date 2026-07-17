@@ -1,18 +1,19 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { StatCard } from '@/components/dashboard/StatCard';
-import { BudgetCard } from '@/components/dashboard/BudgetCard';
-import { QuoteList } from '@/components/dashboard/QuoteList';
+import { InvoiceCard } from '@/components/dashboard/InvoiceCard';
+import { InvoiceList } from '@/components/dashboard/InvoiceList';
 import { TaskList } from '@/components/dashboard/TaskList';
 import { TimeTracker } from '@/components/dashboard/TimeTracker';
 import { Euro, Calendar, Users, Loader2, Heart, Eye, MoreVertical, Edit, MessageSquare } from 'lucide-react';
 import Image from 'next/image';
 
 import { getDocuments } from '@/lib/db';
+import { Invoice } from '@/types/invoice';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -33,6 +34,7 @@ interface DashboardStats {
   upcomingTasks: any[];
   revenueRemaining: number;
   expensesTotal: number;
+  invoicedTotal: number;
 }
 
 interface Client {
@@ -49,15 +51,6 @@ interface Client {
   createdAt?: any;
 }
 
-interface Devis {
-  id: string;
-  reference: string;
-  status: 'draft' | 'sent' | 'accepted' | 'rejected';
-  montant_ttc: number;
-  client: string;
-  created_at: any;
-}
-
 export default function Home() {
   const { user, loading } = useAuth();
   const router = useRouter();
@@ -72,10 +65,11 @@ export default function Home() {
     upcomingTasks: [],
     revenueRemaining: 0,
     expensesTotal: 0,
+    invoicedTotal: 0,
   });
   const [dataLoading, setDataLoading] = useState(true);
   const [lastClient, setLastClient] = useState<Client | null>(null);
-  const [recentDevis, setRecentDevis] = useState<Devis[]>([]);
+  const [recentInvoices, setRecentInvoices] = useState<Invoice[]>([]);
 
   // Sécurité & redirection
   useEffect(() => {
@@ -86,12 +80,12 @@ export default function Home() {
   }, [user, loading, router]);
 
   // Fetch Firebase data (stats)
-  useEffect(() => {
-    async function fetchData() {
-      if (!user || user.role !== 'planner') return;
+  const fetchData = useCallback(async () => {
+    if (!user || user.role !== 'planner') return;
 
-      try {
-        const [events, tasks, plannerTasks, clients, devis, invoices, expenses] = await Promise.all([
+    try {
+      setDataLoading(true);
+      const [events, tasks, plannerTasks, clients, invoices, expenses] = await Promise.all([
           getDocuments('events', [{ field: 'planner_id', operator: '==', value: user.uid }]),
           getDocuments('tasks', [
             { field: 'assigned_to', operator: '==', value: user.uid },
@@ -101,7 +95,6 @@ export default function Home() {
 
           getDocuments('clients', [{ field: 'planner_id', operator: '==', value: user.uid }]),
 
-          getDocuments('devis', [{ field: 'planner_id', operator: '==', value: user.uid }]),
           getDocuments('invoices', [{ field: 'planner_id', operator: '==', value: user.uid }]),
           getDocuments('expenses', [{ field: 'planner_id', operator: '==', value: user.uid }]),
         ]);
@@ -119,9 +112,13 @@ export default function Home() {
           0
         );
 
+        const invoicedTotal = (invoices as any[])
+          .filter((inv: any) => !['draft', 'cancelled'].includes(String(inv?.status || '').toLowerCase()))
+          .reduce((acc: number, inv: any) => acc + Number(inv?.amount_ttc || inv?.montant_ttc || 0), 0);
+
         const paidAmount = (invoices as any[])
           .filter((inv: any) => ['paid', 'completed'].includes(String(inv?.status || '').toLowerCase()))
-          .reduce((acc: number, inv: any) => acc + Number(inv?.montant_ttc || inv?.amount || 0), 0);
+          .reduce((acc: number, inv: any) => acc + Number(inv?.amount_ttc || inv?.montant_ttc || 0), 0);
 
         const revenueRemaining = (invoices as any[])
           .filter((inv: any) => String(inv?.status || '') !== 'paid')
@@ -158,24 +155,28 @@ export default function Home() {
             };
           });
 
-        // Trier les devis par date de création et prendre les 5 derniers
-        const sortedDevis = devis
+        // Trier les factures par date de création et prendre les 5 dernières
+        const sortedInvoices = (invoices as any[])
           .sort((a: any, b: any) => {
             const dateA = a.created_at?.toDate?.() || new Date(a.created_at);
             const dateB = b.created_at?.toDate?.() || new Date(b.created_at);
             return dateB.getTime() - dateA.getTime();
           })
           .slice(0, 5)
-          .map((d: any) => ({
-            id: d.id,
-            reference: d.reference,
-            status: d.status,
-            montant_ttc: d.montant_ttc,
-            client: d.client,
-            created_at: d.created_at
-          }));
+          .map((inv: any) => ({
+            id: inv.id,
+            client_id: inv.client_id || '',
+            planner_id: inv.planner_id || '',
+            number: inv.number || '',
+            label: inv.label || '',
+            amount_ttc: Number(inv.amount_ttc || inv.montant_ttc || 0),
+            status: inv.status || 'draft',
+            due_date: inv.due_date || '',
+            created_at: inv.created_at,
+            updated_at: inv.updated_at,
+          })) as Invoice[];
 
-        setRecentDevis(sortedDevis);
+        setRecentInvoices(sortedInvoices);
 
         setStats({
           clientsCount: clients.length,
@@ -187,6 +188,7 @@ export default function Home() {
           upcomingTasks: tasks.slice(0, 5),
           revenueRemaining,
           expensesTotal,
+          invoicedTotal,
         });
 
         // Dernier client
@@ -218,10 +220,11 @@ export default function Home() {
       } finally {
         setDataLoading(false);
       }
-    }
+    }, [user]);
 
+  useEffect(() => {
     if (!loading) fetchData();
-  }, [user, loading]);
+  }, [fetchData, loading]);
 
   // Handlers pour les actions client
   const handleViewDetail = (client: Client) => {
@@ -385,39 +388,16 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Dernière ligne : BudgetCard + QuoteList + TaskList (3 colonnes) */}
+        {/* Dernière ligne : InvoiceCard + InvoiceList + TaskList (3 colonnes) */}
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-          <BudgetCard
-            total={stats.caSigne}
-            spent={stats.expensesTotal}
+          <InvoiceCard
+            total={stats.invoicedTotal}
+            paid={stats.paidAmount}
           />
 
-          <QuoteList
-            quotes={recentDevis}
-            onDevisCreated={() => {
-              // Recharger les devis après création
-              if (user) {
-                getDocuments('devis', [{ field: 'planner_id', operator: '==', value: user.uid }])
-                  .then((devis) => {
-                    const sortedDevis = devis
-                      .sort((a: any, b: any) => {
-                        const dateA = a.created_at?.toDate?.() || new Date(a.created_at);
-                        const dateB = b.created_at?.toDate?.() || new Date(b.created_at);
-                        return dateB.getTime() - dateA.getTime();
-                      })
-                      .slice(0, 5)
-                      .map((d: any) => ({
-                        id: d.id,
-                        reference: d.reference,
-                        status: d.status,
-                        montant_ttc: d.montant_ttc,
-                        client: d.client,
-                        created_at: d.created_at
-                      }));
-                    setRecentDevis(sortedDevis);
-                  });
-              }
-            }}
+          <InvoiceList
+            invoices={recentInvoices}
+            onInvoiceCreated={fetchData}
           />
 
           <TaskList

@@ -66,17 +66,17 @@ export function ViewInvoiceModal({ invoice, open, onOpenChange, onUpdate }: View
   };
 
   const getStatusBadge = (status: string) => {
-    const variants: Record<string, { label: string; variant: any }> = {
+    const variants: Record<string, { label: string; variant: any; className?: string }> = {
       draft: { label: 'Brouillon', variant: 'secondary' },
       sent: { label: 'Envoyée', variant: 'default' },
-      payment_pending: { label: 'En attente', variant: 'warning' },
+      payment_pending: { label: 'Non payée', variant: 'outline', className: 'bg-red-50 text-red-700 border-red-200 hover:bg-red-50' },
       paid: { label: 'Payée', variant: 'success' },
       overdue: { label: 'En retard', variant: 'destructive' },
       cancelled: { label: 'Annulée', variant: 'secondary' },
     };
     
     const config = variants[status] || variants.draft;
-    return <Badge variant={config.variant as any}>{config.label}</Badge>;
+    return <Badge variant={config.variant as any} className={config.className}>{config.label}</Badge>;
   };
 
   const getPaymentMethodLabel = (method: string) => {

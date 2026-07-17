@@ -46,7 +46,7 @@ export default function FacturesPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null);
-  const [filter, setFilter] = useState<'all' | 'sent' | 'payment_pending' | 'paid' | 'overdue'>('all');
+  const [filter, setFilter] = useState<'all' | 'sent' | 'payment_pending' | 'paid' | 'overdue' | 'draft' | 'cancelled'>('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [pendingPage, setPendingPage] = useState(1);
 
@@ -187,8 +187,8 @@ export default function FacturesPage() {
   const getStatusBadge = (status: string) => {
     const variants: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline'; className?: string }> = {
       draft: { label: 'Brouillon', variant: 'secondary' },
-      sent: { label: 'Envoyée', variant: 'default' },
-      payment_pending: { label: 'En attente', variant: 'outline', className: 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-50' },
+      sent: { label: 'Validée', variant: 'default' },
+      payment_pending: { label: 'Non payée', variant: 'outline', className: 'bg-red-50 text-red-700 border-red-200 hover:bg-red-50' },
       paid: { label: 'Payée', variant: 'outline', className: 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-50' },
       overdue: { label: 'En retard', variant: 'destructive' },
       cancelled: { label: 'Annulée', variant: 'secondary' },
@@ -250,14 +250,14 @@ export default function FacturesPage() {
             size="sm"
             onClick={() => setFilter('sent')}
           >
-            Envoyées
+            Validées
           </Button>
           <Button
             variant={filter === 'payment_pending' ? 'default' : 'outline'}
             size="sm"
             onClick={() => setFilter('payment_pending')}
           >
-            En attente
+            Non payées
           </Button>
           <Button
             variant={filter === 'paid' ? 'default' : 'outline'}
@@ -272,6 +272,20 @@ export default function FacturesPage() {
             onClick={() => setFilter('overdue')}
           >
             En retard
+          </Button>
+          <Button
+            variant={filter === 'draft' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setFilter('draft')}
+          >
+            Brouillons
+          </Button>
+          <Button
+            variant={filter === 'cancelled' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setFilter('cancelled')}
+          >
+            Annulées
           </Button>
         </div>
 

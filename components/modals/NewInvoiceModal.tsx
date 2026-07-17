@@ -368,7 +368,7 @@ export function NewInvoiceModal({ isOpen, onClose }: NewInvoiceModalProps) {
         montant_ht: totalHT,
         montant_ttc: totalTTC,
         paid: 0,
-        status: 'pending',
+        status: 'payment_pending',
         type: invoiceType,
         pdf_url: pdfUrl,
         items: items.map(item => ({

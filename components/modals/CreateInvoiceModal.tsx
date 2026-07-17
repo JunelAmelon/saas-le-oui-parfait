@@ -147,7 +147,7 @@ export function CreateInvoiceModal({ open, onOpenChange, onSuccess }: CreateInvo
         label: formData.label,
         amount_ttc: parseFloat(formData.amount_ttc),
         due_date: formData.due_date,
-        status: 'sent',
+        status: 'payment_pending',
       };
 
       if (formData.event_id) {

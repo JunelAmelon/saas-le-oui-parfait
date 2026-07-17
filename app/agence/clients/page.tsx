@@ -61,6 +61,7 @@ export default function ClientFilesPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
+  const [activeSection, setActiveSection] = useState('general');
   const [isNewClientOpen, setIsNewClientOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -121,7 +122,31 @@ export default function ClientFilesPage() {
   }, [user, authLoading]);
 
   useEffect(() => {
-    const clientId = searchParams.get('clientId');
+    const clientIdFromUrl = searchParams.get('clientId');
+    const tabFromUrl = searchParams.get('tab') || 'general';
+
+    const modalReturn =
+      typeof window !== 'undefined'
+        ? ((window.history.state as any)?.modalReturn as { clientId?: string; tab?: string } | undefined)
+        : null;
+
+    let clientId = clientIdFromUrl;
+    let tab = tabFromUrl;
+
+    if (!clientId && modalReturn?.clientId) {
+      clientId = modalReturn.clientId;
+      tab = modalReturn.tab || 'general';
+      // Consommer l'état pour éviter une réouverture intempestive
+      if (typeof window !== 'undefined') {
+        const currentState = (window.history.state as any) || {};
+        window.history.replaceState(
+          { ...currentState, modalReturn: undefined },
+          '',
+          window.location.href
+        );
+      }
+    }
+
     if (!clientId) return;
     if (loading) return;
 
@@ -129,12 +154,28 @@ export default function ClientFilesPage() {
     if (!found) return;
 
     setSelectedClient(found);
+    setActiveSection(tab);
     setIsDetailOpen(true);
   }, [searchParams, clients, loading]);
 
+  useEffect(() => {
+    if (!isDetailOpen || activeSection === 'general') return;
+    const el = document.getElementById('client-detail-actions');
+    if (!el) return;
+    const t = setTimeout(() => {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 50);
+    return () => clearTimeout(t);
+  }, [isDetailOpen, activeSection]);
+
   const handleViewDetail = (client: Client) => {
     setSelectedClient(client);
+    setActiveSection('general');
     setIsDetailOpen(true);
+    router.replace(
+      `/agence/clients?clientId=${encodeURIComponent(client.id)}&tab=general`,
+      { scroll: false }
+    );
   };
 
   const fetchChangeRequests = async (clientId: string) => {
@@ -183,53 +224,49 @@ export default function ClientFilesPage() {
     setIsEditOpen(true);
   };
 
+  const goToSection = (tab: string, path: string) => {
+    if (!selectedClient || typeof window === 'undefined') return;
+    setActiveSection(tab);
+    setIsDetailOpen(false);
+
+    // On remplace l'entrée courante par l'URL du modal + un marqueur d'état
+    // afin que le retour navigateur rouvre forcément le modal à la bonne section.
+    const currentState = (window.history.state as any) || {};
+    const modalUrl = `/agence/clients?clientId=${encodeURIComponent(selectedClient.id)}&tab=${tab}`;
+    window.history.replaceState(
+      { ...currentState, modalReturn: { clientId: selectedClient.id, tab } },
+      '',
+      modalUrl
+    );
+    router.push(path);
+  };
+
   const handleGoToMessages = () => {
-    if (selectedClient) {
-      setIsDetailOpen(false);
-      router.push(`/messages?clientId=${selectedClient.id}`);
-    }
+    goToSection('messages', `/messages?clientId=${selectedClient?.id}`);
   };
 
   const handleGoToDocuments = () => {
-    if (selectedClient) {
-      setIsDetailOpen(false);
-      router.push(`/documents?clientId=${selectedClient.id}`);
-    }
+    goToSection('documents', `/documents?clientId=${selectedClient?.id}`);
   };
 
   const handleGoToPlanning = () => {
-    if (selectedClient) {
-      setIsDetailOpen(false);
-      router.push(`/admin/clients/${selectedClient.id}/planning`);
-    }
+    goToSection('planning', `/admin/clients/${selectedClient?.id}/planning`);
   };
 
   const handleGoToGallery = () => {
-    if (selectedClient) {
-      setIsDetailOpen(false);
-      router.push(`/admin/clients/${selectedClient.id}/galerie`);
-    }
+    goToSection('galerie', `/admin/clients/${selectedClient?.id}/galerie`);
   };
 
   const handleGoToSteps = () => {
-    if (selectedClient) {
-      setIsDetailOpen(false);
-      router.push(`/admin/clients/${selectedClient.id}/etapes`);
-    }
+    goToSection('etapes', `/admin/clients/${selectedClient?.id}/etapes`);
   };
 
   const handleGoToPrestataires = () => {
-    if (selectedClient) {
-      setIsDetailOpen(false);
-      router.push(`/admin/clients/${selectedClient.id}/prestataires`);
-    }
+    goToSection('prestataires', `/admin/clients/${selectedClient?.id}/prestataires`);
   };
 
   const handleGoToDepenses = () => {
-    if (selectedClient) {
-      setIsDetailOpen(false);
-      router.push(`/admin/clients/${selectedClient.id}/depenses`);
-    }
+    goToSection('depenses', `/admin/clients/${selectedClient?.id}/depenses`);
   };
 
   const handleDeleteClient = async (client: Client) => {
@@ -762,32 +799,60 @@ export default function ClientFilesPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-7 gap-3">
-                <Button variant="outline" className="gap-2" onClick={handleGoToMessages}>
+              <div id="client-detail-actions" className="grid grid-cols-1 sm:grid-cols-7 gap-3">
+                <Button
+                  variant="outline"
+                  className={`gap-2 ${activeSection === 'messages' ? 'bg-brand-turquoise text-white border-brand-turquoise hover:bg-brand-turquoise-hover' : ''}`}
+                  onClick={handleGoToMessages}
+                >
                   <MessageSquare className="h-4 w-4" />
                   Message
                 </Button>
-                <Button variant="outline" className="gap-2" onClick={handleGoToDocuments}>
+                <Button
+                  variant="outline"
+                  className={`gap-2 ${activeSection === 'documents' ? 'bg-brand-turquoise text-white border-brand-turquoise hover:bg-brand-turquoise-hover' : ''}`}
+                  onClick={handleGoToDocuments}
+                >
                   <FileText className="h-4 w-4" />
                   Documents
                 </Button>
-                <Button variant="outline" className="gap-2" onClick={handleGoToPrestataires}>
+                <Button
+                  variant="outline"
+                  className={`gap-2 ${activeSection === 'prestataires' ? 'bg-brand-turquoise text-white border-brand-turquoise hover:bg-brand-turquoise-hover' : ''}`}
+                  onClick={handleGoToPrestataires}
+                >
                   <Users className="h-4 w-4" />
                   Prestataires
                 </Button>
-                <Button variant="outline" className="gap-2" onClick={handleGoToDepenses}>
+                <Button
+                  variant="outline"
+                  className={`gap-2 ${activeSection === 'depenses' ? 'bg-brand-turquoise text-white border-brand-turquoise hover:bg-brand-turquoise-hover' : ''}`}
+                  onClick={handleGoToDepenses}
+                >
                   <Euro className="h-4 w-4" />
                   Dépenses
                 </Button>
-                <Button variant="outline" className="gap-2" onClick={handleGoToPlanning}>
+                <Button
+                  variant="outline"
+                  className={`gap-2 ${activeSection === 'planning' ? 'bg-brand-turquoise text-white border-brand-turquoise hover:bg-brand-turquoise-hover' : ''}`}
+                  onClick={handleGoToPlanning}
+                >
                   <Calendar className="h-4 w-4" />
                   Planning
                 </Button>
-                <Button variant="outline" className="gap-2" onClick={handleGoToSteps}>
+                <Button
+                  variant="outline"
+                  className={`gap-2 ${activeSection === 'etapes' ? 'bg-brand-turquoise text-white border-brand-turquoise hover:bg-brand-turquoise-hover' : ''}`}
+                  onClick={handleGoToSteps}
+                >
                   <CheckCircle className="h-4 w-4" />
                   Étapes
                 </Button>
-                <Button variant="outline" className="gap-2" onClick={handleGoToGallery}>
+                <Button
+                  variant="outline"
+                  className={`gap-2 ${activeSection === 'galerie' ? 'bg-brand-turquoise text-white border-brand-turquoise hover:bg-brand-turquoise-hover' : ''}`}
+                  onClick={handleGoToGallery}
+                >
                   <ImageIcon className="h-4 w-4" />
                   Galerie
                 </Button>
@@ -795,7 +860,14 @@ export default function ClientFilesPage() {
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsDetailOpen(false)}>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsDetailOpen(false);
+                setActiveSection('general');
+                router.replace('/agence/clients', { scroll: false });
+              }}
+            >
               Fermer
             </Button>
             <Button

@@ -2,22 +2,22 @@
 
 import { Card } from '@/components/ui/card';
 
-interface BudgetCardProps {
+interface InvoiceCardProps {
   total: number;
-  spent: number;
+  paid: number;
 }
 
-export function BudgetCard({ total, spent }: BudgetCardProps) {
-  const percentage = total > 0 ? (spent / total) * 100 : 0;
-  const remaining = total - spent;
+export function InvoiceCard({ total, paid }: InvoiceCardProps) {
+  const percentage = total > 0 ? (paid / total) * 100 : 0;
+  const remaining = total - paid;
 
   return (
     <Card className="p-4 sm:p-6 shadow-xl border-0">
-      <h3 className="text-lg font-bold text-brand-gray-dark mb-4">Budget</h3>
+      <h3 className="text-lg font-bold text-brand-gray-dark mb-4">Factures</h3>
 
       <div className="mb-4 sm:mb-6 text-center">
         <p className="text-xs text-brand-gray mb-1 uppercase tracking-label">
-          Budget total
+          Total facturé
         </p>
         <p className="text-2xl sm:text-3xl font-bold text-brand-purple break-words">
           {total.toLocaleString('fr-FR')} €
@@ -46,7 +46,7 @@ export function BudgetCard({ total, spent }: BudgetCardProps) {
             textAnchor="middle"
             className="text-[10px] sm:text-xs fill-brand-gray"
           >
-            Budget dépensé
+            Payé
           </text>
           <text
             x="100"
@@ -54,7 +54,7 @@ export function BudgetCard({ total, spent }: BudgetCardProps) {
             textAnchor="middle"
             className="text-base sm:text-xl font-bold fill-brand-purple"
           >
-            {spent.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €
+            {paid.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €
           </text>
         </svg>
         <div className="absolute bottom-2 left-1/2 -translate-x-1/2 transform text-center">
@@ -65,7 +65,7 @@ export function BudgetCard({ total, spent }: BudgetCardProps) {
       </div>
 
       <div className="mt-4 rounded-lg bg-brand-beige p-3 text-center">
-        <p className="text-xs text-brand-gray mb-1">Reste disponible</p>
+        <p className="text-xs text-brand-gray mb-1">Reste à payer</p>
         <p className="text-base sm:text-lg font-bold text-brand-purple break-words">
           {remaining.toLocaleString('fr-FR')} €
         </p>

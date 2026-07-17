@@ -84,7 +84,6 @@ export default function AdminMessagesPage() {
   const [loadingClients, setLoadingClients] = useState(true);
 
   const [profilePhotoUrl, setProfilePhotoUrl] = useState<string | null>(null);
-  const [agencyLogoUrl, setAgencyLogoUrl] = useState<string | null>(null);
   const [uploadingAttachment, setUploadingAttachment] = useState(false);
   const fileInputId = 'admin-chat-attachment-input';
 
@@ -200,16 +199,6 @@ export default function AdminMessagesPage() {
     }
   };
 
-  const fetchAgencyLogo = async () => {
-    try {
-      const a = (await getDocument('agency', 'leOuiParfait')) as any;
-      const url = a?.logoUrl || null;
-      setAgencyLogoUrl(url);
-    } catch {
-      setAgencyLogoUrl(null);
-    }
-  };
-
   const fetchMessages = async (conversationId: string) => {
     if (!conversationId) return;
     try {
@@ -236,6 +225,22 @@ export default function AdminMessagesPage() {
     } catch (e) {
       console.error('Error fetching messages:', e);
       setMessages([]);
+    }
+  };
+
+  const markConversationAsRead = async (convId: string) => {
+    if (!convId) return;
+    const isUnread =
+      conversations.some((c) => c.id === convId && (c.unread || 0) > 0) ||
+      (selectedConversation?.id === convId && (selectedConversation.unread || 0) > 0);
+    if (!isUnread) return;
+
+    try {
+      await updateDocument('conversations', convId, { unread_count_planner: 0 });
+      setConversations((prev) => prev.map((c) => (c.id === convId ? { ...c, unread: 0 } : c)));
+      setSelectedConversation((prev) => (prev?.id === convId ? { ...prev, unread: 0 } : prev));
+    } catch (e) {
+      console.error('Error marking conversation as read:', e);
     }
   };
 
@@ -315,7 +320,6 @@ export default function AdminMessagesPage() {
     void fetchConversations();
     void fetchClients();
     void fetchMyProfilePhoto();
-    void fetchAgencyLogo();
   }, [user?.uid]);
 
   useEffect(() => {
@@ -326,7 +330,6 @@ export default function AdminMessagesPage() {
       if (conv) {
         setSelectedConversation(conv);
         setShowChatOnMobile(true);
-        await fetchMessages(conv.id);
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -334,6 +337,7 @@ export default function AdminMessagesPage() {
 
   useEffect(() => {
     if (selectedConversation?.id) {
+      void markConversationAsRead(selectedConversation.id);
       void fetchMessages(selectedConversation.id);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -354,11 +358,26 @@ export default function AdminMessagesPage() {
         content,
         created_at: new Date(),
       });
+      const now = new Date();
       await updateDocument('conversations', selectedConversation.id, {
         last_message: content,
-        last_message_at: new Date(),
+        last_message_at: now,
         unread_count_client: (selectedConversation.type === 'client') ? 1 : 0,
       });
+
+      setConversations((prev) => {
+        const next = prev.map((c) =>
+          c.id === selectedConversation.id
+            ? { ...c, lastMessage: content, lastMessageAtMs: now.getTime(), time: now.toLocaleString('fr-FR') }
+            : c
+        );
+        return next.sort((a, b) => (b.lastMessageAtMs || 0) - (a.lastMessageAtMs || 0));
+      });
+      setSelectedConversation((prev) =>
+        prev?.id === selectedConversation.id
+          ? { ...prev, lastMessage: content, lastMessageAtMs: now.getTime(), time: now.toLocaleString('fr-FR') }
+          : prev
+      );
 
       // Notif in-app côté client (best effort)
       try {
@@ -451,11 +470,27 @@ export default function AdminMessagesPage() {
         attachments: [{ url, name: file.name, type: file.type }],
         created_at: new Date(),
       });
+      const now = new Date();
+      const attachmentPreview = `📎 ${file.name}`;
       await updateDocument('conversations', selectedConversation.id, {
-        last_message: `📎 ${file.name}`,
-        last_message_at: new Date(),
+        last_message: attachmentPreview,
+        last_message_at: now,
         unread_count_client: (selectedConversation.type === 'client') ? 1 : 0,
       });
+
+      setConversations((prev) => {
+        const next = prev.map((c) =>
+          c.id === selectedConversation.id
+            ? { ...c, lastMessage: attachmentPreview, lastMessageAtMs: now.getTime(), time: now.toLocaleString('fr-FR') }
+            : c
+        );
+        return next.sort((a, b) => (b.lastMessageAtMs || 0) - (a.lastMessageAtMs || 0));
+      });
+      setSelectedConversation((prev) =>
+        prev?.id === selectedConversation.id
+          ? { ...prev, lastMessage: attachmentPreview, lastMessageAtMs: now.getTime(), time: now.toLocaleString('fr-FR') }
+          : prev
+      );
 
       // Notif in-app côté client (best effort)
       try {
@@ -691,8 +726,8 @@ export default function AdminMessagesPage() {
                 >
                   <div className={`flex items-end gap-2 ${message.isMe ? 'flex-row-reverse' : 'flex-row'}`}>
                     <Avatar className="h-8 w-8">
-                      {message.isMe && (agencyLogoUrl || profilePhotoUrl) ? (
-                        <AvatarImage src={agencyLogoUrl || profilePhotoUrl || undefined} alt="Moi" />
+                      {message.isMe ? (
+                        <AvatarImage src={profilePhotoUrl || '/kathy.png'} alt="Cathy" />
                       ) : null}
                       {!message.isMe && selectedConversation?.photoUrl ? (
                         <AvatarImage src={selectedConversation.photoUrl} alt={selectedConversation.name} />

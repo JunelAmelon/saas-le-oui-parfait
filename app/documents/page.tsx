@@ -331,7 +331,11 @@ export default function DocumentsPage() {
           {clientId && (
             <Button
               variant="outline"
-              onClick={() => router.push('/agence/clients')}
+              onClick={() =>
+                clientId
+                  ? router.push(`/agence/clients?clientId=${encodeURIComponent(clientId)}&tab=documents`)
+                  : router.push('/agence/clients')
+              }
               className="w-full sm:w-auto gap-2"
             >
               <ArrowLeft className="h-4 w-4" />
