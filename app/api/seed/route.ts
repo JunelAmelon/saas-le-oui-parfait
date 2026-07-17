@@ -1,13 +1,22 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+    // Sécurité : le seed ne doit être appelable que avec un token secret
+    const seedSecret = request.headers.get('x-seed-secret');
+    if (seedSecret !== process.env.SEED_SECRET) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     try {
         console.log('Starting seed process...');
 
         // 1. Create Admin User (Planner)
-        const adminEmail = 'admin@leouiparfait.com';
-        const adminPassword = 'password123';
+        const adminEmail = process.env.SEED_ADMIN_EMAIL || 'admin@leouiparfait.com';
+        const adminPassword = process.env.SEED_ADMIN_PASSWORD;
+        if (!adminPassword) {
+            return NextResponse.json({ error: 'SEED_ADMIN_PASSWORD not set' }, { status: 400 });
+        }
         let adminUid;
 
         try {
@@ -36,8 +45,11 @@ export async function GET() {
 
 
         // 2. Create Client User
-        const clientEmail = 'julie@email.com';
-        const clientPassword = 'password123';
+        const clientEmail = process.env.SEED_CLIENT_EMAIL || 'julie@email.com';
+        const clientPassword = process.env.SEED_CLIENT_PASSWORD;
+        if (!clientPassword) {
+            return NextResponse.json({ error: 'SEED_CLIENT_PASSWORD not set' }, { status: 400 });
+        }
         let clientUid;
 
         try {

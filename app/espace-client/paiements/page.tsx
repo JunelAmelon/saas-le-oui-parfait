@@ -335,32 +335,19 @@ export default function PaiementsPage() {
                         value={formatDate(invoice.due_date)}
                         accent={overdueStatus ? 'bg-[#B15C5C]' : 'bg-[#C9A96E]'}
                       />
-                      {invoice.status === 'payment_pending' ? (
-                        <div className="flex-1 flex items-center justify-center px-3 py-4 min-w-0">
-                          <div className="flex flex-col items-center gap-2">
-                            <div className="w-9 h-9 rounded-full bg-red-400 flex items-center justify-center">
-                              <Clock className="w-4 h-4 text-white" />
-                            </div>
-                            <span className="text-[9px] tracking-label uppercase text-red-600 font-bold">
-                              Non payée
-                            </span>
+                      <div className="flex-1 flex items-center justify-center px-3 py-4 min-w-0">
+                        <button
+                          onClick={() => handlePayClick(invoice)}
+                          className="flex flex-col items-center gap-2 group"
+                        >
+                          <div className="w-9 h-9 rounded-full bg-brand-turquoise group-hover:bg-brand-turquoise-hover flex items-center justify-center transition-colors">
+                            <CreditCard className="w-4 h-4 text-white" />
                           </div>
-                        </div>
-                      ) : (
-                        <div className="flex-1 flex items-center justify-center px-3 py-4 min-w-0">
-                          <button
-                            onClick={() => handlePayClick(invoice)}
-                            className="flex flex-col items-center gap-2 group"
-                          >
-                            <div className="w-9 h-9 rounded-full bg-brand-turquoise group-hover:bg-brand-turquoise-hover flex items-center justify-center transition-colors">
-                              <CreditCard className="w-4 h-4 text-white" />
-                            </div>
-                            <span className="text-[9px] tracking-label uppercase text-brand-turquoise-hover font-bold">
-                              Payer
-                            </span>
-                          </button>
-                        </div>
-                      )}
+                          <span className="text-[9px] tracking-label uppercase text-brand-turquoise-hover font-bold">
+                            Payer
+                          </span>
+                        </button>
+                      </div>
                       {invoice.file_url && (
                         <div className="flex-1 flex items-center justify-center px-3 py-4 min-w-0">
                           <button

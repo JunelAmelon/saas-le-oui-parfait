@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebase-admin';
+import { sendEmailServer } from '@/lib/notifications.server';
 import { Timestamp } from 'firebase-admin/firestore';
 
 export async function POST(request: NextRequest) {
@@ -61,30 +62,30 @@ export async function POST(request: NextRequest) {
       updated_at: Timestamp.now(),
     });
 
-    // Envoyer notification email à l'admin
+    // Notification in-app et email à l'admin
     try {
-      const plannerRef = await adminDb.collection('profiles').doc(invoice?.planner_id).get();
-      const plannerData = plannerRef.data();
-      
-      if (plannerData?.email) {
-        await fetch(`${process.env.NEXT_PUBLIC_URL}/api/email/send`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            to: plannerData.email,
-            subject: `Nouveau paiement à valider - ${invoice?.number}`,
-            template: 'payment_pending',
-            data: {
-              admin_email: plannerData.email,
-              client_name: client_name || 'Client',
-              invoice_number: invoice?.number,
-              amount,
-              transfer_date,
-              proof_url,
-            },
-          }),
-        });
-      }
+      const plannerId = invoice?.planner_id;
+
+      // Notification dans l'application admin
+      await adminDb.collection('notifications').add({
+        recipient_id: plannerId,
+        type: 'payment',
+        title: 'Virement à valider',
+        message: `${client_name || 'Un client'} a déclaré un virement de ${amount.toLocaleString('fr-FR')}€ pour la facture ${invoice?.number}. Vérifiez et validez le paiement.`,
+        link: '/factures',
+        read: false,
+        created_at: new Date(),
+        invoice_id,
+        payment_id: paymentRef.id,
+      });
+
+      const emailText = `Bonjour,\n\n${client_name || 'Un client'} a déclaré un virement bancaire pour la facture ${invoice?.number}.\n\nMontant : ${amount.toLocaleString('fr-FR')}€\nDate du virement : ${transfer_date}\nRéférence : ${transfer_reference}\nJustificatif : ${proof_url}\n\nVeuillez vérifier le virement et valider le paiement dans l'administration.\n\nLe Oui Parfait`;
+
+      await sendEmailServer({
+        to: 'contact@leouiparfait.com',
+        subject: `Virement à valider - ${invoice?.number}`,
+        text: emailText,
+      });
     } catch (emailError) {
       console.error('Error sending notification email:', emailError);
       // Ne pas bloquer la réponse si l'email échoue
