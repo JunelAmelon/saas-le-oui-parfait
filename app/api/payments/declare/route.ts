@@ -81,11 +81,15 @@ export async function POST(request: NextRequest) {
 
       const emailText = `Bonjour,\n\n${client_name || 'Un client'} a déclaré un virement bancaire pour la facture ${invoice?.number}.\n\nMontant : ${amount.toLocaleString('fr-FR')}€\nDate du virement : ${transfer_date}\nRéférence : ${transfer_reference}\nJustificatif : ${proof_url}\n\nVeuillez vérifier le virement et valider le paiement dans l'administration.\n\nLe Oui Parfait`;
 
-      await sendEmailServer({
-        to: 'contact@leouiparfait.com',
-        subject: `Virement à valider - ${invoice?.number}`,
-        text: emailText,
-      });
+      const contactEmail = process.env.CONTACT_EMAIL || 'contact@leouiparfait.com';
+
+      if (contactEmail) {
+        await sendEmailServer({
+          to: contactEmail,
+          subject: `Virement à valider - ${invoice?.number}`,
+          text: emailText,
+        });
+      }
 
       // Notification push vers le téléphone du planner
       if (plannerId) {
