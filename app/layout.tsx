@@ -24,6 +24,13 @@ const siteUrl = process.env.APP_BASE_URL || process.env.NEXT_PUBLIC_APP_BASE_URL
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
+  manifest: '/manifest.json',
+  themeColor: '#4B4456',
+  appleWebApp: {
+    capable: true,
+    title: 'Le Oui Parfait',
+    statusBarStyle: 'default',
+  },
   title: 'Le Oui Parfait - Plateforme Wedding Planning',
   description: 'Plateforme SaaS professionnelle de gestion d\'événements pour Wedding Planners',
   openGraph: {

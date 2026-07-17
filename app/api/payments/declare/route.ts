@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebase-admin';
-import { sendEmailServer } from '@/lib/notifications.server';
+import { sendEmailServer, sendPushServer } from '@/lib/notifications.server';
 import { Timestamp } from 'firebase-admin/firestore';
 
 export async function POST(request: NextRequest) {
@@ -86,6 +86,16 @@ export async function POST(request: NextRequest) {
         subject: `Virement à valider - ${invoice?.number}`,
         text: emailText,
       });
+
+      // Notification push vers le téléphone du planner
+      if (plannerId) {
+        await sendPushServer({
+          recipientId: plannerId,
+          title: 'Virement à valider',
+          body: `${client_name || 'Un client'} a déclaré un virement de ${amount.toLocaleString('fr-FR')}€ pour la facture ${invoice?.number}.`,
+          link: '/factures',
+        });
+      }
     } catch (emailError) {
       console.error('Error sending notification email:', emailError);
       // Ne pas bloquer la réponse si l'email échoue

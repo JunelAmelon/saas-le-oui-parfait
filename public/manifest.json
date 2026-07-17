@@ -1,0 +1,25 @@
+{
+  "name": "Le Oui Parfait",
+  "short_name": "Oui Parfait",
+  "description": "Plateforme SaaS professionnelle de gestion d'événements pour Wedding Planners",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#FAF9F7",
+  "theme_color": "#4B4456",
+  "orientation": "portrait",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "/logo-horizontal.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/logo-horizontal.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
