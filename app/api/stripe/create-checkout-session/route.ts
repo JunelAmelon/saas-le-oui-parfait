@@ -1,17 +1,46 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
+import { adminDb } from '@/lib/firebase-admin';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2026-06-24.dahlia',
-});
+const secretKey = process.env.STRIPE_SECRET_KEY!;
+if (!secretKey) {
+  throw new Error('STRIPE_SECRET_KEY is not configured');
+}
+const stripe = new Stripe(secretKey);
 
 export async function POST(request: NextRequest) {
   try {
-    const { invoice } = await request.json();
+    const { invoice: invoiceInput } = await request.json();
 
-    if (!invoice || !invoice.id || !invoice.number || !invoice.amount_ttc) {
+    if (!invoiceInput || !invoiceInput.id) {
       return NextResponse.json(
         { error: 'Invalid invoice data' },
+        { status: 400 }
+      );
+    }
+
+    const invoiceRef = adminDb.collection('invoices').doc(invoiceInput.id);
+    const invoiceSnap = await invoiceRef.get();
+
+    if (!invoiceSnap.exists) {
+      return NextResponse.json(
+        { error: 'Invoice not found' },
+        { status: 404 }
+      );
+    }
+
+    const invoice = invoiceSnap.data() as any;
+
+    if (
+      !invoice ||
+      invoice.status === 'paid' ||
+      !(invoice.amount_ttc > 0) ||
+      !invoice.number ||
+      !invoice.client_id ||
+      !invoice.planner_id
+    ) {
+      return NextResponse.json(
+        { error: 'Invalid invoice' },
         { status: 400 }
       );
     }
@@ -37,12 +66,12 @@ export async function POST(request: NextRequest) {
         },
       ],
       metadata: {
-        invoice_id: invoice.id,
+        invoice_id: invoiceInput.id,
         client_id: invoice.client_id,
         planner_id: invoice.planner_id,
         invoice_number: invoice.number,
       },
-      success_url: `${baseUrl}/espace-client/paiements?success=true&invoice=${invoice.id}&session_id={CHECKOUT_SESSION_ID}`,
+      success_url: `${baseUrl}/espace-client/paiements?success=true&invoice=${invoiceInput.id}&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${baseUrl}/espace-client/paiements?cancelled=true`,
     });
 
