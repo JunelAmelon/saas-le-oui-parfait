@@ -15,6 +15,7 @@ import {
   MessageSquare,
   Send,
   Paperclip,
+  FileText,
   MoreVertical,
   Check,
   CheckCheck,
@@ -70,7 +71,6 @@ export default function MessagesPage() {
 
   const [showChatOnMobile, setShowChatOnMobile] = useState(false);
 
-  const [plannerPhotoUrl, setPlannerPhotoUrl] = useState<string | null>(null);
   const [agencyProfile, setAgencyProfile] = useState<any | null>(null);
   const [uploadingAttachment, setUploadingAttachment] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
@@ -107,17 +107,6 @@ export default function MessagesPage() {
         } as MessageItem;
       });
     setMessages(mapped);
-  };
-
-  const fetchPlannerPhoto = async () => {
-    if (!client?.planner_id) return;
-    try {
-      const p = (await getDocument('profiles', client.planner_id)) as any;
-      const url = p?.photo || p?.photoUrl || p?.avatar_url || null;
-      setPlannerPhotoUrl(url);
-    } catch {
-      setPlannerPhotoUrl(null);
-    }
   };
 
   const fetchAgencyProfile = async () => {
@@ -162,7 +151,6 @@ export default function MessagesPage() {
     void (async () => {
       setLoading(true);
       try {
-        void fetchPlannerPhoto();
         void fetchAgencyProfile();
         const conv = await ensureConversation();
         if (!conv?.id) {
@@ -389,9 +377,7 @@ export default function MessagesPage() {
             <div className="px-5 py-4 border-b border-brand-purple/8 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-3">
                 <Avatar className="h-10 w-10 ring-2 ring-brand-turquoise/20">
-                  {agencyProfile?.logoUrl || plannerPhotoUrl ? (
-                    <AvatarImage src={agencyProfile?.logoUrl || plannerPhotoUrl || undefined} alt="Wedding Planner" />
-                  ) : null}
+                  <AvatarImage src="/kathy.png" alt="Kathy" />
                   <AvatarFallback className="bg-brand-purple text-white">
                     {selectedConversation?.avatar || '—'}
                   </AvatarFallback>
@@ -439,9 +425,7 @@ export default function MessagesPage() {
                   >
                     <Avatar className="h-7 w-7 shrink-0">
                       {message.isMe && client?.photo ? <AvatarImage src={client.photo} alt="Moi" /> : null}
-                      {!message.isMe && (agencyProfile?.logoUrl || plannerPhotoUrl) ? (
-                        <AvatarImage src={agencyProfile?.logoUrl || plannerPhotoUrl || undefined} alt="Wedding Planner" />
-                      ) : null}
+                      {!message.isMe && <AvatarImage src="/kathy.png" alt="Kathy" />}
                       <AvatarFallback
                         className={`text-[10px] ${message.isMe ? 'bg-brand-purple' : 'bg-brand-turquoise'} text-white`}
                       >
@@ -458,21 +442,33 @@ export default function MessagesPage() {
                     >
                       {message.content ? <p className="text-sm leading-relaxed">{message.content}</p> : null}
                       {message.attachments && message.attachments.length > 0 ? (
-                        <div className="space-y-1">
-                          {message.attachments.map((a, idx) => (
-                            <a
-                              key={`${message.id}:att:${idx}`}
-                              href={a.url}
-                              target="_blank"
-                              rel="noreferrer"
-                              className={`text-sm underline flex items-center gap-1.5 ${
-                                message.isMe ? 'text-white' : 'text-brand-purple'
-                              }`}
-                            >
-                              <Paperclip className="w-3 h-3" />
-                              {a.name || 'Document'}
-                            </a>
-                          ))}
+                        <div className="space-y-2 mt-1">
+                          {message.attachments.map((a, idx) => {
+                            const isImage = /^image\//i.test(a.type || '') || /\.(jpg|jpeg|png|gif|webp|svg|bmp)$/i.test(a.url || '');
+                            return (
+                              <a
+                                key={`${message.id}:att:${idx}`}
+                                href={a.url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className={`block ${message.isMe ? 'text-white' : 'text-brand-purple'}`}
+                              >
+                                {isImage ? (
+                                  <img
+                                    src={a.url}
+                                    alt={a.name || 'Image'}
+                                    className={`max-w-full max-h-48 rounded-lg object-cover border ${message.isMe ? 'border-white/20' : 'border-brand-purple/10'}`}
+                                    loading="lazy"
+                                  />
+                                ) : (
+                                  <div className={`flex items-center gap-2 px-3 py-2 rounded-lg ${message.isMe ? 'bg-white/15' : 'bg-brand-purple/5'}`}>
+                                    <FileText className="w-4 h-4 shrink-0" />
+                                    <span className="text-sm truncate underline">{a.name || 'Document'}</span>
+                                  </div>
+                                )}
+                              </a>
+                            );
+                          })}
                         </div>
                       ) : null}
                       <div
@@ -529,7 +525,15 @@ export default function MessagesPage() {
                   onClick={() => void handleSend()}
                   className="w-9 h-9 rounded-full bg-brand-turquoise hover:bg-brand-turquoise-hover disabled:opacity-40 disabled:hover:bg-brand-turquoise flex items-center justify-center text-white transition-colors shrink-0"
                 >
-                  <Send className="h-4 w-4" />
+                  {sending ? (
+                    <span className="flex items-center gap-0.5">
+                      <span className="w-1 h-1 bg-white rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                      <span className="w-1 h-1 bg-white rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                      <span className="w-1 h-1 bg-white rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                    </span>
+                  ) : (
+                    <Send className="h-4 w-4" />
+                  )}
                 </button>
               </div>
             </div>
@@ -559,9 +563,7 @@ export default function MessagesPage() {
             <div className="px-6 pb-6 -mt-10">
               <div className="flex items-end gap-4 mb-4">
                 <Avatar className="h-20 w-20 ring-4 ring-white bg-white">
-                  {agencyProfile?.logoUrl || plannerPhotoUrl ? (
-                    <AvatarImage src={agencyProfile?.logoUrl || plannerPhotoUrl || undefined} alt={agencyProfile?.name || 'Le Oui Parfait'} />
-                  ) : null}
+                  <AvatarImage src="/kathy.png" alt="Kathy" />
                   <AvatarFallback className="bg-brand-purple text-white text-2xl">
                     {agencyProfile?.name?.slice(0, 2).toUpperCase() || 'WP'}
                   </AvatarFallback>

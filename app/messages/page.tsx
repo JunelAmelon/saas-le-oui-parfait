@@ -10,6 +10,7 @@ import {
   MessageSquare,
   Send,
   Paperclip,
+  FileText,
   Search,
   MoreVertical,
   Check,
@@ -710,18 +711,33 @@ export default function AdminMessagesPage() {
                     >
                       {message.content ? <p className="text-sm">{message.content}</p> : null}
                       {message.attachments && message.attachments.length > 0 ? (
-                        <div className="space-y-1">
-                          {message.attachments.map((a, idx) => (
-                            <a
-                              key={`${message.id}:att:${idx}`}
-                              href={a.url}
-                              target="_blank"
-                              rel="noreferrer"
-                              className={`text-sm underline ${message.isMe ? 'text-white' : 'text-brand-purple'}`}
-                            >
-                              {a.name || 'Document'}
-                            </a>
-                          ))}
+                        <div className="space-y-2 mt-1">
+                          {message.attachments.map((a, idx) => {
+                            const isImage = /^image\//i.test(a.type || '') || /\.(jpg|jpeg|png|gif|webp|svg|bmp)$/i.test(a.url || '');
+                            return (
+                              <a
+                                key={`${message.id}:att:${idx}`}
+                                href={a.url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className={`block ${message.isMe ? 'text-white' : 'text-brand-purple'}`}
+                              >
+                                {isImage ? (
+                                  <img
+                                    src={a.url}
+                                    alt={a.name || 'Image'}
+                                    className="max-w-full max-h-48 rounded-lg object-cover border border-white/20"
+                                    loading="lazy"
+                                  />
+                                ) : (
+                                  <div className={`flex items-center gap-2 px-3 py-2 rounded-lg ${message.isMe ? 'bg-white/15' : 'bg-brand-purple/5'}`}>
+                                    <FileText className="w-4 h-4 shrink-0" />
+                                    <span className="text-sm truncate underline">{a.name || 'Document'}</span>
+                                  </div>
+                                )}
+                              </a>
+                            );
+                          })}
                         </div>
                       ) : null}
 
@@ -784,7 +800,15 @@ export default function AdminMessagesPage() {
                   disabled={!newMessage.trim() || !selectedConversation?.id || sending || uploadingAttachment}
                   onClick={() => void handleSend()}
                 >
-                  <Send className="h-4 w-4" />
+                  {sending ? (
+                    <span className="flex items-center gap-0.5">
+                      <span className="w-1 h-1 bg-white rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                      <span className="w-1 h-1 bg-white rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                      <span className="w-1 h-1 bg-white rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                    </span>
+                  ) : (
+                    <Send className="h-4 w-4" />
+                  )}
                 </Button>
               </div>
             </div>

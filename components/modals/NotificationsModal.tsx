@@ -16,6 +16,8 @@ interface NotificationsModalProps {
   unreadCount: number;
   onMarkAllAsRead: () => Promise<void>;
   onMarkAsRead: (notificationId: string) => Promise<void>;
+  onDeleteOne: (notificationId: string) => Promise<void>;
+  onDeleteAll: () => Promise<void>;
 }
 
 const getNotifStyle = (type: NotificationType) => {
@@ -50,6 +52,8 @@ export function NotificationsModal({
   unreadCount,
   onMarkAllAsRead,
   onMarkAsRead,
+  onDeleteOne,
+  onDeleteAll,
 }: NotificationsModalProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -111,6 +115,18 @@ export function NotificationsModal({
             >
               Tout marquer comme lu
             </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+              onClick={() => {
+                if (confirm('Supprimer toutes les notifications ?')) {
+                  void onDeleteAll();
+                }
+              }}
+            >
+              Tout effacer
+            </Button>
           </div>
 
           <div className="space-y-2">
@@ -119,10 +135,11 @@ export function NotificationsModal({
               const Icon = style.icon;
               const isUnread = !notification.read;
               return (
-                <button
+                <div
                   key={notification.id}
-                  type="button"
-                  className={`w-full text-left p-4 rounded-xl border transition-colors ${
+                  role="button"
+                  tabIndex={0}
+                  className={`w-full text-left p-4 rounded-xl border transition-colors cursor-pointer ${
                     isUnread ? 'border-brand-turquoise bg-brand-turquoise/5' : 'border-brand-purple/8 bg-white'
                   }`}
                   onClick={async () => {
@@ -133,6 +150,21 @@ export function NotificationsModal({
                         onOpenChange(false);
                         router.push(notification.link);
                       }
+                    }
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      void (async () => {
+                        try {
+                          if (isUnread) await onMarkAsRead(notification.id);
+                        } finally {
+                          if (notification.link) {
+                            onOpenChange(false);
+                            router.push(notification.link);
+                          }
+                        }
+                      })();
                     }
                   }}
                 >
@@ -157,15 +189,29 @@ export function NotificationsModal({
                         <h4 className="font-bold text-brand-purple text-sm">
                           {notification.title}
                         </h4>
-                        {isUnread && (
-                          <div className="h-2 w-2 rounded-full bg-brand-turquoise flex-shrink-0 mt-1"></div>
-                        )}
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {isUnread && (
+                            <div className="h-2 w-2 rounded-full bg-brand-turquoise mt-1"></div>
+                          )}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              void onDeleteOne(notification.id);
+                            }}
+                            className="p-1 rounded-full text-brand-gray hover:text-red-500 hover:bg-red-50 transition-colors"
+                            aria-label="Supprimer la notification"
+                            title="Supprimer"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        </div>
                       </div>
                       <p className="text-sm text-brand-gray mb-2">{notification.message}</p>
                       <p className="text-xs text-brand-gray/70">{formatTime(notification.created_at)}</p>
                     </div>
                   </div>
-                </button>
+                </div>
               );
             })}
 

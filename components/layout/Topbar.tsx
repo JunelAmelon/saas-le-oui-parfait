@@ -24,7 +24,7 @@ export function Topbar() {
   const [showMessages, setShowMessages] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const { signOut, user } = useAuth();
-  const { items: notifications, unreadCount, markAllAsRead, markAsRead } = useNotifications(user?.uid);
+  const { items: notifications, unreadCount, markAllAsRead, markAsRead, deleteOne, deleteAll } = useNotifications(user?.uid);
   const pushInitRef = useRef(false);
   const router = useRouter();
   const { toast } = useToast();
@@ -138,6 +138,8 @@ export function Topbar() {
         unreadCount={unreadCount}
         onMarkAllAsRead={markAllAsRead}
         onMarkAsRead={markAsRead}
+        onDeleteOne={deleteOne}
+        onDeleteAll={deleteAll}
       />
     </>
   );
