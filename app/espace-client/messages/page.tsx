@@ -77,6 +77,16 @@ export default function MessagesPage() {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const fileInputId = 'client-chat-attachment-input';
 
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const detect = () => setIsMobile(window.matchMedia('(pointer: coarse)').matches);
+    detect();
+    const mql = window.matchMedia('(pointer: coarse)');
+    mql.addEventListener('change', detect);
+    return () => mql.removeEventListener('change', detect);
+  }, []);
+
   const clientName = useMemo(() => {
     const n1 = client?.name || '';
     const n2 = client?.partner || '';
@@ -489,7 +499,7 @@ export default function MessagesPage() {
                   className="flex-1 bg-transparent outline-none text-sm text-brand-purple placeholder:text-brand-gray resize-none min-h-[24px] max-h-[100px] py-1"
                   rows={1}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
+                    if (e.key === 'Enter' && !e.shiftKey && !isMobile) {
                       e.preventDefault();
                       if (newMessage.trim() || pendingAttachment) {
                         void handleSend();
