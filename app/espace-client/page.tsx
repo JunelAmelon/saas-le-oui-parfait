@@ -41,7 +41,7 @@ export default function ClientPortalPage() {
   const [milestonesLoading, setMilestonesLoading] = useState(false);
   const [team, setTeam] = useState<TeamMember[]>([]);
   const [teamLoading, setTeamLoading] = useState(false);
-  const [expenseMonths, setExpenseMonths] = useState<{ key: string; label: string; amount: number }[]>([]);
+  const [expenseMonths, setExpenseMonths] = useState<{ key: string; label: string; amount: number; current?: boolean }[]>([]);
   const [expensesLoading, setExpensesLoading] = useState(false);
   const [expensePage, setExpensePage] = useState(0);
   const EXPENSE_WINDOW_SIZE = 3;
@@ -184,12 +184,23 @@ export default function ClientPortalPage() {
         });
 
         const now = new Date();
+        const nowKey = monthKey(now);
         const start = minDate
           ? new Date((minDate as Date).getFullYear(), (minDate as Date).getMonth(), 1)
           : new Date(now.getFullYear(), now.getMonth(), 1);
-        const end = new Date(now.getFullYear(), now.getMonth(), 1);
 
-        const allMonths: { key: string; label: string; amount: number }[] = [];
+        // Élargir la fenêtre jusqu'au mois le plus éloigné (factures à venir)
+        const maxDate = payments.reduce<Date | null>((acc, p) => {
+          const raw = p.due_date || p.date || p.paid_at;
+          if (!raw) return acc;
+          const d = new Date(String(raw));
+          if (Number.isNaN(d.getTime())) return acc;
+          return acc && d > acc ? acc : d;
+        }, null);
+        const rawEnd = maxDate && maxDate > now ? maxDate : now;
+        const end = new Date(rawEnd.getFullYear(), rawEnd.getMonth(), 1);
+
+        const allMonths: { key: string; label: string; amount: number; current: boolean }[] = [];
         const cursor = new Date(start);
         while (cursor <= end) {
           const key = monthKey(cursor);
@@ -197,12 +208,15 @@ export default function ClientPortalPage() {
             key,
             label: `${months[cursor.getMonth()]} ${String(cursor.getFullYear()).slice(2)}`,
             amount: amountsByMonth.get(key) || 0,
+            current: key === nowKey,
           });
           cursor.setMonth(cursor.getMonth() + 1);
         }
 
         setExpenseMonths(allMonths);
-        setExpensePage(Math.max(0, Math.ceil(allMonths.length / EXPENSE_WINDOW_SIZE) - 1));
+        const currentIndex = allMonths.findIndex((m) => m.current);
+        const initialPage = currentIndex >= 0 ? Math.floor(currentIndex / EXPENSE_WINDOW_SIZE) : Math.max(0, Math.ceil(allMonths.length / EXPENSE_WINDOW_SIZE) - 1);
+        setExpensePage(initialPage);
 
         const totalPaid = payments.reduce(
           (sum, p) => sum + (Number(p.paid_amount || 0) || (p.status === 'paid' || p.status === 'completed' ? Number(p.amount || 0) : 0)),
@@ -364,15 +378,19 @@ export default function ClientPortalPage() {
               <span>{Math.round(chartMax / 2).toLocaleString('fr-FR')}€</span>
               <span>0€</span>
             </div>
-            {visibleExpenseMonths.map((e, i) => (
-              <div key={e.key} className="flex-1 flex flex-col items-center gap-2">
-                <div
-                  className={`w-6 rounded-t-md ${i === visibleExpenseMonths.length - 1 ? 'bg-[#88b7b5]' : 'bg-[rgba(136,183,181,0.4)]'} ${expenseHeightClass(e.amount)}`}
-                  title={`${e.amount.toLocaleString('fr-FR')} €`}
-                />
-                <span className="text-[10px] text-[#9C97A3]">{e.label}</span>
-              </div>
-            ))}
+            {visibleExpenseMonths.map((e) => {
+              const pct = chartMax > 0 ? Math.max(4, Math.round((e.amount / chartMax) * 100)) : 4;
+              return (
+                <div key={e.key} className="flex-1 flex flex-col items-center gap-2 min-w-0">
+                  <div
+                    className={`w-6 rounded-t-md ${e.current ? 'bg-[#88b7b5]' : 'bg-[rgba(136,183,181,0.4)]'}`}
+                    style={{ height: `${pct}%`, minHeight: '4px' }}
+                    title={`${e.amount.toLocaleString('fr-FR')} €`}
+                  />
+                  <span className="text-[10px] text-[#9C97A3]">{e.label}</span>
+                </div>
+              );
+            })}
           </div>
           {expenseTotalPages > 1 ? (
             <p className="text-center text-[10px] text-[#9C97A3]">

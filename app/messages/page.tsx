@@ -23,7 +23,7 @@ import {
 import { useMemo, useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { addDocument, getDocument, getDocuments, updateDocument } from '@/lib/db';
+import { addDocument, getDocument, getDocuments, updateDocument, deleteDocument } from '@/lib/db';
 import { uploadFile } from '@/lib/storage';
 import { toast } from 'sonner';
 
@@ -77,6 +77,7 @@ export default function AdminMessagesPage() {
   const [filter, setFilter] = useState<'all' | 'client' | 'vendor' | 'team'>('all');
   const [loadingConvs, setLoadingConvs] = useState(true);
   const [sending, setSending] = useState(false);
+  const [pendingAttachment, setPendingAttachment] = useState<File | null>(null);
 
   const [showChatOnMobile, setShowChatOnMobile] = useState(false);
 
@@ -345,22 +346,39 @@ export default function AdminMessagesPage() {
 
   const handleSend = async () => {
     if (!user?.uid || !selectedConversation?.id) return;
-    if (!newMessage.trim()) return;
+    if (!newMessage.trim() && !pendingAttachment) return;
     setSending(true);
     try {
       const content = newMessage.trim();
       setNewMessage('');
+
+      let attachments: { url: string; name: string; type: string }[] | undefined;
+      let attachmentPreview: string | null = null;
+
+      if (pendingAttachment) {
+        const url = await uploadFile(pendingAttachment, 'chat');
+        attachments = [{ url, name: pendingAttachment.name, type: pendingAttachment.type }];
+        attachmentPreview = `📎 ${pendingAttachment.name}`;
+        setPendingAttachment(null);
+      }
+
       await addDocument('messages', {
         conversation_id: selectedConversation.id,
         sender_id: user.uid,
         sender_role: 'planner',
         sender_name: 'Moi',
         content,
+        ...(attachments ? { attachments } : {}),
         created_at: new Date(),
       });
       const now = new Date();
+      const lastMessageText = attachmentPreview
+        ? content
+          ? `${content.slice(0, 60)} ${attachmentPreview}`
+          : attachmentPreview
+        : content;
       await updateDocument('conversations', selectedConversation.id, {
-        last_message: content,
+        last_message: lastMessageText,
         last_message_at: now,
         unread_count_client: (selectedConversation.type === 'client') ? 1 : 0,
       });
@@ -368,14 +386,14 @@ export default function AdminMessagesPage() {
       setConversations((prev) => {
         const next = prev.map((c) =>
           c.id === selectedConversation.id
-            ? { ...c, lastMessage: content, lastMessageAtMs: now.getTime(), time: now.toLocaleString('fr-FR') }
+            ? { ...c, lastMessage: lastMessageText, lastMessageAtMs: now.getTime(), time: now.toLocaleString('fr-FR') }
             : c
         );
         return next.sort((a, b) => (b.lastMessageAtMs || 0) - (a.lastMessageAtMs || 0));
       });
       setSelectedConversation((prev) =>
         prev?.id === selectedConversation.id
-          ? { ...prev, lastMessage: content, lastMessageAtMs: now.getTime(), time: now.toLocaleString('fr-FR') }
+          ? { ...prev, lastMessage: lastMessageText, lastMessageAtMs: now.getTime(), time: now.toLocaleString('fr-FR') }
           : prev
       );
 
@@ -454,6 +472,27 @@ export default function AdminMessagesPage() {
       console.error('Error hiding conversation:', e);
       toast.error('Impossible de masquer la discussion');
     }
+  };
+
+  const handleDeleteMessage = async (messageId: string) => {
+    if (!messageId) return;
+    if (!confirm('Supprimer ce message définitivement ?')) return;
+    try {
+      await deleteDocument('messages', messageId);
+      setMessages((prev) => prev.filter((m) => m.id !== messageId));
+      toast.success('Message supprimé');
+    } catch (e) {
+      console.error('Error deleting message:', e);
+      toast.error('Impossible de supprimer le message');
+    }
+  };
+
+  const handleAttachmentSelected = (file: File) => {
+    setPendingAttachment(file);
+  };
+
+  const removePendingAttachment = () => {
+    setPendingAttachment(null);
   };
 
   const handleSendAttachment = async (file: File) => {
@@ -738,13 +777,23 @@ export default function AdminMessagesPage() {
                     </Avatar>
 
                     <div
-                      className={`max-w-[85%] sm:max-w-[70%] rounded-2xl px-4 py-2 ${
+                      className={`max-w-[85%] sm:max-w-[70%] rounded-2xl px-4 py-2 relative group ${
                         message.isMe
                           ? 'bg-brand-turquoise text-white rounded-br-none'
                           : 'bg-gray-100 text-brand-purple rounded-bl-none'
                       }`}
                     >
-                      {message.content ? <p className="text-sm">{message.content}</p> : null}
+                      {message.isMe && (
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteMessage(message.id)}
+                          title="Supprimer"
+                          className="absolute -top-2 -right-2 p-1 rounded-full bg-red-100 text-red-600 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-200"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      )}
+                      {message.content ? <p className="text-sm whitespace-pre-wrap">{message.content}</p> : null}
                       {message.attachments && message.attachments.length > 0 ? (
                         <div className="space-y-2 mt-1">
                           {message.attachments.map((a, idx) => {
@@ -797,6 +846,21 @@ export default function AdminMessagesPage() {
             </div>
 
             <div className="p-4 border-t border-gray-100">
+              {pendingAttachment && (
+                <div className="flex items-center gap-2 mb-2 px-1">
+                  <span className="inline-flex items-center gap-1.5 text-xs bg-brand-purple/10 text-brand-purple px-2 py-1 rounded-full">
+                    <Paperclip className="h-3 w-3" />
+                    {pendingAttachment.name}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={removePendingAttachment}
+                    className="text-xs text-red-600 hover:text-red-700"
+                  >
+                    Retirer
+                  </button>
+                </div>
+              )}
               <div className="flex items-center gap-2">
                 <input
                   id={fileInputId}
@@ -807,32 +871,41 @@ export default function AdminMessagesPage() {
                   onChange={(e) => {
                     const f = e.target.files?.[0] || null;
                     e.target.value = '';
-                    if (f) void handleSendAttachment(f);
+                    if (f) handleAttachmentSelected(f);
                   }}
                 />
                 <Button
                   variant="ghost"
                   size="icon"
                   className="hidden sm:flex"
-                  disabled={!selectedConversation?.id || uploadingAttachment}
+                  disabled={!selectedConversation?.id || sending || uploadingAttachment || !!pendingAttachment}
                   onClick={() => document.getElementById(fileInputId)?.click()}
                 >
                   <Paperclip className="h-4 w-4 text-brand-gray" />
                 </Button>
-                <Input
-                  placeholder="Écrivez votre message..."
+                <textarea
+                  placeholder="Écrivez un message..."
                   value={newMessage}
                   onChange={(e) => setNewMessage(e.target.value)}
-                  className="flex-1"
-                  onKeyPress={(e) => {
-                    if (e.key === 'Enter' && newMessage.trim()) {
-                      void handleSend();
+                  className="flex-1 min-h-[40px] max-h-[120px] resize-none rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  rows={1}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      if (newMessage.trim() || pendingAttachment) {
+                        void handleSend();
+                      }
                     }
+                  }}
+                  onInput={(e) => {
+                    const target = e.target as HTMLTextAreaElement;
+                    target.style.height = 'auto';
+                    target.style.height = Math.min(target.scrollHeight, 120) + 'px';
                   }}
                 />
                 <Button
                   className="bg-brand-turquoise hover:bg-brand-turquoise-hover"
-                  disabled={!newMessage.trim() || !selectedConversation?.id || sending || uploadingAttachment}
+                  disabled={(!newMessage.trim() && !pendingAttachment) || !selectedConversation?.id || sending || uploadingAttachment}
                   onClick={() => void handleSend()}
                 >
                   {sending ? (

@@ -68,6 +68,7 @@ export default function MessagesPage() {
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [pendingAttachment, setPendingAttachment] = useState<File | null>(null);
 
   const [showChatOnMobile, setShowChatOnMobile] = useState(false);
 
@@ -199,21 +200,38 @@ export default function MessagesPage() {
 
   const handleSend = async () => {
     if (!user?.uid || !selectedConversation?.id) return;
-    if (!newMessage.trim()) return;
+    if (!newMessage.trim() && !pendingAttachment) return;
     setSending(true);
     try {
       const content = newMessage.trim();
       setNewMessage('');
+
+      let attachments: { url: string; name: string; type: string }[] | undefined;
+      let attachmentPreview: string | null = null;
+
+      if (pendingAttachment) {
+        const url = await uploadFile(pendingAttachment, 'chat');
+        attachments = [{ url, name: pendingAttachment.name, type: pendingAttachment.type }];
+        attachmentPreview = `📎 ${pendingAttachment.name}`;
+        setPendingAttachment(null);
+      }
+
       await addDocument('messages', {
         conversation_id: selectedConversation.id,
         sender_id: user.uid,
         sender_role: 'client',
         sender_name: 'Moi',
         content,
+        ...(attachments ? { attachments } : {}),
         created_at: new Date(),
       });
+      const lastMessageText = attachmentPreview
+        ? content
+          ? `${content.slice(0, 60)} ${attachmentPreview}`
+          : attachmentPreview
+        : content;
       await updateDocument('conversations', selectedConversation.id, {
-        last_message: content,
+        last_message: lastMessageText,
         last_message_at: new Date(),
         unread_count_planner: 1,
         deleted_for_planner: false,
@@ -223,18 +241,24 @@ export default function MessagesPage() {
         const plannerId = client?.planner_id || null;
         const clientId = client?.id || null;
         if (plannerId) {
+          const notificationBody = attachmentPreview
+            ? content
+              ? `${clientName} vous a envoyé un message avec une pièce jointe : ${pendingAttachment?.name || 'document'}`
+              : `${clientName} vous a envoyé un document : ${pendingAttachment?.name || 'document'}`
+            : `${clientName} vous a envoyé un message${content ? ` : ${content.slice(0, 120)}` : ''}`;
+
           await addDocument('notifications', {
             recipient_id: plannerId,
             type: 'message',
             title: 'Nouveau message client',
-            message: `${clientName} vous a envoyé un message${content ? ` : ${content.slice(0, 120)}` : ''}`,
+            message: notificationBody,
             link: clientId ? `/messages?clientId=${clientId}` : '/messages',
             read: false,
             created_at: new Date(),
             planner_id: plannerId,
             client_id: clientId,
             conversation_id: selectedConversation.id,
-            meta: { from: 'client', client_name: clientName },
+            meta: { from: 'client', client_name: clientName, attachment: pendingAttachment?.name || null },
           });
 
           try {
@@ -242,7 +266,7 @@ export default function MessagesPage() {
             await sendPushToRecipient({
               recipientId: plannerId,
               title: 'Nouveau message client',
-              body: `${clientName} vous a envoyé un message${content ? ` : ${content.slice(0, 120)}` : ''}`,
+              body: notificationBody,
               link: clientId ? `/messages?clientId=${clientId}` : '/messages',
             });
           } catch (e) {
@@ -254,7 +278,9 @@ export default function MessagesPage() {
             await sendEmailToUid({
               recipientUid: plannerId,
               subject: 'Nouveau message client - Le Oui Parfait',
-              text: `${clientName} vous a envoyé un nouveau message.\n\n${content}\n\nOuvrez la conversation dans Le Oui Parfait.`,
+              text: attachmentPreview
+                ? `${clientName} vous a envoyé un message avec une pièce jointe.\n\n${content ? 'Message :\n' + content + '\n\n' : ''}Document : ${pendingAttachment?.name || 'document'}\n\nOuvrez la conversation dans Le Oui Parfait.`
+                : `${clientName} vous a envoyé un nouveau message.\n\n${content}\n\nOuvrez la conversation dans Le Oui Parfait.`,
             });
           } catch (e) {
             console.warn('Unable to send email:', e);
@@ -273,79 +299,12 @@ export default function MessagesPage() {
     }
   };
 
-  const handleSendAttachment = async (file: File) => {
-    if (!user?.uid || !selectedConversation?.id) return;
-    setUploadingAttachment(true);
-    try {
-      const url = await uploadFile(file, 'chat');
-      await addDocument('messages', {
-        conversation_id: selectedConversation.id,
-        sender_id: user.uid,
-        sender_role: 'client',
-        sender_name: 'Moi',
-        content: '',
-        attachments: [{ url, name: file.name, type: file.type }],
-        created_at: new Date(),
-      });
-      await updateDocument('conversations', selectedConversation.id, {
-        last_message: `📎 ${file.name}`,
-        last_message_at: new Date(),
-        unread_count_planner: 1,
-        deleted_for_planner: false,
-      });
+  const handleAttachmentSelected = (file: File) => {
+    setPendingAttachment(file);
+  };
 
-      try {
-        const plannerId = client?.planner_id || null;
-        const clientId = client?.id || null;
-        if (plannerId) {
-          await addDocument('notifications', {
-            recipient_id: plannerId,
-            type: 'message',
-            title: 'Nouveau message client',
-            message: `${clientName} vous a envoyé un document : ${file.name}`,
-            link: clientId ? `/messages?clientId=${clientId}` : '/messages',
-            read: false,
-            created_at: new Date(),
-            planner_id: plannerId,
-            client_id: clientId,
-            conversation_id: selectedConversation.id,
-            meta: { from: 'client', client_name: clientName, attachment: file.name },
-          });
-
-          try {
-            const { sendPushToRecipient } = await import('@/lib/push');
-            await sendPushToRecipient({
-              recipientId: plannerId,
-              title: 'Nouveau message client',
-              body: `${clientName} vous a envoyé un document : ${file.name}`,
-              link: clientId ? `/messages?clientId=${clientId}` : '/messages',
-            });
-          } catch (e) {
-            console.warn('Unable to send push:', e);
-          }
-
-          try {
-            const { sendEmailToUid } = await import('@/lib/email');
-            await sendEmailToUid({
-              recipientUid: plannerId,
-              subject: 'Nouveau message client - Le Oui Parfait',
-              text: `${clientName} vous a envoyé un message avec une pièce jointe : ${file.name}.\n\nOuvrez la conversation dans Le Oui Parfait.`,
-            });
-          } catch (e) {
-            console.warn('Unable to send email:', e);
-          }
-        }
-      } catch (e) {
-        console.warn('Unable to create planner notification for attachment:', e);
-      }
-
-      await fetchMessages(selectedConversation.id);
-    } catch (e) {
-      console.error('Error sending attachment:', e);
-      toast.error("Impossible d'envoyer le document");
-    } finally {
-      setUploadingAttachment(false);
-    }
+  const removePendingAttachment = () => {
+    setPendingAttachment(null);
   };
 
   return (
@@ -440,7 +399,7 @@ export default function MessagesPage() {
                           : 'bg-white text-brand-purple rounded-2xl rounded-bl-md border border-brand-purple/6'
                       }`}
                     >
-                      {message.content ? <p className="text-sm leading-relaxed">{message.content}</p> : null}
+                      {message.content ? <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.content}</p> : null}
                       {message.attachments && message.attachments.length > 0 ? (
                         <div className="space-y-2 mt-1">
                           {message.attachments.map((a, idx) => {
@@ -488,6 +447,21 @@ export default function MessagesPage() {
 
             {/* Input */}
             <div className="p-4 border-t border-brand-purple/8 shrink-0">
+              {pendingAttachment && (
+                <div className="flex items-center gap-2 mb-2 px-1">
+                  <span className="inline-flex items-center gap-1.5 text-xs bg-brand-purple/10 text-brand-purple px-2 py-1 rounded-full">
+                    <Paperclip className="h-3 w-3" />
+                    {pendingAttachment.name}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={removePendingAttachment}
+                    className="text-xs text-red-600 hover:text-red-700"
+                  >
+                    Retirer
+                  </button>
+                </div>
+              )}
               <div className="flex items-center gap-2 bg-brand-beige/60 rounded-full pl-2 pr-2 py-2 border border-brand-purple/8">
                 <input
                   id={fileInputId}
@@ -497,31 +471,40 @@ export default function MessagesPage() {
                   onChange={(e) => {
                     const f = e.target.files?.[0] || null;
                     e.target.value = '';
-                    if (f) void handleSendAttachment(f);
+                    if (f) handleAttachmentSelected(f);
                   }}
                 />
                 <button
                   title="Joindre un fichier"
-                  disabled={!selectedConversation?.id || uploadingAttachment}
+                  disabled={!selectedConversation?.id || sending || uploadingAttachment || !!pendingAttachment}
                   onClick={() => document.getElementById(fileInputId)?.click()}
                   className="w-9 h-9 rounded-full flex items-center justify-center text-brand-gray hover:bg-white transition-colors shrink-0 disabled:opacity-40"
                 >
                   <Paperclip className="h-4 w-4" />
                 </button>
-                <input
-                  placeholder="Écrivez votre message..."
+                <textarea
+                  placeholder="Écrivez un message..."
                   value={newMessage}
                   onChange={(e) => setNewMessage(e.target.value)}
-                  className="flex-1 bg-transparent outline-none text-sm text-brand-purple placeholder:text-brand-gray"
+                  className="flex-1 bg-transparent outline-none text-sm text-brand-purple placeholder:text-brand-gray resize-none min-h-[24px] max-h-[100px] py-1"
+                  rows={1}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter' && newMessage.trim()) {
-                      void handleSend();
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      if (newMessage.trim() || pendingAttachment) {
+                        void handleSend();
+                      }
                     }
+                  }}
+                  onInput={(e) => {
+                    const target = e.target as HTMLTextAreaElement;
+                    target.style.height = 'auto';
+                    target.style.height = Math.min(target.scrollHeight, 100) + 'px';
                   }}
                 />
                 <button
                   title="Envoyer le message"
-                  disabled={!newMessage.trim() || !selectedConversation?.id || sending || uploadingAttachment}
+                  disabled={(!newMessage.trim() && !pendingAttachment) || !selectedConversation?.id || sending || uploadingAttachment}
                   onClick={() => void handleSend()}
                   className="w-9 h-9 rounded-full bg-brand-turquoise hover:bg-brand-turquoise-hover disabled:opacity-40 disabled:hover:bg-brand-turquoise flex items-center justify-center text-white transition-colors shrink-0"
                 >

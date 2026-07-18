@@ -348,17 +348,24 @@ export default function FacturesPage() {
                               Voir la facture
                             </DropdownMenuItem>
 
+                            {invoice.file_url && (
+                              <DropdownMenuItem onClick={() => window.open(invoice.file_url!, '_blank')}>
+                                <FileText className="mr-2 h-4 w-4" />
+                                Voir / Télécharger facture
+                              </DropdownMenuItem>
+                            )}
+
+                            {invoice.devis_url && (
+                              <DropdownMenuItem onClick={() => window.open(invoice.devis_url!, '_blank')}>
+                                <FileText className="mr-2 h-4 w-4" />
+                                Voir / Télécharger devis
+                              </DropdownMenuItem>
+                            )}
+
                             {invoice.status !== 'paid' && (
                               <DropdownMenuItem onClick={() => handleMarkInvoicePaid(invoice)}>
                                 <BadgeCheck className="mr-2 h-4 w-4 text-emerald-600" />
                                 Marquer comme payée
-                              </DropdownMenuItem>
-                            )}
-
-                            {invoice.file_url && (
-                              <DropdownMenuItem onClick={() => window.open(invoice.file_url!, '_blank')}>
-                                <Download className="mr-2 h-4 w-4" />
-                                Télécharger
                               </DropdownMenuItem>
                             )}
 

@@ -49,9 +49,10 @@ export function CreateInvoiceModal({ open, onOpenChange, onSuccess }: CreateInvo
     amount_ttc: '',
     due_date: '',
     file_url: '',
-    iban: '',
-    bic: '',
-    account_holder: '',
+    devis_url: '',
+    iban: 'FR76 1732 8844 0084 6916 5541 660',
+    bic: 'SWNBFR22',
+    account_holder: 'Le Oui Parfait',
   });
 
   useEffect(() => {
@@ -85,18 +86,18 @@ export function CreateInvoiceModal({ open, onOpenChange, onSuccess }: CreateInvo
     setEvents(eventsData);
   };
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, field: 'file_url' | 'devis_url') => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     try {
       setUploading(true);
-      const formData = new FormData();
-      formData.append('file', file);
+      const uploadFormData = new FormData();
+      uploadFormData.append('file', file);
 
       const response = await fetch('/api/upload/proof', {
         method: 'POST',
-        body: formData,
+        body: uploadFormData,
       });
 
       if (!response.ok) {
@@ -104,17 +105,17 @@ export function CreateInvoiceModal({ open, onOpenChange, onSuccess }: CreateInvo
       }
 
       const { url } = await response.json();
-      setFormData(prev => ({ ...prev, file_url: url }));
+      setFormData(prev => ({ ...prev, [field]: url } as any));
       
       toast({
         title: 'Succès',
-        description: 'Facture uploadée avec succès',
+        description: `${field === 'file_url' ? 'Facture' : 'Devis'} uploadé avec succès`,
       });
     } catch (error) {
       console.error('Upload error:', error);
       toast({
         title: 'Erreur',
-        description: "Impossible d'uploader la facture",
+        description: "Impossible d'uploader le fichier",
         variant: 'destructive',
       });
     } finally {
@@ -156,6 +157,10 @@ export function CreateInvoiceModal({ open, onOpenChange, onSuccess }: CreateInvo
 
       if (formData.file_url) {
         invoiceData.file_url = formData.file_url;
+      }
+
+      if (formData.devis_url) {
+        invoiceData.devis_url = formData.devis_url;
       }
 
       if (formData.iban && formData.bic && formData.account_holder) {
@@ -210,9 +215,10 @@ export function CreateInvoiceModal({ open, onOpenChange, onSuccess }: CreateInvo
       amount_ttc: '',
       due_date: '',
       file_url: '',
-      iban: '',
-      bic: '',
-      account_holder: '',
+      devis_url: '',
+      iban: 'FR76 1732 8844 0084 6916 5541 660',
+      bic: 'SWNBFR22',
+      account_holder: 'Le Oui Parfait',
     });
   };
 
@@ -319,18 +325,35 @@ export function CreateInvoiceModal({ open, onOpenChange, onSuccess }: CreateInvo
                   id="file"
                   type="file"
                   accept=".pdf,image/*"
-                  onChange={handleFileUpload}
+                  onChange={(e) => handleFileUpload(e, 'file_url')}
                   disabled={uploading}
                 />
                 {uploading && <Loader2 className="h-4 w-4 animate-spin" />}
               </div>
               {formData.file_url && (
-                <p className="text-sm text-green-600 mt-1">✓ Fichier uploadé</p>
+                <p className="text-sm text-green-600 mt-1">✓ Facture uploadée</p>
               )}
             </div>
 
             <div className="col-span-2">
-              <h3 className="font-medium mb-2">Coordonnées bancaires (optionnel)</h3>
+              <Label htmlFor="devis">Devis PDF (optionnel)</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  id="devis"
+                  type="file"
+                  accept=".pdf,image/*"
+                  onChange={(e) => handleFileUpload(e, 'devis_url')}
+                  disabled={uploading}
+                />
+                {uploading && <Loader2 className="h-4 w-4 animate-spin" />}
+              </div>
+              {formData.devis_url && (
+                <p className="text-sm text-green-600 mt-1">✓ Devis uploadé</p>
+              )}
+            </div>
+
+            <div className="col-span-2">
+              <h3 className="font-medium mb-2">Coordonnées bancaires</h3>
             </div>
 
             <div className="col-span-2">
@@ -349,7 +372,7 @@ export function CreateInvoiceModal({ open, onOpenChange, onSuccess }: CreateInvo
                 id="bic"
                 value={formData.bic}
                 onChange={(e) => setFormData(prev => ({ ...prev, bic: e.target.value }))}
-                placeholder="BNPAFRPPXXX"
+                placeholder="SWNBFR22"
               />
             </div>
 

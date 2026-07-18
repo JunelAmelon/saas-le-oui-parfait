@@ -4,7 +4,18 @@ import { useEffect, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { ClientDashboardLayout } from '@/components/layout/ClientDashboardLayout';
 import { useClientData } from '@/contexts/ClientDataContext';
 import { Invoice } from '@/types/invoice';
@@ -26,6 +37,60 @@ import {
 import { useSearchParams } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
+
+function DownloadDocs({ invoice, small = false }: { invoice: Invoice; small?: boolean }) {
+  const hasInvoice = !!invoice.file_url;
+  const hasDevis = !!invoice.devis_url;
+
+  if (!hasInvoice && !hasDevis) return null;
+
+  const labelClass = small
+    ? 'text-[9px] tracking-label uppercase text-gray-600 font-bold'
+    : 'text-xs font-semibold';
+
+  const buttonBody = (
+    <>
+      <div className="w-9 h-9 rounded-full bg-gray-100 group-hover:bg-gray-200 flex items-center justify-center transition-colors">
+        <Download className="w-4 h-4 text-gray-600" />
+      </div>
+      <span className={labelClass}>Documents</span>
+    </>
+  );
+
+  if ((hasInvoice && !hasDevis) || (!hasInvoice && hasDevis)) {
+    const url = hasInvoice ? invoice.file_url! : invoice.devis_url!;
+    const label = hasInvoice ? 'Télécharger la facture' : 'Télécharger le devis';
+    return (
+      <button
+        onClick={() => window.open(url, '_blank')}
+        title={label}
+        className="flex flex-col items-center gap-2 group"
+      >
+        {buttonBody}
+      </button>
+    );
+  }
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button className="flex flex-col items-center gap-2 group outline-none">
+          {buttonBody}
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="center">
+        <DropdownMenuItem onClick={() => window.open(invoice.file_url!, '_blank')}>
+          <FileText className="h-4 w-4 mr-2" />
+          Facture
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => window.open(invoice.devis_url!, '_blank')}>
+          <FileText className="h-4 w-4 mr-2" />
+          Devis
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
 
 export default function PaiementsPage() {
   const { client, event, loading: dataLoading } = useClientData();
@@ -260,7 +325,7 @@ export default function PaiementsPage() {
           <div className="flex divide-x divide-brand-purple/6 bg-white flex-wrap sm:flex-nowrap">
             <MetricCell
               icon={<Euro className="w-4 h-4 text-white" />}
-              label="Budget total"
+              label="Facture total"
               value={formatAmount(totalBudget)}
               accent="bg-brand-purple"
             />
@@ -348,21 +413,9 @@ export default function PaiementsPage() {
                           </span>
                         </button>
                       </div>
-                      {invoice.file_url && (
-                        <div className="flex-1 flex items-center justify-center px-3 py-4 min-w-0">
-                          <button
-                            onClick={() => window.open(invoice.file_url, '_blank')}
-                            className="flex flex-col items-center gap-2 group"
-                          >
-                            <div className="w-9 h-9 rounded-full bg-gray-100 group-hover:bg-gray-200 flex items-center justify-center transition-colors">
-                              <Download className="w-4 h-4 text-gray-600" />
-                            </div>
-                            <span className="text-[9px] tracking-label uppercase text-gray-600 font-bold">
-                              PDF
-                            </span>
-                          </button>
-                        </div>
-                      )}
+                      <div className="flex-1 flex items-center justify-center px-3 py-4 min-w-0">
+                        <DownloadDocs invoice={invoice} small />
+                      </div>
                     </div>
                   </div>
                 );
@@ -439,15 +492,7 @@ export default function PaiementsPage() {
                             </span>
                           </td>
                           <td className="px-4 py-4 text-center">
-                            {invoice.file_url && (
-                              <button
-                                onClick={() => window.open(invoice.file_url, '_blank')}
-                                className="inline-flex items-center gap-1.5 text-xs font-semibold text-brand-turquoise-hover hover:text-brand-turquoise transition-colors"
-                              >
-                                <Download className="h-4 w-4" />
-                                Télécharger
-                              </button>
-                            )}
+                            <DownloadDocs invoice={invoice} />
                           </td>
                         </tr>
                       ))}

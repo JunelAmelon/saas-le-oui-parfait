@@ -408,24 +408,36 @@ export async function getClientPayments(clientId: string): Promise<PaymentData[]
       { field: 'client_id', operator: '==', value: clientId }
     ]);
 
-    return (invoices as any[]).map((inv: any) => ({
-      id: inv.id,
-      client_id: inv.client_id,
-      invoice_id: inv.id,
-      description: inv.reference || inv.description || 'Facture',
-      vendor: inv.vendor || 'Le Oui Parfait',
-      amount: Number(inv.montant_ttc ?? inv.amount ?? 0),
-      paid_amount: Number(inv.paid ?? 0) || 0,
-      amount_due: Math.max(0, (Number(inv.montant_ttc ?? inv.amount ?? 0) || 0) - (Number(inv.paid ?? 0) || 0)),
-      status: inv.status || 'pending',
-      method: inv.method || '-',
-      date: inv.date,
-      due_date: inv.due_date,
-      paid_at: inv.paid_at,
-      invoice: true,
-      pdf_url: inv.pdf_url || inv.pdfUrl || null,
-      created_at: inv.created_at,
-    })) as PaymentData[];
+    return (invoices as any[]).map((inv: any) => {
+      const total = Number(inv.amount_ttc ?? inv.montant_ttc ?? inv.amount ?? 0);
+      const isPaid = inv.status === 'paid' || inv.status === 'completed';
+      const toIso = (v: any) => {
+        if (!v) return undefined;
+        if (typeof v === 'string') return v;
+        if (v.toDate) return v.toDate().toISOString();
+        return String(v);
+      };
+      const paidAt = toIso(inv.paid_at);
+      return {
+        id: inv.id,
+        client_id: inv.client_id,
+        invoice_id: inv.id,
+        description: inv.reference || inv.description || inv.label || 'Facture',
+        vendor: inv.vendor || 'Le Oui Parfait',
+        amount: total,
+        paid_amount: isPaid ? total : 0,
+        amount_due: Math.max(0, total - (isPaid ? total : 0)),
+        status: isPaid ? 'paid' : (inv.status || 'pending'),
+        method: inv.method || '-',
+        date: inv.due_date || paidAt,
+        due_date: inv.due_date,
+        paid_at: paidAt,
+        invoice: true,
+        pdf_url: inv.file_url || inv.pdf_url || inv.pdfUrl || null,
+        devis_url: inv.devis_url || null,
+        created_at: inv.created_at,
+      } as PaymentData;
+    });
   } catch (error) {
     console.error('Error fetching client payments:', error);
     return [];

@@ -18,6 +18,12 @@ export interface BankDetails {
   iban: string;
   bic: string;
   account_holder: string;
+  bank_name?: string;
+  bank_code?: string;
+  account_number?: string;
+  key?: string;
+  domiciliation?: string;
+  account_address?: string;
 }
 
 export interface Invoice {
@@ -37,6 +43,7 @@ export interface Invoice {
   paid_at?: Timestamp;
 
   file_url?: string;
+  devis_url?: string;
   bank_details?: BankDetails;
 
   stripe_session_id?: string;
