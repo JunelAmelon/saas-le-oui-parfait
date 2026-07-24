@@ -8,9 +8,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
-import { getDocuments, getDocument } from '@/lib/db';
+import { getDocuments, getDocument, deleteDocument } from '@/lib/db';
 import { DiscoveryFormData } from '@/lib/discovery';
-import { Search, Plus, Loader2, Eye } from 'lucide-react';
+import { Search, Plus, Loader2, Eye, ChevronLeft, ChevronRight, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface DiscoveryListItem extends DiscoveryFormData {
@@ -43,6 +43,9 @@ export default function DiscoveryListPage() {
   const [forms, setForms] = useState<DiscoveryListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 6;
 
   useEffect(() => {
     async function fetchForms() {
@@ -88,28 +91,70 @@ export default function DiscoveryListPage() {
     if (!authLoading) fetchForms();
   }, [user, authLoading, clientIdFilter]);
 
-  const filtered = useMemo(() => {
-    const q = searchQuery.toLowerCase().trim();
-    if (!q) return forms;
-    return forms.filter(
-      (f) =>
-        `${f.name} ${f.partner}`.toLowerCase().includes(q) ||
-        f.email.toLowerCase().includes(q) ||
-        f.phone.toLowerCase().includes(q)
-    );
-  }, [forms, searchQuery]);
+  // Reset pagination when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, statusFilter]);
 
-  const groups = useMemo(() => {
-    const order: string[] = ['draft', 'completed', 'converted'];
-    const map: Record<string, DiscoveryListItem[]> = {};
-    for (const s of order) map[s] = [];
-    for (const f of filtered) {
-      const key = f.status || 'draft';
-      if (!map[key]) map[key] = [];
-      map[key].push(f);
+  const filtered = useMemo(() => {
+    let result = forms;
+
+    const q = searchQuery.toLowerCase().trim();
+    if (q) {
+      result = result.filter(
+        (f) =>
+          `${f.name} ${f.partner}`.toLowerCase().includes(q) ||
+          f.email.toLowerCase().includes(q) ||
+          f.phone.toLowerCase().includes(q)
+      );
     }
-    return order.map((key) => ({ key, ...statusConfig[key], items: map[key] })).filter((g) => g.items.length > 0);
-  }, [filtered]);
+
+    if (statusFilter !== 'all') {
+      result = result.filter((f) => (f.status || 'draft') === statusFilter);
+    }
+
+    return result;
+  }, [forms, searchQuery, statusFilter]);
+
+  const { paginated, totalPages, currentPageSafe } = useMemo(() => {
+    const total = Math.max(1, Math.ceil(filtered.length / itemsPerPage));
+    const page = Math.min(currentPage, total);
+    const start = (page - 1) * itemsPerPage;
+    return {
+      paginated: filtered.slice(start, start + itemsPerPage),
+      totalPages: total,
+      currentPageSafe: page,
+    };
+  }, [filtered, currentPage]);
+
+  const statusCounts = useMemo(() => {
+    const counts: Record<string, number> = { all: forms.length };
+    for (const f of forms) {
+      const key = f.status || 'draft';
+      counts[key] = (counts[key] || 0) + 1;
+    }
+    return counts;
+  }, [forms]);
+
+  const statusOptions = [
+    { key: 'all', label: 'Tous' },
+    { key: 'draft', label: 'Brouillon' },
+    { key: 'completed', label: 'Terminé' },
+    { key: 'converted', label: 'Converti en client' },
+  ];
+
+  const handleDelete = async (e: React.MouseEvent, form: DiscoveryListItem) => {
+    e.stopPropagation();
+    if (!confirm(`Êtes-vous sûr de vouloir supprimer définitivement la fiche de ${form.name || 'ce prospect'} ?`)) return;
+    try {
+      await deleteDocument('discovery_forms', form.id);
+      setForms((prev) => prev.filter((f) => f.id !== form.id));
+      toast.success('Fiche découverte supprimée');
+    } catch (err) {
+      console.error('Error deleting discovery form:', err);
+      toast.error('Erreur lors de la suppression');
+    }
+  };
 
   if (authLoading || loading) {
     return (
@@ -144,24 +189,49 @@ export default function DiscoveryListPage() {
         </div>
 
         <Card className="p-4 shadow-xl border-0">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-brand-gray" />
-            <Input
-              placeholder="Rechercher un prospect ou client..."
-              className="pl-10 border-[#E5E5E5] focus-visible:ring-brand-turquoise"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
+          <div className="space-y-4">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-brand-gray" />
+              <Input
+                placeholder="Rechercher un prospect ou client..."
+                className="pl-10 border-[#E5E5E5] focus-visible:ring-brand-turquoise"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              {statusOptions.map((opt) => {
+                const active = statusFilter === opt.key;
+                return (
+                  <Button
+                    key={opt.key}
+                    type="button"
+                    variant={active ? 'default' : 'outline'}
+                    size="sm"
+                    className={active ? 'bg-brand-turquoise hover:bg-brand-turquoise-hover text-white border-brand-turquoise' : ''}
+                    onClick={() => setStatusFilter(opt.key)}
+                  >
+                    {opt.label}
+                    <Badge variant="secondary" className="ml-2 bg-white/20 text-current">
+                      {statusCounts[opt.key] || 0}
+                    </Badge>
+                  </Button>
+                );
+              })}
+            </div>
           </div>
         </Card>
 
         {filtered.length === 0 ? (
           <Card className="p-12 text-center shadow-xl border-0">
             <h3 className="text-lg font-semibold text-brand-purple mb-2">
-              {searchQuery ? 'Aucun résultat' : 'Aucune fiche découverte'}
+              {searchQuery || statusFilter !== 'all' ? 'Aucun résultat' : 'Aucune fiche découverte'}
             </h3>
             <p className="text-brand-gray mb-6">
-              {searchQuery ? 'Essayez une autre recherche' : 'Créez votre première fiche de premier appel'}
+              {searchQuery || statusFilter !== 'all'
+                ? 'Essayez une autre recherche ou un autre filtre'
+                : 'Créez votre première fiche de premier appel'}
             </p>
             <Button
               onClick={() => router.push('/agence/decouvertes/nouveau')}
@@ -172,58 +242,86 @@ export default function DiscoveryListPage() {
             </Button>
           </Card>
         ) : (
-          <div className="space-y-8">
-            {groups.map((group) => (
-              <div key={group.key} className="space-y-3">
-                <div className="flex items-center gap-3">
-                  <h2 className="text-lg font-bold text-brand-purple font-baskerville">{group.label}</h2>
-                  <Badge className={group.color}>{group.items.length}</Badge>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-                  {group.items.map((form) => (
-                    <div
-                      key={form.id}
-                      className="group relative cursor-pointer"
-                      onClick={() => router.push(`/agence/decouvertes/${form.id}`)}
-                    >
-                      <div className={`absolute -top-2 left-4 h-4 w-20 rounded-t-md ${group.tab}`} />
-                      <Card className="pt-5 pb-4 px-4 shadow-md border-0 hover:shadow-xl transition-all h-full flex flex-col">
-                        <div className="flex-1">
-                          <div className="flex items-start justify-between gap-2 mb-2">
-                            <h3 className="text-base font-bold text-brand-purple font-baskerville line-clamp-2">
-                              {form.name || 'Prospect'}
-                              {form.partner ? ` & ${form.partner}` : ''}
-                            </h3>
-                            <Eye className="h-4 w-4 text-brand-gray opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+              {paginated.map((form) => {
+                const config = statusConfig[form.status || 'draft'];
+                return (
+                  <div
+                    key={form.id}
+                    className="group relative cursor-pointer"
+                    onClick={() => router.push(`/agence/decouvertes/${form.id}`)}
+                  >
+                    <div className={`absolute -top-2 left-4 h-4 w-20 rounded-t-md ${config.tab}`} />
+                    <Card className="pt-5 pb-4 px-4 shadow-md border-0 hover:shadow-xl transition-all h-full flex flex-col">
+                      <div className="flex-1">
+                        <div className="flex items-start justify-between gap-2 mb-2">
+                          <h3 className="text-base font-bold text-brand-purple font-baskerville line-clamp-2">
+                            {form.name || 'Prospect'}
+                            {form.partner ? ` & ${form.partner}` : ''}
+                          </h3>
+                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                            <Eye className="h-4 w-4 text-brand-gray" />
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-red-500 hover:text-red-600 hover:bg-red-50"
+                              onClick={(e) => handleDelete(e, form)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
                           </div>
-                          <p className="text-xs text-brand-gray mb-3">
-                            Appel du {formatCallDate(form.callDate)}
-                          </p>
-                          {(form.email || form.phone) && (
-                            <div className="space-y-1 text-xs text-brand-purple/80 mb-3">
-                              {form.email && <p className="truncate">{form.email}</p>}
-                              {form.phone && <p>{form.phone}</p>}
-                            </div>
-                          )}
-                          {form.clientName && (
-                            <p className="text-xs text-brand-turquoise mb-2">Lié à {form.clientName}</p>
-                          )}
                         </div>
-                        <div className="pt-3 border-t border-gray-100 flex items-center justify-between">
-                          <Badge className={group.color}>{group.label}</Badge>
-                          {form.type === 'client' || form.client_id ? (
-                            <Badge variant="outline" className="text-xs">Client</Badge>
-                          ) : (
-                            <Badge variant="secondary" className="text-xs">Prospect</Badge>
-                          )}
-                        </div>
-                      </Card>
-                    </div>
-                  ))}
-                </div>
+                        <p className="text-xs text-brand-gray mb-3">
+                          Appel du {formatCallDate(form.callDate)}
+                        </p>
+                        {(form.email || form.phone) && (
+                          <div className="space-y-1 text-xs text-brand-purple/80 mb-3">
+                            {form.email && <p className="truncate">{form.email}</p>}
+                            {form.phone && <p>{form.phone}</p>}
+                          </div>
+                        )}
+                        {form.clientName && (
+                          <p className="text-xs text-brand-turquoise mb-2">Lié à {form.clientName}</p>
+                        )}
+                      </div>
+                      <div className="pt-3 border-t border-gray-100 flex items-center justify-between">
+                        <Badge className={config.color}>{config.label}</Badge>
+                        {form.type === 'client' || form.client_id ? (
+                          <Badge variant="outline" className="text-xs">Client</Badge>
+                        ) : (
+                          <Badge variant="secondary" className="text-xs">Prospect</Badge>
+                        )}
+                      </div>
+                    </Card>
+                  </div>
+                );
+              })}
+            </div>
+
+            {totalPages > 1 && (
+              <div className="flex items-center justify-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPageSafe === 1}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <span className="text-sm text-brand-gray">
+                  Page {currentPageSafe} / {totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={currentPageSafe === totalPages}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
               </div>
-            ))}
+            )}
           </div>
         )}
       </div>
