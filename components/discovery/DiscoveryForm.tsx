@@ -77,13 +77,9 @@ export function DiscoveryForm({
   isConverting,
 }: DiscoveryFormProps) {
   const router = useRouter();
-  const [formData, setFormData] = useState<DiscoveryFormData>(initialData);
+  const [formData, setFormData] = useState<DiscoveryFormData>(() => initialData);
   const [dirty, setDirty] = useState(false);
   const lastSavedRef = useRef<string>('');
-
-  useEffect(() => {
-    setFormData(initialData);
-  }, [initialData]);
 
   const setField = (path: string, value: any) => {
     setFormData((prev) => setValue(prev, path, value));
@@ -437,7 +433,7 @@ export function DiscoveryForm({
           type="button"
           variant="outline"
           onClick={onCancel || (() => router.push('/agence/decouvertes'))}
-          disabled={isAutoSaving || isCompleting || isConverting}
+          disabled={isCompleting || isConverting}
           className="gap-2 w-full sm:w-auto"
         >
           <ArrowLeft className="h-4 w-4" />
@@ -462,7 +458,7 @@ export function DiscoveryForm({
               variant="outline"
               className="gap-2 border-green-600 text-green-600 hover:bg-green-50 w-full sm:w-auto"
               onClick={() => onConvert(formData)}
-              disabled={isConverting || isAutoSaving || isCompleting}
+              disabled={isConverting || isCompleting}
             >
               {isConverting ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
               Convertir en client
@@ -473,7 +469,7 @@ export function DiscoveryForm({
             type="button"
             className="bg-brand-purple hover:bg-brand-purple/90 gap-2 w-full sm:w-auto"
             onClick={handleComplete}
-            disabled={isCompleting || isAutoSaving || isConverting}
+            disabled={isCompleting || isConverting}
           >
             {isCompleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
             Marquer comme terminé

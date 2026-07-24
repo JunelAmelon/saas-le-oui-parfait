@@ -1,12 +1,14 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { DiscoveryForm } from '@/components/discovery/DiscoveryForm';
 import { useAuth } from '@/contexts/AuthContext';
-import { addDocument, getDocument, updateDocument } from '@/lib/db';
+import { getDocument, updateDocument, setDocument } from '@/lib/db';
+import { db } from '@/lib/firebase';
+import { collection, doc } from 'firebase/firestore';
 import {
   DiscoveryFormData,
   defaultDiscoveryForm,
@@ -26,6 +28,11 @@ export default function NewDiscoveryPage() {
   const [isAutoSaving, setIsAutoSaving] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
 
+  const draftIdRef = useRef<string | null>(null);
+  const draftCreatedRef = useRef(false);
+  const isSavingRef = useRef(false);
+  const initializedRef = useRef(false);
+
   useEffect(() => {
     if (authLoading) return;
     if (!user?.uid) {
@@ -34,6 +41,14 @@ export default function NewDiscoveryPage() {
     }
 
     async function init() {
+      if (initializedRef.current) return;
+      initializedRef.current = true;
+
+      // Generate a local id without writing to Firestore: no empty ghost drafts are created on page load.
+      const newDraftId = doc(collection(db, 'discovery_forms')).id;
+      draftIdRef.current = newDraftId;
+      setDraftId(newDraftId);
+
       let form = defaultDiscoveryForm(user!.uid);
       if (clientId) {
         const client = await getDocument('clients', clientId).catch(() => null);
@@ -48,62 +63,75 @@ export default function NewDiscoveryPage() {
           form = setValue(form, 'weddingDate', c.event_date || '');
         }
       }
+      setInitialData({ ...form, id: newDraftId });
+    }
 
-      const payload = normalizeDiscoveryForSave(form);
-      try {
-        const doc = await addDocument('discovery_forms', {
+    init();
+  }, [authLoading, user?.uid, clientId]);
+
+  const handleAutoSave = async (data: DiscoveryFormData) => {
+    if (!draftIdRef.current || !user?.uid) return;
+    if (isSavingRef.current) return;
+    isSavingRef.current = true;
+    setIsAutoSaving(true);
+    try {
+      const { id: _, ...payload } = normalizeDiscoveryForSave(data) as any;
+      if (!draftCreatedRef.current) {
+        await setDocument('discovery_forms', draftIdRef.current, {
           ...payload,
-          planner_id: user!.uid,
+          planner_id: user.uid,
           status: 'draft',
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         });
-        setDraftId(doc.id);
-        setInitialData({ ...form, id: doc.id });
-      } catch (e) {
-        console.error('Error creating initial draft:', e);
-        toast.error('Impossible de créer le brouillon');
+        draftCreatedRef.current = true;
+      } else {
+        await updateDocument('discovery_forms', draftIdRef.current, {
+          ...payload,
+          planner_id: user.uid,
+          updated_at: new Date().toISOString(),
+        });
       }
-    }
-
-    init();
-  }, [user, authLoading, clientId, router]);
-
-  const handleAutoSave = async (data: DiscoveryFormData) => {
-    if (!draftId || !user?.uid) return;
-    setIsAutoSaving(true);
-    try {
-      const { id: _, ...payload } = normalizeDiscoveryForSave(data) as any;
-      await updateDocument('discovery_forms', draftId, {
-        ...payload,
-        planner_id: user.uid,
-        updated_at: new Date().toISOString(),
-      });
     } catch (e) {
       console.error('Auto-save error:', e);
     } finally {
       setIsAutoSaving(false);
+      isSavingRef.current = false;
     }
   };
 
   const handleComplete = async (data: DiscoveryFormData) => {
-    if (!draftId || !user?.uid) return;
+    if (!draftIdRef.current || !user?.uid) return;
+    if (isSavingRef.current) return;
+    isSavingRef.current = true;
     setIsCompleting(true);
     try {
       const { id: _, ...payload } = normalizeDiscoveryForSave(data) as any;
-      await updateDocument('discovery_forms', draftId, {
-        ...payload,
-        planner_id: user.uid,
-        status: 'completed',
-        updated_at: new Date().toISOString(),
-      });
+      if (!draftCreatedRef.current) {
+        await setDocument('discovery_forms', draftIdRef.current, {
+          ...payload,
+          planner_id: user.uid,
+          status: 'completed',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        });
+        draftCreatedRef.current = true;
+      } else {
+        await updateDocument('discovery_forms', draftIdRef.current, {
+          ...payload,
+          planner_id: user.uid,
+          status: 'completed',
+          updated_at: new Date().toISOString(),
+        });
+      }
       toast.success('Fiche découverte terminée');
-      router.push(`/agence/decouvertes/${draftId}`);
+      router.push(`/agence/decouvertes/${draftIdRef.current}`);
     } catch (e) {
       console.error('Error completing discovery form:', e);
       toast.error('Erreur lors de la finalisation');
     } finally {
       setIsCompleting(false);
+      isSavingRef.current = false;
     }
   };
 
@@ -129,7 +157,7 @@ export default function NewDiscoveryPage() {
             type="button"
             variant="outline"
             onClick={handleBack}
-            disabled={isAutoSaving || isCompleting}
+            disabled={isCompleting}
             className="gap-2"
           >
             <ArrowLeft className="h-4 w-4" />

@@ -56,6 +56,15 @@ export function ClientModal({ open, onOpenChange, mode, client, userId, onSucces
   const [themeColors, setThemeColors] = useState<string[]>(client?.theme?.colors || []);
   const [notes, setNotes] = useState(client?.notes || '');
 
+  const [name, setName] = useState('');
+  const [partner, setPartner] = useState('');
+  const [email, setEmail] = useState(client?.email || '');
+  const [phone, setPhone] = useState(client?.phone || '');
+  const [eventDate, setEventDate] = useState('');
+  const [eventLocation, setEventLocation] = useState(client?.eventLocation || '');
+  const [guests, setGuests] = useState(String(client?.guests ?? ''));
+  const [budget, setBudget] = useState(String(client?.budget ?? ''));
+
   const [discoveryForms, setDiscoveryForms] = useState<DiscoveryFormData[]>([]);
   const [selectedDiscoveryId, setSelectedDiscoveryId] = useState('');
   const [copyDiscovery, setCopyDiscovery] = useState(false);
@@ -88,10 +97,65 @@ export function ClientModal({ open, onOpenChange, mode, client, userId, onSucces
     setThemeDescription(client?.theme?.description || '');
     setThemeColors(client?.theme?.colors || []);
     setNotes(client?.notes || '');
+    const [n1, n2] = (client?.names || '').split(' & ');
+    setName(n1 || '');
+    setPartner(n2 || '');
+    setEmail(client?.email || '');
+    setPhone(client?.phone || '');
+    setEventDate(normalizeDateInputValue(client?.eventDate));
+    setEventLocation(client?.eventLocation || '');
+    setGuests(String(client?.guests ?? ''));
+    setBudget(String(client?.budget ?? ''));
     setCreateAccount(mode === 'create');
     setSelectedDiscoveryId('');
     setCopyDiscovery(false);
   }, [open, client, mode]);
+
+  useEffect(() => {
+    if (!copyDiscovery || !selectedDiscoveryId) return;
+    async function fillFromDiscovery() {
+      try {
+        const discoveryData = await getDocument('discovery_forms', selectedDiscoveryId);
+        if (!discoveryData) return;
+        const d = discoveryData as any;
+        setName(d.name || '');
+        setPartner(d.partner || '');
+        setEmail(d.email || '');
+        setPhone(d.phone || '');
+        setEventDate(normalizeDateInputValue(d.weddingDate || d.sections?.project?.date || d.callDate));
+        const totalGuests =
+          (Number(d.sections?.project?.guestAdults) || 0) +
+          (Number(d.sections?.project?.guestChildren) || 0);
+        setGuests(String(totalGuests || ''));
+        setBudget(String(Number(d.sections?.budget?.estimatedGlobal) || ''));
+        setEventLocation(d.eventLocation || d.sections?.project?.location || '');
+        if (d.sections?.style) {
+          setThemeStyle(
+            d.sections.style.selectedStyles?.[0] || d.sections.style.theme || ''
+          );
+          setThemeDescription(
+            [d.sections.style.theme, d.sections.style.ambiance, d.sections.style.inspirations]
+              .filter(Boolean)
+              .join(' / ')
+          );
+          setThemeColors(
+            (d.sections.style.colors || '')
+              .split(/[,/;]/)
+              .map((c: string) => c.trim())
+              .filter(Boolean)
+          );
+        } else {
+          setThemeStyle('');
+          setThemeDescription('');
+          setThemeColors([]);
+        }
+        setNotes(d.sections?.conclusion?.notes || '');
+      } catch (e) {
+        console.error('Error filling from discovery:', e);
+      }
+    }
+    fillFromDiscovery();
+  }, [copyDiscovery, selectedDiscoveryId]);
 
   useEffect(() => {
     if (!open || mode !== 'create' || !userId) return;
@@ -212,48 +276,6 @@ export function ClientModal({ open, onOpenChange, mode, client, userId, onSucces
         notes: notes || '',
       };
 
-      let discoveryData: any = null;
-      if (mode === 'create' && selectedDiscoveryId) {
-        discoveryData = await getDocument('discovery_forms', selectedDiscoveryId);
-        if (copyDiscovery && discoveryData) {
-          const d = discoveryData as any;
-          const totalGuests =
-            (Number(d.sections?.project?.guestAdults) || 0) +
-            (Number(d.sections?.project?.guestChildren) || 0);
-          data = {
-            ...data,
-            name: d.name || data.name,
-            partner: d.partner || data.partner,
-            email: d.email || data.email,
-            phone: d.phone || data.phone,
-            event_date: d.weddingDate || d.sections?.project?.date || data.event_date,
-            event_location: data.event_location,
-            budget: String(Number(d.sections?.budget?.estimatedGlobal) || Number(data.budget) || 0),
-            guests: String(totalGuests || Number(data.guests) || 0),
-            theme: d.sections?.style
-              ? {
-                  style:
-                    d.sections.style.selectedStyles?.[0] ||
-                    d.sections.style.theme ||
-                    data.theme.style,
-                  description: [
-                    d.sections.style.theme,
-                    d.sections.style.ambiance,
-                    d.sections.style.inspirations,
-                  ]
-                    .filter(Boolean)
-                    .join(' / '),
-                  colors: (d.sections.style.colors || '')
-                    .split(/[,/;]/)
-                    .map((c: string) => c.trim())
-                    .filter(Boolean),
-                }
-              : data.theme,
-            notes: d.sections?.conclusion?.notes || data.notes,
-          };
-        }
-      }
-
       if (mode === 'create') {
         let clientUserId = '';
 
@@ -373,8 +395,6 @@ export function ClientModal({ open, onOpenChange, mode, client, userId, onSucces
     }
   };
 
-  const [name1, name2] = client?.names.split(' & ') || ['', ''];
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -449,7 +469,8 @@ export function ClientModal({ open, onOpenChange, mode, client, userId, onSucces
                 <Input
                   id="name"
                   name="name"
-                  defaultValue={name1}
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
                   placeholder="Prénom Nom"
                   required
                   className="border-gray-300 focus:border-brand-purple focus:ring-brand-purple"
@@ -461,7 +482,8 @@ export function ClientModal({ open, onOpenChange, mode, client, userId, onSucces
                 <Input
                   id="partner"
                   name="partner"
-                  defaultValue={name2}
+                  value={partner}
+                  onChange={(e) => setPartner(e.target.value)}
                   placeholder="Prénom Nom"
                   required
                   className="border-gray-300 focus:border-brand-purple focus:ring-brand-purple"
@@ -475,7 +497,8 @@ export function ClientModal({ open, onOpenChange, mode, client, userId, onSucces
                 id="email"
                 name="email"
                 type="email"
-                defaultValue={client?.email}
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 placeholder="email@example.com"
                 required
                 className="border-gray-300 focus:border-brand-purple focus:ring-brand-purple"
@@ -488,7 +511,8 @@ export function ClientModal({ open, onOpenChange, mode, client, userId, onSucces
                 id="phone"
                 name="phone"
                 type="tel"
-                defaultValue={client?.phone}
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
                 placeholder="+33 6 12 34 56 78"
                 className="border-gray-300 focus:border-brand-purple focus:ring-brand-purple"
               />
@@ -590,7 +614,8 @@ export function ClientModal({ open, onOpenChange, mode, client, userId, onSucces
                   id="eventDate"
                   name="eventDate"
                   type="date"
-                  defaultValue={normalizeDateInputValue(client?.eventDate)}
+                  value={eventDate}
+                  onChange={(e) => setEventDate(e.target.value)}
                   className="border-gray-300 focus:border-brand-purple focus:ring-brand-purple"
                 />
               </div>
@@ -603,7 +628,8 @@ export function ClientModal({ open, onOpenChange, mode, client, userId, onSucces
                   type="number"
                   inputMode="numeric"
                   min={0}
-                  defaultValue={String(client?.guests ?? '')}
+                  value={guests}
+                  onChange={(e) => setGuests(e.target.value)}
                   placeholder="Ex: 120"
                   className="border-gray-300 focus:border-brand-purple focus:ring-brand-purple"
                 />
@@ -615,7 +641,8 @@ export function ClientModal({ open, onOpenChange, mode, client, userId, onSucces
               <Input
                 id="eventLocation"
                 name="eventLocation"
-                defaultValue={client?.eventLocation || ''}
+                value={eventLocation}
+                onChange={(e) => setEventLocation(e.target.value)}
                 placeholder="Ex: Château, domaine, salle..."
                 className="border-gray-300 focus:border-brand-purple focus:ring-brand-purple"
               />
@@ -630,7 +657,8 @@ export function ClientModal({ open, onOpenChange, mode, client, userId, onSucces
                 inputMode="decimal"
                 min={0}
                 step="1"
-                defaultValue={String(client?.budget ?? '')}
+                value={budget}
+                onChange={(e) => setBudget(e.target.value)}
                 placeholder="Ex: 24330"
                 className="border-gray-300 focus:border-brand-purple focus:ring-brand-purple"
               />

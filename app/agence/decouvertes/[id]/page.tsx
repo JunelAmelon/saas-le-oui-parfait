@@ -63,7 +63,6 @@ export default function DiscoveryDetailPage() {
         ...payload,
         updated_at: new Date().toISOString(),
       });
-      setForm(data);
     } catch (e) {
       console.error('Auto-save error:', e);
     } finally {
@@ -82,7 +81,6 @@ export default function DiscoveryDetailPage() {
         updated_at: new Date().toISOString(),
       });
       toast.success('Fiche terminée');
-      setForm({ ...data, status: 'completed' });
     } catch (e) {
       console.error('Error completing discovery form:', e);
       toast.error('Erreur lors de la finalisation');
