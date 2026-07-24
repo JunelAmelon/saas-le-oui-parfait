@@ -173,6 +173,7 @@ export default function EventsPage() {
         budget: parseFloat(formData.budget),
         spent: parseFloat(formData.spent),
         status: 'confirmed',
+        planner_id: user.uid,
         image_url: imageUrl,
       };
 

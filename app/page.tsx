@@ -85,8 +85,9 @@ export default function Home() {
 
     try {
       setDataLoading(true);
-      const [events, tasks, plannerTasks, clients, invoices, expenses] = await Promise.all([
+      const [eventsByPlanner, eventsByOwner, tasks, plannerTasks, clients, invoices, expenses] = await Promise.all([
           getDocuments('events', [{ field: 'planner_id', operator: '==', value: user.uid }]),
+          getDocuments('events', [{ field: 'owner_id', operator: '==', value: user.uid }]),
           getDocuments('tasks', [
             { field: 'assigned_to', operator: '==', value: user.uid },
             { field: 'status', operator: '==', value: 'todo' }
@@ -99,18 +100,18 @@ export default function Home() {
           getDocuments('expenses', [{ field: 'planner_id', operator: '==', value: user.uid }]),
         ]);
 
+        const eventMap = new Map<string, any>();
+        [...eventsByPlanner, ...eventsByOwner].forEach((e: any) => eventMap.set(e.id, e));
+        const events = Array.from(eventMap.values());
+
         const signedEvents = events.filter((e: any) =>
-          ['confirmed', 'in_progress', 'completed'].includes(e.status)
+          !e.status || ['confirmed', 'in_progress', 'completed'].includes(e.status)
         );
 
-        const activeEventsList = events.filter((e: any) =>
-          ['confirmed', 'in_progress'].includes(e.status)
-        );
 
-        const caSigne = activeEventsList.reduce(
-          (acc: number, e: any) => acc + Number(e?.budget || 0),
-          0
-        );
+        const caSigne = (clients as any[])
+          .filter((c: any) => String(c?.status || '').trim().toLowerCase() === 'en cours')
+          .reduce((acc: number, c: any) => acc + Number(c?.budget || 0), 0);
 
         const invoicedTotal = (invoices as any[])
           .filter((inv: any) => !['draft', 'cancelled'].includes(String(inv?.status || '').toLowerCase()))
@@ -145,7 +146,7 @@ export default function Home() {
         }).length;
 
         const activeEvents = events
-          .filter((e: any) => ['confirmed', 'in_progress'].includes(e.status))
+          .filter((e: any) => !e.status || ['confirmed', 'in_progress'].includes(e.status))
           .slice(0, 5)
           .map((e: any) => {
             const client = clients.find((c: any) => c.id === e.client_id);
@@ -272,7 +273,7 @@ export default function Home() {
             title="CA signé"
             value={`${stats.caSigne.toLocaleString('fr-FR')} €`}
             icon={Euro}
-            description="Budgets événements actifs"
+            description="Budgets clients en cours"
           />
           <StatCard
             title="Encaissé"

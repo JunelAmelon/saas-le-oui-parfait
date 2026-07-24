@@ -16,7 +16,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { Search, Plus, Heart, MapPin, Calendar, Euro, Phone, Mail, FileText, Image as ImageIcon, X, Users, CheckCircle, Clock, Edit, MessageSquare, Eye, MoreVertical, ChevronLeft, ChevronRight, Trash2, Loader2, LayoutGrid, List } from 'lucide-react';
+import { Search, Plus, Heart, MapPin, Calendar, Euro, Phone, Mail, FileText, Image as ImageIcon, X, Users, CheckCircle, Clock, Edit, MessageSquare, Eye, MoreVertical, ChevronLeft, ChevronRight, Trash2, Loader2, LayoutGrid, List, ClipboardList } from 'lucide-react';
 
 import {
   DropdownMenu,
@@ -28,7 +28,8 @@ import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import { useAuth } from '@/contexts/AuthContext';
-import { getDocuments } from '@/lib/db';
+import { getDocuments, updateDocument, setDocument } from '@/lib/db';
+import { auth } from '@/lib/firebase';
 import { ClientModal } from '@/components/modals/ClientModal';
 import { toast } from 'sonner';
 
@@ -49,6 +50,7 @@ interface Client {
     colors?: string[];
   };
   notes?: string;
+  clientUserId?: string;
   createdAt?: any; // Pour le tri
 }
 
@@ -99,6 +101,7 @@ export default function ClientFilesPage() {
             status: c.status || 'En cours',
             theme: c.theme || undefined,
             notes: c.notes || '',
+            clientUserId: c.client_user_id || '',
             createdAt: c.created_at || c.createdAt || new Date()
           }));
 
@@ -286,6 +289,61 @@ export default function ClientFilesPage() {
     goToSection('depenses', `/admin/clients/${selectedClient?.id}/depenses`);
   };
 
+  const handleGoToDiscovery = () => {
+    goToSection('decouverte', `/admin/clients/${selectedClient?.id}/decouverte`);
+  };
+
+  const handleGoToFacturationPro = () => {
+    goToSection('facturation-pro', `/admin/clients/${selectedClient?.id}/facturation-pro`);
+  };
+
+  const [isInviting, setIsInviting] = useState(false);
+
+  const handleInviteClient = async (client: Client) => {
+    if (!client.email) return;
+    setIsInviting(true);
+    try {
+      const idToken = await auth.currentUser?.getIdToken().catch(() => null);
+      const res = await fetch('/api/auth/invite-client', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}),
+        },
+        body: JSON.stringify({
+          email: client.email,
+          fullName: client.names,
+        }),
+      });
+
+      const json = await res.json().catch(() => null);
+      if (!res.ok) {
+        toast.error(json?.error || "Impossible d'envoyer l'invitation");
+        return;
+      }
+
+      const uid = String(json?.uid || '');
+      if (uid) {
+        await updateDocument('clients', client.id, { client_user_id: uid, updated_at: new Date().toISOString() });
+        await setDocument('profiles', uid, {
+          uid,
+          email: client.email,
+          role: 'client',
+          full_name: client.names,
+          created_at: new Date().toISOString(),
+        });
+        setClients((prev) => prev.map((c) => (c.id === client.id ? { ...c, clientUserId: uid } : c)));
+        setSelectedClient((prev) => (prev && prev.id === client.id ? { ...prev, clientUserId: uid } : prev));
+        toast.success(`Invitation ${json?.alreadyExists ? 'renvoyée' : 'envoyée'} au client`);
+      }
+    } catch (e) {
+      console.error('Error inviting client:', e);
+      toast.error("Impossible d'envoyer l'invitation");
+    } finally {
+      setIsInviting(false);
+    }
+  };
+
   const handleDeleteClient = async (client: Client) => {
     if (!user) return;
     if (!confirm(`Êtes-vous sûr de vouloir supprimer définitivement la fiche client ${client.names} ?`)) return;
@@ -365,6 +423,7 @@ export default function ClientFilesPage() {
         status: c.status || 'En cours',
         theme: c.theme || undefined,
         notes: c.notes || '',
+        clientUserId: c.client_user_id || '',
         createdAt: c.created_at || c.createdAt || new Date()
       }));
 
@@ -969,7 +1028,7 @@ export default function ClientFilesPage() {
                 </div>
               </div>
 
-              <div id="client-detail-actions" className="grid grid-cols-1 sm:grid-cols-7 gap-3">
+              <div id="client-detail-actions" className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <Button
                   variant="outline"
                   className={`gap-2 ${activeSection === 'messages' ? 'bg-brand-turquoise text-white border-brand-turquoise hover:bg-brand-turquoise-hover' : ''}`}
@@ -1026,7 +1085,24 @@ export default function ClientFilesPage() {
                   <ImageIcon className="h-4 w-4" />
                   Galerie
                 </Button>
+                <Button
+                  variant="outline"
+                  className={`gap-2 ${activeSection === 'decouverte' ? 'bg-brand-turquoise text-white border-brand-turquoise hover:bg-brand-turquoise-hover' : ''}`}
+                  onClick={handleGoToDiscovery}
+                >
+                  <ClipboardList className="h-4 w-4" />
+                  Découverte
+                </Button>
+                <Button
+                  variant="outline"
+                  className={`gap-2 ${activeSection === 'facturation-pro' ? 'bg-brand-turquoise text-white border-brand-turquoise hover:bg-brand-turquoise-hover' : ''}`}
+                  onClick={handleGoToFacturationPro}
+                >
+                  <FileText className="h-4 w-4" />
+                  Facturation Pro
+                </Button>
               </div>
+
             </div>
           )}
           <DialogFooter>
@@ -1035,6 +1111,15 @@ export default function ClientFilesPage() {
               onClick={handleCloseDetail}
             >
               Fermer
+            </Button>
+            <Button
+              variant="outline"
+              className="gap-2"
+              onClick={() => selectedClient && handleInviteClient(selectedClient)}
+              disabled={isInviting || !selectedClient?.email}
+            >
+              {isInviting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
+              {selectedClient?.clientUserId ? "Renvoyer l'invitation" : "Envoyer l'accès client"}
             </Button>
             <Button
               className="bg-brand-turquoise hover:bg-brand-turquoise-hover gap-2"

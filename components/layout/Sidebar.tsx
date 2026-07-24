@@ -10,6 +10,7 @@ import {
   Calendar,
   UsersRound,
   FileText,
+  ClipboardList,
   Package,
   Flower2,
   ShoppingBag,
@@ -41,6 +42,11 @@ const menuItems: MenuItem[] = [
     label: 'Fiches Clients',
     icon: Users,
     href: '/agence/clients',
+  },
+  {
+    label: 'Fiches Découverte',
+    icon: ClipboardList,
+    href: '/agence/decouvertes',
   },
   {
     label: 'Agence',

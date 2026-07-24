@@ -2,11 +2,19 @@
 
 import { useEffect, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Loader2, Upload, User, X } from 'lucide-react';
-import { addDocument, getDocuments, updateDocument, setDocument } from '@/lib/db';
+import { addDocument, getDocument, getDocuments, updateDocument, setDocument } from '@/lib/db';
+import { DiscoveryFormData } from '@/lib/discovery';
 import { toast } from 'sonner';
 import axios from 'axios';
 import { ColorPalette } from '@/components/wedding/ColorPalette';
@@ -48,6 +56,10 @@ export function ClientModal({ open, onOpenChange, mode, client, userId, onSucces
   const [themeColors, setThemeColors] = useState<string[]>(client?.theme?.colors || []);
   const [notes, setNotes] = useState(client?.notes || '');
 
+  const [discoveryForms, setDiscoveryForms] = useState<DiscoveryFormData[]>([]);
+  const [selectedDiscoveryId, setSelectedDiscoveryId] = useState('');
+  const [copyDiscovery, setCopyDiscovery] = useState(false);
+
   const normalizeDateInputValue = (v?: string) => {
     if (!v) return '';
     if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return v;
@@ -77,7 +89,27 @@ export function ClientModal({ open, onOpenChange, mode, client, userId, onSucces
     setThemeColors(client?.theme?.colors || []);
     setNotes(client?.notes || '');
     setCreateAccount(mode === 'create');
+    setSelectedDiscoveryId('');
+    setCopyDiscovery(false);
   }, [open, client, mode]);
+
+  useEffect(() => {
+    if (!open || mode !== 'create' || !userId) return;
+    async function fetchDiscoveryForms() {
+      try {
+        const items = await getDocuments('discovery_forms', [
+          { field: 'planner_id', operator: '==', value: userId },
+        ]);
+        const unassigned = (items as any[]).filter(
+          (f) => f.status !== 'converted' && !f.client_id && (f.type === 'prospect' || !f.type)
+        );
+        setDiscoveryForms(unassigned as DiscoveryFormData[]);
+      } catch (e) {
+        console.error('Error fetching discovery forms:', e);
+      }
+    }
+    fetchDiscoveryForms();
+  }, [open, mode, userId]);
 
   useEffect(() => {
     const hydrateThemeFromEvent = async () => {
@@ -162,7 +194,7 @@ export function ClientModal({ open, onOpenChange, mode, client, userId, onSucces
         photoUrl = '';
       }
 
-      const data = {
+      let data = {
         name,
         partner,
         email,
@@ -179,6 +211,48 @@ export function ClientModal({ open, onOpenChange, mode, client, userId, onSucces
         },
         notes: notes || '',
       };
+
+      let discoveryData: any = null;
+      if (mode === 'create' && selectedDiscoveryId) {
+        discoveryData = await getDocument('discovery_forms', selectedDiscoveryId);
+        if (copyDiscovery && discoveryData) {
+          const d = discoveryData as any;
+          const totalGuests =
+            (Number(d.sections?.project?.guestAdults) || 0) +
+            (Number(d.sections?.project?.guestChildren) || 0);
+          data = {
+            ...data,
+            name: d.name || data.name,
+            partner: d.partner || data.partner,
+            email: d.email || data.email,
+            phone: d.phone || data.phone,
+            event_date: d.weddingDate || d.sections?.project?.date || data.event_date,
+            event_location: data.event_location,
+            budget: String(Number(d.sections?.budget?.estimatedGlobal) || Number(data.budget) || 0),
+            guests: String(totalGuests || Number(data.guests) || 0),
+            theme: d.sections?.style
+              ? {
+                  style:
+                    d.sections.style.selectedStyles?.[0] ||
+                    d.sections.style.theme ||
+                    data.theme.style,
+                  description: [
+                    d.sections.style.theme,
+                    d.sections.style.ambiance,
+                    d.sections.style.inspirations,
+                  ]
+                    .filter(Boolean)
+                    .join(' / '),
+                  colors: (d.sections.style.colors || '')
+                    .split(/[,/;]/)
+                    .map((c: string) => c.trim())
+                    .filter(Boolean),
+                }
+              : data.theme,
+            notes: d.sections?.conclusion?.notes || data.notes,
+          };
+        }
+      }
 
       if (mode === 'create') {
         let clientUserId = '';
@@ -236,20 +310,27 @@ export function ClientModal({ open, onOpenChange, mode, client, userId, onSucces
         await addDocument('events', {
           client_id: clientDoc.id,
           planner_id: userId,
-          couple_names: `${name} & ${partner}`,
-          event_date: eventDate || '',
-          location: eventLocation || '',
-          guest_count: parseInt(guests) || 0,
-          budget: parseFloat(budget) || 0,
-          client_email: email,
-          theme: {
-            style: themeStyle || '',
-            description: themeDescription || '',
-            colors: themeColors || [],
-          },
-          notes: notes || '',
+          couple_names: `${data.name} & ${data.partner}`,
+          event_date: data.event_date || '',
+          location: data.event_location || '',
+          guest_count: parseInt(data.guests) || 0,
+          budget: parseFloat(data.budget) || 0,
+          status: 'confirmed',
+          client_email: data.email,
+          theme: data.theme,
+          notes: data.notes || '',
           created_at: new Date().toISOString(),
         });
+
+        // Lier et convertir la fiche découverte si sélectionnée
+        if (selectedDiscoveryId) {
+          await updateDocument('discovery_forms', selectedDiscoveryId, {
+            client_id: clientDoc.id,
+            type: 'client',
+            status: 'converted',
+            updated_at: new Date().toISOString(),
+          });
+        }
 
         toast.success('Client créé avec succès');
       } else if (client) {
@@ -446,6 +527,51 @@ export function ClientModal({ open, onOpenChange, mode, client, userId, onSucces
                     </p>
                   </div>
                 ) : null}
+              </div>
+            </>
+          )}
+
+          {/* Fiche découverte liée - création seulement */}
+          {mode === 'create' && (
+            <>
+              <div className="border-t border-gray-200"></div>
+              <div className="space-y-4">
+                <Label className="text-base font-semibold">Fiche découverte</Label>
+                <div className="space-y-2">
+                  <Label htmlFor="discoveryForm">Lier une fiche découverte existante</Label>
+                  <Select
+                    value={selectedDiscoveryId || 'none'}
+                    onValueChange={(value) => setSelectedDiscoveryId(value === 'none' ? '' : value)}
+                  >
+                    <SelectTrigger id="discoveryForm">
+                      <SelectValue placeholder="Aucune" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Aucune</SelectItem>
+                      {discoveryForms.map((f) => (
+                        <SelectItem key={f.id} value={f.id || 'none'}>
+                          {f.name || 'Prospect'}
+                          {f.partner ? ` & ${f.partner}` : ''} – {f.callDate || '—'}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {selectedDiscoveryId && (
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      id="copyDiscovery"
+                      checked={copyDiscovery}
+                      onChange={(e) => setCopyDiscovery(e.target.checked)}
+                      className="w-4 h-4 text-brand-turquoise border-gray-300 rounded focus:ring-brand-turquoise"
+                    />
+                    <Label htmlFor="copyDiscovery" className="cursor-pointer text-sm">
+                      Copier les infos (date, budget, invités, thème, notes) de la fiche découverte
+                    </Label>
+                  </div>
+                )}
               </div>
             </>
           )}

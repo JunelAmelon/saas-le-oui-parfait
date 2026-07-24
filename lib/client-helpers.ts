@@ -536,10 +536,34 @@ export function calculateChecklistProgress(checklist: ChecklistItem[]) {
 /**
  * Calcule les jours restants jusqu'à l'événement
  */
+function parseEventDate(date: any): Date | null {
+  if (!date) return null;
+  if (date && typeof date.toDate === 'function') {
+    const d = date.toDate();
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  }
+  const str = String(date).trim();
+  if (!str) return null;
+  const iso = str.match(/^([0-9]{4})-([0-9]{2})-([0-9]{2})$/);
+  if (iso) return new Date(+iso[1], +iso[2] - 1, +iso[3]);
+  let parts = str.split('/');
+  if (parts.length !== 3) parts = str.split('-');
+  if (parts.length === 3 && parts[2].length === 4 && parts[0].length <= 2 && parts[1].length <= 2) {
+    return new Date(+parts[2], +parts[1] - 1, +parts[0]);
+  }
+  const d = new Date(str);
+  if (!Number.isNaN(d.getTime())) {
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  }
+  return null;
+}
+
 export function calculateDaysRemaining(eventDate: string): number {
-  const event = new Date(eventDate);
+  const date = parseEventDate(eventDate);
+  if (!date) return 0;
   const today = new Date();
-  const diffTime = event.getTime() - today.getTime();
+  today.setHours(0, 0, 0, 0);
+  const diffTime = date.getTime() - today.getTime();
   const daysRemaining = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  return daysRemaining > 0 ? daysRemaining : 0;
+  return daysRemaining >= 0 ? daysRemaining : 0;
 }
