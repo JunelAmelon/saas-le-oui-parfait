@@ -34,6 +34,8 @@ import { addDocument, getDocument, getDocuments, updateDocument } from '@/lib/db
 import { uploadFile } from '@/lib/storage';
 import { toast } from 'sonner';
 import { useSearchParams } from 'next/navigation';
+import { formatSmartTimestamp, formatFullTimestamp, groupMessagesByDate } from '@/lib/date-utils';
+import { linkifyText } from '@/lib/text-utils';
 
 interface Conversation {
   id: string;
@@ -53,6 +55,7 @@ interface MessageItem {
   content: string;
   attachments?: Array<{ url: string; name?: string; type?: string }>;
   time: string;
+  created_at?: Date | null;
   isMe: boolean;
   read: boolean;
 }
@@ -113,6 +116,7 @@ export default function MessagesPage() {
           content: m.content || '',
           attachments: (m.attachments || []) as Array<{ url: string; name?: string; type?: string }>,
           time: created ? created.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '',
+          created_at: created,
           isMe: m.sender_id === user?.uid,
           read: true,
         } as MessageItem;
@@ -172,6 +176,7 @@ export default function MessagesPage() {
           { field: '__name__', operator: '==', value: conv.id },
         ]).catch(() => []);
         const c0 = (convDoc as any[])?.[0] || null;
+        const lastMessageDate = c0?.last_message_at?.toDate?.() || null;
         const mapped: Conversation = {
           id: conv.id,
           client_id: client.id,
@@ -179,7 +184,7 @@ export default function MessagesPage() {
           name: 'Votre Wedding Planner',
           avatar: 'WP',
           lastMessage: c0?.last_message || '',
-          time: c0?.last_message_at?.toDate?.()?.toLocaleString('fr-FR') || '',
+          time: formatSmartTimestamp(lastMessageDate),
           unread: Number(c0?.unread_count_client ?? 0),
           online: false,
         };
@@ -385,72 +390,87 @@ export default function MessagesPage() {
                 </div>
               ) : null}
 
-              {messages.map((message) => (
-                <div key={message.id} className={`flex ${message.isMe ? 'justify-end' : 'justify-start'}`}>
-                  <div
-                    className={`flex items-end gap-2 max-w-[85%] sm:max-w-[70%] ${
-                      message.isMe ? 'flex-row-reverse' : 'flex-row'
-                    }`}
-                  >
-                    <Avatar className="h-7 w-7 shrink-0">
-                      {message.isMe && client?.photo ? <AvatarImage src={client.photo} alt="Moi" /> : null}
-                      {!message.isMe && <AvatarImage src="/kathy.png" alt="Kathy" />}
-                      <AvatarFallback
-                        className={`text-[10px] ${message.isMe ? 'bg-brand-purple' : 'bg-brand-turquoise'} text-white`}
-                      >
-                        {message.isMe ? 'ME' : 'WP'}
-                      </AvatarFallback>
-                    </Avatar>
-
-                    <div
-                      className={`p-3.5 shadow-sm ${
-                        message.isMe
-                          ? 'bg-brand-turquoise text-white rounded-2xl rounded-br-md'
-                          : 'bg-white text-brand-purple rounded-2xl rounded-bl-md border border-brand-purple/6'
-                      }`}
-                    >
-                      {message.content ? <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.content}</p> : null}
-                      {message.attachments && message.attachments.length > 0 ? (
-                        <div className="space-y-2 mt-1">
-                          {message.attachments.map((a, idx) => {
-                            const isImage = /^image\//i.test(a.type || '') || /\.(jpg|jpeg|png|gif|webp|svg|bmp)$/i.test(a.url || '');
-                            return (
-                              <a
-                                key={`${message.id}:att:${idx}`}
-                                href={a.url}
-                                target="_blank"
-                                rel="noreferrer"
-                                className={`block ${message.isMe ? 'text-white' : 'text-brand-purple'}`}
-                              >
-                                {isImage ? (
-                                  <img
-                                    src={a.url}
-                                    alt={a.name || 'Image'}
-                                    className={`max-w-full max-h-48 rounded-lg object-cover border ${message.isMe ? 'border-white/20' : 'border-brand-purple/10'}`}
-                                    loading="lazy"
-                                  />
-                                ) : (
-                                  <div className={`flex items-center gap-2 px-3 py-2 rounded-lg ${message.isMe ? 'bg-white/15' : 'bg-brand-purple/5'}`}>
-                                    <FileText className="w-4 h-4 shrink-0" />
-                                    <span className="text-sm truncate underline">{a.name || 'Document'}</span>
-                                  </div>
-                                )}
-                              </a>
-                            );
-                          })}
-                        </div>
-                      ) : null}
+              {groupMessagesByDate(messages).map((group) => (
+                <div key={group.date.toISOString()} className="space-y-4">
+                  <div className="flex items-center gap-3 my-6">
+                    <div className="flex-1 h-px bg-brand-purple/10" />
+                    <span className="text-xs font-medium text-brand-purple/60 px-3 py-1 bg-white/80 rounded-full shadow-sm">
+                      {group.label}
+                    </span>
+                    <div className="flex-1 h-px bg-brand-purple/10" />
+                  </div>
+                  {group.messages.map((message) => (
+                    <div key={message.id} className={`flex ${message.isMe ? 'justify-end' : 'justify-start'}`}>
                       <div
-                        className={`flex items-center justify-end gap-1 mt-1.5 ${
-                          message.isMe ? 'text-white/70' : 'text-brand-gray'
+                        className={`flex items-end gap-2 max-w-[85%] sm:max-w-[70%] ${
+                          message.isMe ? 'flex-row-reverse' : 'flex-row'
                         }`}
                       >
-                        <span className="text-[10px]">{message.time}</span>
-                        {message.isMe &&
-                          (message.read ? <CheckCheck className="h-3 w-3" /> : <Check className="h-3 w-3" />)}
+                        <Avatar className="h-7 w-7 shrink-0">
+                          {message.isMe && client?.photo ? <AvatarImage src={client.photo} alt="Moi" /> : null}
+                          {!message.isMe && <AvatarImage src="/kathy.png" alt="Kathy" />}
+                          <AvatarFallback
+                            className={`text-[10px] ${message.isMe ? 'bg-brand-purple' : 'bg-brand-turquoise'} text-white`}
+                          >
+                            {message.isMe ? 'ME' : 'WP'}
+                          </AvatarFallback>
+                        </Avatar>
+
+                        <div
+                          className={`p-3.5 shadow-sm ${
+                            message.isMe
+                              ? 'bg-brand-turquoise text-white rounded-2xl rounded-br-md'
+                              : 'bg-white text-brand-purple rounded-2xl rounded-bl-md border border-brand-purple/6'
+                          }`}
+                        >
+                          {message.content ? (
+                            <p className="text-sm leading-relaxed whitespace-pre-wrap">
+                              {linkifyText(message.content)}
+                            </p>
+                          ) : null}
+                          {message.attachments && message.attachments.length > 0 ? (
+                            <div className="space-y-2 mt-1">
+                              {message.attachments.map((a, idx) => {
+                                const isImage = /^image\//i.test(a.type || '') || /\.(jpg|jpeg|png|gif|webp|svg|bmp)$/i.test(a.url || '');
+                                return (
+                                  <a
+                                    key={`${message.id}:att:${idx}`}
+                                    href={a.url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className={`block ${message.isMe ? 'text-white' : 'text-brand-purple'}`}
+                                  >
+                                    {isImage ? (
+                                      <img
+                                        src={a.url}
+                                        alt={a.name || 'Image'}
+                                        className={`max-w-full max-h-48 rounded-lg object-cover border ${message.isMe ? 'border-white/20' : 'border-brand-purple/10'}`}
+                                        loading="lazy"
+                                      />
+                                    ) : (
+                                      <div className={`flex items-center gap-2 px-3 py-2 rounded-lg ${message.isMe ? 'bg-white/15' : 'bg-brand-purple/5'}`}>
+                                        <FileText className="w-4 h-4 shrink-0" />
+                                        <span className="text-sm truncate underline">{a.name || 'Document'}</span>
+                                      </div>
+                                    )}
+                                  </a>
+                                );
+                              })}
+                            </div>
+                          ) : null}
+                          <div
+                            className={`flex items-center justify-end gap-1 mt-1.5 ${
+                              message.isMe ? 'text-white/70' : 'text-brand-gray'
+                            }`}
+                          >
+                            <span className="text-[10px]" title={formatFullTimestamp(message.created_at)}>{message.time}</span>
+                            {message.isMe &&
+                              (message.read ? <CheckCheck className="h-3 w-3" /> : <Check className="h-3 w-3" />)}
+                          </div>
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  ))}
                 </div>
               ))}
             </div>

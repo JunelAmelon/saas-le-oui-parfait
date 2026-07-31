@@ -26,6 +26,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { addDocument, getDocument, getDocuments, updateDocument, deleteDocument } from '@/lib/db';
 import { uploadFile } from '@/lib/storage';
 import { toast } from 'sonner';
+import { formatSmartTimestamp, formatFullTimestamp, groupMessagesByDate } from '@/lib/date-utils';
+import { linkifyText } from '@/lib/text-utils';
 
 interface Conversation {
   id: string;
@@ -49,6 +51,7 @@ interface Message {
   content: string;
   attachments?: Array<{ url: string; name?: string; type?: string }>;
   time: string;
+  created_at?: Date | null;
   isMe: boolean;
   read: boolean;
 }
@@ -147,6 +150,7 @@ export default function AdminMessagesPage() {
         const name = c?.client_name || c?.name || 'Conversation';
         const avatar = (name || 'C').split(' ').map((x: string) => x[0]).slice(0, 2).join('').toUpperCase();
         const lastAtMs = c?.last_message_at?.toDate?.()?.getTime?.() || 0;
+        const lastMessageDate = c?.last_message_at?.toDate?.() || null;
         return {
           id: c.id,
           client_id: c.client_id,
@@ -155,7 +159,7 @@ export default function AdminMessagesPage() {
           type: (c.type || 'client') as 'client' | 'vendor' | 'team',
           avatar,
           lastMessage: c.last_message || '',
-          time: c.last_message_at?.toDate?.()?.toLocaleString('fr-FR') || '',
+          time: formatSmartTimestamp(lastMessageDate),
           lastMessageAtMs: lastAtMs,
           unread: Number(c.unread_count_planner ?? 0),
           online: false,
@@ -228,6 +232,7 @@ export default function AdminMessagesPage() {
             content: m.content || '',
             attachments: (m.attachments || []) as Array<{ url: string; name?: string; type?: string }>,
             time: created ? created.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '',
+            created_at: created,
             isMe: m.sender_id === user?.uid,
             read: true,
           } as Message;
@@ -396,14 +401,14 @@ export default function AdminMessagesPage() {
       setConversations((prev) => {
         const next = prev.map((c) =>
           c.id === selectedConversation.id
-            ? { ...c, lastMessage: lastMessageText, lastMessageAtMs: now.getTime(), time: now.toLocaleString('fr-FR') }
+            ? { ...c, lastMessage: lastMessageText, lastMessageAtMs: now.getTime(), time: formatSmartTimestamp(now) }
             : c
         );
         return next.sort((a, b) => (b.lastMessageAtMs || 0) - (a.lastMessageAtMs || 0));
       });
       setSelectedConversation((prev) =>
         prev?.id === selectedConversation.id
-          ? { ...prev, lastMessage: lastMessageText, lastMessageAtMs: now.getTime(), time: now.toLocaleString('fr-FR') }
+          ? { ...prev, lastMessage: lastMessageText, lastMessageAtMs: now.getTime(), time: formatSmartTimestamp(now) }
           : prev
       );
 
@@ -530,14 +535,14 @@ export default function AdminMessagesPage() {
       setConversations((prev) => {
         const next = prev.map((c) =>
           c.id === selectedConversation.id
-            ? { ...c, lastMessage: attachmentPreview, lastMessageAtMs: now.getTime(), time: now.toLocaleString('fr-FR') }
+            ? { ...c, lastMessage: attachmentPreview, lastMessageAtMs: now.getTime(), time: formatSmartTimestamp(now) }
             : c
         );
         return next.sort((a, b) => (b.lastMessageAtMs || 0) - (a.lastMessageAtMs || 0));
       });
       setSelectedConversation((prev) =>
         prev?.id === selectedConversation.id
-          ? { ...prev, lastMessage: attachmentPreview, lastMessageAtMs: now.getTime(), time: now.toLocaleString('fr-FR') }
+          ? { ...prev, lastMessage: attachmentPreview, lastMessageAtMs: now.getTime(), time: formatSmartTimestamp(now) }
           : prev
       );
 
@@ -768,7 +773,16 @@ export default function AdminMessagesPage() {
                 </div>
               ) : null}
 
-              {messages.map((message) => (
+              {groupMessagesByDate(messages).map((group) => (
+                <div key={group.date.toISOString()} className="space-y-4">
+                  <div className="flex items-center gap-3 my-6">
+                    <div className="flex-1 h-px bg-gray-200" />
+                    <span className="text-xs font-medium text-brand-gray px-3 py-1 bg-gray-50 rounded-full">
+                      {group.label}
+                    </span>
+                    <div className="flex-1 h-px bg-gray-200" />
+                  </div>
+                  {group.messages.map((message) => (
                 <div
                   key={message.id}
                   className={`flex ${message.isMe ? 'justify-end' : 'justify-start'}`}
@@ -803,7 +817,11 @@ export default function AdminMessagesPage() {
                           <Trash2 className="h-3 w-3" />
                         </button>
                       )}
-                      {message.content ? <p className="text-sm whitespace-pre-wrap">{message.content}</p> : null}
+                      {message.content ? (
+                        <p className="text-sm whitespace-pre-wrap">
+                          {linkifyText(message.content)}
+                        </p>
+                      ) : null}
                       {message.attachments && message.attachments.length > 0 ? (
                         <div className="space-y-2 mt-1">
                           {message.attachments.map((a, idx) => {
@@ -840,7 +858,7 @@ export default function AdminMessagesPage() {
                           message.isMe ? 'text-white/70' : 'text-brand-gray'
                         }`}
                       >
-                        <span className="text-xs">{message.time}</span>
+                        <span className="text-xs" title={formatFullTimestamp(message.created_at)}>{message.time}</span>
                         {message.isMe ? (
                           message.read ? (
                             <CheckCheck className="h-3 w-3" />
@@ -851,6 +869,8 @@ export default function AdminMessagesPage() {
                       </div>
                     </div>
                   </div>
+                </div>
+              ))}
                 </div>
               ))}
             </div>
