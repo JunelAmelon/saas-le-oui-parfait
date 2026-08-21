@@ -314,7 +314,16 @@ export default function EspaceProDashboardPage() {
               <div className="text-center">
                 <div className="relative w-[100px] h-[100px] mx-auto mb-4">
                   <div className="absolute inset-0 rounded-full bg-[rgba(136,183,181,0.12)] flex items-center justify-center font-baskerville text-xl text-[#4B4456]">
-                    {initials}
+                    {nextBooking.client_photo ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={nextBooking.client_photo} alt={nextBooking.client_names} className="w-full h-full object-cover rounded-full" />
+                    ) : (
+                      (() => {
+                        const parts = nextBooking.client_names.split(/\s+|&/).filter(Boolean);
+                        const ci = (parts[0]?.[0] || '') + (parts[1]?.[0] || '');
+                        return <span>{ci.toUpperCase()}</span>;
+                      })()
+                    )}
                   </div>
                   <div className="absolute -top-1 -right-1 bg-[#4B4456] text-white text-[11px] font-bold px-2 py-0.5 rounded-full">
                     J-{nextDays}
