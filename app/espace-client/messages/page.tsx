@@ -24,6 +24,8 @@ import {
   Mail,
   MapPin,
   X,
+  ImageIcon,
+  Download,
 } from 'lucide-react';
 
 import { useEffect, useMemo, useState } from 'react';
@@ -71,14 +73,17 @@ export default function MessagesPage() {
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
-  const [pendingAttachment, setPendingAttachment] = useState<File | null>(null);
+  const [pendingAttachments, setPendingAttachments] = useState<File[]>([]);
+  const [showAttachMenu, setShowAttachMenu] = useState(false);
+  const [lightboxImage, setLightboxImage] = useState<string | null>(null);
 
   const [showChatOnMobile, setShowChatOnMobile] = useState(false);
 
   const [agencyProfile, setAgencyProfile] = useState<any | null>(null);
   const [uploadingAttachment, setUploadingAttachment] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
-  const fileInputId = 'client-chat-attachment-input';
+  const imageInputId = 'client-chat-image-input';
+  const documentInputId = 'client-chat-document-input';
 
   const [isMobile, setIsMobile] = useState(false);
 
@@ -215,7 +220,7 @@ export default function MessagesPage() {
 
   const handleSend = async () => {
     if (!user?.uid || !selectedConversation?.id) return;
-    if (!newMessage.trim() && !pendingAttachment) return;
+    if (!newMessage.trim() && pendingAttachments.length === 0) return;
     setSending(true);
     try {
       const content = newMessage.trim();
@@ -224,11 +229,19 @@ export default function MessagesPage() {
       let attachments: { url: string; name: string; type: string }[] | undefined;
       let attachmentPreview: string | null = null;
 
-      if (pendingAttachment) {
-        const url = await uploadFile(pendingAttachment, 'chat');
-        attachments = [{ url, name: pendingAttachment.name, type: pendingAttachment.type }];
-        attachmentPreview = `📎 ${pendingAttachment.name}`;
-        setPendingAttachment(null);
+      if (pendingAttachments.length > 0) {
+        attachments = [];
+        for (const file of pendingAttachments) {
+          const url = await uploadFile(file, 'chat');
+          attachments.push({ url, name: file.name, type: file.type });
+        }
+        const imageCount = pendingAttachments.filter(f => /^image\//i.test(f.type)).length;
+        const docCount = pendingAttachments.length - imageCount;
+        const parts: string[] = [];
+        if (imageCount > 0) parts.push(`${imageCount} image${imageCount > 1 ? 's' : ''}`);
+        if (docCount > 0) parts.push(`${docCount} document${docCount > 1 ? 's' : ''}`);
+        attachmentPreview = `📎 ${parts.join(' + ')}`;
+        setPendingAttachments([]);
       }
 
       await addDocument('messages', {
@@ -245,6 +258,7 @@ export default function MessagesPage() {
           ? `${content.slice(0, 60)} ${attachmentPreview}`
           : attachmentPreview
         : content;
+      const sentAttachmentNames = pendingAttachments.map(f => f.name);
       await updateDocument('conversations', selectedConversation.id, {
         last_message: lastMessageText,
         last_message_at: new Date(),
@@ -258,8 +272,8 @@ export default function MessagesPage() {
         if (plannerId) {
           const notificationBody = attachmentPreview
             ? content
-              ? `${clientName} vous a envoyé un message avec une pièce jointe : ${pendingAttachment?.name || 'document'}`
-              : `${clientName} vous a envoyé un document : ${pendingAttachment?.name || 'document'}`
+              ? `${clientName} vous a envoyé un message avec ${attachmentPreview.replace('📎 ', '')}`
+              : `${clientName} vous a envoyé ${attachmentPreview.replace('📎 ', '')}`
             : `${clientName} vous a envoyé un message${content ? ` : ${content.slice(0, 120)}` : ''}`;
 
           await addDocument('notifications', {
@@ -273,7 +287,7 @@ export default function MessagesPage() {
             planner_id: plannerId,
             client_id: clientId,
             conversation_id: selectedConversation.id,
-            meta: { from: 'client', client_name: clientName, attachment: pendingAttachment?.name || null },
+            meta: { from: 'client', client_name: clientName, attachments: sentAttachmentNames },
           });
 
           try {
@@ -294,7 +308,7 @@ export default function MessagesPage() {
               recipientUid: plannerId,
               subject: 'Nouveau message client - Le Oui Parfait',
               text: attachmentPreview
-                ? `${clientName} vous a envoyé un message avec une pièce jointe.\n\n${content ? 'Message :\n' + content + '\n\n' : ''}Document : ${pendingAttachment?.name || 'document'}\n\nOuvrez la conversation dans Le Oui Parfait.`
+                ? `${clientName} vous a envoyé un message avec ${attachmentPreview.replace('📎 ', '')}.\n\n${content ? 'Message :\n' + content + '\n\n' : ''}Fichiers : ${sentAttachmentNames.join(', ')}\n\nOuvrez la conversation dans Le Oui Parfait.`
                 : `${clientName} vous a envoyé un nouveau message.\n\n${content}\n\nOuvrez la conversation dans Le Oui Parfait.`,
             });
           } catch (e) {
@@ -314,27 +328,33 @@ export default function MessagesPage() {
     }
   };
 
-  const handleAttachmentSelected = (file: File) => {
-    setPendingAttachment(file);
+  const handleAttachmentsSelected = (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    setPendingAttachments(prev => [...prev, ...Array.from(files)]);
   };
 
-  const removePendingAttachment = () => {
-    setPendingAttachment(null);
+  const removePendingAttachment = (index: number) => {
+    setPendingAttachments(prev => prev.filter((_, i) => i !== index));
   };
+
+  const isImageFile = (file: File) => /^image\//i.test(file.type);
+
+  const isImageUrl = (url: string, type?: string) =>
+    /^image\//i.test(type || '') || /\.(jpg|jpeg|png|gif|webp|svg|bmp)$/i.test(url || '');
 
   return (
     <ClientDashboardLayout clientName={clientName} daysRemaining={daysRemaining}>
-      <div className="space-y-5 h-[calc(100vh-80px)] flex flex-col">
+      <div className="space-y-3 h-[calc(100vh-80px)] flex flex-col">
 
         {/* ---------- HERO COMPACT ---------- */}
-        <div className="relative overflow-hidden rounded-3xl bg-brand-purple px-6 py-5 sm:px-8 sm:py-6 shrink-0">
+        <div className="relative overflow-hidden rounded-2xl bg-brand-purple px-5 py-3 sm:px-6 sm:py-4 shrink-0">
           <div className="absolute -top-8 -right-8 w-40 h-40 rounded-full bg-brand-turquoise/10 blur-3xl pointer-events-none" />
           <div className="relative flex items-center justify-between gap-4">
             <div>
               <span className="inline-block text-[10px] tracking-label uppercase text-brand-purple bg-white/90 px-3 py-1 rounded-full mb-2">
                 Messagerie
               </span>
-              <h1 className="font-baskerville text-2xl sm:text-3xl text-brand-beige">
+              <h1 className="font-baskerville text-xl sm:text-2xl text-brand-beige">
                 Échangez avec votre wedding planner
               </h1>
             </div>
@@ -429,34 +449,78 @@ export default function MessagesPage() {
                             </p>
                           ) : null}
                           {message.attachments && message.attachments.length > 0 ? (
-                            <div className="space-y-2 mt-1">
-                              {message.attachments.map((a, idx) => {
-                                const isImage = /^image\//i.test(a.type || '') || /\.(jpg|jpeg|png|gif|webp|svg|bmp)$/i.test(a.url || '');
-                                return (
-                                  <a
-                                    key={`${message.id}:att:${idx}`}
-                                    href={a.url}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className={`block ${message.isMe ? 'text-white' : 'text-brand-purple'}`}
-                                  >
-                                    {isImage ? (
-                                      <img
-                                        src={a.url}
-                                        alt={a.name || 'Image'}
-                                        className={`max-w-full max-h-48 rounded-lg object-cover border ${message.isMe ? 'border-white/20' : 'border-brand-purple/10'}`}
-                                        loading="lazy"
-                                      />
-                                    ) : (
-                                      <div className={`flex items-center gap-2 px-3 py-2 rounded-lg ${message.isMe ? 'bg-white/15' : 'bg-brand-purple/5'}`}>
-                                        <FileText className="w-4 h-4 shrink-0" />
-                                        <span className="text-sm truncate underline">{a.name || 'Document'}</span>
-                                      </div>
-                                    )}
-                                  </a>
-                                );
-                              })}
-                            </div>
+                            (() => {
+                              const imgs = message.attachments.filter((a) => isImageUrl(a.url, a.type));
+                              const docs = message.attachments.filter((a) => !isImageUrl(a.url, a.type));
+                              return (
+                                <div className="space-y-2 mt-1">
+                                  {/* Image grid */}
+                                  {imgs.length > 0 && (
+                                    <div
+                                      className={`grid gap-1 ${
+                                        imgs.length === 1
+                                          ? 'grid-cols-1'
+                                          : imgs.length === 2
+                                            ? 'grid-cols-2'
+                                            : 'grid-cols-2'
+                                      }`}
+                                    >
+                                      {imgs.map((a, idx) => (
+                                        <button
+                                          key={`${message.id}:img:${idx}`}
+                                          type="button"
+                                          onClick={() => setLightboxImage(a.url)}
+                                          className={`relative overflow-hidden rounded-lg ${
+                                            imgs.length === 1 ? 'max-w-[260px]' : ''
+                                          } ${message.isMe ? 'border border-white/20' : 'border border-brand-purple/10'}`}
+                                        >
+                                          <img
+                                            src={a.url}
+                                            alt={a.name || 'Image'}
+                                            className={`w-full h-full object-cover ${
+                                              imgs.length === 1 ? 'max-h-48' : 'h-32'
+                                            }`}
+                                            loading="lazy"
+                                          />
+                                          {imgs.length > 4 && idx === 3 && (
+                                            <div className="absolute inset-0 bg-black/50 flex items-center justify-center text-white font-semibold text-sm">
+                                              +{imgs.length - 4}
+                                            </div>
+                                          )}
+                                        </button>
+                                      ))}
+                                    </div>
+                                  )}
+                                  {/* Document cards */}
+                                  {docs.length > 0 && (
+                                    <div className="space-y-1.5">
+                                      {docs.map((a, idx) => (
+                                        <a
+                                          key={`${message.id}:doc:${idx}`}
+                                          href={a.url}
+                                          target="_blank"
+                                          rel="noreferrer"
+                                          download={a.name}
+                                          className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl transition-colors ${
+                                            message.isMe
+                                              ? 'bg-white/15 hover:bg-white/25 text-white'
+                                              : 'bg-brand-purple/5 hover:bg-brand-purple/10 text-brand-purple'
+                                          }`}
+                                        >
+                                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                                            message.isMe ? 'bg-white/20' : 'bg-brand-purple/10'
+                                          }`}>
+                                            <FileText className="w-4 h-4 shrink-0" />
+                                          </div>
+                                          <span className="text-sm truncate flex-1">{a.name || 'Document'}</span>
+                                          <Download className="w-3.5 h-3.5 shrink-0 opacity-60" />
+                                        </a>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })()
                           ) : null}
                           <div
                             className={`flex items-center justify-end gap-1 mt-1.5 ${
@@ -476,38 +540,109 @@ export default function MessagesPage() {
             </div>
 
             {/* Input */}
-            <div className="p-4 border-t border-brand-purple/8 shrink-0">
-              {pendingAttachment && (
-                <div className="flex items-center gap-2 mb-2 px-1">
-                  <span className="inline-flex items-center gap-1.5 text-xs bg-brand-purple/10 text-brand-purple px-2 py-1 rounded-full">
-                    <Paperclip className="h-3 w-3" />
-                    {pendingAttachment.name}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={removePendingAttachment}
-                    className="text-xs text-red-600 hover:text-red-700"
-                  >
-                    Retirer
-                  </button>
+            <div className="p-4 border-t border-brand-purple/8 shrink-0 relative">
+              {/* Hidden file inputs */}
+              <input
+                id={imageInputId}
+                type="file"
+                accept="image/*"
+                multiple
+                aria-label="Joindre des images"
+                className="hidden"
+                onChange={(e) => {
+                  handleAttachmentsSelected(e.target.files);
+                  e.target.value = '';
+                }}
+              />
+              <input
+                id={documentInputId}
+                type="file"
+                multiple
+                aria-label="Joindre des documents"
+                className="hidden"
+                onChange={(e) => {
+                  handleAttachmentsSelected(e.target.files);
+                  e.target.value = '';
+                }}
+              />
+
+              {/* Pending attachments preview */}
+              {pendingAttachments.length > 0 && (
+                <div className="mb-3 p-3 rounded-2xl bg-brand-purple/5 border border-brand-purple/8">
+                  <div className="flex flex-wrap gap-2">
+                    {pendingAttachments.map((file, idx) => (
+                      <div
+                        key={idx}
+                        className="relative group flex items-center gap-2 bg-white rounded-xl px-3 py-2 border border-brand-purple/8 shadow-sm"
+                      >
+                        {isImageFile(file) ? (
+                          <ImageIcon className="h-4 w-4 text-brand-turquoise shrink-0" />
+                        ) : (
+                          <FileText className="h-4 w-4 text-brand-purple shrink-0" />
+                        )}
+                        <span className="text-xs text-brand-purple max-w-[120px] truncate">{file.name}</span>
+                        <button
+                          type="button"
+                          onClick={() => removePendingAttachment(idx)}
+                          className="w-5 h-5 rounded-full bg-red-50 hover:bg-red-100 flex items-center justify-center text-red-500 transition-colors shrink-0"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
+
+              {/* Attach menu popup */}
+              {showAttachMenu && (
+                <>
+                  <div
+                    className="fixed inset-0 z-40"
+                    onClick={() => setShowAttachMenu(false)}
+                  />
+                  <div className="absolute bottom-16 left-4 z-50 bg-white rounded-2xl shadow-[0_8px_30px_-6px_rgba(75,68,86,0.25)] border border-brand-purple/8 p-2 min-w-[180px] animate-in fade-in slide-in-from-bottom-2 duration-150">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowAttachMenu(false);
+                        document.getElementById(imageInputId)?.click();
+                      }}
+                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-brand-purple/5 transition-colors text-left"
+                    >
+                      <div className="w-9 h-9 rounded-full bg-brand-turquoise/10 flex items-center justify-center shrink-0">
+                        <ImageIcon className="h-4 w-4 text-brand-turquoise" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-brand-purple">Images</p>
+                        <p className="text-[11px] text-brand-gray">Photos, images multiples</p>
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowAttachMenu(false);
+                        document.getElementById(documentInputId)?.click();
+                      }}
+                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-brand-purple/5 transition-colors text-left"
+                    >
+                      <div className="w-9 h-9 rounded-full bg-brand-purple/10 flex items-center justify-center shrink-0">
+                        <FileText className="h-4 w-4 text-brand-purple" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-brand-purple">Documents</p>
+                        <p className="text-[11px] text-brand-gray">PDF, Word, Excel...</p>
+                      </div>
+                    </button>
+                  </div>
+                </>
+              )}
+
               <div className="flex items-center gap-2 bg-brand-beige/60 rounded-full pl-2 pr-2 py-2 border border-brand-purple/8">
-                <input
-                  id={fileInputId}
-                  type="file"
-                  aria-label="Joindre un fichier"
-                  className="hidden"
-                  onChange={(e) => {
-                    const f = e.target.files?.[0] || null;
-                    e.target.value = '';
-                    if (f) handleAttachmentSelected(f);
-                  }}
-                />
                 <button
                   title="Joindre un fichier"
-                  disabled={!selectedConversation?.id || sending || uploadingAttachment || !!pendingAttachment}
-                  onClick={() => document.getElementById(fileInputId)?.click()}
+                  disabled={!selectedConversation?.id || sending || uploadingAttachment}
+                  onClick={() => setShowAttachMenu(v => !v)}
                   className="w-9 h-9 rounded-full flex items-center justify-center text-brand-gray hover:bg-white transition-colors shrink-0 disabled:opacity-40"
                 >
                   <Paperclip className="h-4 w-4" />
@@ -521,7 +656,7 @@ export default function MessagesPage() {
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && !e.shiftKey && !isMobile) {
                       e.preventDefault();
-                      if (newMessage.trim() || pendingAttachment) {
+                      if (newMessage.trim() || pendingAttachments.length > 0) {
                         void handleSend();
                       }
                     }
@@ -534,7 +669,7 @@ export default function MessagesPage() {
                 />
                 <button
                   title="Envoyer le message"
-                  disabled={(!newMessage.trim() && !pendingAttachment) || !selectedConversation?.id || sending || uploadingAttachment}
+                  disabled={(!newMessage.trim() && pendingAttachments.length === 0) || !selectedConversation?.id || sending || uploadingAttachment}
                   onClick={() => void handleSend()}
                   className="w-9 h-9 rounded-full bg-brand-turquoise hover:bg-brand-turquoise-hover disabled:opacity-40 disabled:hover:bg-brand-turquoise flex items-center justify-center text-white transition-colors shrink-0"
                 >
@@ -624,6 +759,39 @@ export default function MessagesPage() {
             </div>
           </DialogContent>
         </Dialog>
+
+        {/* ---------- LIGHTBOX ---------- */}
+        {lightboxImage && (
+          <div
+            className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center p-4 animate-in fade-in duration-150"
+            onClick={() => setLightboxImage(null)}
+          >
+            <button
+              type="button"
+              onClick={() => setLightboxImage(null)}
+              className="absolute top-4 right-4 w-11 h-11 rounded-full bg-brand-turquoise hover:bg-brand-turquoise-hover flex items-center justify-center text-white shadow-lg transition-colors z-10"
+            >
+              <X className="w-6 h-6" />
+            </button>
+            <img
+              src={lightboxImage}
+              alt="Image agrandie"
+              className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            />
+            <a
+              href={lightboxImage}
+              target="_blank"
+              rel="noreferrer"
+              download
+              onClick={(e) => e.stopPropagation()}
+              className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 px-4 py-2 rounded-full bg-brand-purple hover:bg-brand-purple/90 text-white text-sm shadow-lg transition-colors"
+            >
+              <Download className="w-4 h-4" />
+              Télécharger
+            </a>
+          </div>
+        )}
       </div>
     </ClientDashboardLayout>
   );

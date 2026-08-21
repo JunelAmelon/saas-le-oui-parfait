@@ -1,17 +1,29 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { X, Phone } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { usePathname } from 'next/navigation';
 
 const WHATSAPP_NUMBER = '+33687217118';
 
 export function WhatsAppChat() {
   const { user } = useAuth();
   const [open, setOpen] = useState(false);
+  const pathname = usePathname();
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const detect = () => setIsMobile(window.matchMedia('(max-width: 1024px)').matches);
+    detect();
+    const mql = window.matchMedia('(max-width: 1024px)');
+    mql.addEventListener('change', detect);
+    return () => mql.removeEventListener('change', detect);
+  }, []);
 
   if (user?.role === 'planner') return null;
+  if (isMobile && pathname?.includes('/messages')) return null;
 
   return (
     <div className="fixed bottom-5 right-5 z-50 flex flex-col items-end">

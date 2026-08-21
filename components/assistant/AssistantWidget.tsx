@@ -214,6 +214,7 @@ export function AssistantWidget() {
   };
 
   if (!canUseAssistant) return null;
+  if (pathname.includes('/messages')) return null;
 
   return (
     <>
