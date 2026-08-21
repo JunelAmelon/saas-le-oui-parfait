@@ -191,10 +191,17 @@ export default function PaiementsPage() {
   const startIndex = (currentPage - 1) * itemsPerPage;
   const paginatedInvoices = paidInvoices.slice(startIndex, startIndex + itemsPerPage);
 
-  // Calculs budget
-  const totalBudget = invoices.reduce((sum, inv) => sum + (inv.amount_ttc ?? 0), 0);
-  const totalPaid = paidInvoices.reduce((sum, inv) => sum + (inv.amount_ttc ?? 0), 0);
-  const totalUnpaid = unpaidInvoices.reduce((sum, inv) => sum + (inv.amount_ttc ?? 0), 0);
+  // Calculs budget — inclut les factures planner ET les acomptes prestataires
+  const vendorPaidAmount = vendorPayments
+    .filter((p) => p.status === 'paid')
+    .reduce((sum, p) => sum + Number(p.amount || 0), 0);
+  const vendorUnpaidAmount = vendorPayments
+    .filter((p) => p.status !== 'paid')
+    .reduce((sum, p) => sum + Number(p.amount || 0), 0);
+
+  const totalBudget = invoices.reduce((sum, inv) => sum + (inv.amount_ttc ?? 0), 0) + vendorPayments.reduce((sum, p) => sum + Number(p.amount || 0), 0);
+  const totalPaid = paidInvoices.reduce((sum, inv) => sum + (inv.amount_ttc ?? 0), 0) + vendorPaidAmount;
+  const totalUnpaid = unpaidInvoices.reduce((sum, inv) => sum + (inv.amount_ttc ?? 0), 0) + vendorUnpaidAmount;
 
   const progressPercentage = totalBudget > 0 ? (totalPaid / totalBudget) * 100 : 0;
 
@@ -338,7 +345,7 @@ export default function PaiementsPage() {
           <div className="flex divide-x divide-brand-purple/6 bg-white flex-wrap sm:flex-nowrap">
             <MetricCell
               icon={<Euro className="w-4 h-4 text-white" />}
-              label="Facture total"
+              label="Budget total"
               value={formatAmount(totalBudget)}
               accent="bg-brand-purple"
             />
