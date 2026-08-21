@@ -26,9 +26,11 @@ import {
   X,
   ImageIcon,
   Download,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useClientData } from '@/contexts/ClientDataContext';
 import { ClientDashboardLayout } from '@/components/layout/ClientDashboardLayout';
@@ -62,6 +64,11 @@ interface MessageItem {
   read: boolean;
 }
 
+const isImageFile = (file: File) => /^image\//i.test(file.type);
+
+const isImageUrl = (url: string, type?: string) =>
+  /^image\//i.test(type || '') || /\.(jpg|jpeg|png|gif|webp|svg|bmp)$/i.test(url || '');
+
 export default function MessagesPage() {
   const { user } = useAuth();
   const { client, event } = useClientData();
@@ -76,6 +83,47 @@ export default function MessagesPage() {
   const [pendingAttachments, setPendingAttachments] = useState<File[]>([]);
   const [showAttachMenu, setShowAttachMenu] = useState(false);
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
+
+  const allLightboxImages = useMemo(() => {
+    return messages
+      .flatMap((m) => (m.attachments || []))
+      .filter((a) => isImageUrl(a.url, a.type))
+      .map((a) => a.url);
+  }, [messages]);
+
+  const openLightbox = useCallback((url: string) => {
+    const idx = allLightboxImages.indexOf(url);
+    setLightboxIndex(idx >= 0 ? idx : 0);
+    setLightboxImage(url);
+  }, [allLightboxImages]);
+
+  const lightboxPrev = useCallback(() => {
+    setLightboxIndex((prev) => {
+      const next = prev === 0 ? allLightboxImages.length - 1 : prev - 1;
+      setLightboxImage(allLightboxImages[next] || null);
+      return next;
+    });
+  }, [allLightboxImages]);
+
+  const lightboxNext = useCallback(() => {
+    setLightboxIndex((prev) => {
+      const next = prev === allLightboxImages.length - 1 ? 0 : prev + 1;
+      setLightboxImage(allLightboxImages[next] || null);
+      return next;
+    });
+  }, [allLightboxImages]);
+
+  useEffect(() => {
+    if (!lightboxImage) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowLeft') lightboxPrev();
+      if (e.key === 'ArrowRight') lightboxNext();
+      if (e.key === 'Escape') setLightboxImage(null);
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [lightboxImage, lightboxPrev, lightboxNext]);
 
   const [showChatOnMobile, setShowChatOnMobile] = useState(false);
 
@@ -337,10 +385,6 @@ export default function MessagesPage() {
     setPendingAttachments(prev => prev.filter((_, i) => i !== index));
   };
 
-  const isImageFile = (file: File) => /^image\//i.test(file.type);
-
-  const isImageUrl = (url: string, type?: string) =>
-    /^image\//i.test(type || '') || /\.(jpg|jpeg|png|gif|webp|svg|bmp)$/i.test(url || '');
 
   return (
     <ClientDashboardLayout clientName={clientName} daysRemaining={daysRemaining}>
@@ -469,7 +513,7 @@ export default function MessagesPage() {
                                         <button
                                           key={`${message.id}:img:${idx}`}
                                           type="button"
-                                          onClick={() => setLightboxImage(a.url)}
+                                          onClick={() => openLightbox(a.url)}
                                           className={`relative overflow-hidden rounded-lg ${
                                             imgs.length === 1 ? 'max-w-[260px]' : ''
                                           } ${message.isMe ? 'border border-white/20' : 'border border-brand-purple/10'}`}
@@ -773,6 +817,29 @@ export default function MessagesPage() {
             >
               <X className="w-6 h-6" />
             </button>
+
+            {allLightboxImages.length > 1 && (
+              <>
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); lightboxPrev(); }}
+                  className="absolute left-4 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white shadow-lg transition-colors z-10"
+                >
+                  <ChevronLeft className="w-6 h-6" />
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); lightboxNext(); }}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white shadow-lg transition-colors z-10"
+                >
+                  <ChevronRight className="w-6 h-6" />
+                </button>
+                <div className="absolute top-4 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-white/10 text-white text-xs font-medium z-10">
+                  {lightboxIndex + 1} / {allLightboxImages.length}
+                </div>
+              </>
+            )}
+
             <img
               src={lightboxImage}
               alt="Image agrandie"

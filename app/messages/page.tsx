@@ -19,8 +19,13 @@ import {
   Users,
   ArrowLeft,
   Trash2,
+  X,
+  ImageIcon,
+  Download,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { addDocument, getDocument, getDocuments, updateDocument, deleteDocument } from '@/lib/db';
@@ -68,6 +73,11 @@ const typeConfig = {
   team: { label: 'Équipe', color: 'bg-green-500' },
 };
 
+const isImageFile = (file: File) => /^image\//i.test(file.type);
+
+const isImageUrl = (url: string, type?: string) =>
+  /^image\//i.test(type || '') || /\.(jpg|jpeg|png|gif|webp|svg|bmp)$/i.test(url || '');
+
 export default function AdminMessagesPage() {
   const { user } = useAuth();
   const searchParams = useSearchParams();
@@ -80,7 +90,50 @@ export default function AdminMessagesPage() {
   const [filter, setFilter] = useState<'all' | 'client' | 'vendor' | 'team'>('all');
   const [loadingConvs, setLoadingConvs] = useState(true);
   const [sending, setSending] = useState(false);
-  const [pendingAttachment, setPendingAttachment] = useState<File | null>(null);
+  const [pendingAttachments, setPendingAttachments] = useState<File[]>([]);
+  const [showAttachMenu, setShowAttachMenu] = useState(false);
+  const [lightboxImage, setLightboxImage] = useState<string | null>(null);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
+
+  const allLightboxImages = useMemo(() => {
+    return messages
+      .flatMap((m) => (m.attachments || []))
+      .filter((a) => isImageUrl(a.url, a.type))
+      .map((a) => a.url);
+  }, [messages]);
+
+  const openLightbox = useCallback((url: string) => {
+    const idx = allLightboxImages.indexOf(url);
+    setLightboxIndex(idx >= 0 ? idx : 0);
+    setLightboxImage(url);
+  }, [allLightboxImages]);
+
+  const lightboxPrev = useCallback(() => {
+    setLightboxIndex((prev) => {
+      const next = prev === 0 ? allLightboxImages.length - 1 : prev - 1;
+      setLightboxImage(allLightboxImages[next] || null);
+      return next;
+    });
+  }, [allLightboxImages]);
+
+  const lightboxNext = useCallback(() => {
+    setLightboxIndex((prev) => {
+      const next = prev === allLightboxImages.length - 1 ? 0 : prev + 1;
+      setLightboxImage(allLightboxImages[next] || null);
+      return next;
+    });
+  }, [allLightboxImages]);
+
+  useEffect(() => {
+    if (!lightboxImage) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowLeft') lightboxPrev();
+      if (e.key === 'ArrowRight') lightboxNext();
+      if (e.key === 'Escape') setLightboxImage(null);
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [lightboxImage, lightboxPrev, lightboxNext]);
 
   const [showChatOnMobile, setShowChatOnMobile] = useState(false);
 
@@ -89,7 +142,8 @@ export default function AdminMessagesPage() {
 
   const [profilePhotoUrl, setProfilePhotoUrl] = useState<string | null>(null);
   const [uploadingAttachment, setUploadingAttachment] = useState(false);
-  const fileInputId = 'admin-chat-attachment-input';
+  const imageInputId = 'admin-chat-image-input';
+  const documentInputId = 'admin-chat-document-input';
 
   const [isMobile, setIsMobile] = useState(false);
 
@@ -361,7 +415,7 @@ export default function AdminMessagesPage() {
 
   const handleSend = async () => {
     if (!user?.uid || !selectedConversation?.id) return;
-    if (!newMessage.trim() && !pendingAttachment) return;
+    if (!newMessage.trim() && pendingAttachments.length === 0) return;
     setSending(true);
     try {
       const content = newMessage.trim();
@@ -370,11 +424,19 @@ export default function AdminMessagesPage() {
       let attachments: { url: string; name: string; type: string }[] | undefined;
       let attachmentPreview: string | null = null;
 
-      if (pendingAttachment) {
-        const url = await uploadFile(pendingAttachment, 'chat');
-        attachments = [{ url, name: pendingAttachment.name, type: pendingAttachment.type }];
-        attachmentPreview = `📎 ${pendingAttachment.name}`;
-        setPendingAttachment(null);
+      if (pendingAttachments.length > 0) {
+        attachments = [];
+        for (const file of pendingAttachments) {
+          const url = await uploadFile(file, 'chat');
+          attachments.push({ url, name: file.name, type: file.type });
+        }
+        const imageCount = pendingAttachments.filter(f => /^image\//i.test(f.type)).length;
+        const docCount = pendingAttachments.length - imageCount;
+        const parts: string[] = [];
+        if (imageCount > 0) parts.push(`${imageCount} image${imageCount > 1 ? 's' : ''}`);
+        if (docCount > 0) parts.push(`${docCount} document${docCount > 1 ? 's' : ''}`);
+        attachmentPreview = `📎 ${parts.join(' + ')}`;
+        setPendingAttachments([]);
       }
 
       await addDocument('messages', {
@@ -421,11 +483,16 @@ export default function AdminMessagesPage() {
           const clientUserId = clientRaw?.client_user_id || null;
           const clientName = `${clientRaw?.name || ''}${clientRaw?.partner ? ' & ' + clientRaw.partner : ''}`.trim() || 'Client';
           if (clientUserId) {
+            const notifBody = attachmentPreview
+              ? content
+                ? `Votre wedding planner vous a envoyé un message avec ${attachmentPreview.replace('📎 ', '')}`
+                : `Votre wedding planner vous a envoyé ${attachmentPreview.replace('📎 ', '')}`
+              : `Votre wedding planner vous a envoyé un message${content ? ` : ${content.slice(0, 120)}` : ''}`;
             await addDocument('notifications', {
               recipient_id: clientUserId,
               type: 'message',
               title: 'Nouveau message',
-              message: `Votre wedding planner vous a envoyé un message${content ? ` : ${content.slice(0, 120)}` : ''}`,
+              message: notifBody,
               link: '/espace-client/messages',
               read: false,
               created_at: new Date(),
@@ -440,7 +507,7 @@ export default function AdminMessagesPage() {
               await sendPushToRecipient({
                 recipientId: clientUserId,
                 title: 'Nouveau message',
-                body: `Votre wedding planner vous a envoyé un message${content ? ` : ${content.slice(0, 120)}` : ''}`,
+                body: notifBody,
                 link: '/espace-client/messages',
               });
             } catch (e) {
@@ -452,7 +519,9 @@ export default function AdminMessagesPage() {
               await sendEmailToUid({
                 recipientUid: clientUserId,
                 subject: 'Nouveau message - Le Oui Parfait',
-                text: `Vous avez reçu un nouveau message.\n\n${content}\n\nConnectez-vous à votre espace client pour répondre.`,
+                text: attachmentPreview
+                  ? `Vous avez reçu un nouveau message avec ${attachmentPreview.replace('📎 ', '')}.\n\n${content ? 'Message :\n' + content + '\n\n' : ''}Connectez-vous à votre espace client pour consulter.`
+                  : `Vous avez reçu un nouveau message.\n\n${content}\n\nConnectez-vous à votre espace client pour répondre.`,
               });
             } catch (e) {
               console.warn('Unable to send email:', e);
@@ -502,12 +571,13 @@ export default function AdminMessagesPage() {
     }
   };
 
-  const handleAttachmentSelected = (file: File) => {
-    setPendingAttachment(file);
+  const handleAttachmentsSelected = (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    setPendingAttachments(prev => [...prev, ...Array.from(files)]);
   };
 
-  const removePendingAttachment = () => {
-    setPendingAttachment(null);
+  const removePendingAttachment = (index: number) => {
+    setPendingAttachments(prev => prev.filter((_, i) => i !== index));
   };
 
   const handleSendAttachment = async (file: File) => {
@@ -823,34 +893,74 @@ export default function AdminMessagesPage() {
                         </p>
                       ) : null}
                       {message.attachments && message.attachments.length > 0 ? (
-                        <div className="space-y-2 mt-1">
-                          {message.attachments.map((a, idx) => {
-                            const isImage = /^image\//i.test(a.type || '') || /\.(jpg|jpeg|png|gif|webp|svg|bmp)$/i.test(a.url || '');
-                            return (
-                              <a
-                                key={`${message.id}:att:${idx}`}
-                                href={a.url}
-                                target="_blank"
-                                rel="noreferrer"
-                                className={`block ${message.isMe ? 'text-white' : 'text-brand-purple'}`}
-                              >
-                                {isImage ? (
-                                  <img
-                                    src={a.url}
-                                    alt={a.name || 'Image'}
-                                    className="max-w-full max-h-48 rounded-lg object-cover border border-white/20"
-                                    loading="lazy"
-                                  />
-                                ) : (
-                                  <div className={`flex items-center gap-2 px-3 py-2 rounded-lg ${message.isMe ? 'bg-white/15' : 'bg-brand-purple/5'}`}>
-                                    <FileText className="w-4 h-4 shrink-0" />
-                                    <span className="text-sm truncate underline">{a.name || 'Document'}</span>
-                                  </div>
-                                )}
-                              </a>
-                            );
-                          })}
-                        </div>
+                        (() => {
+                          const imgs = message.attachments.filter((a) => isImageUrl(a.url, a.type));
+                          const docs = message.attachments.filter((a) => !isImageUrl(a.url, a.type));
+                          return (
+                            <div className="space-y-2 mt-1">
+                              {imgs.length > 0 && (
+                                <div
+                                  className={`grid gap-1 ${
+                                    imgs.length === 1
+                                      ? 'grid-cols-1'
+                                      : 'grid-cols-2'
+                                  }`}
+                                >
+                                  {imgs.map((a, idx) => (
+                                    <button
+                                      key={`${message.id}:img:${idx}`}
+                                      type="button"
+                                      onClick={() => openLightbox(a.url)}
+                                      className={`relative overflow-hidden rounded-lg ${
+                                        imgs.length === 1 ? 'max-w-[260px]' : ''
+                                      } ${message.isMe ? 'border border-white/20' : 'border border-gray-200'}`}
+                                    >
+                                      <img
+                                        src={a.url}
+                                        alt={a.name || 'Image'}
+                                        className={`w-full h-full object-cover ${
+                                          imgs.length === 1 ? 'max-h-48' : 'h-32'
+                                        }`}
+                                        loading="lazy"
+                                      />
+                                      {imgs.length > 4 && idx === 3 && (
+                                        <div className="absolute inset-0 bg-black/50 flex items-center justify-center text-white font-semibold text-sm">
+                                          +{imgs.length - 4}
+                                        </div>
+                                      )}
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                              {docs.length > 0 && (
+                                <div className="space-y-1.5">
+                                  {docs.map((a, idx) => (
+                                    <a
+                                      key={`${message.id}:doc:${idx}`}
+                                      href={a.url}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      download={a.name}
+                                      className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl transition-colors ${
+                                        message.isMe
+                                          ? 'bg-white/15 hover:bg-white/25 text-white'
+                                          : 'bg-brand-purple/5 hover:bg-brand-purple/10 text-brand-purple'
+                                      }`}
+                                    >
+                                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                                        message.isMe ? 'bg-white/20' : 'bg-brand-purple/10'
+                                      }`}>
+                                        <FileText className="w-4 h-4 shrink-0" />
+                                      </div>
+                                      <span className="text-sm truncate flex-1">{a.name || 'Document'}</span>
+                                      <Download className="w-3.5 h-3.5 shrink-0 opacity-60" />
+                                    </a>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()
                       ) : null}
 
                       <div
@@ -875,41 +985,107 @@ export default function AdminMessagesPage() {
               ))}
             </div>
 
-            <div className="p-4 border-t border-gray-100">
-              {pendingAttachment && (
-                <div className="flex items-center gap-2 mb-2 px-1">
-                  <span className="inline-flex items-center gap-1.5 text-xs bg-brand-purple/10 text-brand-purple px-2 py-1 rounded-full">
-                    <Paperclip className="h-3 w-3" />
-                    {pendingAttachment.name}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={removePendingAttachment}
-                    className="text-xs text-red-600 hover:text-red-700"
-                  >
-                    Retirer
-                  </button>
+            <div className="p-4 border-t border-gray-100 relative">
+              <input
+                id={imageInputId}
+                type="file"
+                accept="image/*"
+                multiple
+                aria-label="Joindre des images"
+                className="hidden"
+                onChange={(e) => {
+                  handleAttachmentsSelected(e.target.files);
+                  e.target.value = '';
+                }}
+              />
+              <input
+                id={documentInputId}
+                type="file"
+                multiple
+                aria-label="Joindre des documents"
+                className="hidden"
+                onChange={(e) => {
+                  handleAttachmentsSelected(e.target.files);
+                  e.target.value = '';
+                }}
+              />
+
+              {pendingAttachments.length > 0 && (
+                <div className="mb-3 p-3 rounded-2xl bg-brand-purple/5 border border-brand-purple/8">
+                  <div className="flex flex-wrap gap-2">
+                    {pendingAttachments.map((file, idx) => (
+                      <div
+                        key={idx}
+                        className="relative group flex items-center gap-2 bg-white rounded-xl px-3 py-2 border border-brand-purple/8 shadow-sm"
+                      >
+                        {isImageFile(file) ? (
+                          <ImageIcon className="h-4 w-4 text-brand-turquoise shrink-0" />
+                        ) : (
+                          <FileText className="h-4 w-4 text-brand-purple shrink-0" />
+                        )}
+                        <span className="text-xs text-brand-purple max-w-[120px] truncate">{file.name}</span>
+                        <button
+                          type="button"
+                          onClick={() => removePendingAttachment(idx)}
+                          className="w-5 h-5 rounded-full bg-red-50 hover:bg-red-100 flex items-center justify-center text-red-500 transition-colors shrink-0"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
+
+              {showAttachMenu && (
+                <>
+                  <div
+                    className="fixed inset-0 z-40"
+                    onClick={() => setShowAttachMenu(false)}
+                  />
+                  <div className="absolute bottom-16 left-4 z-50 bg-white rounded-2xl shadow-[0_8px_30px_-6px_rgba(75,68,86,0.25)] border border-brand-purple/8 p-2 min-w-[180px] animate-in fade-in slide-in-from-bottom-2 duration-150">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowAttachMenu(false);
+                        document.getElementById(imageInputId)?.click();
+                      }}
+                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-brand-purple/5 transition-colors text-left"
+                    >
+                      <div className="w-9 h-9 rounded-full bg-brand-turquoise/10 flex items-center justify-center shrink-0">
+                        <ImageIcon className="h-4 w-4 text-brand-turquoise" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-brand-purple">Images</p>
+                        <p className="text-[11px] text-brand-gray">Photos, images multiples</p>
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowAttachMenu(false);
+                        document.getElementById(documentInputId)?.click();
+                      }}
+                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-brand-purple/5 transition-colors text-left"
+                    >
+                      <div className="w-9 h-9 rounded-full bg-brand-purple/10 flex items-center justify-center shrink-0">
+                        <FileText className="h-4 w-4 text-brand-purple" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-brand-purple">Documents</p>
+                        <p className="text-[11px] text-brand-gray">PDF, Word, Excel...</p>
+                      </div>
+                    </button>
+                  </div>
+                </>
+              )}
+
               <div className="flex items-center gap-2">
-                <input
-                  id={fileInputId}
-                  type="file"
-                  title="Joindre un fichier"
-                  aria-label="Joindre un fichier"
-                  className="hidden"
-                  onChange={(e) => {
-                    const f = e.target.files?.[0] || null;
-                    e.target.value = '';
-                    if (f) handleAttachmentSelected(f);
-                  }}
-                />
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="hidden sm:flex"
-                  disabled={!selectedConversation?.id || sending || uploadingAttachment || !!pendingAttachment}
-                  onClick={() => document.getElementById(fileInputId)?.click()}
+                  disabled={!selectedConversation?.id || sending || uploadingAttachment}
+                  onClick={() => setShowAttachMenu(v => !v)}
                 >
                   <Paperclip className="h-4 w-4 text-brand-gray" />
                 </Button>
@@ -922,7 +1098,7 @@ export default function AdminMessagesPage() {
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && !e.shiftKey && !isMobile) {
                       e.preventDefault();
-                      if (newMessage.trim() || pendingAttachment) {
+                      if (newMessage.trim() || pendingAttachments.length > 0) {
                         void handleSend();
                       }
                     }
@@ -935,7 +1111,7 @@ export default function AdminMessagesPage() {
                 />
                 <Button
                   className="bg-brand-turquoise hover:bg-brand-turquoise-hover"
-                  disabled={(!newMessage.trim() && !pendingAttachment) || !selectedConversation?.id || sending || uploadingAttachment}
+                  disabled={(!newMessage.trim() && pendingAttachments.length === 0) || !selectedConversation?.id || sending || uploadingAttachment}
                   onClick={() => void handleSend()}
                 >
                   {sending ? (
@@ -952,6 +1128,61 @@ export default function AdminMessagesPage() {
             </div>
           </Card>
         </div>
+
+        {lightboxImage && (
+          <div
+            className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center p-4 animate-in fade-in duration-150"
+            onClick={() => setLightboxImage(null)}
+          >
+            <button
+              type="button"
+              onClick={() => setLightboxImage(null)}
+              className="absolute top-4 right-4 w-11 h-11 rounded-full bg-brand-turquoise hover:bg-brand-turquoise-hover flex items-center justify-center text-white shadow-lg transition-colors z-10"
+            >
+              <X className="w-6 h-6" />
+            </button>
+
+            {allLightboxImages.length > 1 && (
+              <>
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); lightboxPrev(); }}
+                  className="absolute left-4 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white shadow-lg transition-colors z-10"
+                >
+                  <ChevronLeft className="w-6 h-6" />
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); lightboxNext(); }}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white shadow-lg transition-colors z-10"
+                >
+                  <ChevronRight className="w-6 h-6" />
+                </button>
+                <div className="absolute top-4 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-white/10 text-white text-xs font-medium z-10">
+                  {lightboxIndex + 1} / {allLightboxImages.length}
+                </div>
+              </>
+            )}
+
+            <img
+              src={lightboxImage}
+              alt="Image agrandie"
+              className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            />
+            <a
+              href={lightboxImage}
+              target="_blank"
+              rel="noreferrer"
+              download
+              onClick={(e) => e.stopPropagation()}
+              className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 px-4 py-2 rounded-full bg-brand-purple hover:bg-brand-purple/90 text-white text-sm shadow-lg transition-colors"
+            >
+              <Download className="w-4 h-4" />
+              Télécharger
+            </a>
+          </div>
+        )}
       </div>
     </DashboardLayout>
   );
