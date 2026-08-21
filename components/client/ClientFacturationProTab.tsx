@@ -31,7 +31,7 @@ import {
 import { useAuth } from '@/contexts/AuthContext';
 import { addDocument, getDocuments, updateDocument, deleteDocument } from '@/lib/db';
 import { uploadFile } from '@/lib/storage';
-import { Plus, Eye, Trash2, Loader2, FileText, MoreVertical, Pencil } from 'lucide-react';
+import { Plus, Eye, Trash2, Loader2, FileText, MoreVertical, Pencil, CheckCircle2, XCircle, Clock, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 
 type ProDocType = 'devis' | 'facture';
@@ -50,6 +50,10 @@ interface ProDocument {
   amount: number;
   date: string;
   status: ProDocStatus;
+  uploaded_by?: 'planner' | 'vendor';
+  vendor_status?: 'submitted' | 'validated' | 'rejected';
+  rejection_reason?: string;
+  vendor_uid?: string;
   devis_file_url?: string;
   facture_file_url?: string;
   file_url?: string;
@@ -211,6 +215,38 @@ export function ClientFacturationProTab({ clientId }: ClientFacturationProTabPro
     }
   };
 
+  const handleValidateVendorDoc = async (docId: string) => {
+    setDocs((prev) => prev.map((d) => (d.id === docId ? { ...d, vendor_status: 'validated' } : d)));
+    try {
+      await updateDocument('pro_documents', docId, {
+        vendor_status: 'validated',
+        rejection_reason: '',
+        updated_at: new Date().toISOString(),
+      });
+      toast.success('Document validé');
+    } catch (e) {
+      console.error('Error validating vendor doc:', e);
+      toast.error('Erreur lors de la validation');
+    }
+  };
+
+  const handleRejectVendorDoc = async (docId: string) => {
+    const reason = prompt('Motif du rejet ?');
+    if (reason === null) return; // cancelled
+    setDocs((prev) => prev.map((d) => (d.id === docId ? { ...d, vendor_status: 'rejected', rejection_reason: reason } : d)));
+    try {
+      await updateDocument('pro_documents', docId, {
+        vendor_status: 'rejected',
+        rejection_reason: reason,
+        updated_at: new Date().toISOString(),
+      });
+      toast.success('Document rejeté');
+    } catch (e) {
+      console.error('Error rejecting vendor doc:', e);
+      toast.error('Erreur lors du rejet');
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user?.uid) return;
@@ -335,53 +371,107 @@ export function ClientFacturationProTab({ clientId }: ClientFacturationProTabPro
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Badge variant={d.type === 'devis' ? 'outline' : 'default'}>{d.type === 'devis' ? 'Devis' : 'Facture'}</Badge>
+                      <div className="flex items-center gap-2">
+                        <Badge variant={d.type === 'devis' ? 'outline' : 'default'}>{d.type === 'devis' ? 'Devis' : 'Facture'}</Badge>
+                        {d.uploaded_by === 'vendor' && (
+                          <Badge className="bg-[#88b7b5]/15 text-[#88b7b5] hover:bg-[#88b7b5]/15 border-0 gap-1">
+                            <Upload className="h-3 w-3" />
+                            Pro
+                          </Badge>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell>{d.reference || '—'}</TableCell>
                     <TableCell>{d.amount.toLocaleString('fr-FR')} €</TableCell>
                     <TableCell>{d.date ? d.date.split('-').reverse().join('/') : '—'}</TableCell>
                     <TableCell>
-                      <Select value={docStatus} onValueChange={(v) => handleStatusChange(d.id, v as ProDocStatus)}>
-                        <SelectTrigger className="w-32 h-8 border-0 bg-transparent p-0">
-                          <Badge className={statusColors[docStatus as ProDocStatus]}>{statusLabels[docStatus as ProDocStatus]}</Badge>
-                        </SelectTrigger>
-                        <SelectContent>
-                          {(['recu', 'en_attente', 'paye'] as ProDocStatus[]).map((s) => (
-                            <SelectItem key={s} value={s}>{statusLabels[s]}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <div className="flex flex-col gap-1.5">
+                        <Select value={docStatus} onValueChange={(v) => handleStatusChange(d.id, v as ProDocStatus)}>
+                          <SelectTrigger className="w-32 h-8 border-0 bg-transparent p-0">
+                            <Badge className={statusColors[docStatus as ProDocStatus]}>{statusLabels[docStatus as ProDocStatus]}</Badge>
+                          </SelectTrigger>
+                          <SelectContent>
+                            {(['recu', 'en_attente', 'paye'] as ProDocStatus[]).map((s) => (
+                              <SelectItem key={s} value={s}>{statusLabels[s]}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {d.uploaded_by === 'vendor' && (
+                          <div className="flex items-center gap-1.5">
+                            {d.vendor_status === 'validated' ? (
+                              <Badge className="bg-green-100 text-green-700 hover:bg-green-100 border-0 gap-1">
+                                <CheckCircle2 className="h-3 w-3" />
+                                Validé
+                              </Badge>
+                            ) : d.vendor_status === 'rejected' ? (
+                              <Badge className="bg-red-100 text-red-700 hover:bg-red-100 border-0 gap-1">
+                                <XCircle className="h-3 w-3" />
+                                Rejeté
+                              </Badge>
+                            ) : (
+                              <Badge className="bg-orange-100 text-orange-700 hover:bg-orange-100 border-0 gap-1">
+                                <Clock className="h-3 w-3" />
+                                Soumis
+                              </Badge>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell className="text-right">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-8 w-8">
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          {files.devis && (
-                            <DropdownMenuItem onClick={() => window.open(files.devis, '_blank')}>
-                              <Eye className="h-4 w-4 mr-2" />
-                              Voir le devis
+                      <div className="flex items-center justify-end gap-1">
+                        {d.uploaded_by === 'vendor' && d.vendor_status !== 'validated' && (
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-green-600 hover:bg-green-50"
+                              title="Valider"
+                              onClick={() => handleValidateVendorDoc(d.id)}
+                            >
+                              <CheckCircle2 className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-red-600 hover:bg-red-50"
+                              title="Rejeter"
+                              onClick={() => handleRejectVendorDoc(d.id)}
+                            >
+                              <XCircle className="h-4 w-4" />
+                            </Button>
+                          </>
+                        )}
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            {files.devis && (
+                              <DropdownMenuItem onClick={() => window.open(files.devis, '_blank')}>
+                                <Eye className="h-4 w-4 mr-2" />
+                                Voir le devis
+                              </DropdownMenuItem>
+                            )}
+                            {files.facture && (
+                              <DropdownMenuItem onClick={() => window.open(files.facture, '_blank')}>
+                                <Eye className="h-4 w-4 mr-2" />
+                                Voir la facture
+                              </DropdownMenuItem>
+                            )}
+                            <DropdownMenuItem onClick={() => handleEdit(d)}>
+                              <Pencil className="h-4 w-4 mr-2" />
+                              Modifier
                             </DropdownMenuItem>
-                          )}
-                          {files.facture && (
-                            <DropdownMenuItem onClick={() => window.open(files.facture, '_blank')}>
-                              <Eye className="h-4 w-4 mr-2" />
-                              Voir la facture
+                            <DropdownMenuItem onClick={() => handleDelete(d.id)} className="text-red-600">
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Supprimer
                             </DropdownMenuItem>
-                          )}
-                          <DropdownMenuItem onClick={() => handleEdit(d)}>
-                            <Pencil className="h-4 w-4 mr-2" />
-                            Modifier
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleDelete(d.id)} className="text-red-600">
-                            <Trash2 className="h-4 w-4 mr-2" />
-                            Supprimer
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
                     </TableCell>
                   </TableRow>
                 );

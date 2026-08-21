@@ -53,9 +53,10 @@ export function resolveBaseUrl(req: Request) {
  * Firebase (verifyPasswordResetCode / confirmPasswordReset), donc la page
  * Firebase générique n'intervient jamais.
  */
-export async function sendPasswordResetEmail(params: { email: string; baseUrl: string }) {
+export async function sendPasswordResetEmail(params: { email: string; baseUrl: string; role?: 'client' | 'vendor' }) {
   const email = params.email.trim().toLowerCase();
   const baseUrl = params.baseUrl;
+  const role = params.role || 'client';
 
   const firebaseLink = await adminAuth.generatePasswordResetLink(email);
   const oobCode = new URL(firebaseLink).searchParams.get('oobCode');
@@ -68,14 +69,16 @@ export async function sendPasswordResetEmail(params: { email: string; baseUrl: s
   const from = process.env.SMTP_FROM || process.env.SMTP_USER;
   if (!from) throw new Error('Missing SMTP_FROM');
 
-  const subject = 'Accès à votre espace client - leouiparfait';
-  const text = `Bonjour,\n\nVotre accès à l'espace client est prêt.\n\nPour définir votre mot de passe, cliquez sur ce lien :\n${resetLink}\n\nSi vous n'êtes pas à l'origine de cette demande, ignorez cet email.\n`;
+  const isVendor = role === 'vendor';
+  const spaceLabel = isVendor ? 'espace pro' : 'espace client';
+  const subject = `Accès à votre ${spaceLabel} - leouiparfait`;
+  const text = `Bonjour,\n\nVotre accès à l'${spaceLabel} est prêt.\n\nPour définir votre mot de passe, cliquez sur ce lien :\n${resetLink}\n\nSi vous n'êtes pas à l'origine de cette demande, ignorez cet email.\n`;
 
   const html = buildBrandedEmail({
     appName: 'leouiparfait',
     baseUrl,
-    title: 'Accès à votre espace client',
-    text: `Bonjour,\n\nVotre accès à l'espace client est prêt.\n\nCliquez sur le bouton ci-dessous pour définir votre mot de passe.`,
+    title: `Accès à votre ${spaceLabel}`,
+    text: `Bonjour,\n\nVotre accès à l'${spaceLabel} est prêt.\n\nCliquez sur le bouton ci-dessous pour définir votre mot de passe.`,
     cta: { label: 'Définir mon mot de passe', url: resetLink },
   }).html;
 

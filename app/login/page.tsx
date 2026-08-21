@@ -33,7 +33,6 @@ export default function LoginPage() {
 
     try {
       await signIn(email, password);
-      router.push('/');
       toast({
         title: 'Connexion réussie',
         description: 'Bienvenue sur Le Oui Parfait',

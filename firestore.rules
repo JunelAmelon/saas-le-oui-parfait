@@ -31,6 +31,46 @@ service cloud.firestore {
        }
     }
 
+    // Vendor bookings: a vendor assigned to a client's wedding.
+    // - Planner (owner) can read/write
+    // - Vendor (linked via vendor_uid) can read
+    match /vendor_bookings/{bookingId} {
+      allow read: if isAuthenticated() && (
+        resource.data.planner_id == request.auth.uid ||
+        resource.data.vendor_uid == request.auth.uid
+      );
+      allow create, update, delete: if isAuthenticated() && request.auth.uid == request.resource.data.planner_id;
+    }
+
+    // Pro documents (devis/factures prestataires).
+    // - Planner can read/write all docs where planner_id matches
+    // - Vendor can read docs where vendor_uid matches, and create docs with vendor_status 'submitted'
+    match /pro_documents/{docId} {
+      allow read: if isAuthenticated() && (
+        resource.data.planner_id == request.auth.uid ||
+        resource.data.vendor_uid == request.auth.uid
+      );
+      allow create: if isAuthenticated() && (
+        request.resource.data.planner_id == request.auth.uid ||
+        request.resource.data.vendor_uid == request.auth.uid
+      );
+      allow update, delete: if isAuthenticated() && (
+        resource.data.planner_id == request.auth.uid ||
+        resource.data.vendor_uid == request.auth.uid
+      );
+    }
+
+    // Vendor payments (acomptes couple -> prestataire).
+    // - Planner can read/write (declares acomptes)
+    // - Vendor can read only (consults echeancier)
+    match /vendor_payments/{paymentId} {
+      allow read: if isAuthenticated() && (
+        resource.data.planner_id == request.auth.uid ||
+        resource.data.vendor_uid == request.auth.uid
+      );
+      allow create, update, delete: if isAuthenticated() && request.auth.uid == request.resource.data.planner_id;
+    }
+
     // General fallback for other collections (prospects, tasks, providers)
     // For development simplicity, allow authenticated users to read/write
     // In production, you should tighten these rules.

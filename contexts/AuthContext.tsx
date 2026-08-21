@@ -14,8 +14,10 @@ import { getDocument } from '@/lib/db';
 interface UserProfile {
   uid: string;
   email: string;
-  role: 'planner' | 'client';
+  role: 'planner' | 'client' | 'vendor';
   full_name?: string;
+  vendor_id?: string;
+  planner_id?: string;
 }
 
 interface AuthContextType {
@@ -45,6 +47,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               email: firebaseUser.email!,
               role: profile.role,
               full_name: profile.full_name,
+              vendor_id: profile.vendor_id,
+              planner_id: profile.planner_id,
             });
           } else {
             // Fallback or handle missing profile
@@ -75,6 +79,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (profile) {
         if (profile.role === 'client') {
           router.push('/espace-client');
+        } else if (profile.role === 'vendor') {
+          router.push('/espace-pro');
         } else {
           router.push('/');
         }

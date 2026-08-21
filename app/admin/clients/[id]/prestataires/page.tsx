@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { ArrowLeft, Loader2, Users } from 'lucide-react';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { useAuth } from '@/contexts/AuthContext';
-import { addDocument, deleteDocument, getDocuments } from '@/lib/db';
+import { addDocument, deleteDocument, getDocuments, getDocument, updateDocument } from '@/lib/db';
 import { toast } from 'sonner';
 
 interface Vendor {
@@ -23,6 +23,8 @@ interface Vendor {
   phone?: string;
   city?: string;
   logoUrl?: string | null;
+  pro_account_uid?: string;
+  pro_account_status?: 'none' | 'invited' | 'active';
 }
 
 interface ClientVendorLink {
@@ -67,6 +69,8 @@ export default function ClientPrestatairesAdminPage() {
         phone: d.phone,
         city: d.city,
         logoUrl: d.logo || d.logo_url || d.logoUrl || d.logoURL || null,
+        pro_account_uid: d.pro_account_uid || undefined,
+        pro_account_status: d.pro_account_status || 'none',
       })) as Vendor[];
 
       const mappedLinks = (links as any[]).map((d: any) => ({
@@ -121,11 +125,88 @@ export default function ClientPrestatairesAdminPage() {
         vendor_category: vendor.category,
         created_at: new Date(),
       });
+
+      // Also create a vendor_booking for the pro space
+      await syncVendorBooking(vendor, clientId, user.uid);
+
       toast.success('Prestataire assigné au client');
       await fetchAll();
     } catch (e) {
       console.error('Error assigning vendor:', e);
       toast.error("Impossible d'assigner le prestataire");
+    }
+  };
+
+  // Create or update a vendor_booking with denormalized client/event data
+  const syncVendorBooking = async (vendor: Vendor, clId: string, plannerId: string) => {
+    try {
+      // Fetch client data for couple names
+      const clientDoc = (await getDocument('clients', clId)) as any;
+      const clientNames = clientDoc
+        ? `${clientDoc.name || ''}${clientDoc.name && clientDoc.partner ? ' & ' : ''}${clientDoc.partner || ''}`.trim() || 'Client'
+        : 'Client';
+
+      // Fetch event data for wedding date
+      const events = await getDocuments('events', [
+        { field: 'client_id', operator: '==', value: clId },
+      ]);
+      const event = (events as any[])[0] || null;
+      const weddingDate = event?.event_date || clientDoc?.event_date || '';
+      const eventId = event?.id || '';
+
+      // Fetch planner name
+      const plannerDoc = (await getDocument('profiles', plannerId)) as any;
+      const plannerName = plannerDoc?.full_name || plannerDoc?.email || '';
+
+      // Check if a booking already exists for this vendor + client
+      // Use single-field query to avoid composite index requirement
+      const allVendorBookings = await getDocuments('vendor_bookings', [
+        { field: 'vendor_id', operator: '==', value: vendor.id },
+      ]);
+      const existing = (allVendorBookings as any[]).filter((b) => b.client_id === clId);
+
+      const bookingData = {
+        vendor_id: vendor.id,
+        vendor_uid: vendor.pro_account_uid || null,
+        planner_id: plannerId,
+        client_id: clId,
+        event_id: eventId,
+        client_names: clientNames,
+        wedding_date: weddingDate,
+        planner_name: plannerName,
+        status: 'confirmed',
+        updated_at: new Date().toISOString(),
+      };
+
+      if ((existing as any[]).length > 0) {
+        const existingId = (existing as any[])[0].id;
+        await updateDocument('vendor_bookings', existingId, bookingData);
+      } else {
+        const created = await addDocument('vendor_bookings', {
+          ...bookingData,
+          created_at: new Date().toISOString(),
+        });
+
+        // Notify the vendor if they have a pro account
+        if (vendor.pro_account_uid) {
+          try {
+            await addDocument('notifications', {
+              recipient_id: vendor.pro_account_uid,
+              type: 'booking',
+              title: 'Nouveau mariage assigné',
+              message: `Vous avez été booked pour le mariage de ${clientNames}${weddingDate ? ` le ${weddingDate.split('-').reverse().join('/')}` : ''}.`,
+              link: '/espace-pro/mariages',
+              read: false,
+              created_at: new Date(),
+            });
+          } catch {
+            // non-blocking
+          }
+        }
+      }
+    } catch (e: any) {
+      console.error('Error syncing vendor booking:', e);
+      toast.error(`Erreur sync booking pro: ${e?.message || 'Erreur inconnue'}. Le prestataire est assigné mais son espace pro n'est pas mis à jour.`);
     }
   };
 
@@ -137,6 +218,19 @@ export default function ClientPrestatairesAdminPage() {
 
     try {
       await deleteDocument('client_vendors', link.id);
+
+      // Cancel the vendor_booking
+      const bookings = await getDocuments('vendor_bookings', [
+        { field: 'vendor_id', operator: '==', value: vendorId },
+        { field: 'client_id', operator: '==', value: clientId },
+      ]);
+      for (const bk of bookings as any[]) {
+        await updateDocument('vendor_bookings', bk.id, {
+          status: 'cancelled',
+          updated_at: new Date().toISOString(),
+        });
+      }
+
       toast.success('Prestataire retiré');
       await fetchAll();
     } catch (e) {

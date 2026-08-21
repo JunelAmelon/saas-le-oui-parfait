@@ -16,7 +16,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { Search, Plus, Heart, MapPin, Calendar, Euro, Phone, Mail, FileText, Image as ImageIcon, X, Users, CheckCircle, Clock, Edit, MessageSquare, Eye, MoreVertical, ChevronLeft, ChevronRight, Trash2, Loader2, LayoutGrid, List, ClipboardList } from 'lucide-react';
+import { Search, Plus, Heart, MapPin, Calendar, Euro, Phone, Mail, FileText, Image as ImageIcon, X, Users, CheckCircle, Clock, Edit, MessageSquare, Eye, MoreVertical, ChevronLeft, ChevronRight, Trash2, Loader2, LayoutGrid, List, ClipboardList, CreditCard } from 'lucide-react';
 
 import {
   DropdownMenu,
@@ -295,6 +295,10 @@ export default function ClientFilesPage() {
 
   const handleGoToFacturationPro = () => {
     goToSection('facturation-pro', `/admin/clients/${selectedClient?.id}/facturation-pro`);
+  };
+
+  const handleGoToAcomptesPro = () => {
+    goToSection('acomptes-pro', `/admin/clients/${selectedClient?.id}/acomptes-pro`);
   };
 
   const [isInviting, setIsInviting] = useState(false);
@@ -1100,6 +1104,14 @@ export default function ClientFilesPage() {
                 >
                   <FileText className="h-4 w-4" />
                   Facturation Pro
+                </Button>
+                <Button
+                  variant="outline"
+                  className={`gap-2 ${activeSection === 'acomptes-pro' ? 'bg-brand-turquoise text-white border-brand-turquoise hover:bg-brand-turquoise-hover' : ''}`}
+                  onClick={handleGoToAcomptesPro}
+                >
+                  <CreditCard className="h-4 w-4" />
+                  Acomptes Pro
                 </Button>
               </div>
 

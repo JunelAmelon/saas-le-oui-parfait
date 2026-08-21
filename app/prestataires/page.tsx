@@ -38,12 +38,17 @@ import {
   Trash2,
   ChevronLeft,
   ChevronRight,
+  UserPlus,
+  CheckCircle2,
+  RefreshCw,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { getDocuments, addDocument, updateDocument, deleteDocument } from '@/lib/db';
 import { toast } from 'sonner';
 import axios from 'axios';
+import { auth } from '@/lib/firebase';
+import { getIdToken } from 'firebase/auth';
 
 interface Vendor {
   id: string;
@@ -59,6 +64,7 @@ interface Vendor {
   desc?: string;
   notes?: string;
   logoUrl?: string | null;
+  pro_account_status?: 'none' | 'invited' | 'active';
 }
 
 
@@ -89,6 +95,8 @@ export default function VendorsPage() {
 
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [invitingVendorId, setInvitingVendorId] = useState<string | null>(null);
+  const [migrating, setMigrating] = useState(false);
   
   // Form state
   const [formData, setFormData] = useState({
@@ -127,6 +135,7 @@ export default function VendorsPage() {
         desc: d.desc || '',
         notes: d.notes || '',
         logoUrl: d.logo || d.logo_url || d.logoUrl || d.logoURL || null,
+        pro_account_status: d.pro_account_status || 'none',
       }));
       setVendors(mapped);
     } catch (e) {
@@ -244,6 +253,76 @@ export default function VendorsPage() {
     }
   };
 
+  const handleInviteVendor = async (vendor: Vendor) => {
+    if (!vendor.email) {
+      toast.error("Ce prestataire n'a pas d'email. Ajoutez-en avant de l'inviter.");
+      return;
+    }
+    if (!confirm(`Inviter "${vendor.name}" sur l'espace pro ? Un email sera envoyé à ${vendor.email}.`)) return;
+
+    setInvitingVendorId(vendor.id);
+    try {
+      const currentUser = auth.currentUser;
+      if (!currentUser) throw new Error('Non authentifié');
+      const token = await getIdToken(currentUser);
+
+      const res = await axios.post(
+        '/api/auth/invite-vendor',
+        {
+          vendorId: vendor.id,
+          email: vendor.email,
+          fullName: vendor.contactName || vendor.name,
+        },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      if (res.data?.ok) {
+        toast.success(`Invitation envoyée à ${vendor.email}`);
+        await fetchVendors();
+        // Refresh selected vendor to reflect updated status
+        if (selectedVendor?.id === vendor.id) {
+          setSelectedVendor({ ...selectedVendor, pro_account_status: 'invited' });
+        }
+      }
+    } catch (e: any) {
+      console.error('Error inviting vendor:', e);
+      const msg = e?.response?.data?.error || e?.message || 'Erreur lors de l\'invitation';
+      toast.error(msg);
+    } finally {
+      setInvitingVendorId(null);
+    }
+  };
+
+  const handleMigrateBookings = async () => {
+    if (!confirm('Synchroniser tous les prestataires assignés vers l\'espace pro ? Cette action crée les bookings manquants. À faire une seule fois après la mise en ligne.')) return;
+
+    setMigrating(true);
+    try {
+      const currentUser = auth.currentUser;
+      if (!currentUser) throw new Error('Non authentifié');
+      const token = await getIdToken(currentUser);
+
+      const res = await axios.post(
+        '/api/migrate-vendor-bookings',
+        {},
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      if (res.data?.ok) {
+        const { created, updated, skipped, total } = res.data;
+        toast.success(
+          `Migration terminée : ${created} créés, ${updated} mis à jour, ${skipped} ignorés sur ${total} liens.`
+        );
+      }
+    } catch (e: any) {
+      console.error('Error migrating vendor bookings:', e);
+      const msg = e?.response?.data?.error || e?.message || 'Erreur lors de la migration';
+      toast.error(msg);
+    } finally {
+      setMigrating(false);
+    }
+  };
+
   const handleViewDetail = (vendor: Vendor) => {
     setSelectedVendor(vendor);
     setIsDetailOpen(true);
@@ -308,14 +387,31 @@ export default function VendorsPage() {
               Gérez votre réseau de prestataires de confiance
             </p>
           </div>
-          <Button 
-            className="bg-brand-turquoise hover:bg-brand-turquoise-hover gap-2 w-full sm:w-auto"
-            onClick={handleNewVendor}
-          >
-            <Plus className="h-4 w-4" />
-            <span className="hidden sm:inline">Nouveau prestataire</span>
-            <span className="sm:hidden">Nouveau</span>
-          </Button>
+          <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
+            <Button
+              variant="outline"
+              className="gap-2 w-full sm:w-auto"
+              onClick={handleMigrateBookings}
+              disabled={migrating}
+              title="Synchronise les prestataires assignés vers l'espace pro (à faire une seule fois)"
+            >
+              {migrating ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4" />
+              )}
+              <span className="hidden sm:inline">Sync espace pro</span>
+              <span className="sm:hidden">Sync</span>
+            </Button>
+            <Button
+              className="bg-brand-turquoise hover:bg-brand-turquoise-hover gap-2 w-full sm:w-auto"
+              onClick={handleNewVendor}
+            >
+              <Plus className="h-4 w-4" />
+              <span className="hidden sm:inline">Nouveau prestataire</span>
+              <span className="sm:hidden">Nouveau</span>
+            </Button>
+          </div>
         </div>
 
         <Card className="p-6 shadow-xl border-0">
@@ -543,15 +639,64 @@ export default function VendorsPage() {
                 </div>
               ) : null}
 
+              {/* Espace pro */}
+              <div className="p-4 bg-[#F0F9F8] rounded-lg border border-[#88b7b5]/30">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-brand-purple flex items-center gap-2">
+                      <UserPlus className="h-4 w-4 text-brand-turquoise" />
+                      Espace pro
+                    </p>
+                    <p className="text-xs text-brand-gray mt-1">
+                      {selectedVendor.pro_account_status === 'active'
+                        ? 'Compte pro actif'
+                        : selectedVendor.pro_account_status === 'invited'
+                        ? 'Invitation envoyée'
+                        : "Ce prestataire n'a pas encore accès à son espace pro"}
+                    </p>
+                  </div>
+                  {selectedVendor.pro_account_status === 'active' ? (
+                    <Badge className="bg-green-100 text-green-700 hover:bg-green-100 border-0 shrink-0">
+                      <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
+                      Actif
+                    </Badge>
+                  ) : (
+                    <Button
+                      size="sm"
+                      className="bg-brand-turquoise hover:bg-brand-turquoise-hover gap-2 shrink-0"
+                      disabled={invitingVendorId === selectedVendor.id}
+                      onClick={() => handleInviteVendor(selectedVendor)}
+                    >
+                      {invitingVendorId === selectedVendor.id ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <UserPlus className="h-4 w-4" />
+                      )}
+                      {selectedVendor.pro_account_status === 'invited' ? 'Renvoyer' : 'Inviter'}
+                    </Button>
+                  )}
+                </div>
+              </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <Button variant="outline" className="gap-2">
                   <MessageSquare className="h-4 w-4" />
                   Contacter
                 </Button>
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   className="gap-2"
-                  onClick={() => window.open(`https://${selectedVendor.website}`, '_blank')}
+                  disabled={!selectedVendor.website}
+                  onClick={() => {
+                    const raw = (selectedVendor.website || '').trim();
+                    if (!raw) return;
+                    const url = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+                    try {
+                      window.open(url, '_blank');
+                    } catch {
+                      // ignore
+                    }
+                  }}
                 >
                   <ExternalLink className="h-4 w-4" />
                   Site web
