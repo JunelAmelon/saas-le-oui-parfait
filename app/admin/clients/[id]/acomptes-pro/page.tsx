@@ -290,6 +290,65 @@ export default function ClientAcomptesProPage() {
         }
       }
 
+      // Notify the couple
+      try {
+        if (!payment) throw new Error('Payment not found');
+        const clientDoc = (await getDocument('clients', payment.client_id)) as any;
+        const clientUserId = clientDoc?.client_user_id || null;
+        const coupleNames = clientDoc
+          ? `${clientDoc.name || ''}${clientDoc.name && clientDoc.partner ? ' & ' : ''}${clientDoc.partner || ''}`.trim()
+          : '';
+
+        // Find vendor name
+        let vendorName = 'le prestataire';
+        try {
+          if (payment.vendor_id) {
+            const vendorDoc = (await getDocument('vendors', payment.vendor_id)) as any;
+            if (vendorDoc?.name) vendorName = vendorDoc.name;
+          }
+        } catch {
+          // non-blocking
+        }
+
+        if (clientUserId) {
+          await addDocument('notifications', {
+            recipient_id: clientUserId,
+            type: 'vendor_payment',
+            title: 'Acompte prestataire confirmé',
+            message: `L'acompte "${payment.label}" de ${Number(payment.amount || 0).toLocaleString('fr-FR')} € pour ${vendorName} a été reçu (${method}).`,
+            link: '/espace-client/paiements',
+            read: false,
+            created_at: new Date(),
+            client_id: payment.client_id,
+          });
+
+          try {
+            const { sendEmailToUid } = await import('@/lib/email');
+            await sendEmailToUid({
+              recipientUid: clientUserId,
+              subject: 'Acompte prestataire confirmé - Le Oui Parfait',
+              text: `Bonjour${coupleNames ? ` ${coupleNames}` : ''},\n\nUn acompte prestataire a été confirmé par votre wedding planner :\n\nPrestataire : ${vendorName}\nLibellé : ${payment.label}\nMontant : ${Number(payment.amount || 0).toLocaleString('fr-FR')} €\nMéthode : ${method}\n\nRetrouvez le détail sur votre espace client, page Paiements.\n\nLe Oui Parfait`,
+            });
+          } catch (e) {
+            console.warn('Unable to send client email:', e);
+          }
+
+          try {
+            const { sendPushToRecipient } = await import('@/lib/push');
+            await sendPushToRecipient({
+              recipientId: clientUserId,
+              title: 'Acompte prestataire confirmé',
+              body: `${payment.label} de ${Number(payment.amount || 0).toLocaleString('fr-FR')} € pour ${vendorName} a été reçu.`,
+              link: '/espace-client/paiements',
+            });
+          } catch (e) {
+            console.warn('Unable to send client push:', e);
+          }
+        }
+      } catch (e) {
+        console.warn('Unable to notify client:', e);
+      }
+
       setPaidOpen(false);
       setPaidPaymentId(null);
     } catch (e) {

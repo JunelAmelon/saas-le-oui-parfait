@@ -33,6 +33,7 @@ import {
   AlertCircle,
   ChevronLeft,
   ChevronRight,
+  Users,
 } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
@@ -98,6 +99,7 @@ export default function PaiementsPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [vendorPayments, setVendorPayments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
@@ -144,15 +146,26 @@ export default function PaiementsPage() {
     
     try {
       setLoading(true);
-      const invoicesData = await getDocuments('invoices', [
-        { field: 'client_id', operator: '==', value: client.id }
+      const [invoicesData, vendorPaymentsData] = await Promise.all([
+        getDocuments('invoices', [
+          { field: 'client_id', operator: '==', value: client.id }
+        ]),
+        getDocuments('vendor_payments', [
+          { field: 'client_id', operator: '==', value: client.id }
+        ]).catch(() => []),
       ]);
-      
+
       setInvoices((invoicesData as Invoice[]).sort((a: any, b: any) => {
         const aTime = a.created_at?.toMillis?.() || 0;
         const bTime = b.created_at?.toMillis?.() || 0;
         return bTime - aTime;
       }));
+
+      // Sort vendor payments by due_date (most recent first)
+      const sortedVendorPayments = (vendorPaymentsData as any[])
+        .filter((p) => p.status !== 'cancelled')
+        .sort((a, b) => String(b.due_date || b.paid_date || '').localeCompare(String(a.due_date || a.paid_date || '')));
+      setVendorPayments(sortedVendorPayments);
     } catch (error) {
       console.error('Error fetching invoices:', error);
       toast({
@@ -535,6 +548,133 @@ export default function PaiementsPage() {
                 </Card>
               )}
             </>
+          )}
+        </div>
+
+        {/* ACOMPTES PRESTATAIRES */}
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-baskerville text-xl text-brand-purple flex items-center gap-2">
+              <Users className="w-5 h-5 text-brand-turquoise" />
+              Acomptes prestataires
+            </h2>
+            {vendorPayments.length > 0 && (
+              <span className="text-xs text-brand-gray">
+                {vendorPayments.filter(p => p.status === 'paid').length} payé{vendorPayments.filter(p => p.status === 'paid').length > 1 ? 's' : ''} / {vendorPayments.length}
+              </span>
+            )}
+          </div>
+
+          {vendorPayments.length === 0 ? (
+            <div className="text-center py-12 rounded-3xl border border-brand-purple/8 bg-white">
+              <div className="w-14 h-14 rounded-full bg-brand-turquoise/10 flex items-center justify-center mx-auto mb-3">
+                <Users className="h-6 w-6 text-brand-turquoise" />
+              </div>
+              <p className="text-sm text-brand-gray">Aucun acompte prestataire pour l&apos;instant.</p>
+            </div>
+          ) : (
+            <Card className="overflow-hidden border border-brand-purple/8 rounded-3xl">
+              {/* Desktop table */}
+              <div className="hidden md:block overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="bg-[#FAF9F7] border-b border-brand-purple/8">
+                      <th className="px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-wide text-brand-gray">Prestataire</th>
+                      <th className="px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-wide text-brand-gray">Libellé</th>
+                      <th className="px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-wide text-brand-gray">Échéance</th>
+                      <th className="px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-wide text-brand-gray">Paiement</th>
+                      <th className="px-4 py-3 text-right text-[10px] font-semibold uppercase tracking-wide text-brand-gray">Montant</th>
+                      <th className="px-4 py-3 text-center text-[10px] font-semibold uppercase tracking-wide text-brand-gray">Statut</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {vendorPayments.map((p) => {
+                      const isPaid = p.status === 'paid';
+                      const isLate = p.status === 'late' || (!isPaid && p.due_date && new Date(p.due_date) < new Date());
+                      return (
+                        <tr key={p.id} className="border-b border-brand-purple/8 hover:bg-brand-purple/5 transition-colors">
+                          <td className="px-4 py-4">
+                            <span className="text-sm font-medium text-brand-purple">
+                              {p.vendor_name || 'Prestataire'}
+                            </span>
+                          </td>
+                          <td className="px-4 py-4">
+                            <span className="text-sm text-brand-gray">{p.label || '—'}</span>
+                          </td>
+                          <td className="px-4 py-4">
+                            <div className="flex items-center gap-2 text-sm text-brand-gray">
+                              <Calendar className="h-4 w-4 text-brand-turquoise" />
+                              {p.due_date ? new Date(p.due_date).toLocaleDateString('fr-FR') : '—'}
+                            </div>
+                          </td>
+                          <td className="px-4 py-4">
+                            {isPaid ? (
+                              <div className="flex items-center gap-2 text-sm text-brand-gray">
+                                <CheckCircle className="h-4 w-4 text-brand-turquoise" />
+                                {p.paid_date ? new Date(p.paid_date).toLocaleDateString('fr-FR') : '—'}
+                                {p.method && <span className="text-xs text-brand-gray/70">({p.method})</span>}
+                              </div>
+                            ) : (
+                              <span className="text-sm text-brand-gray/50">—</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-4 text-right">
+                            <span className="text-sm font-semibold text-brand-purple">
+                              {Number(p.amount || 0).toLocaleString('fr-FR')} €
+                            </span>
+                          </td>
+                          <td className="px-4 py-4 text-center">
+                            {isPaid ? (
+                              <Badge className="bg-brand-turquoise/15 text-brand-turquoise-hover border-0">Payé</Badge>
+                            ) : isLate ? (
+                              <Badge className="bg-[#B9847F]/15 text-[#B9847F] border-0">Retard</Badge>
+                            ) : (
+                              <Badge className="bg-[#C9A96E]/15 text-[#C9A96E] border-0">À venir</Badge>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Mobile cards */}
+              <div className="md:hidden divide-y divide-brand-purple/8">
+                {vendorPayments.map((p) => {
+                  const isPaid = p.status === 'paid';
+                  const isLate = p.status === 'late' || (!isPaid && p.due_date && new Date(p.due_date) < new Date());
+                  return (
+                    <div key={p.id} className="p-4">
+                      <div className="flex items-start justify-between mb-2">
+                        <div>
+                          <p className="text-sm font-medium text-brand-purple">{p.vendor_name || 'Prestataire'}</p>
+                          <p className="text-xs text-brand-gray">{p.label || '—'}</p>
+                        </div>
+                        <span className="text-sm font-semibold text-brand-purple">
+                          {Number(p.amount || 0).toLocaleString('fr-FR')} €
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between mt-2">
+                        <div className="flex items-center gap-2 text-xs text-brand-gray">
+                          <Calendar className="h-3.5 w-3.5 text-brand-turquoise" />
+                          {isPaid
+                            ? `Payé le ${p.paid_date ? new Date(p.paid_date).toLocaleDateString('fr-FR') : '—'}${p.method ? ` (${p.method})` : ''}`
+                            : `Échéance ${p.due_date ? new Date(p.due_date).toLocaleDateString('fr-FR') : '—'}`}
+                        </div>
+                        {isPaid ? (
+                          <Badge className="bg-brand-turquoise/15 text-brand-turquoise-hover border-0 text-xs">Payé</Badge>
+                        ) : isLate ? (
+                          <Badge className="bg-[#B9847F]/15 text-[#B9847F] border-0 text-xs">Retard</Badge>
+                        ) : (
+                          <Badge className="bg-[#C9A96E]/15 text-[#C9A96E] border-0 text-xs">À venir</Badge>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </Card>
           )}
         </div>
       </div>
