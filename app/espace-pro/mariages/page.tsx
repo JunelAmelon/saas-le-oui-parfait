@@ -1,13 +1,17 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useVendorData } from '@/contexts/VendorDataContext';
 import { VendorDashboardLayout } from '@/components/layout/VendorDashboardLayout';
 import { getVendorBookings, calculateDaysUntil, formatFrenchDate, VendorBooking } from '@/lib/vendor-helpers';
-import { Loader2, ChevronRight, Heart, Calendar, Search } from 'lucide-react';
+import { Loader2, ChevronRight, ChevronLeft, Search, Calendar, Heart, Clock } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Button } from '@/components/ui/button';
+
+const PAGE_SIZE = 5;
 
 export default function VendorMariagesPage() {
   const { user, loading: authLoading } = useAuth();
@@ -17,6 +21,7 @@ export default function VendorMariagesPage() {
   const [bookings, setBookings] = useState<VendorBooking[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [page, setPage] = useState(0);
 
   useEffect(() => {
     if (!authLoading) {
@@ -42,7 +47,36 @@ export default function VendorMariagesPage() {
       }
     };
     fetchData();
-  }, [vendor?.id]);
+  }, [vendor?.id, user?.uid]);
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const list = q
+      ? bookings.filter((b) =>
+          b.client_names.toLowerCase().includes(q) ||
+          (b.planner_name || '').toLowerCase().includes(q) ||
+          formatFrenchDate(b.wedding_date).toLowerCase().includes(q)
+        )
+      : bookings;
+    return [...list].sort((a, b) => {
+      const da = calculateDaysUntil(a.wedding_date);
+      const db = calculateDaysUntil(b.wedding_date);
+      // Upcoming first (ascending), then past (descending)
+      if (da >= 0 && db < 0) return -1;
+      if (da < 0 && db >= 0) return 1;
+      if (da >= 0) return a.wedding_date.localeCompare(b.wedding_date);
+      return b.wedding_date.localeCompare(a.wedding_date);
+    });
+  }, [bookings, search]);
+
+  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
+  const currentPage = Math.min(page, Math.max(0, totalPages - 1));
+  const paginated = filtered.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE);
+
+  useEffect(() => {
+    // Reset page when search changes
+    setPage(0);
+  }, [search]);
 
   if (authLoading || !user || user.role !== 'vendor' || vendorLoading) {
     return (
@@ -52,73 +86,8 @@ export default function VendorMariagesPage() {
     );
   }
 
-  const filtered = bookings.filter((b) => {
-    const q = search.trim().toLowerCase();
-    if (!q) return true;
-    return (
-      b.client_names.toLowerCase().includes(q) ||
-      (b.planner_name || '').toLowerCase().includes(q) ||
-      formatFrenchDate(b.wedding_date).toLowerCase().includes(q)
-    );
-  });
-
-  const upcoming = filtered
-    .filter((b) => calculateDaysUntil(b.wedding_date) >= 0)
-    .sort((a, b) => a.wedding_date.localeCompare(b.wedding_date));
-  const past = filtered
-    .filter((b) => calculateDaysUntil(b.wedding_date) < 0)
-    .sort((a, b) => b.wedding_date.localeCompare(a.wedding_date));
-
-  const renderBookingCard = (b: VendorBooking) => {
-    const days = calculateDaysUntil(b.wedding_date);
-    const isPast = days < 0;
-    return (
-      <button
-        key={b.id}
-        onClick={() => router.push(`/espace-pro/mariages/${b.id}`)}
-        className="w-full flex items-center gap-4 p-4 rounded-xl bg-[#FAF9F7] hover:bg-[rgba(136,183,181,0.08)] transition-colors text-left"
-      >
-        <div
-          className={`w-14 h-14 rounded-full flex flex-col items-center justify-center shrink-0 ${
-            isPast ? 'bg-[#9C97A3]' : 'bg-[#4B4456]'
-          } text-white`}
-        >
-          <span className="text-[10px] font-medium leading-none">
-            {new Date(b.wedding_date).toLocaleDateString('fr-FR', { month: 'short' })}
-          </span>
-          <span className="text-[18px] font-bold leading-none mt-0.5">
-            {new Date(b.wedding_date).getDate()}
-          </span>
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="text-[14px] font-semibold text-[#4B4456] truncate">
-            {b.client_names}
-          </div>
-          <div className="text-[11.5px] text-[#9C97A3] mt-0.5">
-            {formatFrenchDate(b.wedding_date)}
-            {b.planner_name ? ` · ${b.planner_name}` : ''}
-          </div>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          {b.status === 'confirmed' ? (
-            <span className="text-[10px] font-semibold text-[#88b7b5] bg-[rgba(136,183,181,0.15)] px-2.5 py-1 rounded-full">
-              Confirmé
-            </span>
-          ) : (
-            <span className="text-[10px] font-semibold text-[#C9A96E] bg-[rgba(201,169,110,0.15)] px-2.5 py-1 rounded-full">
-              Option
-            </span>
-          )}
-          {!isPast && (
-            <span className="text-[11px] font-semibold text-[#4B4456] whitespace-nowrap">
-              J-{days}
-            </span>
-          )}
-          <ChevronRight className="w-4 h-4 text-[#9C97A3] shrink-0" />
-        </div>
-      </button>
-    );
-  };
+  const upcomingCount = bookings.filter((b) => calculateDaysUntil(b.wedding_date) >= 0).length;
+  const pastCount = bookings.length - upcomingCount;
 
   return (
     <VendorDashboardLayout vendorName={vendor?.name}>
@@ -129,7 +98,7 @@ export default function VendorMariagesPage() {
             Mes mariages
           </h1>
           <p className="text-sm text-[#9C97A3]">
-            Tous les mariages pour lesquels vous êtes booked
+            {bookings.length} mariage{bookings.length > 1 ? 's' : ''} · {upcomingCount} à venir · {pastCount} passé{pastCount > 1 ? 's' : ''}
           </p>
         </div>
 
@@ -161,31 +130,148 @@ export default function VendorMariagesPage() {
             </p>
           </div>
         ) : (
-          <div className="space-y-6">
-            {upcoming.length > 0 && (
-              <div className="bg-white rounded-[18px] border border-[rgba(75,68,86,0.06)] p-5">
-                <div className="flex items-center gap-2 mb-4">
-                  <Calendar className="w-4 h-4 text-[#88b7b5]" />
-                  <h2 className="text-[15px] font-semibold text-[#4B4456]">
-                    À venir ({upcoming.length})
-                  </h2>
-                </div>
-                <div className="space-y-3">{upcoming.map(renderBookingCard)}</div>
+          <>
+            {/* Tableau */}
+            <div className="bg-white rounded-[18px] border border-[rgba(75,68,86,0.06)] overflow-hidden">
+              {/* Header du tableau (desktop) */}
+              <div className="hidden sm:grid grid-cols-[auto_1fr_180px_140px_100px_40px] items-center gap-4 px-5 py-3 border-b border-[rgba(75,68,86,0.08)] bg-[#FAF9F7]">
+                <span className="text-[11px] font-semibold text-[#9C97A3] uppercase tracking-wide w-12">Couple</span>
+                <span className="text-[11px] font-semibold text-[#9C97A3] uppercase tracking-wide">Noms</span>
+                <span className="text-[11px] font-semibold text-[#9C97A3] uppercase tracking-wide">Date</span>
+                <span className="text-[11px] font-semibold text-[#9C97A3] uppercase tracking-wide text-center">Statut</span>
+                <span className="text-[11px] font-semibold text-[#9C97A3] uppercase tracking-wide text-center">J-X</span>
+                <span></span>
               </div>
-            )}
 
-            {past.length > 0 && (
-              <div className="bg-white rounded-[18px] border border-[rgba(75,68,86,0.06)] p-5">
-                <div className="flex items-center gap-2 mb-4">
-                  <Heart className="w-4 h-4 text-[#9C97A3]" />
-                  <h2 className="text-[15px] font-semibold text-[#4B4456]">
-                    Passés ({past.length})
-                  </h2>
+              {/* Lignes du tableau */}
+              <div className="divide-y divide-[rgba(75,68,86,0.04)]">
+                {paginated.map((b) => {
+                  const days = calculateDaysUntil(b.wedding_date);
+                  const isPast = days < 0;
+                  const initials = b.client_names
+                    .split(/\s+|&/)
+                    .filter(Boolean)
+                    .slice(0, 2)
+                    .map((s) => s[0])
+                    .join('')
+                    .toUpperCase() || '??';
+
+                  return (
+                    <button
+                      key={b.id}
+                      onClick={() => router.push(`/espace-pro/mariages/${b.id}`)}
+                      className="w-full grid grid-cols-[auto_1fr_auto] sm:grid-cols-[auto_1fr_180px_140px_100px_40px] items-center gap-3 sm:gap-4 px-4 sm:px-5 py-3.5 hover:bg-[rgba(136,183,181,0.05)] transition-colors text-left"
+                    >
+                      {/* Photo couple */}
+                      <Avatar className="w-11 h-11 sm:w-12 sm:h-12 ring-2 ring-[rgba(75,68,86,0.06)] shrink-0">
+                        {b.client_photo ? <AvatarImage src={b.client_photo} alt={b.client_names} className="object-cover" /> : null}
+                        <AvatarFallback className="bg-[#4B4456] text-white text-xs font-semibold">
+                          {initials}
+                        </AvatarFallback>
+                      </Avatar>
+
+                      {/* Noms + planner */}
+                      <div className="min-w-0">
+                        <div className="text-[14px] font-semibold text-[#4B4456] truncate flex items-center gap-2">
+                          {b.client_names}
+                          {b.status === 'option' && (
+                            <span className="text-[9px] font-semibold text-[#C9A96E] bg-[rgba(201,169,110,0.15)] px-2 py-0.5 rounded-full whitespace-nowrap">
+                              Option
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-[11.5px] text-[#9C97A3] truncate flex items-center gap-1.5 mt-0.5">
+                          <Heart className="w-3 h-3 shrink-0" />
+                          {b.planner_name || 'Wedding Planner'}
+                        </div>
+                      </div>
+
+                      {/* Date (desktop) */}
+                      <div className="hidden sm:flex items-center gap-2 text-[13px] text-[#4B4456]">
+                        <Calendar className="w-3.5 h-3.5 text-[#9C97A3] shrink-0" />
+                        <span className="truncate">{formatFrenchDate(b.wedding_date)}</span>
+                      </div>
+
+                      {/* Statut (desktop) */}
+                      <div className="hidden sm:flex items-center justify-center">
+                        {b.status === 'confirmed' ? (
+                          <span className="text-[11px] font-semibold text-[#88b7b5] bg-[rgba(136,183,181,0.12)] px-3 py-1.5 rounded-full whitespace-nowrap">
+                            Confirmé
+                          </span>
+                        ) : (
+                          <span className="text-[11px] font-semibold text-[#C9A96E] bg-[rgba(201,169,110,0.12)] px-3 py-1.5 rounded-full whitespace-nowrap">
+                            Option
+                          </span>
+                        )}
+                      </div>
+
+                      {/* J-X (desktop) */}
+                      <div className="hidden sm:flex items-center justify-center">
+                        {isPast ? (
+                          <span className="text-[11px] font-medium text-[#9C97A3] flex items-center gap-1">
+                            <Clock className="w-3 h-3" />
+                            Passé
+                          </span>
+                        ) : (
+                          <span className="text-[11px] font-semibold text-[#88b7b5] bg-[rgba(136,183,181,0.1)] px-2.5 py-1 rounded-full whitespace-nowrap">
+                            J-{days}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Mobile: date + J-X combined */}
+                      <div className="flex sm:hidden flex-col items-end gap-1">
+                        <span className="text-[11px] text-[#4B4456] font-medium whitespace-nowrap">
+                          {new Date(b.wedding_date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })}
+                        </span>
+                        {isPast ? (
+                          <span className="text-[10px] text-[#9C97A3]">Passé</span>
+                        ) : (
+                          <span className="text-[10px] font-semibold text-[#88b7b5]">J-{days}</span>
+                        )}
+                      </div>
+
+                      {/* Chevron */}
+                      <div className="hidden sm:flex items-center justify-end">
+                        <ChevronRight className="w-4 h-4 text-[#9C97A3] shrink-0" />
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-[#9C97A3]">
+                  Page {currentPage + 1} sur {totalPages} · {filtered.length} résultat{filtered.length > 1 ? 's' : ''}
+                </p>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={currentPage === 0}
+                    onClick={() => setPage((p) => Math.max(0, p - 1))}
+                    className="gap-1 border-[rgba(75,68,86,0.12)]"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                    Précédent
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={currentPage >= totalPages - 1}
+                    onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+                    className="gap-1 border-[rgba(75,68,86,0.12)]"
+                  >
+                    Suivant
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
                 </div>
-                <div className="space-y-3 opacity-70">{past.map(renderBookingCard)}</div>
               </div>
             )}
-          </div>
+          </>
         )}
       </div>
     </VendorDashboardLayout>

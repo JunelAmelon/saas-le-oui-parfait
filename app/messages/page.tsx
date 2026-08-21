@@ -82,6 +82,7 @@ export default function AdminMessagesPage() {
   const { user } = useAuth();
   const searchParams = useSearchParams();
   const clientId = searchParams.get('clientId');
+  const vendorId = searchParams.get('vendorId');
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
@@ -165,6 +166,15 @@ export default function AdminMessagesPage() {
     return m;
   }, [conversations]);
 
+  // Conversations vendor/team pour les filtres dédiés
+  const filteredProConversations = useMemo(() => {
+    if (filter !== 'vendor' && filter !== 'team') return [];
+    return conversations
+      .filter((c) => c.type === filter && !c.deletedForPlanner)
+      .slice()
+      .sort((a, b) => (b.lastMessageAtMs || 0) - (a.lastMessageAtMs || 0));
+  }, [conversations, filter]);
+
   const filteredClientList = useMemo(() => {
     const items = clients
       .map((c) => ({
@@ -201,7 +211,11 @@ export default function AdminMessagesPage() {
       });
 
       const mapped = Array.from(dedup.values()).map((c) => {
-        const name = c?.client_name || c?.name || 'Conversation';
+        const convType = (c.type || 'client') as 'client' | 'vendor' | 'team';
+        // For vendor conversations, show vendor name + couple context
+        const name = convType === 'vendor'
+          ? (c?.vendor_name || c?.client_name || c?.name || 'Prestataire')
+          : (c?.client_name || c?.name || 'Conversation');
         const avatar = (name || 'C').split(' ').map((x: string) => x[0]).slice(0, 2).join('').toUpperCase();
         const lastAtMs = c?.last_message_at?.toDate?.()?.getTime?.() || 0;
         const lastMessageDate = c?.last_message_at?.toDate?.() || null;
@@ -210,8 +224,9 @@ export default function AdminMessagesPage() {
           client_id: c.client_id,
           planner_id: c.planner_id,
           name,
-          type: (c.type || 'client') as 'client' | 'vendor' | 'team',
+          type: convType,
           avatar,
+          photoUrl: convType === 'vendor' ? (c?.client_photo || c?.vendor_logo || null) : (c?.photo_url || null),
           lastMessage: c.last_message || '',
           time: formatSmartTimestamp(lastMessageDate),
           lastMessageAtMs: lastAtMs,
@@ -394,16 +409,59 @@ export default function AdminMessagesPage() {
 
   useEffect(() => {
     if (!user?.uid) return;
-    if (!clientId) return;
+    if (!clientId && !vendorId) return;
     void (async () => {
-      const conv = await ensureConversationForClient(clientId);
-      if (conv) {
-        setSelectedConversation(conv);
-        setShowChatOnMobile(true);
+      // If vendorId is present, find the vendor conversation
+      if (vendorId) {
+        try {
+          const vendorConvs = await getDocuments('conversations', [
+            { field: 'vendor_id', operator: '==', value: vendorId },
+          ]);
+          // Filter by planner_id client-side to avoid composite index
+          const mine = (vendorConvs as any[]).find(
+            (c) => c.planner_id === user.uid && (!clientId || c.client_id === clientId)
+          );
+          if (mine) {
+            const name = mine.vendor_name || mine.client_name || 'Prestataire';
+            const avatar = (name || 'P').split(' ').map((x: string) => x[0]).slice(0, 2).join('').toUpperCase();
+            const lastAtMs = mine?.last_message_at?.toDate?.()?.getTime?.() || 0;
+            const lastMessageDate = mine?.last_message_at?.toDate?.() || null;
+            const conv = {
+              id: mine.id,
+              client_id: mine.client_id,
+              planner_id: mine.planner_id,
+              name,
+              type: 'vendor' as const,
+              avatar,
+              photoUrl: mine?.client_photo || mine?.vendor_logo || null,
+              lastMessage: mine.last_message || '',
+              time: formatSmartTimestamp(lastMessageDate),
+              lastMessageAtMs: lastAtMs,
+              unread: Number(mine.unread_count_planner ?? 0),
+              online: false,
+              deletedForPlanner: mine.deleted_for_planner === true,
+            } as Conversation;
+            setSelectedConversation(conv);
+            setShowChatOnMobile(true);
+            // Set filter to vendor so the conversation is visible in the list
+            setFilter('vendor');
+            return;
+          }
+        } catch (e) {
+          console.error('Error finding vendor conversation:', e);
+        }
+      }
+      // Fallback: open client conversation
+      if (clientId) {
+        const conv = await ensureConversationForClient(clientId);
+        if (conv) {
+          setSelectedConversation(conv);
+          setShowChatOnMobile(true);
+        }
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clientId, user?.uid]);
+  }, [clientId, vendorId, user?.uid]);
 
   useEffect(() => {
     if (selectedConversation?.id) {
@@ -458,6 +516,7 @@ export default function AdminMessagesPage() {
         last_message: lastMessageText,
         last_message_at: now,
         unread_count_client: (selectedConversation.type === 'client') ? 1 : 0,
+        unread_count_vendor: (selectedConversation.type === 'vendor') ? 1 : 0,
       });
 
       setConversations((prev) => {
@@ -474,11 +533,58 @@ export default function AdminMessagesPage() {
           : prev
       );
 
-      // Notif in-app côté client (best effort)
+      // Notif in-app (best effort)
       try {
         const convRaw = (await getDocument('conversations', selectedConversation.id)) as any;
-        const clientId = convRaw?.client_id || selectedConversation.client_id || null;
-        if (clientId) {
+        const convType = convRaw?.type || selectedConversation.type || 'client';
+
+        // Vendor conversation: notify the vendor
+        if (convType === 'vendor' && convRaw?.vendor_uid) {
+          const vendorName = convRaw?.vendor_name || 'Prestataire';
+          const notifBody = attachmentPreview
+            ? content
+              ? `Votre wedding planner vous a envoyé un message avec ${attachmentPreview.replace('📎 ', '')}`
+              : `Votre wedding planner vous a envoyé ${attachmentPreview.replace('📎 ', '')}`
+            : `Votre wedding planner vous a envoyé un message${content ? ` : ${content.slice(0, 120)}` : ''}`;
+          await addDocument('notifications', {
+            recipient_id: convRaw.vendor_uid,
+            type: 'message',
+            title: `Message de votre wedding planner`,
+            message: notifBody,
+            link: '/espace-pro/messages',
+            read: false,
+            created_at: new Date(),
+            planner_id: user.uid,
+            conversation_id: selectedConversation.id,
+            meta: { from: 'planner', vendor_name: vendorName },
+          });
+
+          try {
+            const { sendPushToRecipient } = await import('@/lib/push');
+            await sendPushToRecipient({
+              recipientId: convRaw.vendor_uid,
+              title: 'Nouveau message',
+              body: notifBody,
+              link: '/espace-pro/messages',
+            });
+          } catch (e) {
+            console.warn('Unable to send push to vendor:', e);
+          }
+
+          try {
+            const { sendEmailToUid } = await import('@/lib/email');
+            await sendEmailToUid({
+              recipientUid: convRaw.vendor_uid,
+              subject: 'Nouveau message de votre wedding planner - Le Oui Parfait',
+              text: `Bonjour ${vendorName},\n\nVotre wedding planner vous a envoyé un message${content ? ` :\n\n${content}` : ''}${attachmentPreview ? `\n\nAvec : ${attachmentPreview.replace('📎 ', '')}` : ''}\n\nConnectez-vous à votre espace pro pour répondre.\n\nLe Oui Parfait`,
+            });
+          } catch (e) {
+            console.warn('Unable to send email to vendor:', e);
+          }
+        } else {
+          // Client conversation: notify the client
+          const clientId = convRaw?.client_id || selectedConversation.client_id || null;
+          if (clientId) {
           const clientRaw = (await getDocument('clients', clientId)) as any;
           const clientUserId = clientRaw?.client_user_id || null;
           const clientName = `${clientRaw?.name || ''}${clientRaw?.partner ? ' & ' + clientRaw.partner : ''}`.trim() || 'Client';
@@ -528,8 +634,9 @@ export default function AdminMessagesPage() {
             }
           }
         }
+        }
       } catch (e) {
-        console.warn('Unable to create client notification for message:', e);
+        console.warn('Unable to create notification for message:', e);
       }
 
       await fetchMessages(selectedConversation.id);
@@ -600,6 +707,7 @@ export default function AdminMessagesPage() {
         last_message: attachmentPreview,
         last_message_at: now,
         unread_count_client: (selectedConversation.type === 'client') ? 1 : 0,
+        unread_count_vendor: (selectedConversation.type === 'vendor') ? 1 : 0,
       });
 
       setConversations((prev) => {
@@ -616,55 +724,100 @@ export default function AdminMessagesPage() {
           : prev
       );
 
-      // Notif in-app côté client (best effort)
+      // Notif in-app (best effort)
       try {
         const convRaw = (await getDocument('conversations', selectedConversation.id)) as any;
-        const clientId = convRaw?.client_id || selectedConversation.client_id || null;
-        if (clientId) {
-          const clientRaw = (await getDocument('clients', clientId)) as any;
-          const clientUserId = clientRaw?.client_user_id || null;
-          const clientName = `${clientRaw?.name || ''}${clientRaw?.partner ? ' & ' + clientRaw.partner : ''}`.trim() || 'Client';
-          if (clientUserId) {
-            await addDocument('notifications', {
-              recipient_id: clientUserId,
-              type: 'message',
+        const convType = convRaw?.type || selectedConversation.type || 'client';
+
+        // Vendor conversation: notify the vendor
+        if (convType === 'vendor' && convRaw?.vendor_uid) {
+          await addDocument('notifications', {
+            recipient_id: convRaw.vendor_uid,
+            type: 'message',
+            title: 'Nouveau message',
+            message: `Votre wedding planner vous a envoyé un document : ${file.name}`,
+            link: '/espace-pro/messages',
+            read: false,
+            created_at: new Date(),
+            planner_id: user.uid,
+            conversation_id: selectedConversation.id,
+            meta: { from: 'planner', attachment: file.name },
+          });
+          await updateDocument('conversations', selectedConversation.id, {
+            unread_count_vendor: 1,
+          });
+
+          try {
+            const { sendPushToRecipient } = await import('@/lib/push');
+            await sendPushToRecipient({
+              recipientId: convRaw.vendor_uid,
               title: 'Nouveau message',
-              message: `Votre wedding planner vous a envoyé un document : ${file.name}`,
-              link: '/espace-client/messages',
-              read: false,
-              created_at: new Date(),
-              planner_id: user.uid,
-              client_id: clientId,
-              conversation_id: selectedConversation.id,
-              meta: { from: 'planner', client_name: clientName, attachment: file.name },
+              body: `Votre wedding planner vous a envoyé un document : ${file.name}`,
+              link: '/espace-pro/messages',
             });
+          } catch (e) {
+            console.warn('Unable to send push to vendor:', e);
+          }
 
-            try {
-              const { sendPushToRecipient } = await import('@/lib/push');
-              await sendPushToRecipient({
-                recipientId: clientUserId,
+          try {
+            const { sendEmailToUid } = await import('@/lib/email');
+            await sendEmailToUid({
+              recipientUid: convRaw.vendor_uid,
+              subject: 'Nouveau message de votre wedding planner - Le Oui Parfait',
+              text: `Bonjour,\n\nVotre wedding planner vous a envoyé un document : ${file.name}.\n\nConnectez-vous à votre espace pro pour le consulter.\n\nLe Oui Parfait`,
+            });
+          } catch (e) {
+            console.warn('Unable to send email to vendor:', e);
+          }
+        } else {
+          // Client conversation: notify the client
+          const clientId = convRaw?.client_id || selectedConversation.client_id || null;
+          if (clientId) {
+            const clientRaw = (await getDocument('clients', clientId)) as any;
+            const clientUserId = clientRaw?.client_user_id || null;
+            const clientName = `${clientRaw?.name || ''}${clientRaw?.partner ? ' & ' + clientRaw.partner : ''}`.trim() || 'Client';
+            if (clientUserId) {
+              await addDocument('notifications', {
+                recipient_id: clientUserId,
+                type: 'message',
                 title: 'Nouveau message',
-                body: `Votre wedding planner vous a envoyé un document : ${file.name}`,
+                message: `Votre wedding planner vous a envoyé un document : ${file.name}`,
                 link: '/espace-client/messages',
+                read: false,
+                created_at: new Date(),
+                planner_id: user.uid,
+                client_id: clientId,
+                conversation_id: selectedConversation.id,
+                meta: { from: 'planner', client_name: clientName, attachment: file.name },
               });
-            } catch (e) {
-              console.warn('Unable to send push:', e);
-            }
 
-            try {
-              const { sendEmailToUid } = await import('@/lib/email');
-              await sendEmailToUid({
-                recipientUid: clientUserId,
-                subject: 'Nouveau message - Le Oui Parfait',
-                text: `Vous avez reçu un nouveau message avec une pièce jointe : ${file.name}.\n\nConnectez-vous à votre espace client pour la consulter.`,
-              });
-            } catch (e) {
-              console.warn('Unable to send email:', e);
+              try {
+                const { sendPushToRecipient } = await import('@/lib/push');
+                await sendPushToRecipient({
+                  recipientId: clientUserId,
+                  title: 'Nouveau message',
+                  body: `Votre wedding planner vous a envoyé un document : ${file.name}`,
+                  link: '/espace-client/messages',
+                });
+              } catch (e) {
+                console.warn('Unable to send push:', e);
+              }
+
+              try {
+                const { sendEmailToUid } = await import('@/lib/email');
+                await sendEmailToUid({
+                  recipientUid: clientUserId,
+                  subject: 'Nouveau message - Le Oui Parfait',
+                  text: `Vous avez reçu un nouveau message avec une pièce jointe : ${file.name}.\n\nConnectez-vous à votre espace client pour la consulter.`,
+                });
+              } catch (e) {
+                console.warn('Unable to send email:', e);
+              }
             }
           }
         }
       } catch (e) {
-        console.warn('Unable to create client notification for attachment:', e);
+        console.warn('Unable to create notification for attachment:', e);
       }
 
       await fetchMessages(selectedConversation.id);
@@ -727,58 +880,55 @@ export default function AdminMessagesPage() {
             </div>
 
             <div className="flex-1 overflow-y-auto space-y-2">
-              {loadingClients || loadingConvs ? null : filteredClientList.length === 0 ? (
-                <div className="text-center text-brand-gray py-10">
-                  <p className="font-medium text-brand-purple">Aucune conversation</p>
-                  <p className="text-sm mt-1">Ajoutez un client pour démarrer une conversation.</p>
-                </div>
-              ) : filteredClientList.map((item) => {
-                const conv = item.conv;
-                const isSelected = Boolean(selectedConversation?.client_id && selectedConversation.client_id === item.id);
-                const lastMessage = conv?.lastMessage || '';
-                const time = conv?.time || '';
-                const unread = conv?.unread || 0;
-                const avatarFallback = (item.name || 'C').split(' ').map((x) => x[0]).slice(0, 2).join('').toUpperCase();
-
-                return (
-                  <div
-                    key={item.id}
-                    onClick={() => {
-                      void (async () => {
-                        const c = await ensureConversationForClient(item.id);
-                        if (c) {
-                          setSelectedConversation(c);
-                          setShowChatOnMobile(true);
-                        }
-                      })();
-                    }}
-                    className={`p-3 rounded-lg cursor-pointer transition-colors ${
-                      isSelected
-                        ? 'bg-brand-turquoise/10 border-l-4 border-brand-turquoise'
-                        : 'hover:bg-gray-50'
-                    }`}
-                  >
-                    <div className="flex items-start gap-3">
-                      <div className="relative">
-                        <Avatar className="h-10 w-10">
-                          {item.photoUrl ? <AvatarImage src={item.photoUrl} alt={item.name} /> : null}
-                          <AvatarFallback className="bg-brand-turquoise text-white text-sm">
-                            {avatarFallback}
-                          </AvatarFallback>
-                        </Avatar>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between">
-                          <p className="font-medium text-brand-purple text-sm truncate">{item.name}</p>
-                          <span className="text-xs text-brand-gray whitespace-nowrap ml-2">{time}</span>
+              {loadingClients || loadingConvs ? null : (filter === 'vendor' || filter === 'team') ? (
+                /* Conversations vendor/team */
+                filteredProConversations.length === 0 ? (
+                  <div className="text-center text-brand-gray py-10">
+                    <p className="font-medium text-brand-purple">Aucune conversation</p>
+                    <p className="text-sm mt-1">
+                      {filter === 'vendor' ? 'Les discussions prestataires apparaîtront ici.' : 'Aucune conversation d\'équipe.'}
+                    </p>
+                  </div>
+                ) : filteredProConversations.map((conv) => {
+                  const isSelected = selectedConversation?.id === conv.id;
+                  const avatarFallback = (conv.name || 'P').split(' ').map((x) => x[0]).slice(0, 2).join('').toUpperCase();
+                  const typeInfo = typeConfig[conv.type] || typeConfig.client;
+                  // For vendor conversations, find client name from the clients list
+                  const linkedClient = conv.type === 'vendor' && conv.client_id ? clients.find((c) => c.id === conv.client_id) : null;
+                  const clientContext = linkedClient?.name || (conv.type === 'vendor' ? 'Mariage' : null);
+                  return (
+                    <div
+                      key={conv.id}
+                      onClick={() => {
+                        setSelectedConversation(conv);
+                        setShowChatOnMobile(true);
+                      }}
+                      className={`p-3 rounded-lg cursor-pointer transition-colors ${
+                        isSelected
+                          ? 'bg-brand-turquoise/10 border-l-4 border-brand-turquoise'
+                          : 'hover:bg-gray-50'
+                      }`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="relative">
+                          <Avatar className="h-10 w-10">
+                            {conv.photoUrl ? <AvatarImage src={conv.photoUrl} alt={conv.name} /> : null}
+                            <AvatarFallback className={`${typeInfo.color} text-white text-sm`}>
+                              {avatarFallback}
+                            </AvatarFallback>
+                          </Avatar>
                         </div>
-                        <p className="text-xs text-brand-gray">Client</p>
-                        <p className="text-sm text-brand-gray truncate mt-1">{lastMessage}</p>
-                      </div>
-                      {unread > 0 ? (
-                        <Badge className="bg-brand-turquoise text-white text-xs px-2 flex-shrink-0">{unread}</Badge>
-                      ) : null}
-                      {conv ? (
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between">
+                            <p className="font-medium text-brand-purple text-sm truncate">{conv.name}</p>
+                            <span className="text-xs text-brand-gray whitespace-nowrap ml-2">{conv.time}</span>
+                          </div>
+                          <p className="text-xs text-brand-gray">{typeInfo.label}{clientContext ? ` · ${clientContext}` : ''}</p>
+                          <p className="text-sm text-brand-gray truncate mt-1">{conv.lastMessage}</p>
+                        </div>
+                        {conv.unread > 0 ? (
+                          <Badge className="bg-brand-turquoise text-white text-xs px-2 flex-shrink-0">{conv.unread}</Badge>
+                        ) : null}
                         <button
                           title="Masquer la discussion"
                           onClick={(e) => {
@@ -789,11 +939,80 @@ export default function AdminMessagesPage() {
                         >
                           <Trash2 className="h-4 w-4" />
                         </button>
-                      ) : null}
+                      </div>
                     </div>
+                  );
+                })
+              ) : (
+                /* Conversations client (all / client) */
+                filteredClientList.length === 0 ? (
+                  <div className="text-center text-brand-gray py-10">
+                    <p className="font-medium text-brand-purple">Aucune conversation</p>
+                    <p className="text-sm mt-1">Ajoutez un client pour démarrer une conversation.</p>
                   </div>
-                );
-              })}
+                ) : filteredClientList.map((item) => {
+                  const conv = item.conv;
+                  const isSelected = Boolean(selectedConversation?.client_id && selectedConversation.client_id === item.id);
+                  const lastMessage = conv?.lastMessage || '';
+                  const time = conv?.time || '';
+                  const unread = conv?.unread || 0;
+                  const avatarFallback = (item.name || 'C').split(' ').map((x) => x[0]).slice(0, 2).join('').toUpperCase();
+
+                  return (
+                    <div
+                      key={item.id}
+                      onClick={() => {
+                        void (async () => {
+                          const c = await ensureConversationForClient(item.id);
+                          if (c) {
+                            setSelectedConversation(c);
+                            setShowChatOnMobile(true);
+                          }
+                        })();
+                      }}
+                      className={`p-3 rounded-lg cursor-pointer transition-colors ${
+                        isSelected
+                          ? 'bg-brand-turquoise/10 border-l-4 border-brand-turquoise'
+                          : 'hover:bg-gray-50'
+                      }`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="relative">
+                          <Avatar className="h-10 w-10">
+                            {item.photoUrl ? <AvatarImage src={item.photoUrl} alt={item.name} /> : null}
+                            <AvatarFallback className="bg-brand-turquoise text-white text-sm">
+                              {avatarFallback}
+                            </AvatarFallback>
+                          </Avatar>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between">
+                            <p className="font-medium text-brand-purple text-sm truncate">{item.name}</p>
+                            <span className="text-xs text-brand-gray whitespace-nowrap ml-2">{time}</span>
+                          </div>
+                          <p className="text-xs text-brand-gray">Client</p>
+                          <p className="text-sm text-brand-gray truncate mt-1">{lastMessage}</p>
+                        </div>
+                        {unread > 0 ? (
+                          <Badge className="bg-brand-turquoise text-white text-xs px-2 flex-shrink-0">{unread}</Badge>
+                        ) : null}
+                        {conv ? (
+                          <button
+                            title="Masquer la discussion"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              void handleDeleteConversation(conv.id);
+                            }}
+                            className="p-1.5 rounded-full text-brand-gray hover:text-red-500 hover:bg-red-50 transition-colors shrink-0"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        ) : null}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
             </div>
           </Card>
 
@@ -818,7 +1037,7 @@ export default function AdminMessagesPage() {
                   {selectedConversation?.photoUrl ? (
                     <AvatarImage src={selectedConversation.photoUrl} alt={selectedConversation.name} />
                   ) : null}
-                  <AvatarFallback className="bg-brand-turquoise text-white">
+                  <AvatarFallback className={`${selectedConversation ? (typeConfig[selectedConversation.type]?.color || 'bg-brand-turquoise') : 'bg-brand-turquoise'} text-white`}>
                     {selectedConversation?.avatar || '—'}
                   </AvatarFallback>
                 </Avatar>
@@ -826,6 +1045,12 @@ export default function AdminMessagesPage() {
                   <p className="font-medium text-brand-purple">
                     {selectedConversation?.name || 'Sélectionnez une conversation'}
                   </p>
+                  {selectedConversation && (
+                    <p className="text-xs text-brand-gray">
+                      {typeConfig[selectedConversation.type]?.label || 'Client'}
+                      {selectedConversation.type === 'vendor' && selectedConversation.client_id ? ` · ${clients.find((c) => c.id === selectedConversation.client_id)?.name || 'Mariage'}` : ''}
+                    </p>
+                  )}
                 </div>
               </div>
               <Button variant="ghost" size="icon">

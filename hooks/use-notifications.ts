@@ -12,7 +12,7 @@ import {
   deleteDoc,
 } from 'firebase/firestore';
 
-export type NotificationType = 'message' | 'document' | 'change_request' | 'planning' | 'step' | 'payment';
+export type NotificationType = 'message' | 'document' | 'change_request' | 'planning' | 'step' | 'payment' | 'booking' | 'vendor_doc';
 
 export interface AppNotification {
   id: string;

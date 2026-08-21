@@ -206,6 +206,9 @@ export default function VendorMessagesPage() {
               client_id: bk.client_id,
               type: 'vendor',
               client_name: bk.client_names,
+              client_photo: bk.client_photo || null,
+              vendor_name: vendor.name,
+              vendor_logo: vendor.logo || null,
               participants: [bk.planner_id, user.uid],
               last_message: '',
               last_message_at: new Date(),
@@ -318,7 +321,7 @@ export default function VendorMessagesPage() {
           type: 'message',
           title: `Message de ${vendor.name}`,
           message: `${vendor.name} vous a envoyé un message${content ? ` : ${content.slice(0, 120)}` : ''} (mariage ${selectedConversation.client_names})`,
-          link: `/messages?clientId=${selectedConversation.client_id}`,
+          link: `/messages?vendorId=${selectedConversation.vendor_id}&clientId=${selectedConversation.client_id}`,
           read: false,
           created_at: new Date(),
           planner_id: selectedConversation.planner_id,
@@ -327,6 +330,31 @@ export default function VendorMessagesPage() {
         });
       } catch {
         // non-blocking
+      }
+
+      // Send email to planner
+      try {
+        const { sendEmailToUid } = await import('@/lib/email');
+        await sendEmailToUid({
+          recipientUid: selectedConversation.planner_id,
+          subject: `Message de ${vendor.name} - Le Oui Parfait`,
+          text: `Bonjour,\n\n${vendor.name} vous a envoyé un message${content ? ` :\n\n${content}` : ''}${attachmentPreview ? `\n\nAvec : ${attachmentPreview.replace('📎 ', '')}` : ''}\n\nMariage : ${selectedConversation.client_names}\n\nConnectez-vous à votre espace admin pour répondre.\n\nLe Oui Parfait`,
+        });
+      } catch (e) {
+        console.warn('Unable to send email to planner:', e);
+      }
+
+      // Send push to planner
+      try {
+        const { sendPushToRecipient } = await import('@/lib/push');
+        await sendPushToRecipient({
+          recipientId: selectedConversation.planner_id,
+          title: `Message de ${vendor.name}`,
+          body: content ? content.slice(0, 100) : 'Nouveau message',
+          link: `/messages?vendorId=${selectedConversation.vendor_id}&clientId=${selectedConversation.client_id}`,
+        });
+      } catch (e) {
+        console.warn('Unable to send push to planner:', e);
       }
 
       await fetchMessages(selectedConversation.id);

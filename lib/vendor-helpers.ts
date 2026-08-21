@@ -23,6 +23,7 @@ export interface VendorBooking {
   client_id: string;
   event_id?: string;
   client_names: string;
+  client_photo?: string | null;
   wedding_date: string;
   planner_name?: string;
   status: 'option' | 'confirmed' | 'cancelled';
@@ -194,13 +195,35 @@ export async function getBookingPayments(bookingId: string): Promise<VendorPayme
 }
 
 /**
- * Récupère les acomptes d'un vendor (tous bookings confondus)
+ * Récupère les acomptes d'un vendor (tous bookings confondus).
+ * Essaye d'abord par vendor_uid, puis par vendor_id en fallback.
  */
-export async function getVendorPayments(vendorId: string): Promise<VendorPayment[]> {
+export async function getVendorPayments(vendorId?: string, vendorUid?: string): Promise<VendorPayment[]> {
   try {
-    const payments = await getDocuments('vendor_payments', [
-      { field: 'vendor_id', operator: '==', value: vendorId },
-    ]);
+    let payments: any[] = [];
+
+    // Primary: query by vendor_uid
+    if (vendorUid) {
+      try {
+        payments = await getDocuments('vendor_payments', [
+          { field: 'vendor_uid', operator: '==', value: vendorUid },
+        ]);
+      } catch {
+        // fallback below
+      }
+    }
+
+    // Fallback: query by vendor_id
+    if (payments.length === 0 && vendorId) {
+      try {
+        payments = await getDocuments('vendor_payments', [
+          { field: 'vendor_id', operator: '==', value: vendorId },
+        ]);
+      } catch {
+        // ignore
+      }
+    }
+
     return (payments as any[]).sort((a, b) =>
       String(a?.due_date || '').localeCompare(String(b?.due_date || ''))
     ) as VendorPayment[];

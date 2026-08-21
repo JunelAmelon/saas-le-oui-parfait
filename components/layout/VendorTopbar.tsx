@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { NotificationsModal } from '@/components/modals/NotificationsModal';
-import { useNotifications } from '@/hooks/use-notifications';
+import { useNotifications, AppNotification } from '@/hooks/use-notifications';
 import { useAuth } from '@/contexts/AuthContext';
 import { useVendorData } from '@/contexts/VendorDataContext';
 import { useRouter } from 'next/navigation';
@@ -25,7 +25,15 @@ export function VendorTopbar({ vendorName = 'Prestataire' }: VendorTopbarProps) 
   const [showNotifications, setShowNotifications] = useState(false);
   const { signOut, user } = useAuth();
   const { vendor } = useVendorData();
-  const { items: notifications, unreadCount, markAllAsRead, markAsRead, deleteOne, deleteAll } = useNotifications(user?.uid);
+  const { items: rawNotifications, unreadCount: rawUnreadCount, markAllAsRead, markAsRead, deleteOne, deleteAll } = useNotifications(user?.uid);
+
+  // Filter to only vendor-relevant notifications
+  // Exclude client-specific types (document=contrats/devis client, step, planning, change_request)
+  const VENDOR_NOTIFICATION_TYPES = ['booking', 'message', 'vendor_doc', 'payment'];
+  const notifications: AppNotification[] = rawNotifications.filter((n) =>
+    VENDOR_NOTIFICATION_TYPES.includes(n.type)
+  );
+  const unreadCount = notifications.filter((n) => !n.read).length;
   const pushInitRef = useRef(false);
   const router = useRouter();
   const { toast } = useToast();

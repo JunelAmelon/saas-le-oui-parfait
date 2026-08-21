@@ -71,6 +71,7 @@ export async function POST(req: NextRequest) {
         client_id: clientId,
         event_id: eventId,
         client_names: clientNames,
+        client_photo: clientData?.photo || clientData?.photo_url || null,
         wedding_date: weddingDate,
         planner_name: plannerName,
         status: 'confirmed',

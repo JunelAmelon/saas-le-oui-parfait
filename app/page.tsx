@@ -70,6 +70,7 @@ export default function Home() {
   const [dataLoading, setDataLoading] = useState(true);
   const [lastClient, setLastClient] = useState<Client | null>(null);
   const [recentInvoices, setRecentInvoices] = useState<Invoice[]>([]);
+  const [nextAppointmentClient, setNextAppointmentClient] = useState<string>('');
 
   // Sécurité & redirection
   useEffect(() => {
@@ -134,7 +135,7 @@ export default function Home() {
           0
         );
 
-        const upcomingAppointments = (plannerTasks as any[]).filter((t: any) => {
+        const upcomingApts = (plannerTasks as any[]).filter((t: any) => {
           if (t?.kind !== 'appointment') return false;
           const status = String(t?.status || '').toLowerCase();
           if (['cancelled', 'canceled', 'declined'].includes(status)) return false;
@@ -143,7 +144,26 @@ export default function Home() {
           if (!dateStr) return true;
           const aptDate = new Date(`${dateStr}T${timeStr}`);
           return !Number.isNaN(aptDate.getTime()) ? aptDate >= new Date() : true;
-        }).length;
+        });
+
+        const upcomingAppointments = upcomingApts.length;
+
+        // Find the next appointment with client name
+        const sortedApts = upcomingApts
+          .filter((t) => t?.confirmed_date || t?.date)
+          .sort((a, b) => {
+            const da = new Date(`${a?.confirmed_date || a?.date}T${a?.confirmed_time || a?.time || '00:00'}`).getTime();
+            const db = new Date(`${b?.confirmed_date || b?.date}T${b?.confirmed_time || b?.time || '00:00'}`).getTime();
+            return da - db;
+          });
+        const nextApt = sortedApts[0];
+        if (nextApt) {
+          const aptClient = clients.find((c: any) => c.id === nextApt.client_id);
+          const coupleName = aptClient
+            ? `${aptClient.name || ''}${aptClient.partner ? ' & ' + aptClient.partner : ''}`.trim()
+            : nextApt?.couple_names || nextApt?.client_name || '';
+          setNextAppointmentClient(coupleName);
+        }
 
         const activeEvents = events
           .filter((e: any) => !e.status || ['confirmed', 'in_progress'].includes(e.status))
@@ -285,7 +305,7 @@ export default function Home() {
             title="Prochains rendez-vous"
             value={stats.upcomingAppointments.toString()}
             icon={Calendar}
-            description="À venir"
+            description={nextAppointmentClient || "À venir"}
           />
         </div>
 

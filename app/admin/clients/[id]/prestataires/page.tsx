@@ -52,13 +52,34 @@ export default function ClientPrestatairesAdminPage() {
     if (!user?.uid || !clientId) return;
     setLoading(true);
     try {
-      const [allVendors, links] = await Promise.all([
-        getDocuments('vendors', [{ field: 'planner_id', operator: '==', value: user.uid }]),
-        getDocuments('client_vendors', [
+      // Fetch vendors and links separately so one failing doesn't block the other
+      let allVendors: any[] = [];
+      let links: any[] = [];
+
+      try {
+        allVendors = await getDocuments('vendors', [{ field: 'planner_id', operator: '==', value: user.uid }]);
+      } catch (e) {
+        console.error('Error fetching vendors:', e);
+      }
+
+      try {
+        // Single-field query to avoid composite index requirement
+        const allLinks = await getDocuments('client_vendors', [
           { field: 'planner_id', operator: '==', value: user.uid },
-          { field: 'client_id', operator: '==', value: clientId },
-        ]),
-      ]);
+        ]);
+        links = (allLinks as any[]).filter((l) => l.client_id === clientId);
+      } catch (e) {
+        console.error('Error fetching client_vendors:', e);
+        // Fallback: try by client_id only
+        try {
+          const allLinks2 = await getDocuments('client_vendors', [
+            { field: 'client_id', operator: '==', value: clientId },
+          ]);
+          links = (allLinks2 as any[]).filter((l) => l.planner_id === user.uid);
+        } catch (e2) {
+          console.error('Error fetching client_vendors (fallback):', e2);
+        }
+      }
 
       const mappedVendors = (allVendors as any[]).map((d: any) => ({
         id: d.id,
@@ -140,6 +161,7 @@ export default function ClientPrestatairesAdminPage() {
   // Create or update a vendor_booking with denormalized client/event data
   const syncVendorBooking = async (vendor: Vendor, clId: string, plannerId: string) => {
     try {
+      console.log('[syncVendorBooking] vendor:', { id: vendor.id, name: vendor.name, pro_account_uid: vendor.pro_account_uid, pro_account_status: vendor.pro_account_status });
       // Fetch client data for couple names
       const clientDoc = (await getDocument('clients', clId)) as any;
       const clientNames = clientDoc
@@ -172,6 +194,7 @@ export default function ClientPrestatairesAdminPage() {
         client_id: clId,
         event_id: eventId,
         client_names: clientNames,
+        client_photo: clientDoc?.photo || clientDoc?.photo_url || null,
         wedding_date: weddingDate,
         planner_name: plannerName,
         status: 'confirmed',
@@ -182,26 +205,51 @@ export default function ClientPrestatairesAdminPage() {
         const existingId = (existing as any[])[0].id;
         await updateDocument('vendor_bookings', existingId, bookingData);
       } else {
-        const created = await addDocument('vendor_bookings', {
+        await addDocument('vendor_bookings', {
           ...bookingData,
           created_at: new Date().toISOString(),
         });
+      }
 
-        // Notify the vendor if they have a pro account
-        if (vendor.pro_account_uid) {
-          try {
-            await addDocument('notifications', {
-              recipient_id: vendor.pro_account_uid,
-              type: 'booking',
-              title: 'Nouveau mariage assigné',
-              message: `Vous avez été booked pour le mariage de ${clientNames}${weddingDate ? ` le ${weddingDate.split('-').reverse().join('/')}` : ''}.`,
-              link: '/espace-pro/mariages',
-              read: false,
-              created_at: new Date(),
-            });
-          } catch {
-            // non-blocking
-          }
+      // Always notify the vendor if they have a pro account (both for new and updated bookings)
+      if (vendor.pro_account_uid) {
+        try {
+          await addDocument('notifications', {
+            recipient_id: vendor.pro_account_uid,
+            type: 'booking',
+            title: 'Nouveau mariage assigné',
+            message: `Vous avez été booked pour le mariage de ${clientNames}${weddingDate ? ` le ${weddingDate.split('-').reverse().join('/')}` : ''}.`,
+            link: '/espace-pro/mariages',
+            read: false,
+            created_at: new Date(),
+          });
+        } catch {
+          // non-blocking
+        }
+
+        // Send email to vendor
+        try {
+          const { sendEmailToUid } = await import('@/lib/email');
+          await sendEmailToUid({
+            recipientUid: vendor.pro_account_uid,
+            subject: 'Nouveau mariage assigné - Le Oui Parfait',
+            text: `Bonjour,\n\nVous avez été booked pour le mariage de ${clientNames}${weddingDate ? ` prévu le ${weddingDate.split('-').reverse().join('/')}` : ''}.\n\nRetrouvez tous les détails sur votre espace pro.\n\nLe Oui Parfait`,
+          });
+        } catch (e) {
+          console.warn('Unable to send vendor booking email:', e);
+        }
+
+        // Send push
+        try {
+          const { sendPushToRecipient } = await import('@/lib/push');
+          await sendPushToRecipient({
+            recipientId: vendor.pro_account_uid,
+            title: 'Nouveau mariage assigné',
+            body: `Vous avez été booked pour le mariage de ${clientNames}.`,
+            link: '/espace-pro/mariages',
+          });
+        } catch (e) {
+          console.warn('Unable to send vendor push:', e);
         }
       }
     } catch (e: any) {
@@ -219,12 +267,12 @@ export default function ClientPrestatairesAdminPage() {
     try {
       await deleteDocument('client_vendors', link.id);
 
-      // Cancel the vendor_booking
-      const bookings = await getDocuments('vendor_bookings', [
+      // Cancel the vendor_booking (single-field query to avoid composite index)
+      const allBookings = await getDocuments('vendor_bookings', [
         { field: 'vendor_id', operator: '==', value: vendorId },
-        { field: 'client_id', operator: '==', value: clientId },
       ]);
-      for (const bk of bookings as any[]) {
+      const bookings = (allBookings as any[]).filter((b) => b.client_id === clientId);
+      for (const bk of bookings) {
         await updateDocument('vendor_bookings', bk.id, {
           status: 'cancelled',
           updated_at: new Date().toISOString(),

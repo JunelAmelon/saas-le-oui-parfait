@@ -37,14 +37,15 @@ export default function EspaceProDashboardPage() {
 
   useEffect(() => {
     const fetchData = async () => {
-      if (!vendor?.id) return;
+      if (!user?.uid) return;
       setLoading(true);
       try {
-        const [bks, pmts] = await Promise.all([
-          getVendorBookings(vendor.id, user?.uid),
-          getVendorPayments(vendor.id),
-        ]);
+        // Fetch bookings by vendor_uid (works even if vendor profile is not loaded yet)
+        const bks = await getVendorBookings(vendor?.id || '', user.uid);
         setBookings(bks);
+
+        // Fetch payments by vendor_uid
+        const pmts = await getVendorPayments(vendor?.id, user.uid);
         setPayments(pmts);
       } catch (e) {
         console.error('Error fetching vendor dashboard data:', e);
@@ -53,7 +54,7 @@ export default function EspaceProDashboardPage() {
       }
     };
     fetchData();
-  }, [vendor?.id]);
+  }, [vendor?.id, user?.uid]);
 
   if (authLoading || !user || user.role !== 'vendor' || vendorLoading) {
     return (
@@ -183,9 +184,9 @@ export default function EspaceProDashboardPage() {
             </div>
           </div>
 
-          {/* Upcoming weddings list */}
-          <div className="bg-white rounded-[18px] border border-[rgba(75,68,86,0.06)] p-5">
-            <div className="flex items-center justify-between mb-5">
+          {/* Upcoming weddings list - tableau style */}
+          <div className="bg-white rounded-[18px] border border-[rgba(75,68,86,0.06)] overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-[rgba(75,68,86,0.06)]">
               <div className="text-[15px] font-semibold text-[#4B4456]">Prochains mariages</div>
               {upcomingBookings.length > 0 && (
                 <button
@@ -212,50 +213,93 @@ export default function EspaceProDashboardPage() {
                 </p>
               </div>
             ) : (
-              <div className="space-y-3">
-                {upcomingBookings.slice(0, 5).map((b) => {
-                  const days = calculateDaysUntil(b.wedding_date);
-                  return (
-                    <button
-                      key={b.id}
-                      onClick={() => router.push(`/espace-pro/mariages/${b.id}`)}
-                      className="w-full flex items-center gap-4 p-4 rounded-xl bg-[#FAF9F7] hover:bg-[rgba(136,183,181,0.08)] transition-colors text-left"
-                    >
-                      <div className="w-12 h-12 rounded-full bg-[#4B4456] text-white flex flex-col items-center justify-center shrink-0">
-                        <span className="text-[10px] font-medium leading-none">
-                          {new Date(b.wedding_date).toLocaleDateString('fr-FR', { month: 'short' })}
-                        </span>
-                        <span className="text-[16px] font-bold leading-none mt-0.5">
-                          {new Date(b.wedding_date).getDate()}
-                        </span>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-[14px] font-semibold text-[#4B4456] truncate">
-                          {b.client_names}
+              <div>
+                {/* Table header (desktop) */}
+                <div className="hidden sm:grid grid-cols-[auto_1fr_180px_100px_100px_40px] items-center gap-4 px-5 py-3 border-b border-[rgba(75,68,86,0.06)] bg-[#FAF9F7]">
+                  <span className="text-[11px] font-semibold text-[#9C97A3] uppercase tracking-wide w-12">Couple</span>
+                  <span className="text-[11px] font-semibold text-[#9C97A3] uppercase tracking-wide">Noms</span>
+                  <span className="text-[11px] font-semibold text-[#9C97A3] uppercase tracking-wide">Date</span>
+                  <span className="text-[11px] font-semibold text-[#9C97A3] uppercase tracking-wide text-center">Statut</span>
+                  <span className="text-[11px] font-semibold text-[#9C97A3] uppercase tracking-wide text-center">J-X</span>
+                  <span></span>
+                </div>
+                {/* Table rows */}
+                <div className="divide-y divide-[rgba(75,68,86,0.04)]">
+                  {upcomingBookings.slice(0, 3).map((b) => {
+                    const days = calculateDaysUntil(b.wedding_date);
+                    const initials = b.client_names
+                      .split(/\s+|&/)
+                      .filter(Boolean)
+                      .slice(0, 2)
+                      .map((s) => s[0])
+                      .join('')
+                      .toUpperCase() || '??';
+                    return (
+                      <button
+                        key={b.id}
+                        onClick={() => router.push(`/espace-pro/mariages/${b.id}`)}
+                        className="w-full grid grid-cols-[auto_1fr_auto] sm:grid-cols-[auto_1fr_180px_100px_100px_40px] items-center gap-3 sm:gap-4 px-4 sm:px-5 py-3.5 hover:bg-[rgba(136,183,181,0.04)] transition-colors text-left"
+                      >
+                        {/* Photo couple */}
+                        <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-[#4B4456] text-white flex items-center justify-center shrink-0 overflow-hidden ring-2 ring-[rgba(75,68,86,0.06)]">
+                          {b.client_photo ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={b.client_photo} alt={b.client_names} className="w-full h-full object-cover" />
+                          ) : (
+                            <span className="text-[11px] font-semibold">{initials}</span>
+                          )}
                         </div>
-                        <div className="text-[11.5px] text-[#9C97A3] mt-0.5">
-                          {formatFrenchDate(b.wedding_date)}
-                          {b.planner_name ? ` · ${b.planner_name}` : ''}
+                        {/* Noms + planner */}
+                        <div className="min-w-0">
+                          <div className="text-[14px] font-semibold text-[#4B4456] truncate flex items-center gap-2">
+                            {b.client_names}
+                            {b.status === 'option' && (
+                              <span className="text-[9px] font-semibold text-[#C9A96E] bg-[rgba(201,169,110,0.15)] px-2 py-0.5 rounded-full">Option</span>
+                            )}
+                          </div>
+                          <div className="text-[11.5px] text-[#9C97A3] truncate flex items-center gap-1.5 mt-0.5">
+                            <Heart className="w-3 h-3 shrink-0" />
+                            {b.planner_name || 'Wedding Planner'}
+                          </div>
                         </div>
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        {b.status === 'confirmed' ? (
-                          <span className="text-[10px] font-semibold text-[#88b7b5] bg-[rgba(136,183,181,0.15)] px-2.5 py-1 rounded-full">
-                            Confirmé
+                        {/* Date (desktop) */}
+                        <div className="hidden sm:flex items-center gap-2 text-[13px] text-[#4B4456]">
+                          <Calendar className="w-3.5 h-3.5 text-[#9C97A3] shrink-0" />
+                          <span className="truncate">{formatFrenchDate(b.wedding_date)}</span>
+                        </div>
+                        {/* Statut (desktop) */}
+                        <div className="hidden sm:flex items-center justify-center">
+                          {b.status === 'confirmed' ? (
+                            <span className="text-[11px] font-semibold text-[#88b7b5] bg-[rgba(136,183,181,0.12)] px-2.5 py-1.5 rounded-full whitespace-nowrap">
+                              Confirmé
+                            </span>
+                          ) : (
+                            <span className="text-[11px] font-semibold text-[#C9A96E] bg-[rgba(201,169,110,0.12)] px-2.5 py-1.5 rounded-full whitespace-nowrap">
+                              Option
+                            </span>
+                          )}
+                        </div>
+                        {/* J-X (desktop) */}
+                        <div className="hidden sm:flex items-center justify-center">
+                          <span className="text-[11px] font-semibold text-[#88b7b5] bg-[rgba(136,183,181,0.1)] px-2.5 py-1 rounded-full whitespace-nowrap">
+                            J-{days}
                           </span>
-                        ) : (
-                          <span className="text-[10px] font-semibold text-[#C9A96E] bg-[rgba(201,169,110,0.15)] px-2.5 py-1 rounded-full">
-                            Option
+                        </div>
+                        {/* Mobile: date + J-X combined */}
+                        <div className="flex sm:hidden flex-col items-end gap-1">
+                          <span className="text-[11px] text-[#4B4456] font-medium whitespace-nowrap">
+                            {new Date(b.wedding_date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })}
                           </span>
-                        )}
-                        <span className="text-[11px] font-semibold text-[#4B4456] whitespace-nowrap">
-                          J-{days}
-                        </span>
-                        <ChevronRight className="w-4 h-4 text-[#9C97A3] shrink-0" />
-                      </div>
-                    </button>
-                  );
-                })}
+                          <span className="text-[10px] font-semibold text-[#88b7b5]">J-{days}</span>
+                        </div>
+                        {/* Chevron */}
+                        <div className="hidden sm:flex items-center justify-end">
+                          <ChevronRight className="w-4 h-4 text-[#9C97A3] shrink-0" />
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             )}
           </div>
@@ -328,10 +372,10 @@ export default function EspaceProDashboardPage() {
                 </div>
               )}
               <button
-                onClick={() => router.push('/espace-pro/acomptes')}
+                onClick={() => router.push('/espace-pro/mariages')}
                 className="w-full mt-3 bg-[#4B4456] text-white text-[12.5px] font-semibold py-2.5 rounded-xl hover:bg-[#3a3446] transition-colors"
               >
-                Voir tous les acomptes
+                Voir mes mariages
               </button>
             </div>
           </div>

@@ -6,8 +6,6 @@ import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard,
   Calendar,
-  FileText,
-  CreditCard,
   Settings,
   LogOut,
   Menu,
@@ -28,8 +26,6 @@ interface MenuItem {
 const vendorMenuItems: MenuItem[] = [
   { label: 'Tableau de bord', icon: LayoutDashboard, href: '/espace-pro' },
   { label: 'Mariages', icon: Calendar, href: '/espace-pro/mariages' },
-  { label: 'Devis & Factures', icon: FileText, href: '/espace-pro/documents' },
-  { label: 'Acomptes', icon: CreditCard, href: '/espace-pro/acomptes' },
   { label: 'Messages', icon: MessageSquare, href: '/espace-pro/messages' },
 ];
 

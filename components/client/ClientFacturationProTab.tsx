@@ -98,6 +98,12 @@ export function ClientFacturationProTab({ clientId }: ClientFacturationProTabPro
   const [devisFile, setDevisFile] = useState<File | null>(null);
   const [factureFile, setFactureFile] = useState<File | null>(null);
 
+  // Rejection modal state
+  const [rejectOpen, setRejectOpen] = useState(false);
+  const [rejectDoc, setRejectDoc] = useState<ProDocument | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
+  const [rejecting, setRejecting] = useState(false);
+
   const [form, setForm] = useState<{
     type: ProDocType;
     vendor_id: string;
@@ -216,6 +222,7 @@ export function ClientFacturationProTab({ clientId }: ClientFacturationProTabPro
   };
 
   const handleValidateVendorDoc = async (docId: string) => {
+    const doc = docs.find((d) => d.id === docId);
     setDocs((prev) => prev.map((d) => (d.id === docId ? { ...d, vendor_status: 'validated' } : d)));
     try {
       await updateDocument('pro_documents', docId, {
@@ -224,15 +231,54 @@ export function ClientFacturationProTab({ clientId }: ClientFacturationProTabPro
         updated_at: new Date().toISOString(),
       });
       toast.success('Document validé');
+
+      // Notify the vendor
+      if (doc?.vendor_uid) {
+        try {
+          await addDocument('notifications', {
+            recipient_id: doc.vendor_uid,
+            type: 'vendor_doc',
+            title: 'Document validé',
+            message: `Votre ${doc.type === 'devis' ? 'devis' : 'facture'}${doc.reference ? ` (${doc.reference})` : ''} a été validé par le planner.`,
+            link: '/espace-pro/mariages',
+            read: false,
+            created_at: new Date(),
+          });
+        } catch { /* non-blocking */ }
+
+        try {
+          const { sendEmailToUid } = await import('@/lib/email');
+          await sendEmailToUid({
+            recipientUid: doc.vendor_uid,
+            subject: 'Document validé - Le Oui Parfait',
+            text: `Bonjour,\n\nVotre ${doc.type === 'devis' ? 'devis' : 'facture'}${doc.reference ? ` (${doc.reference})` : ''} a été validé par votre wedding planner.\n\nRetrouvez-le sur votre espace pro.\n\nLe Oui Parfait`,
+          });
+        } catch (e) {
+          console.warn('Unable to send vendor validation email:', e);
+        }
+      }
     } catch (e) {
       console.error('Error validating vendor doc:', e);
       toast.error('Erreur lors de la validation');
     }
   };
 
-  const handleRejectVendorDoc = async (docId: string) => {
-    const reason = prompt('Motif du rejet ?');
-    if (reason === null) return; // cancelled
+  const handleRejectVendorDoc = (docId: string) => {
+    const doc = docs.find((d) => d.id === docId) || null;
+    setRejectDoc(doc);
+    setRejectReason('');
+    setRejectOpen(true);
+  };
+
+  const confirmReject = async () => {
+    if (!rejectDoc) return;
+    if (!rejectReason.trim()) {
+      toast.error('Veuillez renseigner le motif du rejet');
+      return;
+    }
+    const docId = rejectDoc.id;
+    const reason = rejectReason.trim();
+    setRejecting(true);
     setDocs((prev) => prev.map((d) => (d.id === docId ? { ...d, vendor_status: 'rejected', rejection_reason: reason } : d)));
     try {
       await updateDocument('pro_documents', docId, {
@@ -241,9 +287,41 @@ export function ClientFacturationProTab({ clientId }: ClientFacturationProTabPro
         updated_at: new Date().toISOString(),
       });
       toast.success('Document rejeté');
+
+      // Notify the vendor
+      if (rejectDoc.vendor_uid) {
+        try {
+          await addDocument('notifications', {
+            recipient_id: rejectDoc.vendor_uid,
+            type: 'vendor_doc',
+            title: 'Document rejeté',
+            message: `Votre ${rejectDoc.type === 'devis' ? 'devis' : 'facture'}${rejectDoc.reference ? ` (${rejectDoc.reference})` : ''} a été rejeté. Motif : ${reason}`,
+            link: '/espace-pro/mariages',
+            read: false,
+            created_at: new Date(),
+          });
+        } catch { /* non-blocking */ }
+
+        try {
+          const { sendEmailToUid } = await import('@/lib/email');
+          await sendEmailToUid({
+            recipientUid: rejectDoc.vendor_uid,
+            subject: 'Document à corriger - Le Oui Parfait',
+            text: `Bonjour,\n\nVotre ${rejectDoc.type === 'devis' ? 'devis' : 'facture'}${rejectDoc.reference ? ` (${rejectDoc.reference})` : ''} a été rejeté par votre wedding planner.\n\nMotif : ${reason}\n\nVeuillez corriger et resoumettre le document depuis votre espace pro.\n\nLe Oui Parfait`,
+          });
+        } catch (e) {
+          console.warn('Unable to send vendor rejection email:', e);
+        }
+      }
+
+      setRejectOpen(false);
+      setRejectDoc(null);
+      setRejectReason('');
     } catch (e) {
       console.error('Error rejecting vendor doc:', e);
       toast.error('Erreur lors du rejet');
+    } finally {
+      setRejecting(false);
     }
   };
 
@@ -319,136 +397,167 @@ export function ClientFacturationProTab({ clientId }: ClientFacturationProTabPro
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-bold text-brand-purple font-baskerville">Devis & Factures prestataires</h3>
-        <Button className="bg-brand-turquoise hover:bg-brand-turquoise-hover gap-2" onClick={handleOpenAdd}>
+        <div>
+          <h3 className="text-[18px] font-baskerville text-[#4B4456]">Devis & Factures prestataires</h3>
+          <p className="text-[12px] text-[#9C97A3] mt-0.5">
+            {docs.length} document{docs.length > 1 ? 's' : ''} · {docs.filter((d) => d.uploaded_by === 'vendor' && d.vendor_status === 'submitted').length} à valider
+          </p>
+        </div>
+        <Button className="bg-[#88b7b5] hover:bg-[#7aa9a7] gap-2 rounded-full" onClick={handleOpenAdd}>
           <Plus className="h-4 w-4" />
           Ajouter
         </Button>
       </div>
 
       {docs.length === 0 ? (
-        <div className="text-center py-12 bg-gray-50 rounded-lg">
-          <FileText className="h-12 w-12 text-brand-gray mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-brand-purple mb-2">Aucun document pro</h3>
-          <p className="text-sm text-brand-gray mb-4">Ajoutez les devis et factures reçus des prestataires.</p>
+        <div className="text-center py-16 bg-[#FAF9F7] rounded-[18px] border border-[rgba(75,68,86,0.06)]">
+          <div className="w-16 h-16 rounded-full bg-white border border-[rgba(75,68,86,0.06)] flex items-center justify-center mx-auto mb-4">
+            <FileText className="h-7 w-7 text-[#9C97A3]" />
+          </div>
+          <h3 className="text-[16px] font-semibold text-[#4B4456] mb-2">Aucun document pro</h3>
+          <p className="text-[13px] text-[#9C97A3] mb-5 max-w-sm mx-auto">
+            Ajoutez les devis et factures reçus des prestataires, ou attendez qu'ils les soumettent depuis leur espace pro.
+          </p>
+          <Button className="bg-[#88b7b5] hover:bg-[#7aa9a7] gap-2 rounded-full" onClick={handleOpenAdd}>
+            <Plus className="h-4 w-4" />
+            Ajouter un document
+          </Button>
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-lg border">
+        <div className="bg-white rounded-[18px] border border-[rgba(75,68,86,0.06)] overflow-hidden">
           <Table>
             <TableHeader>
-              <TableRow>
-                <TableHead>Prestataire</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead>Référence</TableHead>
-                <TableHead>Montant</TableHead>
-                <TableHead>Date</TableHead>
-                <TableHead>Statut</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+              <TableRow className="hover:bg-transparent border-[rgba(75,68,86,0.06)]">
+                <TableHead className="text-[11px] font-semibold text-[#9C97A3] uppercase tracking-wide bg-[#FAF9F7]">Prestataire</TableHead>
+                <TableHead className="text-[11px] font-semibold text-[#9C97A3] uppercase tracking-wide bg-[#FAF9F7]">Type</TableHead>
+                <TableHead className="text-[11px] font-semibold text-[#9C97A3] uppercase tracking-wide bg-[#FAF9F7]">Référence</TableHead>
+                <TableHead className="text-[11px] font-semibold text-[#9C97A3] uppercase tracking-wide bg-[#FAF9F7]">Montant</TableHead>
+                <TableHead className="text-[11px] font-semibold text-[#9C97A3] uppercase tracking-wide bg-[#FAF9F7]">Date</TableHead>
+                <TableHead className="text-[11px] font-semibold text-[#9C97A3] uppercase tracking-wide bg-[#FAF9F7]">Paiement</TableHead>
+                <TableHead className="text-[11px] font-semibold text-[#9C97A3] uppercase tracking-wide bg-[#FAF9F7]">Validation pro</TableHead>
+                <TableHead className="text-[11px] font-semibold text-[#9C97A3] uppercase tracking-wide bg-[#FAF9F7] text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {docs.map((d) => {
                 const docStatus = d.status || 'recu';
                 const files = getFileUrls(d);
+                const isVendorDoc = d.uploaded_by === 'vendor';
                 return (
-                  <TableRow key={d.id}>
+                  <TableRow key={d.id} className="border-[rgba(75,68,86,0.04)] hover:bg-[rgba(136,183,181,0.03)]">
+                    {/* Prestataire */}
                     <TableCell>
                       <div className="flex items-center gap-3">
-                        <div className="h-10 w-10 rounded-full bg-gray-100 overflow-hidden flex-shrink-0 flex items-center justify-center">
+                        <div className="h-9 w-9 rounded-full bg-[#FAF9F7] overflow-hidden flex-shrink-0 flex items-center justify-center ring-1 ring-[rgba(75,68,86,0.06)]">
                           {d.vendor_logo_url ? (
                             <img src={d.vendor_logo_url} alt="" className="h-full w-full object-cover" />
                           ) : (
-                            <span className="text-brand-gray text-xs font-medium">
+                            <span className="text-[#9C97A3] text-[11px] font-semibold">
                               {(d.vendor_name || d.pro_name || '?').charAt(0).toUpperCase()}
                             </span>
                           )}
                         </div>
-                        <div>
-                          <div className="font-medium text-brand-purple">{d.vendor_name || d.pro_name || '—'}</div>
+                        <div className="min-w-0">
+                          <div className="text-[13px] font-semibold text-[#4B4456] truncate">{d.vendor_name || d.pro_name || '—'}</div>
+                          {isVendorDoc && (
+                            <span className="text-[10px] text-[#88b7b5] font-medium">Soumis par le pro</span>
+                          )}
                         </div>
                       </div>
                     </TableCell>
+                    {/* Type */}
                     <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Badge variant={d.type === 'devis' ? 'outline' : 'default'}>{d.type === 'devis' ? 'Devis' : 'Facture'}</Badge>
-                        {d.uploaded_by === 'vendor' && (
-                          <Badge className="bg-[#88b7b5]/15 text-[#88b7b5] hover:bg-[#88b7b5]/15 border-0 gap-1">
-                            <Upload className="h-3 w-3" />
-                            Pro
-                          </Badge>
-                        )}
-                      </div>
+                      <span className={`inline-flex items-center gap-1.5 text-[12px] font-semibold px-2.5 py-1 rounded-full ${
+                        d.type === 'devis'
+                          ? 'text-[#88b7b5] bg-[rgba(136,183,181,0.1)]'
+                          : 'text-[#C9A96E] bg-[rgba(201,169,110,0.1)]'
+                      }`}>
+                        {d.type === 'devis' ? 'Devis' : 'Facture'}
+                      </span>
                     </TableCell>
-                    <TableCell>{d.reference || '—'}</TableCell>
-                    <TableCell>{d.amount.toLocaleString('fr-FR')} €</TableCell>
-                    <TableCell>{d.date ? d.date.split('-').reverse().join('/') : '—'}</TableCell>
+                    {/* Référence */}
+                    <TableCell className="text-[12.5px] text-[#4B4456]">{d.reference || '—'}</TableCell>
+                    {/* Montant */}
+                    <TableCell className="text-[13px] font-bold text-[#4B4456]">{d.amount.toLocaleString('fr-FR')} €</TableCell>
+                    {/* Date */}
+                    <TableCell className="text-[12px] text-[#9C97A3]">{d.date ? d.date.split('-').reverse().join('/') : '—'}</TableCell>
+                    {/* Statut paiement */}
                     <TableCell>
-                      <div className="flex flex-col gap-1.5">
-                        <Select value={docStatus} onValueChange={(v) => handleStatusChange(d.id, v as ProDocStatus)}>
-                          <SelectTrigger className="w-32 h-8 border-0 bg-transparent p-0">
-                            <Badge className={statusColors[docStatus as ProDocStatus]}>{statusLabels[docStatus as ProDocStatus]}</Badge>
-                          </SelectTrigger>
-                          <SelectContent>
-                            {(['recu', 'en_attente', 'paye'] as ProDocStatus[]).map((s) => (
-                              <SelectItem key={s} value={s}>{statusLabels[s]}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        {d.uploaded_by === 'vendor' && (
-                          <div className="flex items-center gap-1.5">
-                            {d.vendor_status === 'validated' ? (
-                              <Badge className="bg-green-100 text-green-700 hover:bg-green-100 border-0 gap-1">
-                                <CheckCircle2 className="h-3 w-3" />
-                                Validé
-                              </Badge>
-                            ) : d.vendor_status === 'rejected' ? (
-                              <Badge className="bg-red-100 text-red-700 hover:bg-red-100 border-0 gap-1">
+                      <Select value={docStatus} onValueChange={(v) => handleStatusChange(d.id, v as ProDocStatus)}>
+                        <SelectTrigger className="w-[110px] h-8 border-[rgba(75,68,86,0.1)] bg-[#FAF9F7] text-[12px] rounded-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {(['recu', 'en_attente', 'paye'] as ProDocStatus[]).map((s) => (
+                            <SelectItem key={s} value={s}>{statusLabels[s]}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </TableCell>
+                    {/* Validation pro */}
+                    <TableCell>
+                      {isVendorDoc ? (
+                        <div className="flex items-center gap-2">
+                          {d.vendor_status === 'validated' ? (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#88b7b5] bg-[rgba(136,183,181,0.12)] px-2.5 py-1.5 rounded-full">
+                              <CheckCircle2 className="h-3 w-3" />
+                              Validé
+                            </span>
+                          ) : d.vendor_status === 'rejected' ? (
+                            <div className="flex flex-col gap-1">
+                              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#B9847F] bg-[rgba(185,132,127,0.12)] px-2.5 py-1.5 rounded-full w-fit">
                                 <XCircle className="h-3 w-3" />
                                 Rejeté
-                              </Badge>
-                            ) : (
-                              <Badge className="bg-orange-100 text-orange-700 hover:bg-orange-100 border-0 gap-1">
+                              </span>
+                              {d.rejection_reason && (
+                                <span className="text-[10px] text-[#B9847F] truncate max-w-[140px]" title={d.rejection_reason}>
+                                  {d.rejection_reason}
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1.5">
+                              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#C9A96E] bg-[rgba(201,169,110,0.12)] px-2.5 py-1.5 rounded-full">
                                 <Clock className="h-3 w-3" />
                                 Soumis
-                              </Badge>
-                            )}
-                          </div>
-                        )}
-                      </div>
+                              </span>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-[#88b7b5] hover:bg-[rgba(136,183,181,0.1)] rounded-full"
+                                title="Valider"
+                                onClick={() => handleValidateVendorDoc(d.id)}
+                              >
+                                <CheckCircle2 className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-[#B9847F] hover:bg-[rgba(185,132,127,0.1)] rounded-full"
+                                title="Rejeter"
+                                onClick={() => handleRejectVendorDoc(d.id)}
+                              >
+                                <XCircle className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-[11px] text-[#9C97A3]">—</span>
+                      )}
                     </TableCell>
+                    {/* Actions */}
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1">
-                        {d.uploaded_by === 'vendor' && d.vendor_status !== 'validated' && (
-                          <>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-green-600 hover:bg-green-50"
-                              title="Valider"
-                              onClick={() => handleValidateVendorDoc(d.id)}
-                            >
-                              <CheckCircle2 className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-red-600 hover:bg-red-50"
-                              title="Rejeter"
-                              onClick={() => handleRejectVendorDoc(d.id)}
-                            >
-                              <XCircle className="h-4 w-4" />
-                            </Button>
-                          </>
-                        )}
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full">
                               <MoreVertical className="h-4 w-4" />
                             </Button>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
+                          <DropdownMenuContent align="end" className="w-48">
                             {files.devis && (
                               <DropdownMenuItem onClick={() => window.open(files.devis, '_blank')}>
                                 <Eye className="h-4 w-4 mr-2" />
@@ -482,93 +591,133 @@ export function ClientFacturationProTab({ clientId }: ClientFacturationProTabPro
       )}
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="sm:max-w-lg w-[95vw] max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="text-brand-purple">{editingDoc ? 'Modifier un document pro' : 'Ajouter un document pro'}</DialogTitle>
-            <DialogDescription>Associez un prestataire, les fichiers devis et facture, et les détails.</DialogDescription>
+        <DialogContent className="sm:max-w-[560px] w-[95vw] max-h-[90vh] overflow-y-auto rounded-[20px]">
+          <DialogHeader className="pb-2">
+            <DialogTitle className="text-[18px] font-baskerville text-[#4B4456]">
+              {editingDoc ? 'Modifier le document' : 'Nouveau document pro'}
+            </DialogTitle>
+            <DialogDescription className="text-[13px] text-[#9C97A3]">
+              Associez un prestataire et les fichiers devis/facture.
+            </DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleSubmit} className="space-y-4 py-4">
-            <div>
-              <Label>Prestataire *</Label>
-              <Select value={form.vendor_id} onValueChange={(v) => setForm({ ...form, vendor_id: v })}>
-                <SelectTrigger className="mt-1">
-                  <SelectValue placeholder="Sélectionner un prestataire" />
-                </SelectTrigger>
-                <SelectContent>
-                  {vendors.map((v) => (
-                    <SelectItem key={v.id} value={v.id} textValue={v.name}>
-                      <div className="flex items-center gap-2">
-                        {v.logoUrl ? (
-                          <img src={v.logoUrl} alt="" className="h-5 w-5 rounded-full object-cover" />
-                        ) : (
-                          <div className="h-5 w-5 rounded-full bg-gray-100 flex items-center justify-center text-[10px]">{v.name.charAt(0).toUpperCase()}</div>
-                        )}
-                        {v.name}
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <Label>Type</Label>
-              <Select value={form.type} onValueChange={(v) => setForm({ ...form, type: v as ProDocType })}>
-                <SelectTrigger className="mt-1">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="devis">Devis</SelectItem>
-                  <SelectItem value="facture">Facture</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
+          <form onSubmit={handleSubmit} className="space-y-5 py-2">
+            {/* Prestataire + Type */}
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label>Fichier devis</Label>
-                <Input className="mt-1" type="file" accept=".pdf,.png,.jpg,.jpeg,.webp" onChange={(e) => setDevisFile(e.target.files?.[0] || null)} />
+                <Label className="text-[12px] font-semibold text-[#4B4456]">Prestataire *</Label>
+                <Select value={form.vendor_id} onValueChange={(v) => setForm({ ...form, vendor_id: v })}>
+                  <SelectTrigger className="mt-1.5 h-10 rounded-xl border-[rgba(75,68,86,0.1)]">
+                    <SelectValue placeholder="Sélectionner..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {vendors.map((v) => (
+                      <SelectItem key={v.id} value={v.id} textValue={v.name}>
+                        <div className="flex items-center gap-2">
+                          {v.logoUrl ? (
+                            <img src={v.logoUrl} alt="" className="h-5 w-5 rounded-full object-cover" />
+                          ) : (
+                            <div className="h-5 w-5 rounded-full bg-[#FAF9F7] flex items-center justify-center text-[10px] font-semibold text-[#9C97A3]">{v.name.charAt(0).toUpperCase()}</div>
+                          )}
+                          {v.name}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-[12px] font-semibold text-[#4B4456]">Type</Label>
+                <Select value={form.type} onValueChange={(v) => setForm({ ...form, type: v as ProDocType })}>
+                  <SelectTrigger className="mt-1.5 h-10 rounded-xl border-[rgba(75,68,86,0.1)]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="devis">Devis</SelectItem>
+                    <SelectItem value="facture">Facture</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Fichiers */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label className="text-[12px] font-semibold text-[#4B4456]">Fichier devis</Label>
+                <div className="mt-1.5 relative">
+                  <Input
+                    className="h-10 rounded-xl border-[rgba(75,68,86,0.1)] file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-[#FAF9F7] file:text-[11px] file:font-semibold file:text-[#4B4456] hover:file:bg-[rgba(75,68,86,0.05)]"
+                    type="file"
+                    accept=".pdf,.png,.jpg,.jpeg,.webp"
+                    onChange={(e) => setDevisFile(e.target.files?.[0] || null)}
+                  />
+                </div>
                 {editingDoc?.devis_file_url && (
-                  <div className="mt-1 text-xs">
-                    <Button type="button" variant="link" className="h-auto p-0 text-xs" onClick={() => window.open(editingDoc.devis_file_url, '_blank')}>
-                      Voir le devis existant
-                    </Button>
-                  </div>
+                  <Button type="button" variant="link" className="h-auto p-0 mt-1 text-[11px] text-[#88b7b5]" onClick={() => window.open(editingDoc.devis_file_url, '_blank')}>
+                    Voir le devis existant
+                  </Button>
                 )}
               </div>
               <div>
-                <Label>Fichier facture</Label>
-                <Input className="mt-1" type="file" accept=".pdf,.png,.jpg,.jpeg,.webp" onChange={(e) => setFactureFile(e.target.files?.[0] || null)} />
+                <Label className="text-[12px] font-semibold text-[#4B4456]">Fichier facture</Label>
+                <div className="mt-1.5 relative">
+                  <Input
+                    className="h-10 rounded-xl border-[rgba(75,68,86,0.1)] file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-[#FAF9F7] file:text-[11px] file:font-semibold file:text-[#4B4456] hover:file:bg-[rgba(75,68,86,0.05)]"
+                    type="file"
+                    accept=".pdf,.png,.jpg,.jpeg,.webp"
+                    onChange={(e) => setFactureFile(e.target.files?.[0] || null)}
+                  />
+                </div>
                 {editingDoc?.facture_file_url && (
-                  <div className="mt-1 text-xs">
-                    <Button type="button" variant="link" className="h-auto p-0 text-xs" onClick={() => window.open(editingDoc.facture_file_url, '_blank')}>
-                      Voir la facture existante
-                    </Button>
-                  </div>
+                  <Button type="button" variant="link" className="h-auto p-0 mt-1 text-[11px] text-[#88b7b5]" onClick={() => window.open(editingDoc.facture_file_url, '_blank')}>
+                    Voir la facture existante
+                  </Button>
                 )}
               </div>
             </div>
 
+            {/* Référence */}
             <div>
-              <Label>Référence</Label>
-              <Input className="mt-1" value={form.reference} onChange={(e) => setForm({ ...form, reference: e.target.value })} placeholder="Ex: DEV-2026-001" />
+              <Label className="text-[12px] font-semibold text-[#4B4456]">Référence</Label>
+              <Input
+                className="mt-1.5 h-10 rounded-xl border-[rgba(75,68,86,0.1)]"
+                value={form.reference}
+                onChange={(e) => setForm({ ...form, reference: e.target.value })}
+                placeholder="Ex: DEV-2026-001"
+              />
             </div>
 
+            {/* Montant + Date */}
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label>Montant (€) *</Label>
-                <Input className="mt-1" type="number" inputMode="decimal" min={0} step="0.01" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} required />
+                <Label className="text-[12px] font-semibold text-[#4B4456]">Montant (€) *</Label>
+                <Input
+                  className="mt-1.5 h-10 rounded-xl border-[rgba(75,68,86,0.1)]"
+                  type="number"
+                  inputMode="decimal"
+                  min={0}
+                  step="0.01"
+                  value={form.amount}
+                  onChange={(e) => setForm({ ...form, amount: e.target.value })}
+                  required
+                />
               </div>
               <div>
-                <Label>Date *</Label>
-                <Input className="mt-1" type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} required />
+                <Label className="text-[12px] font-semibold text-[#4B4456]">Date *</Label>
+                <Input
+                  className="mt-1.5 h-10 rounded-xl border-[rgba(75,68,86,0.1)]"
+                  type="date"
+                  value={form.date}
+                  onChange={(e) => setForm({ ...form, date: e.target.value })}
+                  required
+                />
               </div>
             </div>
 
+            {/* Statut */}
             <div>
-              <Label>Statut</Label>
+              <Label className="text-[12px] font-semibold text-[#4B4456]">Statut paiement</Label>
               <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v as ProDocStatus })}>
-                <SelectTrigger className="mt-1">
+                <SelectTrigger className="mt-1.5 h-10 rounded-xl border-[rgba(75,68,86,0.1)]">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -579,19 +728,90 @@ export function ClientFacturationProTab({ clientId }: ClientFacturationProTabPro
               </Select>
             </div>
 
+            {/* Notes */}
             <div>
-              <Label>Description / Notes</Label>
-              <Textarea className="mt-1" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="Détails, conditions, etc." rows={3} />
+              <Label className="text-[12px] font-semibold text-[#4B4456]">Description / Notes</Label>
+              <Textarea
+                className="mt-1.5 rounded-xl border-[rgba(75,68,86,0.1)] resize-none"
+                value={form.notes}
+                onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                placeholder="Détails, conditions, etc."
+                rows={3}
+              />
             </div>
 
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={isSaving}>Annuler</Button>
-              <Button type="submit" disabled={isSaving} className="bg-brand-turquoise hover:bg-brand-turquoise-hover gap-2">
+            <DialogFooter className="gap-2 pt-2">
+              <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={isSaving} className="rounded-full">
+                Annuler
+              </Button>
+              <Button type="submit" disabled={isSaving} className="bg-[#88b7b5] hover:bg-[#7aa9a7] gap-2 rounded-full">
                 {isSaving && <Loader2 className="h-4 w-4 animate-spin" />}
                 {editingDoc ? 'Enregistrer' : 'Ajouter'}
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Rejection modal */}
+      <Dialog open={rejectOpen} onOpenChange={setRejectOpen}>
+        <DialogContent className="sm:max-w-[480px] w-[95vw] rounded-[20px]">
+          <DialogHeader className="pb-2">
+            <div className="w-12 h-12 rounded-full bg-[rgba(185,132,127,0.12)] flex items-center justify-center mb-3">
+              <XCircle className="h-6 w-6 text-[#B9847F]" />
+            </div>
+            <DialogTitle className="text-[18px] font-baskerville text-[#4B4456]">
+              Rejeter le document
+            </DialogTitle>
+            <DialogDescription className="text-[13px] text-[#9C97A3]">
+              {rejectDoc && (
+                <>
+                  {rejectDoc.type === 'devis' ? 'Devis' : 'Facture'}
+                  {rejectDoc.reference ? ` ${rejectDoc.reference}` : ''}
+                  {' de '}{rejectDoc.vendor_name || rejectDoc.pro_name}
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div>
+              <Label className="text-[12px] font-semibold text-[#4B4456]">
+                Motif du rejet <span className="text-[#B9847F]">*</span>
+              </Label>
+              <Textarea
+                className="mt-1.5 rounded-xl border-[rgba(75,68,86,0.1)] resize-none"
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+                placeholder="Expliquez au prestataire ce qui doit être corrigé..."
+                rows={4}
+                autoFocus
+              />
+              <p className="text-[11px] text-[#9C97A3] mt-1.5">
+                Le prestataire recevra ce motif par email et notification.
+              </p>
+            </div>
+          </div>
+          <DialogFooter className="gap-2 pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => { setRejectOpen(false); setRejectDoc(null); setRejectReason(''); }}
+              disabled={rejecting}
+              className="rounded-full"
+            >
+              Annuler
+            </Button>
+            <Button
+              type="button"
+              onClick={confirmReject}
+              disabled={rejecting || !rejectReason.trim()}
+              className="bg-[#B9847F] hover:bg-[#a77570] gap-2 rounded-full"
+            >
+              {rejecting && <Loader2 className="h-4 w-4 animate-spin" />}
+              <XCircle className="h-4 w-4" />
+              Rejeter
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
