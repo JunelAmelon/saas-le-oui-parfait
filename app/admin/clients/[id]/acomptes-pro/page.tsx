@@ -52,6 +52,7 @@ interface VendorBooking {
   id: string;
   vendor_id: string;
   vendor_uid?: string;
+  vendor_name?: string;
   planner_id: string;
   client_id: string;
   client_names: string;
@@ -64,6 +65,8 @@ interface VendorPayment {
   booking_id: string;
   vendor_id: string;
   vendor_uid?: string;
+  vendor_name?: string;
+  vendor_logo?: string | null;
   client_id: string;
   planner_id: string;
   label: string;
@@ -186,10 +189,23 @@ export default function ClientAcomptesProPage() {
 
     setSaving(true);
     try {
+      // Fetch vendor name + logo for display on client side
+      let vendorName = '';
+      let vendorLogo: string | null = null;
+      try {
+        const vendorDoc = (await getDocument('vendors', selectedBooking.vendor_id)) as any;
+        vendorName = vendorDoc?.name || '';
+        vendorLogo = vendorDoc?.logo || vendorDoc?.logo_url || vendorDoc?.logoUrl || null;
+      } catch {
+        // non-blocking
+      }
+
       const data: any = {
         booking_id: selectedBooking.id,
         vendor_id: selectedBooking.vendor_id,
         vendor_uid: selectedBooking.vendor_uid || null,
+        vendor_name: vendorName || selectedBooking.vendor_name || '',
+        vendor_logo: vendorLogo,
         client_id: clientId,
         planner_id: user.uid,
         label: form.label,
@@ -240,12 +256,27 @@ export default function ClientAcomptesProPage() {
       prev.map((p) => (p.id === paymentId ? { ...p, status: 'paid', paid_date: today, method } : p))
     );
     try {
-      await updateDocument('vendor_payments', paymentId, {
+      // Backfill vendor_name and vendor_logo if missing
+      const updateData: any = {
         status: 'paid',
         paid_date: today,
         method,
         updated_at: new Date().toISOString(),
-      });
+      };
+
+      if (payment && (!payment.vendor_name || !('vendor_logo' in payment))) {
+        try {
+          const vendorDoc = (await getDocument('vendors', payment.vendor_id)) as any;
+          if (vendorDoc) {
+            if (!payment.vendor_name) updateData.vendor_name = vendorDoc.name || '';
+            if (!('vendor_logo' in payment)) updateData.vendor_logo = vendorDoc.logo || vendorDoc.logo_url || vendorDoc.logoUrl || null;
+          }
+        } catch {
+          // non-blocking
+        }
+      }
+
+      await updateDocument('vendor_payments', paymentId, updateData);
       toast.success('Acompte marqué comme payé');
 
       // Notify the vendor
