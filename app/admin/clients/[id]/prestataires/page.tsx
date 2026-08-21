@@ -8,11 +8,22 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Loader2, Users } from 'lucide-react';
+import { ArrowLeft, Loader2, Users, Calendar, Plus, Trash2, Clock, Upload, FileText, X } from 'lucide-react';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { useAuth } from '@/contexts/AuthContext';
 import { addDocument, deleteDocument, getDocuments, getDocument, updateDocument } from '@/lib/db';
+import { uploadFile } from '@/lib/storage';
 import { toast } from 'sonner';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 
 interface Vendor {
   id: string;
@@ -47,6 +58,17 @@ export default function ClientPrestatairesAdminPage() {
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [assignedLinks, setAssignedLinks] = useState<ClientVendorLink[]>([]);
   const [search, setSearch] = useState('');
+
+  // Planning state
+  const [planningOpen, setPlanningOpen] = useState(false);
+  const [planningVendor, setPlanningVendor] = useState<Vendor | null>(null);
+  const [planningSlots, setPlanningSlots] = useState<{ time: string; title: string; description: string }[]>([]);
+  const [planningNotes, setPlanningNotes] = useState('');
+  const [planningDocUrl, setPlanningDocUrl] = useState<string | null>(null);
+  const [planningDocName, setPlanningDocName] = useState<string | null>(null);
+  const [planningId, setPlanningId] = useState<string | null>(null);
+  const [savingPlanning, setSavingPlanning] = useState(false);
+  const [uploadingPlanning, setUploadingPlanning] = useState(false);
 
   const fetchAll = async () => {
     if (!user?.uid || !clientId) return;
@@ -294,6 +316,162 @@ export default function ClientPrestatairesAdminPage() {
       .filter(Boolean) as Vendor[];
   }, [assignedLinks, vendors]);
 
+  // ---- Planning management ----
+  const openPlanning = async (vendor: Vendor) => {
+    setPlanningVendor(vendor);
+    setPlanningOpen(true);
+    setPlanningSlots([{ time: '', title: '', description: '' }]);
+    setPlanningNotes('');
+    setPlanningDocUrl(null);
+    setPlanningDocName(null);
+    setPlanningId(null);
+
+    // Load existing planning
+    try {
+      const allPlannings = await getDocuments('vendor_plannings', [
+        { field: 'vendor_id', operator: '==', value: vendor.id },
+      ]);
+      const existing = (allPlannings as any[]).find((p) => p.client_id === clientId);
+      if (existing) {
+        setPlanningId(existing.id);
+        setPlanningSlots(existing.slots?.length ? existing.slots : [{ time: '', title: '', description: '' }]);
+        setPlanningNotes(existing.notes || '');
+        setPlanningDocUrl(existing.doc_url || null);
+        setPlanningDocName(existing.doc_name || null);
+      }
+    } catch (e) {
+      console.error('Error loading planning:', e);
+    }
+  };
+
+  const addSlot = () => {
+    setPlanningSlots([...planningSlots, { time: '', title: '', description: '' }]);
+  };
+
+  const updateSlot = (idx: number, field: 'time' | 'title' | 'description', value: string) => {
+    setPlanningSlots(planningSlots.map((s, i) => (i === idx ? { ...s, [field]: value } : s)));
+  };
+
+  const removeSlot = (idx: number) => {
+    setPlanningSlots(planningSlots.filter((_, i) => i !== idx));
+  };
+
+  const handlePlanningDocUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !planningVendor) return;
+    setUploadingPlanning(true);
+    try {
+      const path = `vendor-plannings/${clientId}/${planningVendor.id}/${Date.now()}-${file.name}`;
+      const url = await uploadFile(file, path);
+      setPlanningDocUrl(url);
+      setPlanningDocName(file.name);
+      toast.success('Document uploadé');
+    } catch (err: any) {
+      console.error('Error uploading planning doc:', err);
+      toast.error(err?.message || "Erreur lors de l'upload");
+    } finally {
+      setUploadingPlanning(false);
+    }
+  };
+
+  const removePlanningDoc = () => {
+    setPlanningDocUrl(null);
+    setPlanningDocName(null);
+  };
+
+  const savePlanning = async () => {
+    if (!planningVendor || !user?.uid) return;
+    const validSlots = planningSlots.filter((s) => s.time || s.title);
+    if (validSlots.length === 0 && !planningNotes && !planningDocUrl) {
+      toast.error('Ajoutez au moins un créneau, une note ou un document');
+      return;
+    }
+    setSavingPlanning(true);
+    try {
+      const data: any = {
+        vendor_id: planningVendor.id,
+        vendor_uid: planningVendor.pro_account_uid || null,
+        planner_id: user.uid,
+        client_id: clientId,
+        vendor_name: planningVendor.name,
+        slots: validSlots,
+        notes: planningNotes,
+        doc_url: planningDocUrl,
+        doc_name: planningDocName,
+        updated_at: new Date().toISOString(),
+      };
+
+      if (planningId) {
+        await updateDocument('vendor_plannings', planningId, data);
+      } else {
+        const created = await addDocument('vendor_plannings', {
+          ...data,
+          created_at: new Date().toISOString(),
+        });
+        setPlanningId(created.id);
+      }
+
+      // Notify the vendor
+      if (planningVendor.pro_account_uid) {
+        // Fetch client names for context
+        let coupleNames = '';
+        try {
+          const clientDoc = (await getDocument('clients', clientId)) as any;
+          if (clientDoc) {
+            coupleNames = `${clientDoc.name || ''}${clientDoc.name && clientDoc.partner ? ' & ' : ''}${clientDoc.partner || ''}`.trim();
+          }
+        } catch {
+          // non-blocking
+        }
+
+        try {
+          await addDocument('notifications', {
+            recipient_id: planningVendor.pro_account_uid,
+            type: 'planning',
+            title: 'Planning du mariage mis à jour',
+            message: `Le planning du mariage${coupleNames ? ` de ${coupleNames}` : ''} a été mis à jour par votre wedding planner.`,
+            link: '/espace-pro/mariages',
+            read: false,
+            created_at: new Date(),
+          });
+        } catch {
+          // non-blocking
+        }
+
+        try {
+          const { sendEmailToUid } = await import('@/lib/email');
+          await sendEmailToUid({
+            recipientUid: planningVendor.pro_account_uid,
+            subject: `Planning du mariage${coupleNames ? ` de ${coupleNames}` : ''} mis à jour - Le Oui Parfait`,
+            text: `Bonjour ${planningVendor.name},\n\nVotre wedding planner a mis à jour le planning du mariage${coupleNames ? ` de ${coupleNames}` : ''}.\n\nConnectez-vous à votre espace pro pour le consulter.\n\nLe Oui Parfait`,
+          });
+        } catch (e) {
+          console.warn('Unable to send planning email:', e);
+        }
+
+        try {
+          const { sendPushToRecipient } = await import('@/lib/push');
+          await sendPushToRecipient({
+            recipientId: planningVendor.pro_account_uid,
+            title: 'Planning mis à jour',
+            body: `Le planning du mariage${coupleNames ? ` de ${coupleNames}` : ''} a été mis à jour.`,
+            link: '/espace-pro/mariages',
+          });
+        } catch (e) {
+          console.warn('Unable to send planning push:', e);
+        }
+      }
+
+      toast.success('Planning enregistré et envoyé au prestataire');
+      setPlanningOpen(false);
+    } catch (e: any) {
+      console.error('Error saving planning:', e);
+      toast.error(e?.message || "Erreur lors de l'enregistrement");
+    } finally {
+      setSavingPlanning(false);
+    }
+  };
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -341,9 +519,20 @@ export default function ClientPrestatairesAdminPage() {
                           <p className="text-xs text-brand-gray">{v.category}</p>
                         </div>
                       </div>
-                      <Button size="sm" variant="destructive" className="w-full sm:w-auto" onClick={() => void unassignVendor(v.id)}>
-                        Retirer
-                      </Button>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="gap-1.5 text-brand-turquoise border-brand-turquoise/30 hover:bg-brand-turquoise/5"
+                          onClick={() => void openPlanning(v)}
+                        >
+                          <Calendar className="h-3.5 w-3.5" />
+                          Planning
+                        </Button>
+                        <Button size="sm" variant="destructive" className="w-full sm:w-auto" onClick={() => void unassignVendor(v.id)}>
+                          Retirer
+                        </Button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -400,6 +589,162 @@ export default function ClientPrestatairesAdminPage() {
           </div>
         )}
       </div>
+
+      {/* Planning dialog */}
+      <Dialog open={planningOpen} onOpenChange={setPlanningOpen}>
+        <DialogContent className="sm:max-w-[640px] w-[95vw] rounded-[20px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader className="pb-2">
+            <div className="w-12 h-12 rounded-full bg-[rgba(136,183,181,0.12)] flex items-center justify-center mb-3">
+              <Calendar className="h-6 w-6 text-[#88b7b5]" />
+            </div>
+            <DialogTitle className="text-[18px] font-baskerville text-[#4B4456]">
+              {planningId ? 'Modifier le planning' : 'Créer le planning'} — {planningVendor?.name}
+            </DialogTitle>
+            <DialogDescription className="text-[13px] text-[#9C97A3]">
+              {planningId
+                ? 'Modifiez le déroulé du jour. Le prestataire verra la mise à jour sur son espace pro.'
+                : 'Créez le déroulé du jour pour ce prestataire. Il le verra sur son espace pro.'}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-5 py-2">
+            {/* Créneaux horaires */}
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <Label className="text-[12px] font-semibold text-[#4B4456] uppercase tracking-wide flex items-center gap-2">
+                  <Clock className="w-3.5 h-3.5 text-[#88b7b5]" />
+                  Créneaux horaires
+                </Label>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 px-2 text-[#88b7b5] hover:bg-[rgba(136,183,181,0.08)] gap-1"
+                  onClick={addSlot}
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  Ajouter
+                </Button>
+              </div>
+
+              <div className="space-y-2">
+                {planningSlots.map((slot, idx) => (
+                  <div key={idx} className="flex items-start gap-2 p-3 rounded-xl bg-[#FAF9F7] border border-[rgba(75,68,86,0.05)]">
+                    <Input
+                      type="time"
+                      value={slot.time}
+                      onChange={(e) => updateSlot(idx, 'time', e.target.value)}
+                      className="w-[110px] shrink-0 rounded-lg border-[rgba(75,68,86,0.1)] h-9 text-sm"
+                    />
+                    <div className="flex-1 space-y-1.5">
+                      <Input
+                        value={slot.title}
+                        onChange={(e) => updateSlot(idx, 'title', e.target.value)}
+                        placeholder="Titre (ex: Cérémonie, Photos couple...)"
+                        className="rounded-lg border-[rgba(75,68,86,0.1)] h-9 text-sm"
+                      />
+                      <Input
+                        value={slot.description}
+                        onChange={(e) => updateSlot(idx, 'description', e.target.value)}
+                        placeholder="Détail (optionnel)"
+                        className="rounded-lg border-[rgba(75,68,86,0.1)] h-9 text-sm"
+                      />
+                    </div>
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      className="h-9 w-9 shrink-0 text-[#B9847F] hover:bg-[rgba(185,132,127,0.08)]"
+                      onClick={() => removeSlot(idx)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+                {planningSlots.length === 0 && (
+                  <p className="text-[12px] text-[#9C97A3] text-center py-3">Aucun créneau. Cliquez sur "Ajouter".</p>
+                )}
+              </div>
+            </div>
+
+            {/* Notes / consignes générales */}
+            <div>
+              <Label className="text-[12px] font-semibold text-[#4B4456] uppercase tracking-wide mb-2 block">
+                Consignes générales
+              </Label>
+              <Textarea
+                value={planningNotes}
+                onChange={(e) => setPlanningNotes(e.target.value)}
+                placeholder="Lieu de RDV, contacts, consignes particulières..."
+                className="rounded-xl border-[rgba(75,68,86,0.1)] min-h-[80px] text-sm resize-none"
+              />
+            </div>
+
+            {/* Document de planning */}
+            <div>
+              <Label className="text-[12px] font-semibold text-[#4B4456] uppercase tracking-wide mb-2 block">
+                Document de planning (PDF, Word...)
+              </Label>
+              {planningDocUrl ? (
+                <div className="flex items-center justify-between p-3 rounded-xl bg-[#FAF9F7] border border-[rgba(75,68,86,0.05)]">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <FileText className="w-4 h-4 text-[#88b7b5] shrink-0" />
+                    <span className="text-sm text-[#4B4456] truncate">{planningDocName || 'Document'}</span>
+                  </div>
+                  <div className="flex gap-1.5 shrink-0">
+                    <a href={planningDocUrl} target="_blank" rel="noopener noreferrer" className="text-[#88b7b5] hover:text-[#7aa9a7] text-xs font-medium px-2">
+                      Voir
+                    </a>
+                    <Button type="button" size="icon" variant="ghost" className="h-7 w-7 text-[#B9847F]" onClick={removePlanningDoc}>
+                      <X className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <label className="flex flex-col items-center justify-center gap-2 p-5 rounded-xl border-2 border-dashed border-[rgba(75,68,86,0.1)] cursor-pointer hover:bg-[#FAF9F7] transition-colors">
+                  {uploadingPlanning ? (
+                    <Loader2 className="h-5 w-5 text-[#88b7b5] animate-spin" />
+                  ) : (
+                    <Upload className="h-5 w-5 text-[#9C97A3]" />
+                  )}
+                  <span className="text-[12px] text-[#9C97A3]">
+                    {uploadingPlanning ? 'Upload en cours...' : 'Cliquez pour uploader un document'}
+                  </span>
+                  <input
+                    type="file"
+                    className="hidden"
+                    accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,image/*"
+                    onChange={handlePlanningDocUpload}
+                    disabled={uploadingPlanning}
+                  />
+                </label>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2 pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setPlanningOpen(false)}
+              disabled={savingPlanning}
+              className="rounded-full"
+            >
+              Annuler
+            </Button>
+            <Button
+              type="button"
+              onClick={savePlanning}
+              disabled={savingPlanning}
+              className="bg-[#88b7b5] hover:bg-[#7aa9a7] gap-2 rounded-full"
+            >
+              {savingPlanning && <Loader2 className="h-4 w-4 animate-spin" />}
+              <Calendar className="h-4 w-4" />
+              {planningId ? 'Mettre à jour & envoyer' : 'Enregistrer & envoyer'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }

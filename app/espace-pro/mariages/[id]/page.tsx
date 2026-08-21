@@ -69,7 +69,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
-type Tab = 'documents' | 'acomptes' | 'infos';
+type Tab = 'documents' | 'acomptes' | 'infos' | 'planning';
 
 export default function VendorBookingDetailPage() {
   const params = useParams();
@@ -83,6 +83,7 @@ export default function VendorBookingDetailPage() {
   const [payments, setPayments] = useState<VendorPayment[]>([]);
   const [clientInfo, setClientInfo] = useState<any>(null);
   const [eventInfo, setEventInfo] = useState<any>(null);
+  const [planning, setPlanning] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<Tab>('documents');
 
@@ -122,11 +123,12 @@ export default function VendorBookingDetailPage() {
       setBooking(bk);
 
       if (bk.client_id && bk.vendor_id) {
-        const [d, p, clientDoc, eventDocs] = await Promise.all([
+        const [d, p, clientDoc, eventDocs, planningDocs] = await Promise.all([
           getBookingProDocuments(bk.client_id, bk.vendor_id),
           getBookingPayments(bookingId),
           getDocument('clients', bk.client_id).catch(() => null),
           getDocuments('events', [{ field: 'client_id', operator: '==', value: bk.client_id }]).catch(() => []),
+          getDocuments('vendor_plannings', [{ field: 'vendor_id', operator: '==', value: bk.vendor_id }]).catch(() => []),
         ]);
         setDocs(d);
         setPayments(p);
@@ -135,6 +137,9 @@ export default function VendorBookingDetailPage() {
         const events = (eventDocs as any[]) || [];
         const eventDoc = events.find((e) => e?.event_date) || events[0] || null;
         if (eventDoc) setEventInfo(eventDoc);
+        // Find planning for this client
+        const foundPlanning = (planningDocs as any[])?.find((pl) => pl.client_id === bk.client_id) || null;
+        setPlanning(foundPlanning);
       }
     } catch (e) {
       console.error('Error fetching booking detail:', e);
@@ -387,6 +392,17 @@ export default function VendorBookingDetailPage() {
           >
             <Sparkles className="h-4 w-4" />
             Infos mariage
+          </button>
+          <button
+            onClick={() => setTab('planning')}
+            className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors border-b-2 -mb-px ${
+              tab === 'planning'
+                ? 'text-[#4B4456] border-[#88b7b5]'
+                : 'text-[#9C97A3] border-transparent hover:text-[#4B4456]'
+            }`}
+          >
+            <Calendar className="h-4 w-4" />
+            Planning
           </button>
         </div>
 
@@ -771,6 +787,98 @@ export default function VendorBookingDetailPage() {
                 </>
               );
             })()}
+          </div>
+        )}
+
+        {/* Planning tab */}
+        {tab === 'planning' && (
+          <div className="space-y-5">
+            {planning ? (
+              <>
+                {/* Créneaux horaires */}
+                {planning.slots?.length > 0 && (
+                  <div className="bg-white rounded-[18px] border border-[rgba(75,68,86,0.06)] overflow-hidden">
+                    <div className="px-5 py-4 bg-[#FAF9F7] border-b border-[rgba(75,68,86,0.06)]">
+                      <div className="flex items-center gap-2">
+                        <Clock className="w-4 h-4 text-[#88b7b5]" />
+                        <h3 className="text-[14px] font-semibold text-[#4B4456] uppercase tracking-wide">Déroulé du jour</h3>
+                      </div>
+                    </div>
+                    <div className="divide-y divide-[rgba(75,68,86,0.04)]">
+                      {planning.slots
+                        .slice()
+                        .sort((a: any, b: any) => String(a.time || '').localeCompare(String(b.time || '')))
+                        .map((slot: any, idx: number) => (
+                          <div key={idx} className="flex items-start gap-4 px-5 py-4 hover:bg-[rgba(136,183,181,0.03)] transition-colors">
+                            <div className="shrink-0 w-[70px]">
+                              <span className="text-[14px] font-bold text-[#88b7b5] font-baskerville">
+                                {slot.time || '—'}
+                              </span>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-[14px] font-semibold text-[#4B4456]">
+                                {slot.title || 'Sans titre'}
+                              </p>
+                              {slot.description && (
+                                <p className="text-[12px] text-[#9C97A3] mt-0.5">{slot.description}</p>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Consignes générales */}
+                {planning.notes && (
+                  <div className="bg-white rounded-[18px] border border-[rgba(75,68,86,0.06)] p-5">
+                    <div className="flex items-center gap-2 mb-3">
+                      <FileText className="w-4 h-4 text-[#C9A96E]" />
+                      <span className="text-[11px] font-semibold text-[#9C97A3] uppercase tracking-wide">Consignes générales</span>
+                    </div>
+                    <p className="text-[14px] text-[#4B4456] leading-relaxed whitespace-pre-wrap">
+                      {planning.notes}
+                    </p>
+                  </div>
+                )}
+
+                {/* Document de planning */}
+                {planning.doc_url && (
+                  <div className="bg-white rounded-[18px] border border-[rgba(75,68,86,0.06)] p-5">
+                    <div className="flex items-center gap-2 mb-3">
+                      <FileText className="w-4 h-4 text-[#88b7b5]" />
+                      <span className="text-[11px] font-semibold text-[#9C97A3] uppercase tracking-wide">Document de planning</span>
+                    </div>
+                    <a
+                      href={planning.doc_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 px-4 py-2.5 rounded-full bg-[rgba(136,183,181,0.1)] text-[#88b7b5] hover:bg-[rgba(136,183,181,0.18)] transition-colors text-sm font-medium"
+                    >
+                      <FileText className="w-4 h-4" />
+                      {planning.doc_name || 'Télécharger le document'}
+                    </a>
+                  </div>
+                )}
+
+                {/* Updated date */}
+                {planning.updated_at && (
+                  <p className="text-[11px] text-[#9C97A3] text-center">
+                    Dernière mise à jour : {new Date(planning.updated_at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                  </p>
+                )}
+              </>
+            ) : (
+              <div className="bg-white rounded-[18px] border border-[rgba(75,68,86,0.06)] p-12 text-center">
+                <Calendar className="h-10 w-10 text-[#9C97A3] mx-auto mb-3 opacity-40" />
+                <p className="text-sm text-[#9C97A3]">
+                  Aucun planning disponible pour ce mariage.
+                </p>
+                <p className="text-xs text-[#9C97A3] mt-1">
+                  Votre wedding planner vous enverra le planning prochainement.
+                </p>
+              </div>
+            )}
           </div>
         )}
       </div>
