@@ -1,0 +1,62 @@
+import { NextResponse } from 'next/server';
+import { adminDb } from '@/lib/firebase-admin';
+import { getValidCalendarClient, createCalendarEvent, updateCalendarEvent, deleteCalendarEvent, CalendarEventInput } from '@/lib/google-calendar';
+
+export const runtime = 'nodejs';
+
+export async function POST(req: Request) {
+  try {
+    const body = await req.json();
+    const { action, userId, eventId, event } = body as {
+      action: 'create' | 'update' | 'delete';
+      userId: string;
+      eventId?: string;
+      event?: CalendarEventInput;
+    };
+
+    if (!userId || !action) {
+      return NextResponse.json({ error: 'userId and action are required' }, { status: 400 });
+    }
+
+    const tokenDoc = await adminDb.collection('google_tokens').doc(userId).get();
+    if (!tokenDoc.exists) {
+      return NextResponse.json({ error: 'Google Calendar not connected' }, { status: 400 });
+    }
+
+    const tokenData = tokenDoc.data() as any;
+    if (!tokenData.refresh_token) {
+      return NextResponse.json({ error: 'No refresh token — reconnection needed' }, { status: 400 });
+    }
+
+    const calendar = await getValidCalendarClient(
+      tokenData.refresh_token,
+      tokenData.access_token,
+      tokenData.expiry_date,
+    );
+
+    if (action === 'create' && event) {
+      const googleEventId = await createCalendarEvent(calendar, event);
+      return NextResponse.json({ ok: true, googleEventId });
+    }
+
+    if (action === 'update' && event) {
+      if (eventId) {
+        await updateCalendarEvent(calendar, eventId, event);
+        return NextResponse.json({ ok: true, googleEventId: eventId });
+      } else {
+        const googleEventId = await createCalendarEvent(calendar, event);
+        return NextResponse.json({ ok: true, googleEventId });
+      }
+    }
+
+    if (action === 'delete' && eventId) {
+      await deleteCalendarEvent(calendar, eventId);
+      return NextResponse.json({ ok: true });
+    }
+
+    return NextResponse.json({ error: 'Invalid action or missing parameters' }, { status: 400 });
+  } catch (e: any) {
+    console.error('Google sync-event error:', e);
+    return NextResponse.json({ error: e?.message || 'error' }, { status: 500 });
+  }
+}

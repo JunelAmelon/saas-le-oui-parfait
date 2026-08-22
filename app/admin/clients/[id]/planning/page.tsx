@@ -30,6 +30,7 @@ type AppointmentTask = {
   confirmed_time: string;
   created_by: 'admin';
   created_at: string;
+  google_event_id?: string;
 };
 
 export default function ClientPlanningPage() {
@@ -47,6 +48,8 @@ export default function ClientPlanningPage() {
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editing, setEditing] = useState<AppointmentTask | null>(null);
   const [form, setForm] = useState({ title: '', date: '', time: '', location: '', notes: '' });
+  const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const fetchAll = async () => {
     if (!clientId) return;
@@ -98,6 +101,7 @@ export default function ClientPlanningPage() {
       return;
     }
 
+    setSaving(true);
     try {
       await updateDocument('tasks', editing.id, {
         title: form.title.trim(),
@@ -106,6 +110,82 @@ export default function ClientPlanningPage() {
         location: form.location.trim(),
         notes: form.notes.trim(),
       });
+
+      // Sync to Google Calendar (best effort)
+      try {
+        const { getDocument: getDocEdit } = await import('@/lib/db');
+        const clientRawEdit = (await getDocEdit('clients', clientId)) as any;
+        const syncRes = await fetch('/api/google/sync-event', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'update',
+            userId: plannerId || user?.uid,
+            eventId: editing.google_event_id,
+            event: {
+              summary: form.title.trim(),
+              description: form.notes.trim() || undefined,
+              startDateTime: `${form.date}T${form.time}:00`,
+              endDateTime: `${form.date}T${form.time}:00`,
+              location: form.location.trim() || undefined,
+              attendees: clientRawEdit?.email ? [clientRawEdit.email] : [],
+            },
+          }),
+        });
+        const syncData = await syncRes.json();
+        if (syncData.ok && syncData.googleEventId && !editing.google_event_id) {
+          await updateDocument('tasks', editing.id, { google_event_id: syncData.googleEventId });
+        }
+      } catch (e) {
+        console.warn('Google Calendar sync failed:', e);
+      }
+
+      // Notif + push + email côté client (best effort)
+      try {
+        const { getDocument: getDocNotif, addDocument: addDocNotif } = await import('@/lib/db');
+        const clientRawNotif = (await getDocNotif('clients', clientId)) as any;
+        const clientUserId = clientRawNotif?.client_user_id || null;
+        if (clientUserId) {
+          await addDocNotif('notifications', {
+            recipient_id: clientUserId,
+            type: 'planning',
+            title: 'Rendez-vous modifié',
+            message: `Le rendez-vous "${form.title.trim()}" a été modifié (${form.date} ${form.time})`,
+            link: '/espace-client/planning',
+            read: false,
+            created_at: new Date(),
+            planner_id: plannerId || user?.uid || undefined,
+            client_id: clientId,
+            event_id: eventId || '',
+            meta: { kind: 'appointment', task_id: editing.id },
+          });
+
+          try {
+            const { sendPushToRecipient } = await import('@/lib/push');
+            await sendPushToRecipient({
+              recipientId: clientUserId,
+              title: 'Rendez-vous modifié',
+              body: `Le rendez-vous "${form.title.trim()}" a été modifié (${form.date} ${form.time})`,
+              link: '/espace-client/planning',
+            });
+          } catch (e) {
+            console.warn('Unable to send push:', e);
+          }
+
+          try {
+            const { sendEmailToUid } = await import('@/lib/email');
+            await sendEmailToUid({
+              recipientUid: clientUserId,
+              subject: 'Rendez-vous modifié - Le Oui Parfait',
+              text: `Le rendez-vous "${form.title.trim()}" a été modifié.\nNouvelle date : ${form.date} ${form.time}\nLieu : ${form.location.trim() || 'non précisé'}\n\nConnectez-vous à votre espace client pour le consulter.`,
+            });
+          } catch (e) {
+            console.warn('Unable to send email:', e);
+          }
+        }
+      } catch (e) {
+        console.warn('Unable to notify client for appointment update:', e);
+      }
 
       setAppointments((prev) =>
         prev.map((x) =>
@@ -129,6 +209,8 @@ export default function ClientPlanningPage() {
     } catch (e) {
       console.error('Error updating appointment:', e);
       toast.error("Impossible de modifier le rendez-vous");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -149,7 +231,11 @@ export default function ClientPlanningPage() {
       return;
     }
 
+    setSaving(true);
     try {
+      const { getDocument: getDoc2, addDocument: addDoc2 } = await import('@/lib/db');
+      const clientRaw = (await getDoc2('clients', clientId)) as any;
+
       const created = await addDocument('tasks', {
         kind: 'appointment',
         event_id: eventId || '',
@@ -165,10 +251,34 @@ export default function ClientPlanningPage() {
         created_at: new Date().toISOString(),
       });
 
+      // Sync to Google Calendar (best effort)
+      try {
+        const syncRes = await fetch('/api/google/sync-event', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'create',
+            userId: plannerId || user?.uid,
+            event: {
+              summary: form.title.trim(),
+              description: form.notes.trim() || undefined,
+              startDateTime: `${form.date}T${form.time}:00`,
+              endDateTime: `${form.date}T${form.time}:00`,
+              location: form.location.trim() || undefined,
+              attendees: clientRaw?.email ? [clientRaw.email] : [],
+            },
+          }),
+        });
+        const syncData = await syncRes.json();
+        if (syncData.ok && syncData.googleEventId) {
+          await updateDocument('tasks', (created as any).id, { google_event_id: syncData.googleEventId });
+        }
+      } catch (e) {
+        console.warn('Google Calendar sync failed:', e);
+      }
+
       // Notif + push + email côté client (best effort)
       try {
-        const { getDocument, addDocument: addDoc2 } = await import('@/lib/db');
-        const clientRaw = (await getDocument('clients', clientId)) as any;
         const clientUserId = clientRaw?.client_user_id || null;
         if (clientUserId) {
           await addDoc2('notifications', {
@@ -219,17 +329,87 @@ export default function ClientPlanningPage() {
     } catch (e) {
       console.error('Error adding appointment:', e);
       toast.error("Impossible d'ajouter le rendez-vous");
+    } finally {
+      setSaving(false);
     }
   };
 
   const removeAppointment = async (apt: AppointmentTask) => {
+    setDeletingId(apt.id);
     try {
       await deleteDocument('tasks', apt.id);
+
+      // Sync to Google Calendar (best effort)
+      if (apt.google_event_id) {
+        try {
+          await fetch('/api/google/sync-event', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: 'delete',
+              userId: plannerId || user?.uid,
+              eventId: apt.google_event_id,
+            }),
+          });
+        } catch (e) {
+          console.warn('Google Calendar sync failed:', e);
+        }
+      }
+
       setAppointments((prev) => prev.filter((x) => x.id !== apt.id));
       toast.success('Rendez-vous supprimé');
+
+      // Notif + push + email côté client (best effort)
+      try {
+        const { getDocument: getDocDel, addDocument: addDocDel } = await import('@/lib/db');
+        const clientRawDel = (await getDocDel('clients', clientId)) as any;
+        const clientUserId = clientRawDel?.client_user_id || null;
+        if (clientUserId) {
+          await addDocDel('notifications', {
+            recipient_id: clientUserId,
+            type: 'planning',
+            title: 'Rendez-vous annulé',
+            message: `Le rendez-vous "${apt.title}" a été annulé`,
+            link: '/espace-client/planning',
+            read: false,
+            created_at: new Date(),
+            planner_id: plannerId || user?.uid || undefined,
+            client_id: clientId,
+            event_id: eventId || '',
+            meta: { kind: 'appointment', task_id: apt.id },
+          });
+
+          try {
+            const { sendPushToRecipient } = await import('@/lib/push');
+            await sendPushToRecipient({
+              recipientId: clientUserId,
+              title: 'Rendez-vous annulé',
+              body: `Le rendez-vous "${apt.title}" a été annulé`,
+              link: '/espace-client/planning',
+            });
+          } catch (e) {
+            console.warn('Unable to send push:', e);
+          }
+
+          try {
+            const { sendEmailToUid } = await import('@/lib/email');
+            await sendEmailToUid({
+              recipientUid: clientUserId,
+              subject: 'Rendez-vous annulé - Le Oui Parfait',
+              text: `Le rendez-vous "${apt.title}" prévu le ${apt.confirmed_date} à ${apt.confirmed_time} a été annulé.\n\nConnectez-vous à votre espace client pour plus d'informations.`,
+            });
+          } catch (e) {
+            console.warn('Unable to send email:', e);
+          }
+        }
+      } catch (e) {
+        console.warn('Unable to notify client for appointment deletion:', e);
+      }
     } catch (e) {
       console.error('Error deleting appointment:', e);
       toast.error("Impossible de supprimer le rendez-vous");
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -305,8 +485,8 @@ export default function ClientPlanningPage() {
                         >
                           <Pencil className="h-4 w-4 text-brand-gray" />
                         </Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => void removeAppointment(a)}>
-                          <Trash2 className="h-4 w-4 text-red-500" />
+                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => void removeAppointment(a)} disabled={deletingId === a.id}>
+                          {deletingId === a.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4 text-red-500" />}
                         </Button>
                       </div>
                     </div>
@@ -351,8 +531,8 @@ export default function ClientPlanningPage() {
               <Button variant="outline" onClick={() => setIsAddOpen(false)}>
                 Annuler
               </Button>
-              <Button className="bg-brand-turquoise hover:bg-brand-turquoise-hover" onClick={() => void addAppointment()}>
-                Ajouter
+              <Button className="bg-brand-turquoise hover:bg-brand-turquoise-hover" onClick={() => void addAppointment()} disabled={saving}>
+                {saving ? <><Loader2 className="h-4 w-4 animate-spin" /> Ajout...</> : 'Ajouter'}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -398,8 +578,8 @@ export default function ClientPlanningPage() {
               >
                 Annuler
               </Button>
-              <Button className="bg-brand-turquoise hover:bg-brand-turquoise-hover" onClick={() => void saveEdit()}>
-                Enregistrer
+              <Button className="bg-brand-turquoise hover:bg-brand-turquoise-hover" onClick={() => void saveEdit()} disabled={saving}>
+                {saving ? <><Loader2 className="h-4 w-4 animate-spin" /> Enregistrement...</> : 'Enregistrer'}
               </Button>
             </DialogFooter>
           </DialogContent>

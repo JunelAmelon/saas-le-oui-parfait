@@ -245,6 +245,11 @@ export default function PaiementsPage() {
     }
   };
 
+  const isOverdue = (invoice: Invoice) => {
+    if (!invoice.due_date || invoice.status === 'paid') return false;
+    return new Date(invoice.due_date) < new Date();
+  };
+
   // Factures à payer (sent, payment_pending, overdue)
   const unpaidInvoices = invoices.filter(inv =>
     ['sent', 'payment_pending', 'overdue'].includes(inv.status)
@@ -358,11 +363,6 @@ export default function PaiementsPage() {
         {config.label}
       </span>
     );
-  };
-
-  const isOverdue = (invoice: Invoice) => {
-    if (!invoice.due_date || invoice.status === 'paid') return false;
-    return new Date(invoice.due_date) < new Date();
   };
 
   const handlePayClick = (invoice: Invoice) => {

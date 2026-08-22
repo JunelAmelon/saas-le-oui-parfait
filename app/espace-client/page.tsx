@@ -7,6 +7,7 @@ import { useClientData } from '@/contexts/ClientDataContext';
 import { ClientDashboardLayout } from '@/components/layout/ClientDashboardLayout';
 import { getDocuments } from '@/lib/db';
 import { calculateDaysRemaining, PaymentData, getClientPayments, DocumentData, getClientDocuments } from '@/lib/client-helpers';
+import { Invoice } from '@/types/invoice';
 import { Loader2, ChevronRight, ChevronLeft, Users, Euro, Sparkles, Calendar, FileText, CreditCard, Heart, Check } from 'lucide-react';
 import Image from 'next/image';
 
@@ -167,7 +168,23 @@ export default function ClientPortalPage() {
       }
       setExpensesLoading(true);
       try {
-        const payments = await getClientPayments(client.id);
+        const [payments, vendorPaymentsData] = await Promise.all([
+          getClientPayments(client.id),
+          getDocuments('vendor_payments', [
+            { field: 'client_id', operator: '==', value: client.id }
+          ]).catch(() => []),
+        ]);
+
+        const vendorPayments = (vendorPaymentsData as any[])
+          .filter((p) => p.status !== 'cancelled');
+        const vendorPaidAmount = vendorPayments
+          .filter((p) => p.status === 'paid')
+          .reduce((sum, p) => sum + Number(p.amount || 0), 0);
+        const vendorUnpaidAmount = vendorPayments
+          .filter((p) => p.status !== 'paid')
+          .reduce((sum, p) => sum + Number(p.amount || 0), 0);
+        const vendorUnpaidCount = vendorPayments.filter((p) => p.status !== 'paid').length;
+
         const months = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sept', 'Oct', 'Nov', 'Déc'];
         const monthKey = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 
@@ -175,6 +192,15 @@ export default function ClientPortalPage() {
         let minDate: Date | null = null;
         payments.forEach((p: PaymentData) => {
           const raw = p.date || p.due_date || p.paid_at;
+          if (!raw) return;
+          const d = new Date(String(raw));
+          if (Number.isNaN(d.getTime())) return;
+          const key = monthKey(d);
+          amountsByMonth.set(key, (amountsByMonth.get(key) || 0) + Number(p.amount || 0));
+          if (!minDate || d < minDate) minDate = d;
+        });
+        vendorPayments.forEach((p: any) => {
+          const raw = p.due_date || p.paid_date;
           if (!raw) return;
           const d = new Date(String(raw));
           if (Number.isNaN(d.getTime())) return;
@@ -221,10 +247,10 @@ export default function ClientPortalPage() {
         const totalPaid = payments.reduce(
           (sum, p) => sum + (Number(p.paid_amount || 0) || (p.status === 'paid' || p.status === 'completed' ? Number(p.amount || 0) : 0)),
           0
-        );
+        ) + vendorPaidAmount;
         const pending = payments.filter((p) => p.status !== 'paid' && p.status !== 'completed');
-        setPendingPaymentsCount(pending.length);
-        setPendingPaymentsTotal(pending.reduce((sum, p) => sum + Number(p.amount || 0), 0));
+        setPendingPaymentsCount(pending.length + vendorUnpaidCount);
+        setPendingPaymentsTotal(pending.reduce((sum, p) => sum + Number(p.amount || 0), 0) + vendorUnpaidAmount);
         setPaidAmount(totalPaid);
       } catch (e) {
         console.error('Error fetching expenses (home):', e);
