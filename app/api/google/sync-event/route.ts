@@ -59,8 +59,15 @@ export async function POST(req: Request) {
 
     if (action === 'update' && event) {
       if (eventId) {
-        await updateCalendarEvent(calendar, eventId, event);
-        return NextResponse.json({ ok: true, googleEventId: eventId });
+        try {
+          await updateCalendarEvent(calendar, eventId, event);
+          return NextResponse.json({ ok: true, googleEventId: eventId });
+        } catch (updateErr: any) {
+          // Event might have been deleted from Google — fall back to create
+          console.warn('Update failed, trying create:', updateErr?.message || updateErr);
+          const googleEventId = await createCalendarEvent(calendar, event);
+          return NextResponse.json({ ok: true, googleEventId });
+        }
       } else {
         const googleEventId = await createCalendarEvent(calendar, event);
         return NextResponse.json({ ok: true, googleEventId });

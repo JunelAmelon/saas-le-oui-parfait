@@ -93,7 +93,7 @@ export async function createCalendarEvent(
 
   const res = await calendar.events.insert({
     calendarId: 'primary',
-    sendUpdates: 'all',
+    sendUpdates: event.attendees?.length ? 'all' : 'none',
     requestBody: {
       summary: event.summary,
       description: event.description,
@@ -129,7 +129,7 @@ export async function updateCalendarEvent(
   await calendar.events.patch({
     calendarId: 'primary',
     eventId,
-    sendUpdates: 'all',
+    sendUpdates: event.attendees?.length ? 'all' : 'none',
     requestBody: {
       summary: event.summary,
       description: event.description,

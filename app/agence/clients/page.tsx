@@ -327,7 +327,13 @@ export default function ClientFilesPage() {
         return;
       }
 
-      toast.success(`${data.synced} événement(s) synchronisé(s), ${data.skipped} ignoré(s), ${data.errors} erreur(s)`);
+      const errorDetails = (data.results || []).filter((r: any) => r.status === 'error' || r.status === 'invalid_date');
+      if (data.errors > 0 && errorDetails.length > 0) {
+        const detailMsg = errorDetails.slice(0, 3).map((r: any) => `${r.clientId}: ${r.detail || r.status}`).join('\n');
+        toast.error(`${data.synced} synchronisé(s), ${data.skipped} ignoré(s), ${data.errors} erreur(s)\n${detailMsg}`);
+      } else {
+        toast.success(`${data.synced} événement(s) synchronisé(s), ${data.skipped} ignoré(s), ${data.errors} erreur(s)`);
+      }
     } catch (e) {
       console.error('Calendar sync error:', e);
       toast.error('Erreur lors de la synchronisation');

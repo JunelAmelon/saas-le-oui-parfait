@@ -4,6 +4,26 @@ import { getValidCalendarClient, createCalendarEvent, updateCalendarEvent, Calen
 
 export const runtime = 'nodejs';
 
+function normalizeDate(raw: string): string {
+  if (!raw) return '';
+  // Already ISO YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+  // DD/MM/YYYY or DD/MM/YY
+  const m = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
+  if (m) {
+    let yyyy = m[3];
+    if (yyyy.length === 2) yyyy = '20' + yyyy;
+    return `${yyyy}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;
+  }
+  // Try Date parsing
+  const d = new Date(raw);
+  if (!Number.isNaN(d.getTime())) {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+  console.warn('Could not normalize date:', raw);
+  return raw;
+}
+
 function addOneDay(dateStr: string): string {
   if (!dateStr) return dateStr;
   const d = new Date(dateStr + 'T00:00:00');
@@ -83,14 +103,18 @@ export async function POST(req: Request) {
       clientMap.set(doc.id, { id: doc.id, ...doc.data() });
     });
 
+    // Track which clients have an event document
+    const clientsWithEvents = new Set<string>();
+
     let synced = 0;
     let skipped = 0;
     let errors = 0;
-    const results: Array<{ clientId: string; status: string; googleEventId?: string }> = [];
+    const results: Array<{ clientId: string; status: string; googleEventId?: string; detail?: string }> = [];
 
     for (const eventDoc of eventsSnap.docs) {
       const ev = eventDoc.data() as any;
       const eventId = eventDoc.id;
+      clientsWithEvents.add(ev.client_id);
 
       if (!ev.event_date) {
         skipped++;
@@ -100,15 +124,21 @@ export async function POST(req: Request) {
 
       const client = clientMap.get(ev.client_id);
       const coupleNames = ev.couple_names || (client ? `${client.name} & ${client.partner}` : 'Mariage');
-      const clientEmail = ev.client_email || client?.email || undefined;
       const phone = client?.phone || undefined;
       const location = ev.location || client?.event_location || undefined;
+      const normalizedDate = normalizeDate(ev.event_date);
+
+      if (!normalizedDate || !/^\d{4}-\d{2}-\d{2}$/.test(normalizedDate)) {
+        console.warn(`Invalid date for event ${eventId}: "${ev.event_date}" -> "${normalizedDate}"`);
+        skipped++;
+        results.push({ clientId: ev.client_id, status: 'invalid_date', detail: `raw: ${ev.event_date}` });
+        continue;
+      }
 
       const gEvent = buildWeddingEvent({
         coupleNames,
-        eventDate: ev.event_date,
+        eventDate: normalizedDate,
         location: location || undefined,
-        clientEmail: clientEmail || undefined,
         phone: phone || undefined,
         guestCount: ev.guest_count || undefined,
         notes: ev.notes || undefined,
@@ -116,9 +146,16 @@ export async function POST(req: Request) {
 
       try {
         if (ev.google_event_id) {
-          // Update existing
-          await updateCalendarEvent(calendar, ev.google_event_id, gEvent);
-          results.push({ clientId: ev.client_id, status: 'updated', googleEventId: ev.google_event_id });
+          // Update existing — if it fails (event deleted from Google), fall back to create
+          try {
+            await updateCalendarEvent(calendar, ev.google_event_id, gEvent);
+            results.push({ clientId: ev.client_id, status: 'updated', googleEventId: ev.google_event_id });
+          } catch (updateErr: any) {
+            console.warn(`Update failed for event ${eventId}, trying create:`, updateErr?.message || updateErr);
+            const googleEventId = await createCalendarEvent(calendar, gEvent);
+            await adminDb.collection('events').doc(eventId).update({ google_event_id: googleEventId });
+            results.push({ clientId: ev.client_id, status: 'recreated', googleEventId });
+          }
         } else {
           // Create new
           const googleEventId = await createCalendarEvent(calendar, gEvent);
@@ -129,13 +166,73 @@ export async function POST(req: Request) {
       } catch (e: any) {
         console.error(`Sync failed for event ${eventId}:`, e?.message || e);
         errors++;
-        results.push({ clientId: ev.client_id, status: 'error', googleEventId: undefined });
+        results.push({ clientId: ev.client_id, status: 'error', detail: e?.message || 'unknown' });
+      }
+    }
+
+    // Also handle clients that don't have an events document yet
+    const clientsWithoutEvents: Array<[string, any]> = [];
+    clientMap.forEach((client, clientId) => {
+      if (!clientsWithEvents.has(clientId)) {
+        clientsWithoutEvents.push([clientId, client]);
+      }
+    });
+
+    for (const [clientId, client] of clientsWithoutEvents) {
+      if (clientsWithEvents.has(clientId)) continue;
+      if (!client.event_date) {
+        skipped++;
+        results.push({ clientId, status: 'no_date_no_event' });
+        continue;
+      }
+
+      const normalizedDate = normalizeDate(client.event_date);
+      if (!normalizedDate || !/^\d{4}-\d{2}-\d{2}$/.test(normalizedDate)) {
+        console.warn(`Invalid date for client ${clientId}: "${client.event_date}" -> "${normalizedDate}"`);
+        skipped++;
+        results.push({ clientId, status: 'invalid_date', detail: `raw: ${client.event_date}` });
+        continue;
+      }
+
+      const coupleNames = `${client.name || ''} & ${client.partner || ''}`.trim() || 'Mariage';
+      const gEvent = buildWeddingEvent({
+        coupleNames,
+        eventDate: normalizedDate,
+        location: client.event_location || undefined,
+        phone: client.phone || undefined,
+        guestCount: client.guests ? parseInt(client.guests) : undefined,
+        notes: client.notes || undefined,
+      });
+
+      try {
+        const googleEventId = await createCalendarEvent(calendar, gEvent);
+        // Create the missing event document with google_event_id
+        await adminDb.collection('events').add({
+          client_id: clientId,
+          planner_id: decodedUid,
+          couple_names: coupleNames,
+          event_date: client.event_date,
+          location: client.event_location || '',
+          guest_count: client.guests ? parseInt(client.guests) : 0,
+          budget: client.budget ? parseFloat(client.budget) : 0,
+          status: 'confirmed',
+          client_email: client.email || '',
+          notes: client.notes || '',
+          google_event_id: googleEventId,
+          created_at: new Date().toISOString(),
+        });
+        results.push({ clientId, status: 'created_missing_event', googleEventId });
+        synced++;
+      } catch (e: any) {
+        console.error(`Sync failed for client ${clientId} (no event doc):`, e?.message || e);
+        errors++;
+        results.push({ clientId, status: 'error', detail: e?.message || 'unknown' });
       }
     }
 
     return NextResponse.json({
       ok: true,
-      total: eventsSnap.size,
+      total: eventsSnap.size + clientMap.size - clientsWithEvents.size,
       synced,
       skipped,
       errors,

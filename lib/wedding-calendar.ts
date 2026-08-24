@@ -23,17 +23,36 @@ export function buildWeddingCalendarEvent(params: {
   descParts.push('— Le Oui Parfait');
   const description = descParts.join('\n');
 
+  const normalizedDate = normalizeDate(eventDate);
+
   // Pour un événement all-day Google Calendar, la date de fin doit être
   // le jour SUIVANT (J+1) car Google utilise des dates exclusives pour fin.
-  const endDate = addOneDay(eventDate);
+  const endDate = addOneDay(normalizedDate);
 
   return {
     summary,
     description,
-    startDate: eventDate,
+    startDate: normalizedDate,
     endDate,
     location: location || undefined,
   };
+}
+
+function normalizeDate(raw: string): string {
+  if (!raw) return '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+  const m = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
+  if (m) {
+    let yyyy = m[3];
+    if (yyyy.length === 2) yyyy = '20' + yyyy;
+    return `${yyyy}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;
+  }
+  const d = new Date(raw);
+  if (!Number.isNaN(d.getTime())) {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+  console.warn('Could not normalize date:', raw);
+  return raw;
 }
 
 function addOneDay(dateStr: string): string {
