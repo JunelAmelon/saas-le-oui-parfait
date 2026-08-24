@@ -20,19 +20,21 @@ async function checkRateLimit(email: string, ip: string): Promise<boolean> {
 
   const col = adminDb.collection('rate_limits');
 
-  // Check email count
-  const emailSnap = await col
-    .where('email', '==', email)
-    .where('created_at', '>', new Date(since))
-    .get();
-  if (emailSnap.size >= MAX_PER_EMAIL) return false;
+  // Query only by email (single field, no composite index needed) and filter in code
+  const emailSnap = await col.where('email', '==', email).get();
+  const recentByEmail = emailSnap.docs.filter((d) => {
+    const ts = (d.data().created_at as any)?.toMillis?.() ?? 0;
+    return ts > since;
+  });
+  if (recentByEmail.length >= MAX_PER_EMAIL) return false;
 
-  // Check IP count
-  const ipSnap = await col
-    .where('ip', '==', ip)
-    .where('created_at', '>', new Date(since))
-    .get();
-  if (ipSnap.size >= MAX_PER_IP) return false;
+  // Query only by ip (single field, no composite index needed) and filter in code
+  const ipSnap = await col.where('ip', '==', ip).get();
+  const recentByIp = ipSnap.docs.filter((d) => {
+    const ts = (d.data().created_at as any)?.toMillis?.() ?? 0;
+    return ts > since;
+  });
+  if (recentByIp.length >= MAX_PER_IP) return false;
 
   // Record this attempt
   await col.add({
@@ -51,9 +53,14 @@ export async function POST(req: Request) {
     const email = String(body?.email || '').trim().toLowerCase();
     if (!email) return NextResponse.json({ error: 'missing_email' }, { status: 400 });
 
-    // Rate limiting
+    // Rate limiting (non-blocking: if it fails, continue anyway)
     const ip = getClientIp(req);
-    const allowed = await checkRateLimit(email, ip);
+    let allowed = true;
+    try {
+      allowed = await checkRateLimit(email, ip);
+    } catch (rlErr: any) {
+      console.error('Rate limit check failed (continuing anyway):', rlErr?.message || rlErr);
+    }
     if (!allowed) {
       return NextResponse.json(
         { error: 'rate_limited', message: 'Trop de demandes. Réessayez dans une heure.' },
@@ -84,7 +91,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ ok: true, role });
   } catch (e: any) {
-    console.error('request-password-reset error:', e);
-    return NextResponse.json({ error: 'error' }, { status: 500 });
+    console.error('request-password-reset error:', e?.message || e, e?.stack);
+    return NextResponse.json({ error: 'error', detail: e?.message || 'unknown' }, { status: 500 });
   }
 }
