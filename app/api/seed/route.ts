@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
 
 export async function GET(request: NextRequest) {
+    // Disabled in production
+    if (process.env.NODE_ENV === 'production') {
+        return NextResponse.json({ error: 'disabled' }, { status: 403 });
+    }
+
     // Sécurité : le seed ne doit être appelable que avec un token secret
     const seedSecret = request.headers.get('x-seed-secret');
     if (seedSecret !== process.env.SEED_SECRET) {

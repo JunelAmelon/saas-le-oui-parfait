@@ -15,6 +15,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { addDocument, deleteDocument, getDocuments, updateDocument } from '@/lib/db';
 import { toast } from 'sonner';
+import { auth } from '@/lib/firebase';
 
 type AppointmentTask = {
   id: string;
@@ -115,9 +116,10 @@ export default function ClientPlanningPage() {
       try {
         const { getDocument: getDocEdit } = await import('@/lib/db');
         const clientRawEdit = (await getDocEdit('clients', clientId)) as any;
+        const idToken = await auth.currentUser?.getIdToken();
         const syncRes = await fetch('/api/google/sync-event', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
           body: JSON.stringify({
             action: 'update',
             userId: plannerId || user?.uid,
@@ -253,9 +255,10 @@ export default function ClientPlanningPage() {
 
       // Sync to Google Calendar (best effort)
       try {
+        const idToken = await auth.currentUser?.getIdToken();
         const syncRes = await fetch('/api/google/sync-event', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
           body: JSON.stringify({
             action: 'create',
             userId: plannerId || user?.uid,
@@ -342,9 +345,10 @@ export default function ClientPlanningPage() {
       // Sync to Google Calendar (best effort)
       if (apt.google_event_id) {
         try {
+          const idToken = await auth.currentUser?.getIdToken();
           await fetch('/api/google/sync-event', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
             body: JSON.stringify({
               action: 'delete',
               userId: plannerId || user?.uid,

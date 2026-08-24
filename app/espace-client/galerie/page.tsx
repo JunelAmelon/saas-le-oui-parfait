@@ -33,6 +33,8 @@ import {
   ChevronRight,
   CheckCircle,
   Loader2,
+  Trash2,
+  FolderInput,
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useClientData } from '@/contexts/ClientDataContext';
@@ -76,6 +78,11 @@ export default function GaleriePage() {
   const [uploadFiles, setUploadFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
+  const [movingPhoto, setMovingPhoto] = useState<PhotoWithAlbum | null>(null);
+  const [targetAlbumId, setTargetAlbumId] = useState('');
+  const [moving, setMoving] = useState(false);
 
   const clientName = useMemo(() => {
     const n1 = client?.name || '';
@@ -328,6 +335,165 @@ export default function GaleriePage() {
     }
   };
 
+  const handleDeletePhoto = async (photo: PhotoWithAlbum) => {
+    if (!photo?.albumId) return;
+    if (!confirm('Supprimer cette image de la galerie ? Cette action est irréversible.')) return;
+
+    const photoKey = photo.id || photo.displayUrl;
+    setDeletingId(photoKey);
+
+    try {
+      const albumDoc = await getDocument('galleries', photo.albumId);
+      if (!albumDoc) {
+        toast.error('Album introuvable');
+        return;
+      }
+
+      const rawPhotos = ((albumDoc as any).photos || []) as any[];
+      const photoIndex = rawPhotos.findIndex((p) => {
+        if (photo.id && typeof p !== 'string' && p?.id === photo.id) return true;
+        const u = getPhotoUrls(p);
+        return (u.url || u.thumb) === photo.displayUrl;
+      });
+
+      if (photoIndex === -1) {
+        toast.error('Photo introuvable');
+        return;
+      }
+
+      const deletedUrls = getPhotoUrls(rawPhotos[photoIndex]);
+      const updatedPhotos = rawPhotos.filter((_, idx) => idx !== photoIndex);
+
+      const oldCover = String((albumDoc as any).cover || '');
+      const isDeletedCover =
+        oldCover &&
+        (oldCover === deletedUrls.url || oldCover === deletedUrls.thumb);
+
+      const newCover = isDeletedCover
+        ? getPhotoUrls(updatedPhotos[0] || '').url || getPhotoUrls(updatedPhotos[0] || '').thumb || ''
+        : oldCover;
+
+      await updateDocument('galleries', photo.albumId, {
+        photos: updatedPhotos,
+        count: updatedPhotos.length,
+        cover: newCover,
+      });
+
+      setGalleries((prev) =>
+        prev.map((g) =>
+          g.id === photo.albumId
+            ? { ...g, photos: updatedPhotos as any, count: updatedPhotos.length, cover: newCover }
+            : g
+        )
+      );
+
+      toast.success('Photo supprimée');
+    } catch (e) {
+      console.error('Error deleting gallery photo:', e);
+      toast.error('Erreur lors de la suppression');
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const openMoveModal = (photo: PhotoWithAlbum) => {
+    setMovingPhoto(photo);
+    setTargetAlbumId('');
+    setIsMoveModalOpen(true);
+  };
+
+  const handleMovePhoto = async () => {
+    if (!movingPhoto || !targetAlbumId) return;
+    if (targetAlbumId === movingPhoto.albumId) {
+      toast.error('La photo est déjà dans cet album');
+      return;
+    }
+
+    setMoving(true);
+    try {
+      // 1. Remove from source album
+      const sourceDoc = await getDocument('galleries', movingPhoto.albumId);
+      if (!sourceDoc) {
+        toast.error('Album source introuvable');
+        return;
+      }
+
+      const sourcePhotos = ((sourceDoc as any).photos || []) as any[];
+      const photoIndex = sourcePhotos.findIndex((p) => {
+        if (movingPhoto.id && typeof p !== 'string' && p?.id === movingPhoto.id) return true;
+        const u = getPhotoUrls(p);
+        return (u.url || u.thumb) === movingPhoto.displayUrl;
+      });
+
+      if (photoIndex === -1) {
+        toast.error('Photo introuvable dans l\'album source');
+        return;
+      }
+
+      const movedPhoto = sourcePhotos[photoIndex];
+      const updatedSourcePhotos = sourcePhotos.filter((_, idx) => idx !== photoIndex);
+
+      const oldSourceCover = String((sourceDoc as any).cover || '');
+      const deletedUrls = getPhotoUrls(movedPhoto);
+      const isDeletedCover =
+        oldSourceCover &&
+        (oldSourceCover === deletedUrls.url || oldSourceCover === deletedUrls.thumb);
+
+      const newSourceCover = isDeletedCover
+        ? getPhotoUrls(updatedSourcePhotos[0] || '').url || getPhotoUrls(updatedSourcePhotos[0] || '').thumb || ''
+        : oldSourceCover;
+
+      await updateDocument('galleries', movingPhoto.albumId, {
+        photos: updatedSourcePhotos,
+        count: updatedSourcePhotos.length,
+        cover: newSourceCover,
+      });
+
+      // 2. Add to destination album
+      const destDoc = await getDocument('galleries', targetAlbumId);
+      if (!destDoc) {
+        toast.error('Album de destination introuvable');
+        return;
+      }
+
+      const destPhotos = ((destDoc as any).photos || []) as any[];
+      const updatedPhoto = {
+        ...movedPhoto,
+        album: (destDoc as any).name,
+      };
+      const updatedDestPhotos = [updatedPhoto, ...destPhotos];
+
+      await updateDocument('galleries', targetAlbumId, {
+        photos: updatedDestPhotos,
+        count: updatedDestPhotos.length,
+        cover: updatedDestPhotos[0] ? (getPhotoUrls(updatedDestPhotos[0]).url || getPhotoUrls(updatedDestPhotos[0]).thumb || (destDoc as any).cover || '') : (destDoc as any).cover || '',
+      });
+
+      // 3. Update local state
+      setGalleries((prev) =>
+        prev.map((g) => {
+          if (g.id === movingPhoto.albumId) {
+            return { ...g, photos: updatedSourcePhotos as any, count: updatedSourcePhotos.length, cover: newSourceCover };
+          }
+          if (g.id === targetAlbumId) {
+            return { ...g, photos: updatedDestPhotos as any, count: updatedDestPhotos.length };
+          }
+          return g;
+        })
+      );
+
+      toast.success('Photo déplacée avec succès');
+      setIsMoveModalOpen(false);
+      setMovingPhoto(null);
+      setTargetAlbumId('');
+    } catch (e) {
+      console.error('Error moving photo:', e);
+      toast.error('Erreur lors du déplacement');
+    } finally {
+      setMoving(false);
+    }
+  };
+
   return (
     <ClientDashboardLayout clientName={clientName} daysRemaining={daysRemaining}>
       <div className="space-y-6">
@@ -472,7 +638,7 @@ export default function GaleriePage() {
                       if (fallback && img.src !== fallback) img.src = fallback;
                     }}
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end justify-center pb-3">
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity flex items-end justify-center pb-3">
                     <ZoomIn className="h-5 w-5 text-white" />
                   </div>
                   <button
@@ -489,6 +655,32 @@ export default function GaleriePage() {
                       }`}
                     />
                   </button>
+                  <div className="absolute top-2 left-2 flex gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                    <button
+                      title="Déplacer vers un autre album"
+                      className="w-8 h-8 rounded-full bg-white/85 backdrop-blur flex items-center justify-center transition-transform hover:scale-110"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openMoveModal(photo);
+                      }}
+                    >
+                      <FolderInput className="h-4 w-4 text-brand-purple" />
+                    </button>
+                    <button
+                      title="Supprimer"
+                      className="w-8 h-8 rounded-full bg-white/85 backdrop-blur flex items-center justify-center transition-transform hover:scale-110"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void handleDeletePhoto(photo);
+                      }}
+                    >
+                      {deletingId === (photo.id || photo.displayUrl) ? (
+                        <Loader2 className="h-4 w-4 text-red-500 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-4 w-4 text-red-500" />
+                      )}
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -534,6 +726,24 @@ export default function GaleriePage() {
                     >
                       <Download className="h-4 w-4 text-brand-turquoise-hover" />
                     </a>
+                    <button
+                      title="Déplacer vers un autre album"
+                      onClick={() => openMoveModal(photo)}
+                      className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-white transition-colors"
+                    >
+                      <FolderInput className="h-4 w-4 text-brand-purple" />
+                    </button>
+                    <button
+                      title="Supprimer"
+                      onClick={() => void handleDeletePhoto(photo)}
+                      className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-white transition-colors"
+                    >
+                      {deletingId === (photo.id || photo.displayUrl) ? (
+                        <Loader2 className="h-4 w-4 text-red-500 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-4 w-4 text-red-500" />
+                      )}
+                    </button>
                   </div>
                 </div>
               ))}
@@ -572,6 +782,49 @@ export default function GaleriePage() {
             </button>
           </div>
         )}
+
+        {/* ---------- MODAL DÉPLACEMENT ---------- */}
+        <Dialog open={isMoveModalOpen} onOpenChange={setIsMoveModalOpen}>
+          <DialogContent className="sm:max-w-md rounded-3xl">
+            <DialogHeader>
+              <DialogTitle className="font-baskerville text-2xl text-brand-purple">Déplacer la photo</DialogTitle>
+              <DialogDescription>
+                Sélectionnez l&apos;album de destination
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label className="text-[10px] tracking-label uppercase text-brand-gray">Album de destination</Label>
+                <Select value={targetAlbumId} onValueChange={setTargetAlbumId}>
+                  <SelectTrigger className="rounded-xl">
+                    <SelectValue placeholder="Choisir un album" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {albums
+                      .filter((a) => a.id !== movingPhoto?.albumId)
+                      .map((album) => (
+                        <SelectItem key={album.id} value={album.id}>
+                          {album.name}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" className="rounded-full" onClick={() => setIsMoveModalOpen(false)} disabled={moving}>
+                Annuler
+              </Button>
+              <Button
+                className="bg-brand-turquoise hover:bg-brand-turquoise-hover rounded-full"
+                onClick={() => void handleMovePhoto()}
+                disabled={moving || !targetAlbumId}
+              >
+                {moving ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Déplacer'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* ---------- MODAL UPLOAD ---------- */}
         <Dialog open={isUploadModalOpen} onOpenChange={setIsUploadModalOpen}>

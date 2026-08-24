@@ -71,9 +71,42 @@ service cloud.firestore {
       allow create, update, delete: if isAuthenticated() && request.auth.uid == request.resource.data.planner_id;
     }
 
-    // General fallback for other collections (prospects, tasks, providers)
-    // For development simplicity, allow authenticated users to read/write
-    // In production, you should tighten these rules.
+    // Google OAuth tokens — accessible ONLY via Admin SDK (server-side)
+    // Never expose refresh tokens to the client.
+    match /google_tokens/{userId} {
+      allow read, write: if false;
+    }
+
+    // Rate limits — accessible ONLY via Admin SDK (server-side)
+    match /rate_limits/{docId} {
+      allow read, write: if false;
+    }
+
+    // Settings — planner only (filtered by planner_id)
+    match /settings/{docId} {
+      allow read: if isAuthenticated() && resource.data.planner_id == request.auth.uid;
+      allow create: if isAuthenticated() && request.resource.data.planner_id == request.auth.uid;
+      allow update, delete: if isAuthenticated() && resource.data.planner_id == request.auth.uid;
+    }
+
+    // Expenses — planner only (filtered by planner_id)
+    match /expenses/{docId} {
+      allow read: if isAuthenticated() && resource.data.planner_id == request.auth.uid;
+      allow create: if isAuthenticated() && request.resource.data.planner_id == request.auth.uid;
+      allow update, delete: if isAuthenticated() && resource.data.planner_id == request.auth.uid;
+    }
+
+    // Notifications — only the recipient can read/update/delete their notifications
+    // Any authenticated user can create (planner creates for client, client creates for planner, etc.)
+    match /notifications/{docId} {
+      allow read: if isAuthenticated() && resource.data.recipient_id == request.auth.uid;
+      allow create: if isAuthenticated();
+      allow update, delete: if isAuthenticated() && resource.data.recipient_id == request.auth.uid;
+    }
+
+    // General fallback for other collections (clients, events, tasks, documents, devis, contracts,
+    // invoices, galleries, compositions, conversations, messages, vendors, change_requests, agency, etc.)
+    // Allows authenticated users to read/write. Tighten per-collection in production.
     match /{document=**} {
       allow read, write: if isAuthenticated();
     }

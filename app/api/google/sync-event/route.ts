@@ -1,11 +1,24 @@
 import { NextResponse } from 'next/server';
-import { adminDb } from '@/lib/firebase-admin';
+import { adminAuth, adminDb } from '@/lib/firebase-admin';
 import { getValidCalendarClient, createCalendarEvent, updateCalendarEvent, deleteCalendarEvent, CalendarEventInput } from '@/lib/google-calendar';
 
 export const runtime = 'nodejs';
 
 export async function POST(req: Request) {
   try {
+    // Verify authentication
+    const authHeader = req.headers.get('authorization') || '';
+    const token = authHeader.startsWith('Bearer ') ? authHeader.slice('Bearer '.length) : '';
+    if (!token) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+
+    let decodedUid: string;
+    try {
+      const decoded = await adminAuth.verifyIdToken(token);
+      decodedUid = decoded.uid;
+    } catch {
+      return NextResponse.json({ error: 'invalid_token' }, { status: 401 });
+    }
+
     const body = await req.json();
     const { action, userId, eventId, event } = body as {
       action: 'create' | 'update' | 'delete';
@@ -16,6 +29,11 @@ export async function POST(req: Request) {
 
     if (!userId || !action) {
       return NextResponse.json({ error: 'userId and action are required' }, { status: 400 });
+    }
+
+    // Only the authenticated user can sync their own calendar
+    if (decodedUid !== userId) {
+      return NextResponse.json({ error: 'forbidden' }, { status: 403 });
     }
 
     const tokenDoc = await adminDb.collection('google_tokens').doc(userId).get();

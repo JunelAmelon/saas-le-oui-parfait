@@ -12,6 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { getDocuments, updateDocument } from '@/lib/db';
 import { toast as sonnerToast } from 'sonner';
+import { auth } from '@/lib/firebase';
 import {
   Settings as SettingsIcon,
   Lock,
@@ -92,7 +93,10 @@ export default function SettingsPage() {
         return;
       }
       try {
-        const res = await fetch(`/api/google/status?userId=${user.uid}`);
+        const idToken = await auth.currentUser?.getIdToken();
+        const res = await fetch(`/api/google/status?userId=${user.uid}`, {
+          headers: { Authorization: `Bearer ${idToken}` },
+        });
         const data = await res.json();
         setGoogleConnected(data.connected);
       } catch {

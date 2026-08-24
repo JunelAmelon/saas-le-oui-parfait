@@ -50,6 +50,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               vendor_id: profile.vendor_id,
               planner_id: profile.planner_id,
             });
+            // Set role cookie for middleware route protection
+            document.cookie = `user_role=${profile.role}; path=/; max-age=${60 * 60 * 24 * 7}; samesite=lax`;
           } else {
             // Fallback or handle missing profile
             // For now, let's assume if no profile, we might need to create one or just set basic info
@@ -63,6 +65,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       } else {
         setUser(null);
+        // Clear role cookie on logout
+        document.cookie = 'user_role=; path=/; max-age=0';
       }
       setLoading(false);
     });
@@ -94,6 +98,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signOut = async () => {
+    // Clear role cookie before sign out
+    document.cookie = 'user_role=; path=/; max-age=0';
     await firebaseSignOut(auth);
     setUser(null);
     router.push('/login');

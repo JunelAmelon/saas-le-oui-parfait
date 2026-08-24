@@ -12,7 +12,7 @@ export async function GET(req: Request) {
     const error = searchParams.get('error');
 
     if (error) {
-      return NextResponse.redirect(new URL('/espace-client?google_error=access_denied', req.url));
+      return NextResponse.redirect(new URL('/settings?google_error=access_denied', req.url));
     }
 
     if (!code) {
@@ -36,10 +36,10 @@ export async function GET(req: Request) {
     });
 
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
-    return NextResponse.redirect(new URL('/espace-client?google_connected=true', baseUrl));
+    return NextResponse.redirect(new URL('/settings?google_connected=true', baseUrl));
   } catch (e: any) {
     console.error('Google callback error:', e);
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
-    return NextResponse.redirect(new URL(`/espace-client?google_error=${encodeURIComponent(e?.message || 'error')}`, baseUrl));
+    return NextResponse.redirect(new URL(`/settings?google_error=${encodeURIComponent(e?.message || 'error')}`, baseUrl));
   }
 }
