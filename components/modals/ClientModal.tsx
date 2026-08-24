@@ -19,6 +19,7 @@ import { toast } from 'sonner';
 import axios from 'axios';
 import { ColorPalette } from '@/components/wedding/ColorPalette';
 import { auth } from '@/lib/firebase';
+import { buildWeddingCalendarEvent } from '@/lib/wedding-calendar';
 
 interface ClientModalProps {
   open: boolean;
@@ -329,7 +330,7 @@ export function ClientModal({ open, onOpenChange, mode, client, userId, onSucces
         });
 
         // Créer automatiquement un document event pour l'espace client
-        await addDocument('events', {
+        const eventDoc = await addDocument('events', {
           client_id: clientDoc.id,
           planner_id: userId,
           couple_names: `${data.name} & ${data.partner}`,
@@ -343,6 +344,37 @@ export function ClientModal({ open, onOpenChange, mode, client, userId, onSucces
           notes: data.notes || '',
           created_at: new Date().toISOString(),
         });
+
+        // Sync mariage vers Google Calendar (best effort)
+        if (data.event_date) {
+          try {
+            const idToken = await auth.currentUser?.getIdToken();
+            const gEvent = buildWeddingCalendarEvent({
+              coupleNames: `${data.name} & ${data.partner}`,
+              eventDate: data.event_date,
+              location: data.event_location || undefined,
+              clientEmail: data.email || undefined,
+              phone: data.phone || undefined,
+              guestCount: parseInt(data.guests) || undefined,
+              notes: data.notes || undefined,
+            });
+            const syncRes = await fetch('/api/google/sync-event', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
+              body: JSON.stringify({
+                action: 'create',
+                userId,
+                event: gEvent,
+              }),
+            });
+            const syncData = await syncRes.json();
+            if (syncData.ok && syncData.googleEventId) {
+              await updateDocument('events', (eventDoc as any).id, { google_event_id: syncData.googleEventId });
+            }
+          } catch (e) {
+            console.warn('Google Calendar sync failed (create):', e);
+          }
+        }
 
         // Lier et convertir la fiche découverte si sélectionnée
         if (selectedDiscoveryId) {
@@ -378,6 +410,38 @@ export function ClientModal({ open, onOpenChange, mode, client, userId, onSucces
               },
               notes: notes || '',
             });
+
+            // Sync vers Google Calendar (best effort)
+            if (eventDate) {
+              try {
+                const idToken = await auth.currentUser?.getIdToken();
+                const gEvent = buildWeddingCalendarEvent({
+                  coupleNames: `${name} & ${partner}`,
+                  eventDate,
+                  location: eventLocation || undefined,
+                  clientEmail: email || undefined,
+                  phone: phone || undefined,
+                  guestCount: parseInt(guests) || undefined,
+                  notes: notes || undefined,
+                });
+                const syncRes = await fetch('/api/google/sync-event', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
+                  body: JSON.stringify({
+                    action: 'update',
+                    userId,
+                    eventId: ev.google_event_id,
+                    event: gEvent,
+                  }),
+                });
+                const syncData = await syncRes.json();
+                if (syncData.ok && syncData.googleEventId && !ev.google_event_id) {
+                  await updateDocument('events', ev.id, { google_event_id: syncData.googleEventId });
+                }
+              } catch (e) {
+                console.warn('Google Calendar sync failed (update):', e);
+              }
+            }
           }
         } catch (err) {
           console.error('Error updating related event:', err);

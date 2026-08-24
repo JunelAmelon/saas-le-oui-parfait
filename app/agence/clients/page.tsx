@@ -16,7 +16,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { Search, Plus, Heart, MapPin, Calendar, Euro, Phone, Mail, FileText, Image as ImageIcon, X, Users, CheckCircle, Clock, Edit, MessageSquare, Eye, MoreVertical, ChevronLeft, ChevronRight, Trash2, Loader2, LayoutGrid, List, ClipboardList, CreditCard } from 'lucide-react';
+import { Search, Plus, Heart, MapPin, Calendar, Euro, Phone, Mail, FileText, Image as ImageIcon, X, Users, CheckCircle, Clock, Edit, MessageSquare, Eye, MoreVertical, ChevronLeft, ChevronRight, Trash2, Loader2, LayoutGrid, List, ClipboardList, CreditCard, RefreshCw } from 'lucide-react';
 
 import {
   DropdownMenu,
@@ -302,6 +302,39 @@ export default function ClientFilesPage() {
   };
 
   const [isInviting, setIsInviting] = useState(false);
+  const [isSyncingCalendar, setIsSyncingCalendar] = useState(false);
+
+  const handleSyncAllCalendar = async () => {
+    if (!user) return;
+    if (!confirm('Synchroniser toutes les dates de mariage vers Google Calendar ? Cela va créer ou mettre à jour les événements pour toutes vos fiches clients.')) return;
+
+    setIsSyncingCalendar(true);
+    try {
+      const idToken = await auth.currentUser?.getIdToken();
+      const res = await fetch('/api/google/sync-all', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
+        body: JSON.stringify({ userId: user.uid }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        if (data?.error?.includes('not connected')) {
+          toast.error('Google Calendar non connecté. Allez dans Paramètres pour le connecter.');
+        } else {
+          toast.error(data?.error || 'Erreur lors de la synchronisation');
+        }
+        return;
+      }
+
+      toast.success(`${data.synced} événement(s) synchronisé(s), ${data.skipped} ignoré(s), ${data.errors} erreur(s)`);
+    } catch (e) {
+      console.error('Calendar sync error:', e);
+      toast.error('Erreur lors de la synchronisation');
+    } finally {
+      setIsSyncingCalendar(false);
+    }
+  };
 
   const handleInviteClient = async (client: Client) => {
     if (!client.email) return;
@@ -356,6 +389,28 @@ export default function ClientFilesPage() {
       const { deleteDocument, getDocuments } = await import('@/lib/db');
 
       const clientId = client.id;
+
+      // Supprimer l'événement Google Calendar du mariage (best effort)
+      try {
+        const events = await getDocuments('events', [
+          { field: 'client_id', operator: '==', value: clientId },
+        ]);
+        const ev = (events as any[])?.[0];
+        if (ev?.google_event_id) {
+          const idToken = await auth.currentUser?.getIdToken();
+          await fetch('/api/google/sync-event', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
+            body: JSON.stringify({
+              action: 'delete',
+              userId: user.uid,
+              eventId: ev.google_event_id,
+            }),
+          });
+        }
+      } catch (e) {
+        console.warn('Google Calendar event deletion failed:', e);
+      }
 
       // Supprimer les données liées (best effort: on continue même si une sous-suppression échoue)
       const deleteByClientId = async (collectionName: string) => {
@@ -578,6 +633,17 @@ export default function ClientFilesPage() {
               <Plus className="h-4 w-4" />
               <span className="hidden sm:inline">Nouvelle fiche client</span>
               <span className="sm:hidden">Nouveau</span>
+            </Button>
+            <Button
+              variant="outline"
+              className="gap-2"
+              onClick={handleSyncAllCalendar}
+              disabled={isSyncingCalendar}
+              title="Synchroniser toutes les dates de mariage vers Google Calendar"
+            >
+              {isSyncingCalendar ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+              <span className="hidden sm:inline">Sync Google Agenda</span>
+              <span className="sm:hidden">Sync</span>
             </Button>
           </div>
         </div>

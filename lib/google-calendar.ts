@@ -67,8 +67,10 @@ export async function getValidCalendarClient(refreshToken: string, accessToken?:
 export interface CalendarEventInput {
   summary: string;
   description?: string;
-  startDateTime: string;
-  endDateTime: string;
+  startDateTime?: string;
+  endDateTime?: string;
+  startDate?: string;
+  endDate?: string;
   location?: string;
   attendees?: string[];
   reminders?: {
@@ -81,14 +83,22 @@ export async function createCalendarEvent(
   calendar: ReturnType<typeof google.calendar>,
   event: CalendarEventInput,
 ): Promise<string> {
+  const isAllDay = Boolean(event.startDate);
+  const startObj = isAllDay
+    ? { date: event.startDate }
+    : { dateTime: event.startDateTime, timeZone: 'Europe/Paris' };
+  const endObj = isAllDay
+    ? { date: event.endDate || event.startDate }
+    : { dateTime: event.endDateTime, timeZone: 'Europe/Paris' };
+
   const res = await calendar.events.insert({
     calendarId: 'primary',
     sendUpdates: 'all',
     requestBody: {
       summary: event.summary,
       description: event.description,
-      start: { dateTime: event.startDateTime, timeZone: 'Europe/Paris' },
-      end: { dateTime: event.endDateTime, timeZone: 'Europe/Paris' },
+      start: startObj,
+      end: endObj,
       location: event.location,
       attendees: event.attendees?.map((email) => ({ email })),
       reminders: event.reminders || {
@@ -108,6 +118,14 @@ export async function updateCalendarEvent(
   eventId: string,
   event: CalendarEventInput,
 ): Promise<void> {
+  const isAllDay = Boolean(event.startDate);
+  const startObj = isAllDay
+    ? { date: event.startDate }
+    : { dateTime: event.startDateTime, timeZone: 'Europe/Paris' };
+  const endObj = isAllDay
+    ? { date: event.endDate || event.startDate }
+    : { dateTime: event.endDateTime, timeZone: 'Europe/Paris' };
+
   await calendar.events.patch({
     calendarId: 'primary',
     eventId,
@@ -115,8 +133,8 @@ export async function updateCalendarEvent(
     requestBody: {
       summary: event.summary,
       description: event.description,
-      start: { dateTime: event.startDateTime, timeZone: 'Europe/Paris' },
-      end: { dateTime: event.endDateTime, timeZone: 'Europe/Paris' },
+      start: startObj,
+      end: endObj,
       location: event.location,
       attendees: event.attendees?.map((email) => ({ email })),
       reminders: event.reminders || {
