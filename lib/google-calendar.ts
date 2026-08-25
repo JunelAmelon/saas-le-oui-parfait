@@ -158,3 +158,39 @@ export async function deleteCalendarEvent(
     sendUpdates: 'all',
   });
 }
+
+export async function addAttendeesToCalendarEvent(
+  calendar: ReturnType<typeof google.calendar>,
+  eventId: string,
+  attendeeEmails: string[],
+): Promise<void> {
+  // First, fetch the existing event to get current attendees
+  const res = await calendar.events.get({
+    calendarId: 'primary',
+    eventId,
+  });
+
+  const existingAttendees = (res.data.attendees || []) as Array<{ email: string }>;
+  const existingEmails = new Set(existingAttendees.map((a) => a.email.toLowerCase()));
+
+  // Only add emails that aren't already attendees
+  const newAttendees = attendeeEmails.filter(
+    (email) => email && !existingEmails.has(email.toLowerCase()),
+  );
+
+  if (newAttendees.length === 0) return;
+
+  const allAttendees = [
+    ...existingAttendees,
+    ...newAttendees.map((email) => ({ email })),
+  ];
+
+  await calendar.events.patch({
+    calendarId: 'primary',
+    eventId,
+    sendUpdates: 'all',
+    requestBody: {
+      attendees: allAttendees,
+    },
+  });
+}

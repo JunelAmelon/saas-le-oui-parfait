@@ -39,12 +39,10 @@ export function CreateInvoiceModal({ open, onOpenChange, onSuccess }: CreateInvo
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [clients, setClients] = useState<any[]>([]);
-  const [events, setEvents] = useState<any[]>([]);
   
   const [formData, setFormData] = useState({
     number: '',
     client_id: '',
-    event_id: '',
     label: '',
     amount_ttc: '',
     due_date: '',
@@ -61,29 +59,12 @@ export function CreateInvoiceModal({ open, onOpenChange, onSuccess }: CreateInvo
     }
   }, [open, user]);
 
-  useEffect(() => {
-    if (formData.client_id) {
-      fetchEvents(formData.client_id);
-    } else {
-      setEvents([]);
-    }
-  }, [formData.client_id]);
-
   const fetchClients = async () => {
     if (!user) return;
     const clientsData = await getDocuments('clients', [
       { field: 'planner_id', operator: '==', value: user.uid },
     ]);
     setClients(clientsData);
-  };
-
-  const fetchEvents = async (clientId: string) => {
-    if (!user) return;
-    const eventsData = await getDocuments('events', [
-      { field: 'client_id', operator: '==', value: clientId },
-      { field: 'planner_id', operator: '==', value: user.uid },
-    ]);
-    setEvents(eventsData);
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, field: 'file_url' | 'devis_url') => {
@@ -151,10 +132,6 @@ export function CreateInvoiceModal({ open, onOpenChange, onSuccess }: CreateInvo
         status: 'payment_pending',
       };
 
-      if (formData.event_id) {
-        invoiceData.event_id = formData.event_id;
-      }
-
       if (formData.file_url) {
         invoiceData.file_url = formData.file_url;
       }
@@ -210,7 +187,6 @@ export function CreateInvoiceModal({ open, onOpenChange, onSuccess }: CreateInvo
     setFormData({
       number: '',
       client_id: '',
-      event_id: '',
       label: '',
       amount_ttc: '',
       due_date: '',
@@ -238,7 +214,7 @@ export function CreateInvoiceModal({ open, onOpenChange, onSuccess }: CreateInvo
               <Label htmlFor="client">Client *</Label>
               <Select
                 value={formData.client_id}
-                onValueChange={(value) => setFormData(prev => ({ ...prev, client_id: value, event_id: '' }))}
+                onValueChange={(value) => setFormData(prev => ({ ...prev, client_id: value }))}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Sélectionner un client" />
@@ -252,27 +228,6 @@ export function CreateInvoiceModal({ open, onOpenChange, onSuccess }: CreateInvo
                 </SelectContent>
               </Select>
             </div>
-
-            {events.length > 0 && (
-              <div className="col-span-2">
-                <Label htmlFor="event">Événement (optionnel)</Label>
-                <Select
-                  value={formData.event_id}
-                  onValueChange={(value) => setFormData(prev => ({ ...prev, event_id: value }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Sélectionner un événement" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {events.map((event) => (
-                      <SelectItem key={event.id} value={event.id}>
-                        {event.name || event.title}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
 
             <div className="col-span-2">
               <Label htmlFor="number">Numéro de facture *</Label>

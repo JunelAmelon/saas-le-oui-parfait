@@ -8,7 +8,6 @@ import { calculateDaysRemaining } from '@/lib/client-helpers';
 import { getDocuments } from '@/lib/db';
 import {
   Users,
-  MapPin,
   Calendar,
   Loader2,
   ChevronLeft,
@@ -92,7 +91,7 @@ export default function PrestatairesPage() {
         const mapped = assigned
           .map((l) => {
             const v = byId.get(l.vendor_id);
-            const name = v?.name || l.vendor_name || 'Prestataire';
+            const name = v?.contact_name || v?.name || l.vendor_name || 'Prestataire';
             const category = v?.category || l.vendor_category || 'Autre';
             const initials = (String(name)
               .split(' ')
@@ -108,7 +107,7 @@ export default function PrestatairesPage() {
               category,
               avatar: initials,
               logoUrl: v?.logo || v?.logo_url || v?.logoUrl || v?.logoURL || null,
-              address: v?.address || v?.city || '',
+              address: '',
               desc: v?.desc || '',
               status: 'confirmed',
               rating: Number(v?.rating ?? 5) || 5,
@@ -290,12 +289,6 @@ export default function PrestatairesPage() {
                       </span>
 
                       <div className="mt-4 space-y-2">
-                        {presta.address && (
-                          <div className="flex items-center gap-2 text-xs text-brand-gray">
-                            <MapPin className="h-3.5 w-3.5 text-brand-gray/70 shrink-0" />
-                            <span className="truncate">{presta.address}</span>
-                          </div>
-                        )}
                         {presta.desc && (
                           <p className="text-xs text-brand-gray leading-relaxed line-clamp-2">{presta.desc}</p>
                         )}

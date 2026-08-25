@@ -14,6 +14,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { addDocument, deleteDocument, getDocuments, getDocument, updateDocument } from '@/lib/db';
 import { uploadFile } from '@/lib/storage';
 import { toast } from 'sonner';
+import { auth } from '@/lib/firebase';
 import {
   Dialog,
   DialogContent,
@@ -272,6 +273,27 @@ export default function ClientPrestatairesAdminPage() {
           });
         } catch (e) {
           console.warn('Unable to send vendor push:', e);
+        }
+      }
+
+      // Add vendor as attendee to the wedding Google Calendar event (best effort)
+      if (vendor.email && eventId) {
+        try {
+          const eventDoc = (await getDocument('events', eventId)) as any;
+          if (eventDoc?.google_event_id) {
+            const idToken = await auth.currentUser?.getIdToken();
+            await fetch('/api/google/add-attendee', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
+              body: JSON.stringify({
+                userId: plannerId,
+                eventId: eventDoc.google_event_id,
+                attendeeEmails: [vendor.email],
+              }),
+            });
+          }
+        } catch (e) {
+          console.warn('Google Calendar attendee sync failed:', e);
         }
       }
     } catch (e: any) {

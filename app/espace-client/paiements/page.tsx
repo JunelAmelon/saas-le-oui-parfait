@@ -219,7 +219,7 @@ export default function PaiementsPage() {
         // Determine vendor_id: directly or via booking
         const vendorId = p.vendor_id || (p.booking_id && bookingToVendorMap[p.booking_id]?.vendor_id) || null;
         const vDoc = vendorId ? vendorDocsMap[vendorId] : null;
-        const vendorName = p.vendor_name || vDoc?.name || vDoc?.display_name || 'Prestataire';
+        const vendorName = vDoc?.contact_name || p.vendor_name || vDoc?.name || vDoc?.display_name || 'Prestataire';
         const vendorLogo = p.vendor_logo || vDoc?.logo || vDoc?.logo_url || vDoc?.logoUrl || vDoc?.logoURL || vDoc?.photo || null;
         return {
           ...p,
@@ -497,90 +497,67 @@ export default function PaiementsPage() {
           </div>
         </div>
 
-        {/* PROCHAINS PAIEMENTS */}
+        {/* PROCHAINS PAIEMENTS - LE OUI PARFAIT */}
         <div>
           <div className="flex items-center justify-between mb-3">
-            <h2 className="font-baskerville text-xl text-brand-purple">Prochains paiements</h2>
-            {allUpcomingPayments.length > 0 && (
+            <h2 className="font-baskerville text-xl text-brand-purple">Paiements Le Oui Parfait</h2>
+            {unpaidInvoices.length > 0 && (
               <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">
-                {allUpcomingPayments.length} à payer
+                {unpaidInvoices.length} à payer
               </Badge>
             )}
           </div>
 
-          {allUpcomingPayments.length === 0 ? (
-            <Card className="p-8 text-center border border-brand-purple/8 rounded-3xl">
-              <CheckCircle className="h-12 w-12 mx-auto mb-3 text-brand-turquoise" />
-              <p className="text-sm text-brand-gray">Tout est payé ! Aucun paiement à venir.</p>
+          {unpaidInvoices.length === 0 ? (
+            <Card className="p-6 text-center border border-brand-purple/8 rounded-3xl">
+              <CheckCircle className="h-8 w-8 mx-auto mb-2 text-brand-turquoise" />
+              <p className="text-sm text-brand-gray">Tout est payé côté Le Oui Parfait.</p>
             </Card>
           ) : (
             <div className="space-y-3">
-              {allUpcomingPayments.map((item) => {
-                const isInvoice = item.type === 'invoice';
-                const overdueStatus = item.overdue;
+              {unpaidInvoices.map((inv) => {
+                const overdue = isOverdue(inv);
                 return (
-                  <div key={`${item.type}-${item.id}`} className="rounded-2xl overflow-hidden border border-brand-purple/8">
-                    <div className={`flex items-center justify-between px-4 py-2.5 ${
-                      overdueStatus ? 'bg-red-50' : isInvoice ? 'bg-[#F1EADD]' : 'bg-[rgba(136,183,181,0.08)]'
-                    }`}>
+                  <div key={inv.id} className="rounded-2xl overflow-hidden border border-brand-purple/8">
+                    <div className={`flex items-center justify-between px-4 py-2.5 ${overdue ? 'bg-red-50' : 'bg-[#F1EADD]'}`}>
                       <div className="flex items-center gap-2 flex-1 min-w-0">
-                        {isInvoice ? (
-                          <FileText className="h-4 w-4 shrink-0 text-brand-purple" />
-                        ) : (
-                          <Users className="h-4 w-4 shrink-0 text-brand-turquoise" />
-                        )}
+                        <FileText className="h-4 w-4 shrink-0 text-brand-purple" />
                         <p className="text-xs font-semibold truncate text-brand-purple">
-                          {isInvoice
-                            ? `${item.number} — ${item.label}`
-                            : `${item.vendor_name} — ${item.label}`}
+                          {inv.number} — {inv.label || inv.number || 'Facture'}
                         </p>
                       </div>
-                      {isInvoice
-                        ? getStatusBadge(overdueStatus && item.status !== 'payment_pending' ? 'overdue' : item.status)
-                        : overdueStatus
-                          ? <Badge className="bg-[#B9847F]/15 text-[#B9847F] border-0 text-xs">Retard</Badge>
-                          : <Badge className="bg-[#C9A96E]/15 text-[#C9A96E] border-0 text-xs">À venir</Badge>}
+                      {getStatusBadge(overdue && inv.status !== 'payment_pending' ? 'overdue' : inv.status)}
                     </div>
 
                     <div className="flex flex-wrap sm:flex-nowrap divide-x divide-brand-purple/6 bg-white">
                       <MetricCell
                         icon={<Euro className="w-4 h-4 text-white" />}
                         label="Montant"
-                        value={formatAmount(item.amount)}
+                        value={formatAmount(inv.amount_ttc ?? 0)}
                         accent="bg-brand-purple"
                       />
                       <MetricCell
                         icon={<Calendar className="w-4 h-4 text-white" />}
                         label="Échéance"
-                        value={item.due_date ? new Date(item.due_date).toLocaleDateString('fr-FR') : '—'}
-                        accent={overdueStatus ? 'bg-[#B15C5C]' : 'bg-[#C9A96E]'}
+                        value={inv.due_date ? new Date(inv.due_date).toLocaleDateString('fr-FR') : '—'}
+                        accent={overdue ? 'bg-[#B15C5C]' : 'bg-[#C9A96E]'}
                       />
-                      {isInvoice ? (
-                        <>
-                          <div className="flex-1 flex items-center justify-center px-3 py-4 min-w-0">
-                            <button
-                              onClick={() => handlePayClick(item.invoice!)}
-                              className="flex flex-col items-center gap-2 group"
-                            >
-                              <div className="w-9 h-9 rounded-full bg-brand-turquoise group-hover:bg-brand-turquoise-hover flex items-center justify-center transition-colors">
-                                <CreditCard className="w-4 h-4 text-white" />
-                              </div>
-                              <span className="text-[9px] tracking-label uppercase text-brand-turquoise-hover font-bold">
-                                Payer
-                              </span>
-                            </button>
+                      <div className="flex-1 flex items-center justify-center px-3 py-4 min-w-0">
+                        <button
+                          onClick={() => handlePayClick(inv)}
+                          className="flex flex-col items-center gap-2 group"
+                        >
+                          <div className="w-9 h-9 rounded-full bg-brand-turquoise group-hover:bg-brand-turquoise-hover flex items-center justify-center transition-colors">
+                            <CreditCard className="w-4 h-4 text-white" />
                           </div>
-                          <div className="flex-1 flex items-center justify-center px-3 py-4 min-w-0">
-                            <DownloadDocs invoice={item.invoice!} small />
-                          </div>
-                        </>
-                      ) : (
-                        <div className="flex-1 flex items-center justify-center px-3 py-4 min-w-0">
-                          <span className="text-xs text-brand-gray text-center">
-                            Géré par votre<br />wedding planner
+                          <span className="text-[9px] tracking-label uppercase text-brand-turquoise-hover font-bold">
+                            Payer
                           </span>
-                        </div>
-                      )}
+                        </button>
+                      </div>
+                      <div className="flex-1 flex items-center justify-center px-3 py-4 min-w-0">
+                        <DownloadDocs invoice={inv} small />
+                      </div>
                     </div>
                   </div>
                 );
@@ -589,7 +566,60 @@ export default function PaiementsPage() {
           )}
         </div>
 
-        {/* HISTORIQUE DES PAIEMENTS (factures planner + acomptes prestataires) */}
+        {/* PROCHAINS PAIEMENTS - PRESTATAIRES */}
+        {unpaidVendorPayments.length > 0 && (
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="font-baskerville text-xl text-brand-purple">Paiements prestataires</h2>
+              <Badge variant="outline" className="bg-[rgba(136,183,181,0.08)] text-brand-turquoise-hover border-brand-turquoise/20">
+                {unpaidVendorPayments.length} à payer
+              </Badge>
+            </div>
+
+            <div className="space-y-3">
+              {unpaidVendorPayments.map((p) => {
+                const overdue = p.status === 'late' || (p.due_date && new Date(p.due_date) < new Date());
+                return (
+                  <div key={p.id} className="rounded-2xl overflow-hidden border border-brand-purple/8">
+                    <div className={`flex items-center justify-between px-4 py-2.5 ${overdue ? 'bg-red-50' : 'bg-[rgba(136,183,181,0.08)]'}`}>
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <Users className="h-4 w-4 shrink-0 text-brand-turquoise" />
+                        <p className="text-xs font-semibold truncate text-brand-purple">
+                          {p.vendor_name || 'Prestataire'} — {p.label || 'Acompte'}
+                        </p>
+                      </div>
+                      {overdue
+                        ? <Badge className="bg-[#B9847F]/15 text-[#B9847F] border-0 text-xs">Retard</Badge>
+                        : <Badge className="bg-[#C9A96E]/15 text-[#C9A96E] border-0 text-xs">À venir</Badge>}
+                    </div>
+
+                    <div className="flex flex-wrap sm:flex-nowrap divide-x divide-brand-purple/6 bg-white">
+                      <MetricCell
+                        icon={<Euro className="w-4 h-4 text-white" />}
+                        label="Montant"
+                        value={formatAmount(Number(p.amount || 0))}
+                        accent="bg-brand-purple"
+                      />
+                      <MetricCell
+                        icon={<Calendar className="w-4 h-4 text-white" />}
+                        label="Échéance"
+                        value={p.due_date ? new Date(p.due_date).toLocaleDateString('fr-FR') : '—'}
+                        accent={overdue ? 'bg-[#B15C5C]' : 'bg-[#C9A96E]'}
+                      />
+                      <div className="flex-1 flex items-center justify-center px-3 py-4 min-w-0">
+                        <span className="text-xs text-brand-gray text-center">
+                          Géré par votre<br />wedding planner
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* HISTORIQUE DES PAIEMENTS */}
         <div>
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-baskerville text-xl text-brand-purple">Historique des paiements</h2>
@@ -608,131 +638,86 @@ export default function PaiementsPage() {
               <p className="text-sm text-brand-gray">Aucun paiement pour l&apos;instant.</p>
             </div>
           ) : (
-            <>
-              <Card className="overflow-hidden border border-brand-purple/8 rounded-[18px]">
-                {/* Tableau unique — scroll horizontal sur mobile */}
-                <div className="overflow-x-auto">
-                  <table className="w-full min-w-[640px]">
-                    <thead>
-                      <tr className="bg-[#FAF9F7] border-b border-[rgba(75,68,86,0.06)]">
-                        <th className="px-4 py-3.5 text-left text-[10px] font-semibold uppercase tracking-wide text-[#9C97A3]">Prestataire / Facture</th>
-                        <th className="px-4 py-3.5 text-left text-[10px] font-semibold uppercase tracking-wide text-[#9C97A3]">Libellé</th>
-                        <th className="px-4 py-3.5 text-left text-[10px] font-semibold uppercase tracking-wide text-[#9C97A3]">Date</th>
-                        <th className="px-4 py-3.5 text-left text-[10px] font-semibold uppercase tracking-wide text-[#9C97A3]">Méthode</th>
-                        <th className="px-4 py-3.5 text-right text-[10px] font-semibold uppercase tracking-wide text-[#9C97A3]">Montant</th>
-                        <th className="px-4 py-3.5 text-center text-[10px] font-semibold uppercase tracking-wide text-[#9C97A3]">Statut</th>
-                        <th className="px-4 py-3.5 text-center text-[10px] font-semibold uppercase tracking-wide text-[#9C97A3]">Doc</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {paginatedPaidPayments.map((item: any) => {
-                        const isVendor = item.type === 'vendor';
-                        const vendorInitials = (item.vendor_name || 'P').split(' ').map((x: string) => x[0]).slice(0, 2).join('').toUpperCase();
-                        return (
-                          <tr key={`${item.type}-${item.id}`} className="border-b border-[rgba(75,68,86,0.04)] hover:bg-[rgba(136,183,181,0.04)] transition-colors">
-                            {/* Prestataire / Facture */}
-                            <td className="px-4 py-3.5">
-                              <div className="flex items-center gap-2.5">
-                                {isVendor ? (
-                                  <div className="w-10 h-10 rounded-full bg-white border border-[rgba(75,68,86,0.08)] overflow-hidden shrink-0 flex items-center justify-center shadow-sm">
-                                    {item.vendor_logo ? (
-                                      // eslint-disable-next-line @next/next/no-img-element
-                                      <img src={item.vendor_logo} alt={item.vendor_name} className="w-full h-full object-cover" />
-                                    ) : (
-                                      <span className="text-[11px] font-bold text-[#88b7b5]">{vendorInitials}</span>
-                                    )}
-                                  </div>
-                                ) : (
-                                  <div className="w-10 h-10 rounded-full bg-[rgba(75,68,86,0.06)] flex items-center justify-center shrink-0">
-                                    <FileText className="h-4 w-4 text-[#4B4456]" />
-                                  </div>
-                                )}
-                                <span className="text-[13px] font-semibold text-[#4B4456] whitespace-nowrap">
-                                  {isVendor ? (item.vendor_name || 'Prestataire') : (item.number || '—')}
-                                </span>
-                              </div>
-                            </td>
-                            {/* Libellé */}
-                            <td className="px-4 py-3.5">
-                              <span className="text-[12px] text-[#9C97A3]">{item.label || '—'}</span>
-                            </td>
-                            {/* Date */}
-                            <td className="px-4 py-3.5">
-                              <div className="flex items-center gap-1.5 text-[12px] text-[#9C97A3] whitespace-nowrap">
-                                <Calendar className="h-3.5 w-3.5 text-[#88b7b5] shrink-0" />
-                                {formatDate(item.paid_date)}
-                              </div>
-                            </td>
-                            {/* Méthode */}
-                            <td className="px-4 py-3.5">
-                              {isVendor && item.method ? (
-                                <span className="text-[11px] text-[#9C97A3] capitalize whitespace-nowrap">{item.method}</span>
+            <Card className="overflow-hidden border border-brand-purple/8 rounded-[18px]">
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[640px]">
+                  <thead>
+                    <tr className="bg-[#FAF9F7] border-b border-[rgba(75,68,86,0.06)]">
+                      <th className="px-4 py-3.5 text-left text-[10px] font-semibold uppercase tracking-wide text-[#9C97A3]">Prestataire / Facture</th>
+                      <th className="px-4 py-3.5 text-left text-[10px] font-semibold uppercase tracking-wide text-[#9C97A3]">Libellé</th>
+                      <th className="px-4 py-3.5 text-left text-[10px] font-semibold uppercase tracking-wide text-[#9C97A3]">Date</th>
+                      <th className="px-4 py-3.5 text-left text-[10px] font-semibold uppercase tracking-wide text-[#9C97A3]">Méthode</th>
+                      <th className="px-4 py-3.5 text-right text-[10px] font-semibold uppercase tracking-wide text-[#9C97A3]">Montant</th>
+                      <th className="px-4 py-3.5 text-center text-[10px] font-semibold uppercase tracking-wide text-[#9C97A3]">Statut</th>
+                      <th className="px-4 py-3.5 text-center text-[10px] font-semibold uppercase tracking-wide text-[#9C97A3]">Doc</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {allPaidPayments.map((item: any) => {
+                      const isVendor = item.type === 'vendor';
+                      const vendorInitials = (item.vendor_name || 'P').split(' ').map((x: string) => x[0]).slice(0, 2).join('').toUpperCase();
+                      return (
+                        <tr key={`${item.type}-${item.id}`} className="border-b border-[rgba(75,68,86,0.04)] hover:bg-[rgba(136,183,181,0.04)] transition-colors">
+                          <td className="px-4 py-3.5">
+                            <div className="flex items-center gap-2.5">
+                              {isVendor ? (
+                                <div className="w-10 h-10 rounded-full bg-white border border-[rgba(75,68,86,0.08)] overflow-hidden shrink-0 flex items-center justify-center shadow-sm">
+                                  {item.vendor_logo ? (
+                                    <img src={item.vendor_logo} alt={item.vendor_name} className="w-full h-full object-cover" />
+                                  ) : (
+                                    <span className="text-[11px] font-bold text-[#88b7b5]">{vendorInitials}</span>
+                                  )}
+                                </div>
                               ) : (
-                                <span className="text-[11px] text-[#9C97A3]/40">—</span>
+                                <div className="w-10 h-10 rounded-full bg-[rgba(75,68,86,0.06)] flex items-center justify-center shrink-0">
+                                  <FileText className="h-4 w-4 text-[#4B4456]" />
+                                </div>
                               )}
-                            </td>
-                            {/* Montant */}
-                            <td className="px-4 py-3.5 text-right">
-                              <span className="text-[15px] font-baskerville text-[#4B4456] whitespace-nowrap">
-                                {formatAmount(item.amount || 0)}
+                              <span className="text-[13px] font-semibold text-[#4B4456] whitespace-nowrap">
+                                {isVendor ? (item.vendor_name || 'Prestataire') : (item.number || '—')}
                               </span>
-                            </td>
-                            {/* Statut */}
-                            <td className="px-4 py-3.5 text-center">
-                              <span className="inline-flex items-center text-[10px] font-bold uppercase tracking-wide px-2.5 py-1 rounded-full bg-[rgba(136,183,181,0.15)] text-[#6a9a98]">
-                                Payé
-                              </span>
-                            </td>
-                            {/* Doc */}
-                            <td className="px-4 py-3.5 text-center">
-                              {!isVendor && item.invoice ? (
-                                <DownloadDocs invoice={item.invoice} />
-                              ) : (
-                                <span className="text-[11px] text-[#9C97A3]/40">—</span>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </Card>
-
-              {/* Pagination */}
-              {allPaidPayments.length > itemsPerPage && (
-                <Card className="p-4 border border-brand-purple/8 rounded-3xl mt-4">
-                  <div className="flex items-center justify-between">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                      disabled={currentPage === 1}
-                      className="gap-2"
-                    >
-                      <ChevronLeft className="h-4 w-4" />
-                      Précédent
-                    </Button>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm text-brand-gray">
-                        Page {currentPage} sur {totalPages}
-                      </span>
-                      <span className="text-xs text-brand-gray">({allPaidPayments.length} paiement{allPaidPayments.length > 1 ? 's' : ''})</span>
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                      disabled={currentPage === totalPages}
-                      className="gap-2"
-                    >
-                      Suivant
-                      <ChevronRight className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </Card>
-              )}
-            </>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3.5">
+                            <span className="text-[12px] text-[#9C97A3]">{item.label || '—'}</span>
+                          </td>
+                          <td className="px-4 py-3.5">
+                            <div className="flex items-center gap-1.5 text-[12px] text-[#9C97A3] whitespace-nowrap">
+                              <Calendar className="h-3.5 w-3.5 text-[#88b7b5] shrink-0" />
+                              {formatDate(item.paid_date)}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3.5">
+                            {isVendor && item.method ? (
+                              <span className="text-[11px] text-[#9C97A3] capitalize whitespace-nowrap">{item.method}</span>
+                            ) : (
+                              <span className="text-[11px] text-[#9C97A3]/40">—</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3.5 text-right">
+                            <span className="text-[15px] font-baskerville text-[#4B4456] whitespace-nowrap">
+                              {formatAmount(item.amount || 0)}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3.5 text-center">
+                            <span className="inline-flex items-center text-[10px] font-bold uppercase tracking-wide px-2.5 py-1 rounded-full bg-[rgba(136,183,181,0.15)] text-[#6a9a98]">
+                              Payé
+                            </span>
+                          </td>
+                          <td className="px-4 py-3.5 text-center">
+                            {!isVendor && item.invoice ? (
+                              <DownloadDocs invoice={item.invoice} />
+                            ) : (
+                              <span className="text-[11px] text-[#9C97A3]/40">—</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
           )}
         </div>
       </div>
