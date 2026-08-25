@@ -71,6 +71,17 @@ service cloud.firestore {
       allow create, update, delete: if isAuthenticated() && request.auth.uid == request.resource.data.planner_id;
     }
 
+    // Client acomptes (echeancier client).
+    // - Planner can read/write (declares acomptes)
+    // - Client can read their own acomptes
+    match /client_acomptes/{acompteId} {
+      allow read: if isAuthenticated() && (
+        resource.data.planner_id == request.auth.uid ||
+        resource.data.client_id == request.auth.uid
+      );
+      allow create, update, delete: if isAuthenticated() && request.auth.uid == request.resource.data.planner_id;
+    }
+
     // Google OAuth tokens — accessible ONLY via Admin SDK (server-side)
     // Never expose refresh tokens to the client.
     match /google_tokens/{userId} {

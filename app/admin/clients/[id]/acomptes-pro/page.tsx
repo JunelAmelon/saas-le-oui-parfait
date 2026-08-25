@@ -194,7 +194,7 @@ export default function ClientAcomptesProPage() {
       let vendorLogo: string | null = null;
       try {
         const vendorDoc = (await getDocument('vendors', selectedBooking.vendor_id)) as any;
-        vendorName = vendorDoc?.name || '';
+        vendorName = vendorDoc?.contact_name || vendorDoc?.name || '';
         vendorLogo = vendorDoc?.logo || vendorDoc?.logo_url || vendorDoc?.logoUrl || null;
       } catch {
         // non-blocking
@@ -330,12 +330,12 @@ export default function ClientAcomptesProPage() {
           ? `${clientDoc.name || ''}${clientDoc.name && clientDoc.partner ? ' & ' : ''}${clientDoc.partner || ''}`.trim()
           : '';
 
-        // Find vendor name
-        let vendorName = 'le prestataire';
+        // Find vendor contact name
+        let vendorName = 'votre prestataire';
         try {
           if (payment.vendor_id) {
             const vendorDoc = (await getDocument('vendors', payment.vendor_id)) as any;
-            if (vendorDoc?.name) vendorName = vendorDoc.name;
+            if (vendorDoc?.contact_name) vendorName = vendorDoc.contact_name;
           }
         } catch {
           // non-blocking
@@ -345,8 +345,8 @@ export default function ClientAcomptesProPage() {
           await addDocument('notifications', {
             recipient_id: clientUserId,
             type: 'vendor_payment',
-            title: 'Acompte prestataire confirmé',
-            message: `L'acompte "${payment.label}" de ${Number(payment.amount || 0).toLocaleString('fr-FR')} € pour ${vendorName} a été reçu (${method}).`,
+            title: 'Paiement effectué',
+            message: `Un paiement a été affecté à ${vendorName} pour le compte de votre mariage.`,
             link: '/espace-client/paiements',
             read: false,
             created_at: new Date(),
@@ -357,8 +357,8 @@ export default function ClientAcomptesProPage() {
             const { sendEmailToUid } = await import('@/lib/email');
             await sendEmailToUid({
               recipientUid: clientUserId,
-              subject: 'Acompte prestataire confirmé - Le Oui Parfait',
-              text: `Bonjour${coupleNames ? ` ${coupleNames}` : ''},\n\nUn acompte prestataire a été confirmé par votre wedding planner :\n\nPrestataire : ${vendorName}\nLibellé : ${payment.label}\nMontant : ${Number(payment.amount || 0).toLocaleString('fr-FR')} €\nMéthode : ${method}\n\nRetrouvez le détail sur votre espace client, page Paiements.\n\nLe Oui Parfait`,
+              subject: 'Paiement effectué pour votre mariage — Le Oui Parfait',
+              text: `Bonjour${coupleNames ? ` ${coupleNames}` : ''},\n\nUn paiement a été effectué pour le compte de votre mariage auprès de ${vendorName}.\n\nRetrouvez le détail sur votre espace client, page Paiements.\n\nLe Oui Parfait`,
             });
           } catch (e) {
             console.warn('Unable to send client email:', e);
@@ -368,8 +368,8 @@ export default function ClientAcomptesProPage() {
             const { sendPushToRecipient } = await import('@/lib/push');
             await sendPushToRecipient({
               recipientId: clientUserId,
-              title: 'Acompte prestataire confirmé',
-              body: `${payment.label} de ${Number(payment.amount || 0).toLocaleString('fr-FR')} € pour ${vendorName} a été reçu.`,
+              title: 'Paiement effectué',
+              body: `Un paiement a été affecté à ${vendorName} pour votre mariage.`,
               link: '/espace-client/paiements',
             });
           } catch (e) {

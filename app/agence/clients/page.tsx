@@ -301,6 +301,10 @@ export default function ClientFilesPage() {
     goToSection('acomptes-pro', `/admin/clients/${selectedClient?.id}/acomptes-pro`);
   };
 
+  const handleGoToAcomptesClient = () => {
+    goToSection('acomptes-client', `/admin/clients/${selectedClient?.id}/acomptes-client`);
+  };
+
   const [isInviting, setIsInviting] = useState(false);
   const [isSyncingCalendar, setIsSyncingCalendar] = useState(false);
 
@@ -1184,6 +1188,14 @@ export default function ClientFilesPage() {
                 >
                   <CreditCard className="h-4 w-4" />
                   Acomptes Pro
+                </Button>
+                <Button
+                  variant="outline"
+                  className={`gap-2 ${activeSection === 'acomptes-client' ? 'bg-brand-turquoise text-white border-brand-turquoise hover:bg-brand-turquoise-hover' : ''}`}
+                  onClick={handleGoToAcomptesClient}
+                >
+                  <CreditCard className="h-4 w-4" />
+                  Acomptes Client
                 </Button>
               </div>
 

@@ -33,7 +33,6 @@ import {
   AlertCircle,
   ChevronLeft,
   ChevronRight,
-  Users,
 } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
@@ -100,6 +99,8 @@ export default function PaiementsPage() {
   const router = useRouter();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [vendorPayments, setVendorPayments] = useState<any[]>([]);
+  const [clientAcomptes, setClientAcomptes] = useState<any[]>([]);
+  const [plannerPhoto, setPlannerPhoto] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
@@ -146,11 +147,14 @@ export default function PaiementsPage() {
     
     try {
       setLoading(true);
-      const [invoicesData, vendorPaymentsData] = await Promise.all([
+      const [invoicesData, vendorPaymentsData, clientAcomptesData] = await Promise.all([
         getDocuments('invoices', [
           { field: 'client_id', operator: '==', value: client.id }
         ]),
         getDocuments('vendor_payments', [
+          { field: 'client_id', operator: '==', value: client.id }
+        ]).catch(() => []),
+        getDocuments('client_acomptes', [
           { field: 'client_id', operator: '==', value: client.id }
         ]).catch(() => []),
       ]);
@@ -160,6 +164,16 @@ export default function PaiementsPage() {
         const bTime = b.created_at?.toMillis?.() || 0;
         return bTime - aTime;
       }));
+
+      // Fetch planner photo
+      if (client?.planner_id) {
+        try {
+          const plannerDoc = (await getDocument('profiles', client.planner_id)) as any;
+          setPlannerPhoto(plannerDoc?.photo || plannerDoc?.photoURL || plannerDoc?.avatar || null);
+        } catch {
+          // non-blocking
+        }
+      }
 
       // Enrich vendor payments with vendor name/logo if missing
       const rawVendorPayments = (vendorPaymentsData as any[])
@@ -233,6 +247,11 @@ export default function PaiementsPage() {
       const sortedVendorPayments = enrichedVendorPayments
         .sort((a, b) => String(b.due_date || b.paid_date || '').localeCompare(String(a.due_date || a.paid_date || '')));
       setVendorPayments(sortedVendorPayments);
+
+      // Sort client acomptes by due_date
+      const sortedClientAcomptes = (clientAcomptesData as any[])
+        .sort((a, b) => String(a.due_date || a.paid_date || '').localeCompare(String(b.due_date || b.paid_date || '')));
+      setClientAcomptes(sortedClientAcomptes);
     } catch (error) {
       console.error('Error fetching invoices:', error);
       toast({
@@ -258,39 +277,14 @@ export default function PaiementsPage() {
   // Factures payées (paid)
   const paidInvoices = invoices.filter(inv => inv.status === 'paid' && (inv.amount_ttc ?? 0) > 0);
 
-  // Acomptes prestataires à venir (non payés)
-  const unpaidVendorPayments = vendorPayments.filter((p) => p.status !== 'paid');
-
   // Acomptes prestataires payés
   const paidVendorPayments = vendorPayments.filter((p) => p.status === 'paid');
 
-  // Listes fusionnées pour l'affichage
-  const allUpcomingPayments = [
-    ...unpaidInvoices.map((inv) => ({
-      id: inv.id,
-      type: 'invoice' as const,
-      label: inv.label || inv.number || 'Facture',
-      number: inv.number,
-      amount: inv.amount_ttc ?? 0,
-      due_date: inv.due_date,
-      status: inv.status,
-      overdue: isOverdue(inv),
-      invoice: inv,
-    })),
-    ...unpaidVendorPayments.map((p) => ({
-      id: p.id,
-      type: 'vendor' as const,
-      label: p.label || 'Acompte',
-      number: null,
-      amount: Number(p.amount || 0),
-      due_date: p.due_date,
-      status: p.status,
-      overdue: p.status === 'late' || (p.due_date && new Date(p.due_date) < new Date()),
-      vendor_name: p.vendor_name || 'Prestataire',
-      vendor_logo: p.vendor_logo || null,
-      invoice: null,
-    })),
-  ].sort((a, b) => String(a.due_date || '').localeCompare(String(b.due_date || '')));
+  // Acomptes client à venir (non payés)
+  const unpaidClientAcomptes = clientAcomptes.filter((a) => a.status !== 'paid');
+
+  // Acomptes client payés
+  const paidClientAcomptes = clientAcomptes.filter((a) => a.status === 'paid');
 
   const allPaidPayments = [
     ...paidInvoices.map((inv) => ({
@@ -302,12 +296,22 @@ export default function PaiementsPage() {
       paid_date: inv.paid_at,
       invoice: inv,
     })),
+    ...paidClientAcomptes.map((a) => ({
+      id: a.id,
+      type: 'client_acompte' as const,
+      label: a.label || 'Acompte',
+      number: null,
+      amount: Number(a.amount || 0),
+      paid_date: a.paid_date,
+      method: a.method || '',
+      invoice: null,
+    })),
     ...paidVendorPayments.map((p) => ({
       id: p.id,
       type: 'vendor' as const,
       label: p.label || 'Acompte',
       number: null,
-      amount: Number(p.amount || 0),
+      amount: null,
       paid_date: p.paid_date,
       vendor_name: p.vendor_name || 'Prestataire',
       vendor_logo: p.vendor_logo || null,
@@ -321,17 +325,19 @@ export default function PaiementsPage() {
   const startIndex = (currentPage - 1) * itemsPerPage;
   const paginatedPaidPayments = allPaidPayments.slice(startIndex, startIndex + itemsPerPage);
 
-  // Calculs budget — inclut les factures planner ET les acomptes prestataires
-  const vendorPaidAmount = vendorPayments
-    .filter((p) => p.status === 'paid')
-    .reduce((sum, p) => sum + Number(p.amount || 0), 0);
-  const vendorUnpaidAmount = vendorPayments
-    .filter((p) => p.status !== 'paid')
-    .reduce((sum, p) => sum + Number(p.amount || 0), 0);
+  // Calculs budget — inclut les factures planner (hors draft/cancelled) ET les acomptes client
+  const relevantInvoices = invoices.filter(inv => !['draft', 'cancelled'].includes(inv.status));
 
-  const totalBudget = invoices.reduce((sum, inv) => sum + (inv.amount_ttc ?? 0), 0) + vendorPayments.reduce((sum, p) => sum + Number(p.amount || 0), 0);
-  const totalPaid = paidInvoices.reduce((sum, inv) => sum + (inv.amount_ttc ?? 0), 0) + vendorPaidAmount;
-  const totalUnpaid = unpaidInvoices.reduce((sum, inv) => sum + (inv.amount_ttc ?? 0), 0) + vendorUnpaidAmount;
+  const clientAcomptePaidAmount = clientAcomptes
+    .filter((a) => a.status === 'paid')
+    .reduce((sum, a) => sum + Number(a.amount || 0), 0);
+  const clientAcompteUnpaidAmount = clientAcomptes
+    .filter((a) => a.status !== 'paid')
+    .reduce((sum, a) => sum + Number(a.amount || 0), 0);
+
+  const totalBudget = relevantInvoices.reduce((sum, inv) => sum + (inv.amount_ttc ?? 0), 0) + clientAcomptes.reduce((sum, a) => sum + Number(a.amount || 0), 0);
+  const totalPaid = paidInvoices.reduce((sum, inv) => sum + (inv.amount_ttc ?? 0), 0) + clientAcomptePaidAmount;
+  const totalUnpaid = unpaidInvoices.reduce((sum, inv) => sum + (inv.amount_ttc ?? 0), 0) + clientAcompteUnpaidAmount;
 
   const progressPercentage = totalBudget > 0 ? (totalPaid / totalBudget) * 100 : 0;
 
@@ -566,26 +572,27 @@ export default function PaiementsPage() {
           )}
         </div>
 
-        {/* PROCHAINS PAIEMENTS - PRESTATAIRES */}
-        {unpaidVendorPayments.length > 0 && (
+        {/* PROCHAINS PAIEMENTS - ACOMPTES CLIENT */}
+        {unpaidClientAcomptes.length > 0 && (
           <div>
             <div className="flex items-center justify-between mb-3">
-              <h2 className="font-baskerville text-xl text-brand-purple">Paiements prestataires</h2>
+              <h2 className="font-baskerville text-xl text-brand-purple">Acomptes à régler</h2>
               <Badge variant="outline" className="bg-[rgba(136,183,181,0.08)] text-brand-turquoise-hover border-brand-turquoise/20">
-                {unpaidVendorPayments.length} à payer
+                {unpaidClientAcomptes.length} à payer
               </Badge>
             </div>
 
             <div className="space-y-3">
-              {unpaidVendorPayments.map((p) => {
-                const overdue = p.status === 'late' || (p.due_date && new Date(p.due_date) < new Date());
+              {unpaidClientAcomptes.map((a) => {
+                const overdue = a.status === 'late' || (a.due_date && new Date(a.due_date) < new Date());
+                const typeLabel = a.type === 'acompte' ? 'Acompte' : a.type === 'intermediaire' ? 'Intermédiaire' : 'Solde';
                 return (
-                  <div key={p.id} className="rounded-2xl overflow-hidden border border-brand-purple/8">
+                  <div key={a.id} className="rounded-2xl overflow-hidden border border-brand-purple/8">
                     <div className={`flex items-center justify-between px-4 py-2.5 ${overdue ? 'bg-red-50' : 'bg-[rgba(136,183,181,0.08)]'}`}>
                       <div className="flex items-center gap-2 flex-1 min-w-0">
-                        <Users className="h-4 w-4 shrink-0 text-brand-turquoise" />
+                        <CreditCard className="h-4 w-4 shrink-0 text-brand-turquoise" />
                         <p className="text-xs font-semibold truncate text-brand-purple">
-                          {p.vendor_name || 'Prestataire'} — {p.label || 'Acompte'}
+                          {a.label || 'Acompte'} — {typeLabel}
                         </p>
                       </div>
                       {overdue
@@ -597,13 +604,13 @@ export default function PaiementsPage() {
                       <MetricCell
                         icon={<Euro className="w-4 h-4 text-white" />}
                         label="Montant"
-                        value={formatAmount(Number(p.amount || 0))}
+                        value={formatAmount(Number(a.amount || 0))}
                         accent="bg-brand-purple"
                       />
                       <MetricCell
                         icon={<Calendar className="w-4 h-4 text-white" />}
                         label="Échéance"
-                        value={p.due_date ? new Date(p.due_date).toLocaleDateString('fr-FR') : '—'}
+                        value={a.due_date ? new Date(a.due_date).toLocaleDateString('fr-FR') : '—'}
                         accent={overdue ? 'bg-[#B15C5C]' : 'bg-[#C9A96E]'}
                       />
                       <div className="flex-1 flex items-center justify-center px-3 py-4 min-w-0">
@@ -643,11 +650,11 @@ export default function PaiementsPage() {
                 <table className="w-full min-w-[640px]">
                   <thead>
                     <tr className="bg-[#FAF9F7] border-b border-[rgba(75,68,86,0.06)]">
-                      <th className="px-4 py-3.5 text-left text-[10px] font-semibold uppercase tracking-wide text-[#9C97A3]">Prestataire / Facture</th>
+                      <th className="px-4 py-3.5 text-left text-[10px] font-semibold uppercase tracking-wide text-[#9C97A3]">Prestataire</th>
                       <th className="px-4 py-3.5 text-left text-[10px] font-semibold uppercase tracking-wide text-[#9C97A3]">Libellé</th>
                       <th className="px-4 py-3.5 text-left text-[10px] font-semibold uppercase tracking-wide text-[#9C97A3]">Date</th>
                       <th className="px-4 py-3.5 text-left text-[10px] font-semibold uppercase tracking-wide text-[#9C97A3]">Méthode</th>
-                      <th className="px-4 py-3.5 text-right text-[10px] font-semibold uppercase tracking-wide text-[#9C97A3]">Montant</th>
+                      <th className="px-4 py-3.5 text-right text-[10px] font-semibold uppercase tracking-wide text-[#9C97A3]">Type</th>
                       <th className="px-4 py-3.5 text-center text-[10px] font-semibold uppercase tracking-wide text-[#9C97A3]">Statut</th>
                       <th className="px-4 py-3.5 text-center text-[10px] font-semibold uppercase tracking-wide text-[#9C97A3]">Doc</th>
                     </tr>
@@ -655,6 +662,7 @@ export default function PaiementsPage() {
                   <tbody>
                     {allPaidPayments.map((item: any) => {
                       const isVendor = item.type === 'vendor';
+                      const isClientAcompte = item.type === 'client_acompte';
                       const vendorInitials = (item.vendor_name || 'P').split(' ').map((x: string) => x[0]).slice(0, 2).join('').toUpperCase();
                       return (
                         <tr key={`${item.type}-${item.id}`} className="border-b border-[rgba(75,68,86,0.04)] hover:bg-[rgba(136,183,181,0.04)] transition-colors">
@@ -668,13 +676,17 @@ export default function PaiementsPage() {
                                     <span className="text-[11px] font-bold text-[#88b7b5]">{vendorInitials}</span>
                                   )}
                                 </div>
+                              ) : isClientAcompte ? (
+                                <div className="w-10 h-10 rounded-full bg-white border border-[rgba(75,68,86,0.08)] overflow-hidden shrink-0 flex items-center justify-center shadow-sm">
+                                  <img src="/kathy.png" alt="Kathy" className="w-full h-full object-cover" />
+                                </div>
                               ) : (
-                                <div className="w-10 h-10 rounded-full bg-[rgba(75,68,86,0.06)] flex items-center justify-center shrink-0">
-                                  <FileText className="h-4 w-4 text-[#4B4456]" />
+                                <div className="w-10 h-10 rounded-full bg-white border border-[rgba(75,68,86,0.08)] overflow-hidden shrink-0 flex items-center justify-center shadow-sm">
+                                  <img src="/kathy.png" alt="Kathy" className="w-full h-full object-cover" />
                                 </div>
                               )}
                               <span className="text-[13px] font-semibold text-[#4B4456] whitespace-nowrap">
-                                {isVendor ? (item.vendor_name || 'Prestataire') : (item.number || '—')}
+                                {isVendor ? (item.vendor_name || 'Prestataire') : isClientAcompte ? 'Acompte' : (item.number || '—')}
                               </span>
                             </div>
                           </td>
@@ -688,16 +700,14 @@ export default function PaiementsPage() {
                             </div>
                           </td>
                           <td className="px-4 py-3.5">
-                            {isVendor && item.method ? (
+                            {item.method ? (
                               <span className="text-[11px] text-[#9C97A3] capitalize whitespace-nowrap">{item.method}</span>
                             ) : (
                               <span className="text-[11px] text-[#9C97A3]/40">—</span>
                             )}
                           </td>
                           <td className="px-4 py-3.5 text-right">
-                            <span className="text-[15px] font-baskerville text-[#4B4456] whitespace-nowrap">
-                              {formatAmount(item.amount || 0)}
-                            </span>
+                            <span className="text-[11px] text-[#9C97A3]/40">—</span>
                           </td>
                           <td className="px-4 py-3.5 text-center">
                             <span className="inline-flex items-center text-[10px] font-bold uppercase tracking-wide px-2.5 py-1 rounded-full bg-[rgba(136,183,181,0.15)] text-[#6a9a98]">
@@ -705,7 +715,7 @@ export default function PaiementsPage() {
                             </span>
                           </td>
                           <td className="px-4 py-3.5 text-center">
-                            {!isVendor && item.invoice ? (
+                            {!isVendor && !isClientAcompte && item.invoice ? (
                               <DownloadDocs invoice={item.invoice} />
                             ) : (
                               <span className="text-[11px] text-[#9C97A3]/40">—</span>

@@ -63,7 +63,7 @@ async function getPlannerEmail(plannerId: string): Promise<string | null> {
 }
 
 interface ReminderResult {
-  type: 'invoice' | 'vendor_payment';
+  type: 'invoice' | 'vendor_payment' | 'client_acompte';
   id: string;
   reference: string;
   amount: number;
@@ -268,51 +268,107 @@ export async function GET(req: Request) {
       const clientId = data.client_id;
       if (!clientId) continue;
 
-      const { email, name, plannerId } = await getClientInfo(clientId);
+      const { name, plannerId } = await getClientInfo(clientId);
       const reference = data.label || 'Acompte prestataire';
       const amount = Number(data.amount || 0);
       const vendorName = data.vendor_name || 'votre prestataire';
 
+      // Pas d'envoi d'email au client pour les acomptes prestataires
+      // On met juste à jour le tier pour le suivi et on alimente le récap planner
+      await adminDb.collection('vendor_payments').doc(id).update({
+        last_reminder_sent: now,
+        last_reminder_tier: tier.label,
+      });
+
+      results.push({
+        type: 'vendor_payment', id, reference, amount, dueDate, daysLate, reminderTier: tier.label,
+        clientEmail: null, clientName: name, clientId, vendorName, plannerId,
+        status: 'sent',
+      });
+    }
+
+    // ──────────────────────────────────────────────
+    // 3. Acomptes client impayés (client_acomptes)
+    // ──────────────────────────────────────────────
+    const clientAcompteSnap = await adminDb
+      .collection('client_acomptes')
+      .get();
+
+    const clientAcompteDocs: Array<{ id: string; data: any }> = [];
+    clientAcompteSnap.forEach((d) => {
+      const data = d.data() as any;
+      if (data.status === 'paid' || data.status === 'cancelled') return;
+      clientAcompteDocs.push({ id: d.id, data });
+    });
+
+    for (const { id, data } of clientAcompteDocs) {
+      const dueDate = toJsDate(data.due_date);
+      if (!dueDate) continue;
+
+      const daysLate = daysBetween(now, dueDate);
+
+      const tier = REMINDER_TIERS.find((t) => daysLate >= t.days && daysLate < t.days + 1);
+      if (!tier) continue;
+
+      const lastTier = data.last_reminder_tier;
+      if (lastTier === tier.label) {
+        results.push({
+          type: 'client_acompte', id, reference: data.label || 'Acompte',
+          amount: Number(data.amount || 0), dueDate, daysLate, reminderTier: tier.label,
+          clientEmail: null, clientName: '', clientId: data.client_id || '', vendorName: null, plannerId: null,
+          status: 'skipped_already_sent',
+        });
+        continue;
+      }
+
+      const clientId = data.client_id;
+      if (!clientId) continue;
+
+      const { email, name, plannerId } = await getClientInfo(clientId);
+      const reference = data.label || 'Acompte';
+      const amount = Number(data.amount || 0);
+
       if (!email) {
         results.push({
-          type: 'vendor_payment', id, reference, amount, dueDate, daysLate, reminderTier: tier.label,
-          clientEmail: null, clientName: name, clientId, vendorName, plannerId,
+          type: 'client_acompte', id, reference, amount, dueDate, daysLate, reminderTier: tier.label,
+          clientEmail: null, clientName: name, clientId, vendorName: null, plannerId,
           status: 'skipped_no_email',
         });
         continue;
       }
 
-      const subject = buildClientSubject(daysLate, reference, true, vendorName);
-      const text = buildClientText(daysLate, name, amount, reference, dueDate, true, vendorName);
+      const subject = buildClientSubject(daysLate, reference, false);
+      const text = buildClientText(daysLate, name, amount, reference, dueDate, false);
 
       try {
         await sendEmailServer({ to: email, subject, text });
 
-        await adminDb.collection('vendor_payments').doc(id).update({
+        await adminDb.collection('client_acomptes').doc(id).update({
           last_reminder_sent: now,
           last_reminder_tier: tier.label,
         });
 
         results.push({
-          type: 'vendor_payment', id, reference, amount, dueDate, daysLate, reminderTier: tier.label,
-          clientEmail: email, clientName: name, clientId, vendorName, plannerId,
+          type: 'client_acompte', id, reference, amount, dueDate, daysLate, reminderTier: tier.label,
+          clientEmail: email, clientName: name, clientId, vendorName: null, plannerId,
           status: 'sent',
         });
       } catch (e) {
         results.push({
-          type: 'vendor_payment', id, reference, amount, dueDate, daysLate, reminderTier: tier.label,
-          clientEmail: email, clientName: name, clientId, vendorName, plannerId,
+          type: 'client_acompte', id, reference, amount, dueDate, daysLate, reminderTier: tier.label,
+          clientEmail: email, clientName: name, clientId, vendorName: null, plannerId,
           status: 'error',
         });
       }
     }
 
     // ──────────────────────────────────────────────
-    // 3. Recap planner - factures (groupe par couple)
+    // 4. Recap planner - factures (groupe par couple)
     // ──────────────────────────────────────────────
     const sentReminders = results.filter((r) => r.status === 'sent');
     const invoiceReminders = sentReminders.filter((r) => r.type === 'invoice');
     const vendorReminders = sentReminders.filter((r) => r.type === 'vendor_payment');
+    const clientAcompteReminders = sentReminders.filter((r) => r.type === 'client_acompte');
 
     const sendPlannerRecap = async (reminders: ReminderResult[], subject: string, intro: string) => {
       if (reminders.length === 0) return;
@@ -345,11 +401,17 @@ export async function GET(req: Request) {
             if (r.type === 'vendor_payment') {
               return `  - Il reste ${daysLabel} pour que le couple paye l'acompte ${r.reference} de ${amountStr} pour ${r.vendorName || 'le prestataire'} (échéance le ${dateStr})`;
             }
+            if (r.type === 'client_acompte') {
+              return `  - Il reste ${daysLabel} pour que le couple paye l'acompte ${r.reference} de ${amountStr} (échéance le ${dateStr})`;
+            }
             return `  - Il reste ${daysLabel} pour que le couple paye la facture ${r.reference} de ${amountStr} (échéance le ${dateStr})`;
           }
           if (r.daysLate === 0) {
             if (r.type === 'vendor_payment') {
               return `  - L'acompte ${r.reference} de ${amountStr} pour ${r.vendorName || 'le prestataire'} arrive à échéance aujourd'hui (${dateStr})`;
+            }
+            if (r.type === 'client_acompte') {
+              return `  - L'acompte ${r.reference} de ${amountStr} arrive à échéance aujourd'hui (${dateStr})`;
             }
             return `  - La facture ${r.reference} de ${amountStr} arrive à échéance aujourd'hui (${dateStr})`;
           }
@@ -357,6 +419,9 @@ export async function GET(req: Request) {
           const daysLabel = absDays === 1 ? '1 jour' : `${absDays} jours`;
           if (r.type === 'vendor_payment') {
             return `  - L'acompte ${r.reference} de ${amountStr} pour ${r.vendorName || 'le prestataire'} a ${daysLabel} de retard (échéance le ${dateStr})`;
+          }
+          if (r.type === 'client_acompte') {
+            return `  - L'acompte ${r.reference} de ${amountStr} a ${daysLabel} de retard (échéance le ${dateStr})`;
           }
           return `  - La facture ${r.reference} de ${amountStr} a ${daysLabel} de retard (échéance le ${dateStr})`;
         });
@@ -374,18 +439,11 @@ export async function GET(req: Request) {
       await sendEmailServer({ to: plannerEmail, subject, text: recapText });
     }
 
-    // Recap factures
+    // Recap factures + acomptes client (un seul mail)
     await sendPlannerRecap(
-      invoiceReminders,
+      [...invoiceReminders, ...clientAcompteReminders],
       `Récapitulatif des rappels de paiement — Le Oui Parfait`,
       `Voici le récapitulatif des paiements à venir et en retard de vos couples :`,
-    );
-
-    // Recap acomptes prestataires
-    await sendPlannerRecap(
-      vendorReminders,
-      `Rappel acompte prestataire envoyé — Le Oui Parfait`,
-      `Voici le récapitulatif des rappels d'acomptes prestataires envoyés à vos couples :`,
     );
 
     return NextResponse.json({
@@ -393,6 +451,7 @@ export async function GET(req: Request) {
       date: now.toISOString(),
       checked_invoices: invoiceDocs.length,
       checked_vendor_payments: vendorPaymentDocs.length,
+      checked_client_acomptes: clientAcompteDocs.length,
       sent: sentReminders.length,
       skipped: results.filter((r) => r.status.startsWith('skipped')).length,
       errors: results.filter((r) => r.status === 'error').length,
