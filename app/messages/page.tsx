@@ -25,7 +25,7 @@ import {
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react';
-import { useMemo, useState, useEffect, useCallback } from 'react';
+import { useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { addDocument, getDocument, getDocuments, updateDocument, deleteDocument } from '@/lib/db';
@@ -140,6 +140,9 @@ export default function AdminMessagesPage() {
 
   const [clients, setClients] = useState<ClientListItem[]>([]);
   const [loadingClients, setLoadingClients] = useState(true);
+  const [vendorsMap, setVendorsMap] = useState<Map<string, any>>(new Map());
+  const vendorsMapRef = useRef<Map<string, any>>(new Map());
+  useEffect(() => { vendorsMapRef.current = vendorsMap; }, [vendorsMap]);
 
   const [profilePhotoUrl, setProfilePhotoUrl] = useState<string | null>(null);
   const [uploadingAttachment, setUploadingAttachment] = useState(false);
@@ -212,9 +215,10 @@ export default function AdminMessagesPage() {
 
       const mapped = Array.from(dedup.values()).map((c) => {
         const convType = (c.type || 'client') as 'client' | 'vendor' | 'team';
-        // For vendor conversations, show vendor name + couple context
+        // For vendor conversations, show vendor contact name + couple context
+        const vendorDoc = convType === 'vendor' && c?.vendor_id ? vendorsMapRef.current.get(c.vendor_id) : null;
         const name = convType === 'vendor'
-          ? (c?.vendor_name || c?.client_name || c?.name || 'Prestataire')
+          ? (vendorDoc?.contact_name || c?.vendor_name || vendorDoc?.name || c?.name || 'Prestataire')
           : (c?.client_name || c?.name || 'Conversation');
         const avatar = (name || 'C').split(' ').map((x: string) => x[0]).slice(0, 2).join('').toUpperCase();
         const lastAtMs = c?.last_message_at?.toDate?.()?.getTime?.() || 0;
@@ -245,6 +249,18 @@ export default function AdminMessagesPage() {
       return [] as Conversation[];
     } finally {
       setLoadingConvs(false);
+    }
+  };
+
+  const fetchVendors = async () => {
+    if (!user?.uid) return;
+    try {
+      const items = await getDocuments('vendors', [{ field: 'planner_id', operator: '==', value: user.uid }]);
+      const m = new Map<string, any>();
+      (items as any[]).forEach((v) => m.set(v.id, v));
+      setVendorsMap(m);
+    } catch (e) {
+      console.error('Error fetching vendors:', e);
     }
   };
 
@@ -402,7 +418,7 @@ export default function AdminMessagesPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!user?.uid) return;
-    void fetchConversations();
+    void fetchVendors().then(() => fetchConversations());
     void fetchClients();
     void fetchMyProfilePhoto();
   }, [user?.uid]);
@@ -923,7 +939,7 @@ export default function AdminMessagesPage() {
                             <p className="font-medium text-brand-purple text-sm truncate">{conv.name}</p>
                             <span className="text-xs text-brand-gray whitespace-nowrap ml-2">{conv.time}</span>
                           </div>
-                          <p className="text-xs text-brand-gray">{typeInfo.label}{clientContext ? ` · ${clientContext}` : ''}</p>
+                          <p className="text-xs text-brand-gray">{conv.type === 'vendor' ? 'Mariage' : typeInfo.label}{clientContext ? ` · ${clientContext}` : ''}</p>
                           <p className="text-sm text-brand-gray truncate mt-1">{conv.lastMessage}</p>
                         </div>
                         {conv.unread > 0 ? (
@@ -1047,7 +1063,7 @@ export default function AdminMessagesPage() {
                   </p>
                   {selectedConversation && (
                     <p className="text-xs text-brand-gray">
-                      {typeConfig[selectedConversation.type]?.label || 'Client'}
+                      {selectedConversation.type === 'vendor' ? 'Mariage' : (typeConfig[selectedConversation.type]?.label || 'Client')}
                       {selectedConversation.type === 'vendor' && selectedConversation.client_id ? ` · ${clients.find((c) => c.id === selectedConversation.client_id)?.name || 'Mariage'}` : ''}
                     </p>
                   )}
