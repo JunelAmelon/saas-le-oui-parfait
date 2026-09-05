@@ -45,6 +45,7 @@ import {
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { getDocuments, addDocument, updateDocument, deleteDocument } from '@/lib/db';
+import { VENDOR_CATEGORIES, getCategoryLabel, getCategoryColor } from '@/lib/discovery';
 import { toast } from 'sonner';
 import axios from 'axios';
 import { auth } from '@/lib/firebase';
@@ -66,19 +67,6 @@ interface Vendor {
   logoUrl?: string | null;
   pro_account_status?: 'none' | 'invited' | 'active';
 }
-
-
-const categoryConfig = {
-  venue: { label: 'Lieu', color: 'bg-purple-500' },
-  catering: { label: 'Traiteur', color: 'bg-orange-500' },
-  photography: { label: 'Photographe', color: 'bg-blue-500' },
-  video: { label: 'Vidéo', color: 'bg-red-500' },
-  music: { label: 'Musique', color: 'bg-green-500' },
-  flowers: { label: 'Fleuriste', color: 'bg-pink-500' },
-  decoration: { label: 'Décoration', color: 'bg-yellow-500' },
-  transport: { label: 'Transport', color: 'bg-indigo-500' },
-  other: { label: 'Autre', color: 'bg-gray-500' },
-};
 
 export default function VendorsPage() {
   const { user } = useAuth();
@@ -357,11 +345,14 @@ export default function VendorsPage() {
   };
 
   // Filtering and pagination
-  const filteredVendors = vendors.filter(vendor => {
-    const matchesSearch = vendor.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         vendor.contactName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         vendor.city.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = categoryFilter === 'all' || vendor.category === categoryFilter;
+  const filteredVendors = vendors.filter((vendor) => {
+    const matchesSearch =
+      vendor.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      vendor.contactName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      vendor.city.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesCategory =
+      categoryFilter === 'all' ||
+      getCategoryLabel(vendor.category) === getCategoryLabel(categoryFilter);
     return matchesSearch && matchesCategory;
   });
 
@@ -432,15 +423,11 @@ export default function VendorsPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Toutes</SelectItem>
-                <SelectItem value="venue">Lieu</SelectItem>
-                <SelectItem value="catering">Traiteur</SelectItem>
-                <SelectItem value="photography">Photographe</SelectItem>
-                <SelectItem value="video">Vidéo</SelectItem>
-                <SelectItem value="music">Musique</SelectItem>
-                <SelectItem value="flowers">Fleuriste</SelectItem>
-                <SelectItem value="decoration">Décoration</SelectItem>
-                <SelectItem value="transport">Transport</SelectItem>
-                <SelectItem value="other">Autre</SelectItem>
+                {VENDOR_CATEGORIES
+                  .filter((c, i, arr) => i === arr.findIndex((x) => x.label === c.label))
+                  .map((cat) => (
+                    <SelectItem key={cat.key} value={cat.key}>{cat.label}</SelectItem>
+                  ))}
               </SelectContent>
             </Select>
           </div>
@@ -468,7 +455,8 @@ export default function VendorsPage() {
             <>
               <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
                 {paginatedVendors.map((vendor) => {
-              const config = categoryConfig[vendor.category as keyof typeof categoryConfig] || categoryConfig.other;
+              const color = getCategoryColor(vendor.category);
+              const label = getCategoryLabel(vendor.category);
               return (
                 <Card key={vendor.id} className="p-5 border border-[#E5E5E5] shadow-md hover:shadow-lg transition-shadow">
                   <div className="mb-3 flex items-start justify-between">
@@ -482,8 +470,8 @@ export default function VendorsPage() {
                         <h3 className="text-lg font-bold text-brand-purple mb-1 truncate">
                           {vendor.name}
                         </h3>
-                        <Badge className={`${config.color} hover:${config.color} text-white border-0`}>
-                          {config.label}
+                        <Badge className={`${color} hover:${color} text-white border-0`}>
+                          {label}
                         </Badge>
                       </div>
                     </div>
@@ -584,7 +572,7 @@ export default function VendorsPage() {
               )}
             </DialogTitle>
             <DialogDescription>
-              {selectedVendor && categoryConfig[selectedVendor.category as keyof typeof categoryConfig]?.label}
+              {selectedVendor && getCategoryLabel(selectedVendor.category)}
             </DialogDescription>
           </DialogHeader>
           {selectedVendor && (
@@ -799,15 +787,11 @@ export default function VendorsPage() {
                   <SelectValue placeholder="Sélectionner une catégorie" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="venue">Lieu</SelectItem>
-                  <SelectItem value="catering">Traiteur</SelectItem>
-                  <SelectItem value="photography">Photographe</SelectItem>
-                  <SelectItem value="video">Vidéo</SelectItem>
-                  <SelectItem value="music">Musique</SelectItem>
-                  <SelectItem value="flowers">Fleuriste</SelectItem>
-                  <SelectItem value="decoration">Décoration</SelectItem>
-                  <SelectItem value="transport">Transport</SelectItem>
-                  <SelectItem value="other">Autre</SelectItem>
+                  {VENDOR_CATEGORIES
+                    .filter((c, i, arr) => i === arr.findIndex((x) => x.label === c.label))
+                    .map((cat) => (
+                      <SelectItem key={cat.key} value={cat.key}>{cat.label}</SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>

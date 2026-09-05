@@ -54,7 +54,64 @@ export const PROVIDER_CATEGORIES = [
   'Coiffeuse / Maquilleuse',
   'Transport / Location véhicule',
   'Hébergement invités',
+  'Musicien',
+  'Animation / Spectacle',
+  'Danseur / Danseuse',
+  'Maquilleuse / Beauté',
+  'Robe / Tenue',
+  'Costume / Tenue',
+  'Alliances / Bijoux',
+  'Papeterie / Faire-part',
+  'Autre',
 ];
+
+export const VENDOR_CATEGORIES = [
+  { key: 'venue', label: 'Lieu de réception', color: 'bg-purple-500' },
+  { key: 'catering', label: 'Traiteur', color: 'bg-orange-500' },
+  { key: 'caterer', label: 'Traiteur', color: 'bg-orange-500' },
+  { key: 'photography', label: 'Photographe', color: 'bg-blue-500' },
+  { key: 'photographer', label: 'Photographe', color: 'bg-blue-500' },
+  { key: 'video', label: 'Vidéaste', color: 'bg-red-500' },
+  { key: 'videographer', label: 'Vidéaste', color: 'bg-red-500' },
+  { key: 'music', label: 'Musique / DJ', color: 'bg-green-500' },
+  { key: 'djAnimation', label: 'Musique / DJ', color: 'bg-green-500' },
+  { key: 'musician', label: 'Musicien', color: 'bg-emerald-500' },
+  { key: 'animation', label: 'Animation / Spectacle', color: 'bg-pink-500' },
+  { key: 'dancer', label: 'Danseur / Danseuse', color: 'bg-rose-500' },
+  { key: 'flowers', label: 'Fleuriste', color: 'bg-pink-600' },
+  { key: 'florist', label: 'Fleuriste', color: 'bg-pink-600' },
+  { key: 'decoration', label: 'Décoration', color: 'bg-yellow-500' },
+  { key: 'wedding_cake', label: 'Wedding Cake', color: 'bg-amber-500' },
+  { key: 'weddingCake', label: 'Wedding Cake', color: 'bg-amber-500' },
+  { key: 'hair_makeup', label: 'Coiffeuse / Maquilleuse / Beauté', color: 'bg-fuchsia-500' },
+  { key: 'hairMakeup', label: 'Coiffeuse / Maquilleuse / Beauté', color: 'bg-fuchsia-500' },
+  { key: 'makeup_beauty', label: 'Maquilleuse / Beauté', color: 'bg-fuchsia-400' },
+  { key: 'dress', label: 'Robe / Tenue', color: 'bg-indigo-500' },
+  { key: 'suit', label: 'Costume / Tenue', color: 'bg-slate-500' },
+  { key: 'tenues', label: 'Tenues', color: 'bg-indigo-400' },
+  { key: 'transport', label: 'Transport / Location', color: 'bg-cyan-500' },
+  { key: 'accommodation', label: 'Hébergement', color: 'bg-teal-500' },
+  { key: 'rings', label: 'Alliances / Bijoux', color: 'bg-yellow-600' },
+  { key: 'stationery', label: 'Papeterie / Faire-part', color: 'bg-sky-500' },
+  { key: 'other', label: 'Autre', color: 'bg-gray-500' },
+];
+
+export function getCategoryLabel(category?: string | null): string {
+  if (!category) return '—';
+  const fromList = VENDOR_CATEGORIES.find((c) => c.key === category)?.label;
+  if (fromList) return fromList;
+  const fromProgress = PROGRESS_ITEMS.find((p) => p.key === category)?.label;
+  if (fromProgress) return fromProgress;
+  if (PROVIDER_CATEGORIES.includes(category)) return category;
+  const lower = category.toLowerCase();
+  return VENDOR_CATEGORIES.find((c) => c.key.toLowerCase() === lower)?.label
+    || PROGRESS_ITEMS.find((p) => p.key.toLowerCase() === lower)?.label
+    || category;
+}
+
+export function getCategoryColor(category?: string | null): string {
+  return VENDOR_CATEGORIES.find((c) => c.key === category)?.color || 'bg-gray-500';
+}
 
 export const ANIMATION_OPTIONS = [
   'Photobooth',

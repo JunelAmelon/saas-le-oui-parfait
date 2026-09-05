@@ -82,6 +82,45 @@ service cloud.firestore {
       allow create, update, delete: if isAuthenticated() && request.auth.uid == request.resource.data.planner_id;
     }
 
+    // Vendor planning days.
+    // - Planner can read/write
+    // - Vendor (linked via vendor_uid) can read and update validation only
+    match /vendor_planning_days/{dayId} {
+      allow read: if isAuthenticated() && (
+        resource.data.planner_id == request.auth.uid ||
+        resource.data.vendor_uid == request.auth.uid
+      );
+      allow create, delete: if isAuthenticated() && request.auth.uid == request.resource.data.planner_id;
+      allow update: if isAuthenticated() && (
+        request.auth.uid == resource.data.planner_id ||
+        (request.auth.uid == resource.data.vendor_uid && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['validated_by_vendor', 'validated_by_vendor_at', 'updated_at']))
+      );
+    }
+
+    // Planning modification requests.
+    // - Planner and vendor can read
+    // - Vendor can create
+    // - Planner can update/delete
+    match /planning_requests/{requestId} {
+      allow read: if isAuthenticated() && (
+        resource.data.planner_id == request.auth.uid ||
+        resource.data.vendor_uid == request.auth.uid
+      );
+      allow create: if isAuthenticated() && request.auth.uid == request.resource.data.vendor_uid;
+      allow update, delete: if isAuthenticated() && request.auth.uid == resource.data.planner_id;
+    }
+
+    // Vendor plannings global info.
+    // - Planner can read/write
+    // - Vendor (linked via vendor_uid) can read
+    match /vendor_plannings/{planningId} {
+      allow read: if isAuthenticated() && (
+        resource.data.planner_id == request.auth.uid ||
+        resource.data.vendor_uid == request.auth.uid
+      );
+      allow create, update, delete: if isAuthenticated() && request.auth.uid == request.resource.data.planner_id;
+    }
+
     // Google OAuth tokens — accessible ONLY via Admin SDK (server-side)
     // Never expose refresh tokens to the client.
     match /google_tokens/{userId} {

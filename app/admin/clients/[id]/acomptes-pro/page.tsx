@@ -35,9 +35,13 @@ import {
   XCircle,
   Euro,
   Calendar,
+  Users,
+  ChevronDown,
+  ChevronRight,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { addDocument, deleteDocument, getDocuments, updateDocument, getDocument } from '@/lib/db';
+import { getCategoryLabel } from '@/lib/discovery';
 import { toast } from 'sonner';
 
 interface Vendor {
@@ -110,6 +114,9 @@ export default function ClientAcomptesProPage() {
   const [paidPaymentId, setPaidPaymentId] = useState<string | null>(null);
   const [markingPaid, setMarkingPaid] = useState(false);
 
+  // All vendors table
+  const [showAllVendors, setShowAllVendors] = useState(false);
+
   const fetchData = async () => {
     if (!user?.uid || !clientId) return;
     setLoading(true);
@@ -178,6 +185,26 @@ export default function ClientAcomptesProPage() {
   const totalPaid = selectedPayments.filter((p) => p.status === 'paid').reduce((s, p) => s + Number(p.amount || 0), 0);
   const totalScheduled = selectedPayments.filter((p) => p.status === 'scheduled').reduce((s, p) => s + Number(p.amount || 0), 0);
   const totalLate = selectedPayments.filter((p) => p.status === 'late').reduce((s, p) => s + Number(p.amount || 0), 0);
+
+  const vendorTableData = useMemo(() => {
+    return vendors.map((v) => {
+      const booking = bookings.find((b) => b.vendor_id === v.id);
+      const vendorPayments = booking ? payments.filter((p) => p.booking_id === booking.id) : [];
+      const vPaid = vendorPayments.filter((p) => p.status === 'paid').reduce((s, p) => s + Number(p.amount || 0), 0);
+      const vScheduled = vendorPayments.filter((p) => p.status === 'scheduled').reduce((s, p) => s + Number(p.amount || 0), 0);
+      const vLate = vendorPayments.filter((p) => p.status === 'late').reduce((s, p) => s + Number(p.amount || 0), 0);
+      const vTotal = vPaid + vScheduled + vLate;
+      return {
+        vendor: v,
+        booking,
+        paid: vPaid,
+        scheduled: vScheduled,
+        late: vLate,
+        total: vTotal,
+        paymentCount: vendorPayments.length,
+      };
+    });
+  }, [vendors, bookings, payments]);
 
   const handleAddPayment = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -456,6 +483,89 @@ export default function ClientAcomptesProPage() {
           </Card>
         ) : (
           <>
+            {/* All vendors overview */}
+            <Card className="shadow-xl border-0 overflow-hidden">
+              <button
+                className="w-full flex items-center justify-between px-6 py-4 hover:bg-[rgba(136,183,181,0.04)] transition-colors"
+                onClick={() => setShowAllVendors((s) => !s)}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-full bg-[rgba(136,183,181,0.1)] flex items-center justify-center">
+                    <Users className="h-4 w-4 text-[#88b7b5]" />
+                  </div>
+                  <div className="text-left">
+                    <h3 className="text-[15px] font-semibold text-[#4B4456]">Tous les prestataires</h3>
+                    <p className="text-[12px] text-[#9C97A3]">{vendors.length} prestataire{vendors.length > 1 ? 's' : ''} assigné{vendors.length > 1 ? 's' : ''}</p>
+                  </div>
+                </div>
+                {showAllVendors ? (
+                  <ChevronDown className="h-5 w-5 text-[#9C97A3]" />
+                ) : (
+                  <ChevronRight className="h-5 w-5 text-[#9C97A3]" />
+                )}
+              </button>
+
+              {showAllVendors && (
+                <div className="border-t border-[rgba(75,68,86,0.06)]">
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[700px]">
+                      <thead>
+                        <tr className="bg-[#FAF9F7] border-b border-[rgba(75,68,86,0.06)]">
+                          <th className="px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-wide text-[#9C97A3]">Prestataire</th>
+                          <th className="px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-wide text-[#9C97A3]">Catégorie</th>
+                          <th className="px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-wide text-[#9C97A3]">Statut</th>
+                          <th className="px-4 py-3 text-right text-[10px] font-semibold uppercase tracking-wide text-[#9C97A3]">Total</th>
+                          <th className="px-4 py-3 text-right text-[10px] font-semibold uppercase tracking-wide text-[#9C97A3]">Payé</th>
+                          <th className="px-4 py-3 text-right text-[10px] font-semibold uppercase tracking-wide text-[#9C97A3]">À venir</th>
+                          <th className="px-4 py-3 text-right text-[10px] font-semibold uppercase tracking-wide text-[#9C97A3]">Retard</th>
+                          <th className="px-4 py-3 text-center text-[10px] font-semibold uppercase tracking-wide text-[#9C97A3]">Échéances</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {vendorTableData.map(({ vendor, booking, paid, scheduled, late, total, paymentCount }) => (
+                          <tr
+                            key={vendor.id}
+                            className="border-b border-[rgba(75,68,86,0.04)] hover:bg-[rgba(136,183,181,0.04)] transition-colors cursor-pointer"
+                            onClick={() => { setSelectedVendorId(vendor.id); setShowAllVendors(false); }}
+                          >
+                            <td className="px-4 py-3">
+                              <div className="flex items-center gap-2.5">
+                                {vendor.logoUrl ? (
+                                  <img src={vendor.logoUrl} alt="" className="w-8 h-8 rounded-full object-cover shrink-0" />
+                                ) : (
+                                  <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-[11px] font-bold text-[#88b7b5] shrink-0">
+                                    {vendor.name.charAt(0).toUpperCase()}
+                                  </div>
+                                )}
+                                <span className="text-[13px] font-semibold text-[#4B4456] whitespace-nowrap">{vendor.name}</span>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3">
+                              <span className="text-[12px] text-[#9C97A3]">{getCategoryLabel(vendor.category)}</span>
+                            </td>
+                            <td className="px-4 py-3">
+                              {booking?.status === 'confirmed' ? (
+                                <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#88b7b5] bg-[rgba(136,183,181,0.12)] px-2.5 py-1 rounded-full">Confirmé</span>
+                              ) : booking?.status === 'pending' ? (
+                                <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#C9A96E] bg-[rgba(201,169,110,0.12)] px-2.5 py-1 rounded-full">En attente</span>
+                              ) : (
+                                <span className="text-[11px] text-[#9C97A3]">{booking?.status || '—'}</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 text-right text-[13px] font-bold text-[#4B4456] whitespace-nowrap">{total.toLocaleString('fr-FR')} €</td>
+                            <td className="px-4 py-3 text-right text-[12px] text-[#88b7b5] whitespace-nowrap">{paid.toLocaleString('fr-FR')} €</td>
+                            <td className="px-4 py-3 text-right text-[12px] text-[#C9A96E] whitespace-nowrap">{scheduled.toLocaleString('fr-FR')} €</td>
+                            <td className="px-4 py-3 text-right text-[12px] text-[#B9847F] whitespace-nowrap">{late.toLocaleString('fr-FR')} €</td>
+                            <td className="px-4 py-3 text-center text-[12px] text-[#9C97A3]">{paymentCount}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </Card>
+
             {/* Vendor selector */}
             <Card className="p-6 shadow-xl border-0">
               <Label>Prestataire</Label>

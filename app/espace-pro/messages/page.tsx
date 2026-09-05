@@ -179,10 +179,12 @@ export default function VendorMessagesPage() {
           // Look for existing conversation
           const existing = await getDocuments('conversations', [
             { field: 'vendor_id', operator: '==', value: vendor.id },
-            { field: 'client_id', operator: '==', value: bk.client_id },
           ]).catch(() => []);
 
-          const conv = (existing as any[])[0] || null;
+          const conv =
+            (existing as any[]).find(
+              (c) => c.client_id === bk.client_id && c.planner_id === bk.planner_id
+            ) || null;
 
           if (conv) {
             const lastDate = conv.last_message_at?.toDate?.() || null;

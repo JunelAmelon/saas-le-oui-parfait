@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useVendorData } from '@/contexts/VendorDataContext';
@@ -22,6 +22,7 @@ import { getIdToken } from 'firebase/auth';
 import {
   Loader2,
   ChevronLeft,
+  ChevronRight,
   Heart,
   Calendar,
   MapPin,
@@ -40,6 +41,7 @@ import {
   Users,
   Palette,
   Sparkles,
+  HelpCircle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -83,9 +85,13 @@ export default function VendorBookingDetailPage() {
   const [payments, setPayments] = useState<VendorPayment[]>([]);
   const [clientInfo, setClientInfo] = useState<any>(null);
   const [eventInfo, setEventInfo] = useState<any>(null);
-  const [planning, setPlanning] = useState<any>(null);
+  const [planning, setPlanning] = useState<any[]>([]);
+  const [planningInfo, setPlanningInfo] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<Tab>('documents');
+  const tabsRef = useRef<HTMLDivElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
 
   // Upload dialog state
   const [uploadOpen, setUploadOpen] = useState(false);
@@ -99,6 +105,19 @@ export default function VendorBookingDetailPage() {
   });
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [editingDoc, setEditingDoc] = useState<ProDocument | null>(null);
+
+  // Planning validation / modif request state
+  const [validationOpen, setValidationOpen] = useState(false);
+  const [validating, setValidating] = useState(false);
+  const [modifOpen, setModifOpen] = useState(false);
+  const [modifText, setModifText] = useState('');
+  const [sendingModif, setSendingModif] = useState(false);
+
+  // Question per slot
+  const [questionOpen, setQuestionOpen] = useState(false);
+  const [questionSlot, setQuestionSlot] = useState<{ day: any; slot: any; dayIdx: number; idx: number } | null>(null);
+  const [questionText, setQuestionText] = useState('');
+  const [sendingQuestion, setSendingQuestion] = useState(false);
 
   useEffect(() => {
     if (!authLoading) {
@@ -123,11 +142,12 @@ export default function VendorBookingDetailPage() {
       setBooking(bk);
 
       if (bk.client_id && bk.vendor_id) {
-        const [d, p, clientDoc, eventDocs, planningDocs] = await Promise.all([
+        const [d, p, clientDoc, eventDocs, planningDocs, planningGlobal] = await Promise.all([
           getBookingProDocuments(bk.client_id, bk.vendor_id),
           getBookingPayments(bookingId),
           getDocument('clients', bk.client_id).catch(() => null),
           getDocuments('events', [{ field: 'client_id', operator: '==', value: bk.client_id }]).catch(() => []),
+          getDocuments('vendor_planning_days', [{ field: 'vendor_id', operator: '==', value: bk.vendor_id }]).catch(() => []),
           getDocuments('vendor_plannings', [{ field: 'vendor_id', operator: '==', value: bk.vendor_id }]).catch(() => []),
         ]);
         setDocs(d);
@@ -137,9 +157,13 @@ export default function VendorBookingDetailPage() {
         const events = (eventDocs as any[]) || [];
         const eventDoc = events.find((e) => e?.event_date) || events[0] || null;
         if (eventDoc) setEventInfo(eventDoc);
-        // Find planning for this client
-        const foundPlanning = (planningDocs as any[])?.find((pl) => pl.client_id === bk.client_id) || null;
-        setPlanning(foundPlanning);
+        // Find planning days for this client, sorted by date
+        const foundDays = (planningDocs as any[])
+          ?.filter((pl) => pl.client_id === bk.client_id)
+          .sort((a, b) => String(a.date || '').localeCompare(String(b.date || ''))) || [];
+        setPlanning(foundDays);
+        const global = (planningGlobal as any[])?.find((pl) => pl.client_id === bk.client_id) || null;
+        setPlanningInfo(global);
       }
     } catch (e) {
       console.error('Error fetching booking detail:', e);
@@ -152,6 +176,269 @@ export default function VendorBookingDetailPage() {
     fetchData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bookingId]);
+
+  const updateScrollArrows = () => {
+    const el = tabsRef.current;
+    if (!el) return;
+    setCanScrollLeft(el.scrollLeft > 8);
+    setCanScrollRight(el.scrollLeft < el.scrollWidth - el.clientWidth - 8);
+  };
+
+  const scrollTabs = (direction: 'left' | 'right') => {
+    const el = tabsRef.current;
+    if (!el) return;
+    el.scrollBy({ left: direction === 'left' ? -120 : 120, behavior: 'smooth' });
+  };
+
+  useEffect(() => {
+    updateScrollArrows();
+    const handleResize = () => updateScrollArrows();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const handleValidatePlanning = async () => {
+    if (!booking || !user?.uid) return;
+    setValidating(true);
+    try {
+      const now = new Date().toISOString();
+      for (const day of planning) {
+        if (day.id) {
+          await updateDocument('vendor_planning_days', day.id, {
+            status: 'validated',
+            validated_by_vendor: true,
+            validated_by_vendor_at: now,
+            updated_at: now,
+          });
+        }
+      }
+      // Update global planning status if available
+      if (planningInfo?.id) {
+        await updateDocument('vendor_plannings', planningInfo.id, {
+          status: 'validated',
+          validated_by_vendor: true,
+          validated_by_vendor_at: now,
+          updated_at: now,
+        });
+        setPlanningInfo({ ...planningInfo, status: 'validated', validated_by_vendor: true, validated_by_vendor_at: now });
+      }
+      setPlanning((prev) => prev.map((d) => ({ ...d, status: 'validated', validated_by_vendor: true, validated_by_vendor_at: now })));
+
+      // Notify planner
+      try {
+        await addDocument('notifications', {
+          recipient_id: booking.planner_id,
+          type: 'planning_validated',
+          title: 'Planning validé',
+          message: `${vendor?.name || 'Un prestataire'} a validé le planning du mariage de ${booking.client_names}.`,
+          link: `/admin/clients/${booking.client_id}/prestataires`,
+          read: false,
+          created_at: new Date(),
+          planner_id: booking.planner_id,
+          client_id: booking.client_id,
+          vendor_id: booking.vendor_id,
+        });
+      } catch { /* non-blocking */ }
+
+      try {
+        const { sendEmailToUid } = await import('@/lib/email');
+        await sendEmailToUid({
+          recipientUid: booking.planner_id,
+          subject: `Planning validé - ${booking.client_names}`,
+          text: `Bonjour,\n\n${vendor?.name || 'Un prestataire'} a validé le planning du mariage de ${booking.client_names}.\n\nConnectez-vous à votre espace admin pour consulter le planning.\n\nLe Oui Parfait`,
+        });
+      } catch { /* non-blocking */ }
+
+      toast.success('Planning validé, votre wedding planner est prévenu(e)');
+      setValidationOpen(false);
+    } catch (e) {
+      console.error('Error validating planning:', e);
+      toast.error('Erreur lors de la validation');
+    } finally {
+      setValidating(false);
+    }
+  };
+
+  const handleRequestPlanningChange = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!booking || !user?.uid || !modifText.trim()) return;
+    setSendingModif(true);
+    try {
+      const requestData = {
+        vendor_id: booking.vendor_id,
+        vendor_uid: user.uid,
+        vendor_name: vendor?.name || 'Prestataire',
+        client_id: booking.client_id,
+        planner_id: booking.planner_id,
+        booking_id: booking.id,
+        request_type: 'planning_modification',
+        message: modifText.trim(),
+        status: 'pending',
+        created_at: new Date(),
+        updated_at: new Date(),
+      };
+
+      await addDocument('planning_requests', requestData);
+
+      // Notify planner
+      try {
+        await addDocument('notifications', {
+          recipient_id: booking.planner_id,
+          type: 'planning_modification_request',
+          title: 'Demande de modification de planning',
+          message: `${vendor?.name || 'Un prestataire'} demande une modification du planning pour le mariage de ${booking.client_names}.`,
+          link: `/admin/clients/${booking.client_id}/prestataires`,
+          read: false,
+          created_at: new Date(),
+          planner_id: booking.planner_id,
+          client_id: booking.client_id,
+          vendor_id: booking.vendor_id,
+        });
+      } catch { /* non-blocking */ }
+
+      try {
+        const { sendEmailToUid } = await import('@/lib/email');
+        await sendEmailToUid({
+          recipientUid: booking.planner_id,
+          subject: `Demande de modification de planning - ${booking.client_names}`,
+          text: `Bonjour,\n\n${vendor?.name || 'Un prestataire'} a fait une demande de modification du planning pour le mariage de ${booking.client_names}.\n\nMessage :\n${modifText.trim()}\n\nConnectez-vous à votre espace admin pour consulter la demande.\n\nLe Oui Parfait`,
+        });
+      } catch { /* non-blocking */ }
+
+      toast.success('Demande envoyée à votre wedding planner');
+      setModifOpen(false);
+      setModifText('');
+    } catch (e) {
+      console.error('Error sending planning change request:', e);
+      toast.error("Erreur lors de l'envoi de la demande");
+    } finally {
+      setSendingModif(false);
+    }
+  };
+
+  const handleSendQuestion = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!booking || !user?.uid || !questionSlot || !questionText.trim()) return;
+    setSendingQuestion(true);
+    const { day, slot } = questionSlot;
+    try {
+      const slotDate = day?.date || '';
+      const slotTime = slot?.time || '—';
+      const slotTitle = slot?.title || 'Sans titre';
+
+      const requestData = {
+        vendor_id: booking.vendor_id,
+        vendor_uid: user.uid,
+        vendor_name: vendor?.name || 'Prestataire',
+        client_id: booking.client_id,
+        planner_id: booking.planner_id,
+        booking_id: booking.id,
+        request_type: 'slot_question',
+        wedding_date: booking.wedding_date || '',
+        client_names: booking.client_names || '',
+        slot_date: slotDate,
+        slot_time: slotTime,
+        slot_title: slotTitle,
+        message: questionText.trim(),
+        status: 'pending',
+        created_at: new Date(),
+        updated_at: new Date(),
+      };
+
+      await addDocument('planning_requests', requestData);
+
+      // Post the question in the wedding conversation with the planner
+      try {
+        const convs = await getDocuments('conversations', [
+          { field: 'vendor_id', operator: '==', value: booking.vendor_id },
+        ]);
+        const existing =
+          (convs as any[]).find(
+            (c) => c.client_id === booking.client_id && c.planner_id === booking.planner_id
+          ) || null;
+        let conversationId = existing?.id || null;
+
+        if (!conversationId && vendor) {
+          const created = await addDocument('conversations', {
+            vendor_id: booking.vendor_id,
+            vendor_uid: user.uid,
+            planner_id: booking.planner_id,
+            client_id: booking.client_id,
+            type: 'vendor',
+            client_name: booking.client_names,
+            client_photo: booking.client_photo || null,
+            vendor_name: vendor.name,
+            vendor_logo: vendor.logo || null,
+            participants: [booking.planner_id, user.uid].filter(Boolean),
+            last_message: '',
+            last_message_at: new Date(),
+            unread_count_vendor: 0,
+            unread_count_planner: 0,
+            created_at: new Date(),
+          });
+          conversationId = created.id;
+        }
+
+        if (conversationId) {
+          const dateLabel = slotDate
+            ? new Date(slotDate + 'T00:00:00').toLocaleDateString('fr-FR', { day: '2-digit', month: 'long' })
+            : '—';
+          const questionContent = `Question sur le créneau du ${dateLabel} à ${slotTime} — ${slotTitle}\n\n${questionText.trim()}`;
+          await addDocument('messages', {
+            conversation_id: conversationId,
+            sender_id: user.uid,
+            sender_role: 'vendor',
+            sender_name: vendor?.name || 'Prestataire',
+            content: questionContent,
+            created_at: new Date(),
+          });
+          await updateDocument('conversations', conversationId, {
+            last_message: `Question : ${questionText.trim().slice(0, 120)}`,
+            last_message_at: new Date(),
+            unread_count_planner: 1,
+          });
+        }
+      } catch (e) {
+        console.error('Error posting slot question to conversation:', e);
+      }
+
+      // Notify planner
+      try {
+        await addDocument('notifications', {
+          recipient_id: booking.planner_id,
+          type: 'slot_question',
+          title: 'Question sur un créneau',
+          message: `${vendor?.name || 'Un prestataire'} a une question sur le créneau "${slotTitle}" (${slotTime}) du ${slotDate || 'mariage'} pour le mariage de ${booking.client_names}.`,
+          link: `/admin/clients/${booking.client_id}/prestataires`,
+          read: false,
+          created_at: new Date(),
+          planner_id: booking.planner_id,
+          client_id: booking.client_id,
+          vendor_id: booking.vendor_id,
+        });
+      } catch { /* non-blocking */ }
+
+      // Send email to planner
+      try {
+        const { sendEmailToUid } = await import('@/lib/email');
+        await sendEmailToUid({
+          recipientUid: booking.planner_id,
+          subject: `Question sur un créneau - ${booking.client_names}`,
+          text: `Bonjour,\n\n${vendor?.name || 'Un prestataire'} a une question concernant un créneau du mariage de ${booking.client_names}.\n\nDate du mariage : ${booking.wedding_date ? new Date(booking.wedding_date + 'T00:00:00').toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' }) : '—'}\nCréneau concerné : ${slotDate ? new Date(slotDate + 'T00:00:00').toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' }) : '—'} à ${slotTime}\nMission : ${slotTitle}\n\nMessage :\n${questionText.trim()}\n\nConnectez-vous à votre espace admin pour consulter la demande.\n\nLe Oui Parfait`,
+        });
+      } catch { /* non-blocking */ }
+
+      toast.success('Question envoyée à votre wedding planner');
+      setQuestionOpen(false);
+      setQuestionSlot(null);
+      setQuestionText('');
+    } catch (e) {
+      console.error('Error sending slot question:', e);
+      toast.error("Erreur lors de l'envoi de la question");
+    } finally {
+      setSendingQuestion(false);
+    }
+  };
 
   const handleUpload = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -359,51 +646,79 @@ export default function VendorBookingDetailPage() {
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-2 border-b border-[rgba(75,68,86,0.08)]">
-          <button
-            onClick={() => setTab('documents')}
-            className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors border-b-2 -mb-px ${
-              tab === 'documents'
-                ? 'text-[#4B4456] border-[#88b7b5]'
-                : 'text-[#9C97A3] border-transparent hover:text-[#4B4456]'
-            }`}
+        <div className="relative -mx-4 px-4 sm:-mx-0 sm:px-0">
+          {canScrollLeft && (
+            <button
+              type="button"
+              onClick={() => scrollTabs('left')}
+              className="absolute left-1 top-1/2 -translate-y-1/2 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-white/80 text-[#9C97A3] shadow-sm sm:hidden"
+              aria-label="Défiler à gauche"
+            >
+              <ChevronLeft className="h-3.5 w-3.5" />
+            </button>
+          )}
+          {canScrollRight && (
+            <button
+              type="button"
+              onClick={() => scrollTabs('right')}
+              className="absolute right-1 top-1/2 -translate-y-1/2 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-white/80 text-[#9C97A3] shadow-sm sm:hidden"
+              aria-label="Défiler à droite"
+            >
+              <ChevronRight className="h-3.5 w-3.5" />
+            </button>
+          )}
+          <div
+            ref={tabsRef}
+            onScroll={updateScrollArrows}
+            className="overflow-x-auto no-scrollbar scroll-smooth"
           >
-            <FileText className="h-4 w-4" />
-            Devis & Factures
-          </button>
-          <button
-            onClick={() => setTab('acomptes')}
-            className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors border-b-2 -mb-px ${
-              tab === 'acomptes'
-                ? 'text-[#4B4456] border-[#88b7b5]'
-                : 'text-[#9C97A3] border-transparent hover:text-[#4B4456]'
-            }`}
-          >
-            <CreditCard className="h-4 w-4" />
-            Acomptes
-          </button>
-          <button
-            onClick={() => setTab('infos')}
-            className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors border-b-2 -mb-px ${
-              tab === 'infos'
-                ? 'text-[#4B4456] border-[#88b7b5]'
-                : 'text-[#9C97A3] border-transparent hover:text-[#4B4456]'
-            }`}
-          >
-            <Sparkles className="h-4 w-4" />
-            Infos mariage
-          </button>
-          <button
-            onClick={() => setTab('planning')}
-            className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors border-b-2 -mb-px ${
-              tab === 'planning'
-                ? 'text-[#4B4456] border-[#88b7b5]'
-                : 'text-[#9C97A3] border-transparent hover:text-[#4B4456]'
-            }`}
-          >
-            <Calendar className="h-4 w-4" />
-            Planning
-          </button>
+            <div className="flex gap-2 border-b border-[rgba(75,68,86,0.08)] min-w-max">
+              <button
+                onClick={() => setTab('documents')}
+                className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors border-b-2 -mb-px whitespace-nowrap ${
+                  tab === 'documents'
+                    ? 'text-[#4B4456] border-[#88b7b5]'
+                    : 'text-[#9C97A3] border-transparent hover:text-[#4B4456]'
+                }`}
+              >
+                <FileText className="h-4 w-4" />
+                Devis & Factures
+              </button>
+              <button
+                onClick={() => setTab('acomptes')}
+                className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors border-b-2 -mb-px whitespace-nowrap ${
+                  tab === 'acomptes'
+                    ? 'text-[#4B4456] border-[#88b7b5]'
+                    : 'text-[#9C97A3] border-transparent hover:text-[#4B4456]'
+                }`}
+              >
+                <CreditCard className="h-4 w-4" />
+                Acomptes
+              </button>
+              <button
+                onClick={() => setTab('infos')}
+                className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors border-b-2 -mb-px whitespace-nowrap ${
+                  tab === 'infos'
+                    ? 'text-[#4B4456] border-[#88b7b5]'
+                    : 'text-[#9C97A3] border-transparent hover:text-[#4B4456]'
+                }`}
+              >
+                <Sparkles className="h-4 w-4" />
+                Infos mariage
+              </button>
+              <button
+                onClick={() => setTab('planning')}
+                className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors border-b-2 -mb-px whitespace-nowrap ${
+                  tab === 'planning'
+                    ? 'text-[#4B4456] border-[#88b7b5]'
+                    : 'text-[#9C97A3] border-transparent hover:text-[#4B4456]'
+                }`}
+              >
+                <Calendar className="h-4 w-4" />
+                Planning
+              </button>
+            </div>
+          </div>
         </div>
 
         {/* Documents tab */}
@@ -793,80 +1108,129 @@ export default function VendorBookingDetailPage() {
         {/* Planning tab */}
         {tab === 'planning' && (
           <div className="space-y-5">
-            {planning ? (
+            {planning.length > 0 ? (
               <>
-                {/* Créneaux horaires */}
-                {planning.slots?.length > 0 && (
-                  <div className="bg-white rounded-[18px] border border-[rgba(75,68,86,0.06)] overflow-hidden">
-                    <div className="px-5 py-4 bg-[#FAF9F7] border-b border-[rgba(75,68,86,0.06)]">
-                      <div className="flex items-center gap-2">
-                        <Clock className="w-4 h-4 text-[#88b7b5]" />
-                        <h3 className="text-[14px] font-semibold text-[#4B4456] uppercase tracking-wide">Déroulé du jour</h3>
+                {planning.map((day: any, dayIdx: number) => (
+                  <div key={day.id || dayIdx} className="bg-white rounded-[18px] border border-[rgba(75,68,86,0.06)] overflow-hidden">
+                    <div className="px-5 py-4 bg-[#FAF9F7] border-b border-[rgba(75,68,86,0.06)] flex items-center justify-between gap-3">
+                      <div className="flex items-center flex-wrap gap-2">
+                        <Calendar className="w-4 h-4 text-[#88b7b5] shrink-0" />
+                        <h3 className="text-[14px] font-semibold text-[#4B4456] uppercase tracking-wide">
+                          {day.date ? new Date(day.date + 'T00:00:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) : '—'}
+                        </h3>
+                        {day.validated_by_vendor && (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide bg-[#88b7b5]/10 text-[#88b7b5] px-2 py-0.5 rounded-full">
+                            <CheckCircle2 className="w-3 h-3" /> Validé
+                          </span>
+                        )}
                       </div>
                     </div>
-                    <div className="divide-y divide-[rgba(75,68,86,0.04)]">
-                      {planning.slots
-                        .slice()
-                        .sort((a: any, b: any) => String(a.time || '').localeCompare(String(b.time || '')))
-                        .map((slot: any, idx: number) => (
-                          <div key={idx} className="flex items-start gap-4 px-5 py-4 hover:bg-[rgba(136,183,181,0.03)] transition-colors">
-                            <div className="shrink-0 w-[70px]">
-                              <span className="text-[14px] font-bold text-[#88b7b5] font-baskerville">
-                                {slot.time || '—'}
-                              </span>
+
+                    {/* Créneaux */}
+                    {day.slots?.length > 0 && (
+                      <div className="divide-y divide-[rgba(75,68,86,0.04)]">
+                        {day.slots
+                          .slice()
+                          .sort((a: any, b: any) => String(a.time || '').localeCompare(String(b.time || '')))
+                          .map((slot: any, idx: number) => (
+                            <div key={idx} className="flex items-start sm:items-center justify-between gap-3 px-5 py-4 hover:bg-[rgba(136,183,181,0.03)] transition-colors">
+                              <div className="flex items-start gap-4 min-w-0 flex-1">
+                                <div className="shrink-0 w-[70px]">
+                                  <span className="text-[14px] font-bold text-[#88b7b5] font-baskerville">
+                                    {slot.time || '—'}
+                                  </span>
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-[14px] font-semibold text-[#4B4456]">
+                                    {slot.title || 'Sans titre'}
+                                  </p>
+                                  {slot.description && (
+                                    <p className="text-[12px] text-[#9C97A3] mt-0.5">{slot.description}</p>
+                                  )}
+                                </div>
+                              </div>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="gap-1 shrink-0 text-[#88b7b5] border-[#88b7b5]/30 hover:bg-[#88b7b5]/5"
+                                onClick={() => { setQuestionSlot({ day, slot, dayIdx, idx }); setQuestionText(''); setQuestionOpen(true); }}
+                              >
+                                <HelpCircle className="h-3.5 w-3.5" />
+                                Question
+                              </Button>
                             </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-[14px] font-semibold text-[#4B4456]">
-                                {slot.title || 'Sans titre'}
-                              </p>
-                              {slot.description && (
-                                <p className="text-[12px] text-[#9C97A3] mt-0.5">{slot.description}</p>
-                              )}
-                            </div>
-                          </div>
-                        ))}
-                    </div>
+                          ))}
+                      </div>
+                    )}
                   </div>
-                )}
+                ))}
 
                 {/* Consignes générales */}
-                {planning.notes && (
+                {planningInfo?.notes && (
                   <div className="bg-white rounded-[18px] border border-[rgba(75,68,86,0.06)] p-5">
                     <div className="flex items-center gap-2 mb-3">
                       <FileText className="w-4 h-4 text-[#C9A96E]" />
                       <span className="text-[11px] font-semibold text-[#9C97A3] uppercase tracking-wide">Consignes générales</span>
                     </div>
                     <p className="text-[14px] text-[#4B4456] leading-relaxed whitespace-pre-wrap">
-                      {planning.notes}
+                      {planningInfo.notes}
                     </p>
                   </div>
                 )}
 
                 {/* Document de planning */}
-                {planning.doc_url && (
+                {planningInfo?.doc_url && (
                   <div className="bg-white rounded-[18px] border border-[rgba(75,68,86,0.06)] p-5">
                     <div className="flex items-center gap-2 mb-3">
                       <FileText className="w-4 h-4 text-[#88b7b5]" />
                       <span className="text-[11px] font-semibold text-[#9C97A3] uppercase tracking-wide">Document de planning</span>
                     </div>
                     <a
-                      href={planning.doc_url}
+                      href={planningInfo.doc_url}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-2 px-4 py-2.5 rounded-full bg-[rgba(136,183,181,0.1)] text-[#88b7b5] hover:bg-[rgba(136,183,181,0.18)] transition-colors text-sm font-medium"
                     >
                       <FileText className="w-4 h-4" />
-                      {planning.doc_name || 'Télécharger le document'}
+                      {planningInfo.doc_name || 'Télécharger le document'}
                     </a>
                   </div>
                 )}
 
-                {/* Updated date */}
-                {planning.updated_at && (
+                {planning[0]?.updated_at && (
                   <p className="text-[11px] text-[#9C97A3] text-center">
-                    Dernière mise à jour : {new Date(planning.updated_at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                    Dernière mise à jour : {new Date(planning[0].updated_at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                   </p>
                 )}
+
+                {/* Actions */}
+                {planning.every((d) => d.validated_by_vendor) && (
+                  <div className="bg-white rounded-[18px] border border-[rgba(136,183,181,0.2)] p-5 text-center">
+                    <div className="flex items-center justify-center gap-2 text-[#88b7b5] mb-2">
+                      <CheckCircle2 className="w-5 h-5" />
+                      <span className="text-sm font-semibold">Planning validé</span>
+                    </div>
+                    <p className="text-[12px] text-[#9C97A3]">Vous avez confirmé ce planning. Vous pouvez toujours poser une question ou demander une modification.</p>
+                  </div>
+                )}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <Button
+                    variant="outline"
+                    className="w-full gap-2 border-[#C9A96E] text-[#C9A96E] hover:bg-[#C9A96E]/5"
+                    onClick={() => setModifOpen(true)}
+                  >
+                    <Pencil className="h-4 w-4" />
+                    Demander une modification
+                  </Button>
+                  <Button
+                    className="w-full gap-2 bg-[#88b7b5] hover:bg-[#7aa9a7]"
+                    onClick={() => setValidationOpen(true)}
+                    disabled={planning.every((d) => d.validated_by_vendor)}
+                  >
+                    <CheckCircle2 className="h-4 w-4" />
+                    Valider le planning
+                  </Button>
+                </div>
               </>
             ) : (
               <div className="bg-white rounded-[18px] border border-[rgba(75,68,86,0.06)] p-12 text-center">
@@ -976,6 +1340,116 @@ export default function VendorBookingDetailPage() {
                   <Upload className="h-4 w-4" />
                 )}
                 {editingDoc ? 'Enregistrer' : 'Soumettre'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Validate planning dialog */}
+      <Dialog open={validationOpen} onOpenChange={setValidationOpen}>
+        <DialogContent className="sm:max-w-md rounded-[20px]">
+          <DialogHeader>
+            <DialogTitle className="text-[#4B4456]">Valider le planning</DialogTitle>
+            <DialogDescription>
+              Confirmez que ce planning vous convient. Votre wedding planner sera notifié(e).
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-2">
+            <p className="text-sm text-[#9C97A3]">
+              En validant, vous indiquez que les jours et créneaux proposés correspondent à vos attentes.
+            </p>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button type="button" variant="outline" onClick={() => setValidationOpen(false)}>
+              Annuler
+            </Button>
+            <Button
+              type="button"
+              className="bg-[#88b7b5] hover:bg-[#7aa9a7] gap-2"
+              onClick={handleValidatePlanning}
+              disabled={validating}
+            >
+              {validating && <Loader2 className="h-4 w-4 animate-spin" />}
+              <CheckCircle2 className="h-4 w-4" />
+              Valider
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Request planning change dialog */}
+      <Dialog open={modifOpen} onOpenChange={setModifOpen}>
+        <DialogContent className="sm:max-w-md rounded-[20px]">
+          <DialogHeader>
+            <DialogTitle className="text-[#4B4456]">Demander une modification</DialogTitle>
+            <DialogDescription>
+              Décrivez ce que vous souhaitez modifier. Votre wedding planner sera notifié(e).
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleRequestPlanningChange} className="space-y-4 py-2">
+            <Textarea
+              value={modifText}
+              onChange={(e) => setModifText(e.target.value)}
+              placeholder="Je souhaite modifier l'heure d'intervention du jour J..."
+              className="min-h-[120px] resize-none"
+              required
+            />
+            <DialogFooter className="gap-2">
+              <Button type="button" variant="outline" onClick={() => setModifOpen(false)}>
+                Annuler
+              </Button>
+              <Button
+                type="submit"
+                className="bg-[#C9A96E] hover:bg-[#b89a62] gap-2"
+                disabled={sendingModif}
+              >
+                {sendingModif && <Loader2 className="h-4 w-4 animate-spin" />}
+                <Pencil className="h-4 w-4" />
+                Envoyer
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Question per slot dialog */}
+      <Dialog open={questionOpen} onOpenChange={setQuestionOpen}>
+        <DialogContent className="sm:max-w-md rounded-[20px]">
+          <DialogHeader>
+            <DialogTitle className="text-[#4B4456]">Poser une question</DialogTitle>
+            <DialogDescription>
+              {questionSlot ? (
+                <>
+                  Créneau concerné : <span className="font-medium text-[#4B4456]">{questionSlot.slot.time || '—'}</span> — {questionSlot.slot.title || 'Sans titre'}
+                  <br />
+                  <span className="text-[#9C97A3]">
+                    {questionSlot.day.date ? new Date(questionSlot.day.date + 'T00:00:00').toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' }) : ''}
+                  </span>
+                </>
+              ) : 'Sélectionnez un créneau.'}
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleSendQuestion} className="space-y-4 py-2">
+            <Textarea
+              value={questionText}
+              onChange={(e) => setQuestionText(e.target.value)}
+              placeholder="Votre question pour ce créneau..."
+              className="min-h-[120px] resize-none"
+              required
+            />
+            <DialogFooter className="gap-2">
+              <Button type="button" variant="outline" onClick={() => setQuestionOpen(false)}>
+                Annuler
+              </Button>
+              <Button
+                type="submit"
+                className="bg-[#88b7b5] hover:bg-[#7aa9a7] gap-2"
+                disabled={sendingQuestion}
+              >
+                {sendingQuestion && <Loader2 className="h-4 w-4 animate-spin" />}
+                <HelpCircle className="h-4 w-4" />
+                Envoyer
               </Button>
             </DialogFooter>
           </form>
