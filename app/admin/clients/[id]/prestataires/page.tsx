@@ -8,7 +8,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Loader2, Users, Calendar, Plus, Trash2, Clock, Upload, FileText, X } from 'lucide-react';
+import { ArrowLeft, Loader2, Users, Calendar, Plus, Trash2, Clock, Upload, FileText, X, CheckCircle2 } from 'lucide-react';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { useAuth } from '@/contexts/AuthContext';
 import { addDocument, deleteDocument, getDocuments, getDocument, updateDocument } from '@/lib/db';
@@ -89,6 +89,7 @@ export default function ClientPrestatairesAdminPage() {
   const [planningDocUrl, setPlanningDocUrl] = useState<string | null>(null);
   const [planningDocName, setPlanningDocName] = useState<string | null>(null);
   const [planningGlobalId, setPlanningGlobalId] = useState<string | null>(null);
+  const [planningGlobal, setPlanningGlobal] = useState<any>(null);
   const [planningRequests, setPlanningRequests] = useState<any[]>([]);
   const [processingRequestId, setProcessingRequestId] = useState<string | null>(null);
   const [replyTextByRequest, setReplyTextByRequest] = useState<Record<string, string>>({});
@@ -399,9 +400,12 @@ export default function ClientPrestatairesAdminPage() {
       const global = (allGlobals as any[]).find((p) => p.client_id === clientId);
       if (global) {
         setPlanningGlobalId(global.id);
+        setPlanningGlobal(global);
         setPlanningNotes(global.notes || '');
         setPlanningDocUrl(global.doc_url || null);
         setPlanningDocName(global.doc_name || null);
+      } else {
+        setPlanningGlobal(null);
       }
     } catch (e) {
       console.error('Error loading planning global:', e);
@@ -593,14 +597,12 @@ export default function ClientPrestatairesAdminPage() {
         updated_at: new Date(),
       });
 
-      setPlanningRequests((prev) =>
-        prev.map((r) =>
-          r.id === requestId
-            ? { ...r, status: 'answered', response: text, responded_at: new Date().toISOString(), responded_by: user.uid }
-            : r
-        )
-      );
-      setReplyTextByRequest((prev) => ({ ...prev, [requestId]: '' }));
+      setPlanningRequests((prev) => prev.filter((r) => r.id !== requestId));
+      setReplyTextByRequest((prev) => {
+        const next = { ...prev };
+        delete next[requestId];
+        return next;
+      });
 
       // Notify vendor
       try {
@@ -669,12 +671,14 @@ export default function ClientPrestatairesAdminPage() {
 
       if (planningGlobalId) {
         await updateDocument('vendor_plannings', planningGlobalId, globalData);
+        setPlanningGlobal((prev: any) => ({ ...prev, ...globalData }));
       } else {
         const created = await addDocument('vendor_plannings', {
           ...globalData,
           created_at: new Date().toISOString(),
         });
         setPlanningGlobalId(created.id);
+        setPlanningGlobal({ ...globalData, id: created.id });
       }
 
       // Save days
@@ -981,6 +985,11 @@ export default function ClientPrestatairesAdminPage() {
               {clientNames && (
                 <span className="block text-sm font-medium text-[#88b7b5] mt-1">
                   {clientNames}
+                </span>
+              )}
+              {(planningGlobal?.status === 'validated' || planningGlobal?.validated_by_vendor) && (
+                <span className="inline-flex items-center gap-1 mt-2 text-[11px] font-bold uppercase tracking-wide bg-[#88b7b5] text-white px-2.5 py-1 rounded-full">
+                  <CheckCircle2 className="w-3.5 h-3.5" /> Validé par le prestataire
                 </span>
               )}
             </DialogTitle>
