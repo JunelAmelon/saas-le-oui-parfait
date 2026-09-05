@@ -24,6 +24,8 @@ import { cn } from '@/lib/utils';
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
+import { useClientData } from '@/contexts/ClientDataContext';
+import { useUnreadMessages } from '@/hooks/use-unread-messages';
 
 interface MenuItem {
   label: string;
@@ -50,6 +52,8 @@ export function ClientSidebar() {
   const pathname = usePathname();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const { signOut } = useAuth();
+  const { client } = useClientData();
+  const unreadMessages = useUnreadMessages({ role: 'client', id: client?.id });
 
   useEffect(() => {
     setIsMobileMenuOpen(false);
@@ -109,14 +113,19 @@ export function ClientSidebar() {
               <Link
                 href={item.href}
                 className={cn(
-                  'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors',
+                  'flex w-full items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors',
                   isActive(item.href)
                     ? 'bg-[rgba(136,183,181,0.16)] text-[#4B4456]'
                     : 'text-[#5A5A5A] hover:bg-[rgba(75,68,86,0.07)]'
                 )}
               >
                 <item.icon className="h-[18px] w-[18px] shrink-0" />
-                <span>{item.label}</span>
+                <span className="flex-1">{item.label}</span>
+                {item.label === 'Messages' && unreadMessages > 0 ? (
+                  <span className="ml-2 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[11px] leading-[18px] text-center">
+                    {unreadMessages > 99 ? '99+' : unreadMessages}
+                  </span>
+                ) : null}
               </Link>
             </li>
           ))}

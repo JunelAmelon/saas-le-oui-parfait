@@ -24,6 +24,8 @@ import {
 import { cn } from '@/lib/utils';
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
+import { useAuth } from '@/contexts/AuthContext';
+import { useUnreadMessages } from '@/hooks/use-unread-messages';
 interface MenuItem {
   label: string;
   icon: React.ElementType;
@@ -111,6 +113,8 @@ export function Sidebar() {
   const pathname = usePathname();
   const [expandedItems, setExpandedItems] = useState<string[]>([]);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const { user } = useAuth();
+  const unreadMessages = useUnreadMessages({ role: 'planner', id: user?.uid });
 
   useEffect(() => {
     setIsMobileMenuOpen(false);
@@ -218,14 +222,19 @@ export function Sidebar() {
                 <Link
                   href={item.href!}
                   className={cn(
-                    'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
+                    'flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
                     isActive(item.href)
                       ? 'bg-brand-turquoise text-white'
                       : 'text-brand-gray hover:bg-gray-100'
                   )}
                 >
                   <item.icon className="h-5 w-5" />
-                  <span>{item.label}</span>
+                  <span className="flex-1">{item.label}</span>
+                  {item.label === 'Messagerie' && unreadMessages > 0 ? (
+                    <span className="ml-2 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[11px] leading-[18px] text-center">
+                      {unreadMessages > 99 ? '99+' : unreadMessages}
+                    </span>
+                  ) : null}
                 </Link>
               )}
             </li>

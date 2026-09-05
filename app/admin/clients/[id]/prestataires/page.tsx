@@ -1035,10 +1035,8 @@ export default function ClientPrestatairesAdminPage() {
                           </p>
                         )}
                       </div>
-                      {req.request_type === 'slot_question' ? (
-                        req.status === 'answered' ? (
-                          <span className="text-[10px] font-bold uppercase tracking-wide bg-[#88b7b5] text-white px-2 py-0.5 rounded-full shrink-0">Répondu</span>
-                        ) : null
+                      {req.status === 'answered' ? (
+                        <span className="text-[10px] font-bold uppercase tracking-wide bg-[#88b7b5] text-white px-2 py-0.5 rounded-full shrink-0">Répondu</span>
                       ) : (
                         <Button
                           type="button"

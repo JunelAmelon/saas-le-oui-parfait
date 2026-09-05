@@ -200,7 +200,10 @@ export default function AdminMessagesPage() {
     if (!user?.uid) return;
     setLoadingConvs(true);
     try {
-      const items = await getDocuments('conversations', [{ field: 'planner_id', operator: '==', value: user.uid }]);
+      const [items, vendorItems] = await Promise.all([
+        getDocuments('conversations', [{ field: 'planner_id', operator: '==', value: user.uid }]),
+        getDocuments('vendors', [{ field: 'planner_id', operator: '==', value: user.uid }]).catch(() => []),
+      ]);
       const dedup = new Map<string, any>();
       (items as any[]).forEach((c) => {
         const key = `${c?.type || 'client'}:${c?.planner_id || ''}:${c?.client_id || ''}:${c?.vendor_id || ''}`;
@@ -210,11 +213,14 @@ export default function AdminMessagesPage() {
         if (!prev || curTime >= prevTime) dedup.set(key, c);
       });
 
+      const vendorMap = new Map<string, any>((vendorItems as any[]).map((v) => [v.id, v]));
+
       const mapped = Array.from(dedup.values()).map((c) => {
         const convType = (c.type || 'client') as 'client' | 'vendor' | 'team';
-        // For vendor conversations, show vendor name + couple context
+        const vendor = convType === 'vendor' ? vendorMap.get(c.vendor_id) : null;
+        // For vendor conversations, show vendor company name + couple context
         const name = convType === 'vendor'
-          ? (c?.vendor_name || c?.client_name || c?.name || 'Prestataire')
+          ? (vendor?.name || c?.vendor_name || c?.name || 'Prestataire')
           : (c?.client_name || c?.name || 'Conversation');
         const avatar = (name || 'C').split(' ').map((x: string) => x[0]).slice(0, 2).join('').toUpperCase();
         const lastAtMs = c?.last_message_at?.toDate?.()?.getTime?.() || 0;
@@ -226,7 +232,9 @@ export default function AdminMessagesPage() {
           name,
           type: convType,
           avatar,
-          photoUrl: convType === 'vendor' ? (c?.client_photo || c?.vendor_logo || null) : (c?.photo_url || null),
+          photoUrl: convType === 'vendor'
+            ? (vendor?.logoUrl || vendor?.logo || c?.vendor_logo || c?.client_photo || null)
+            : (c?.photo_url || null),
           lastMessage: c.last_message || '',
           time: formatSmartTimestamp(lastMessageDate),
           lastMessageAtMs: lastAtMs,
@@ -422,7 +430,13 @@ export default function AdminMessagesPage() {
             (c) => c.planner_id === user.uid && (!clientId || c.client_id === clientId)
           );
           if (mine) {
-            const name = mine.vendor_name || mine.client_name || 'Prestataire';
+            let vendorInfo: any = null;
+            if (!mine.vendor_name || !mine.vendor_logo) {
+              try {
+                vendorInfo = await getDocument('vendors', vendorId);
+              } catch { /* non-blocking */ }
+            }
+            const name = vendorInfo?.name || mine.vendor_name || 'Prestataire';
             const avatar = (name || 'P').split(' ').map((x: string) => x[0]).slice(0, 2).join('').toUpperCase();
             const lastAtMs = mine?.last_message_at?.toDate?.()?.getTime?.() || 0;
             const lastMessageDate = mine?.last_message_at?.toDate?.() || null;
@@ -433,7 +447,7 @@ export default function AdminMessagesPage() {
               name,
               type: 'vendor' as const,
               avatar,
-              photoUrl: mine?.client_photo || mine?.vendor_logo || null,
+              photoUrl: vendorInfo?.logoUrl || vendorInfo?.logo || mine?.vendor_logo || mine?.client_photo || null,
               lastMessage: mine.last_message || '',
               time: formatSmartTimestamp(lastMessageDate),
               lastMessageAtMs: lastAtMs,
@@ -923,7 +937,7 @@ export default function AdminMessagesPage() {
                             <p className="font-medium text-brand-purple text-sm truncate">{conv.name}</p>
                             <span className="text-xs text-brand-gray whitespace-nowrap ml-2">{conv.time}</span>
                           </div>
-                          <p className="text-xs text-brand-gray">{conv.type === 'vendor' ? 'Mariage' : typeInfo.label}{clientContext ? ` · ${clientContext}` : ''}</p>
+                          <p className="text-xs text-brand-gray">{conv.type === 'vendor' ? (clientContext || 'Mariage') : typeInfo.label}</p>
                           <p className="text-sm text-brand-gray truncate mt-1">{conv.lastMessage}</p>
                         </div>
                         {conv.unread > 0 ? (
@@ -1047,8 +1061,9 @@ export default function AdminMessagesPage() {
                   </p>
                   {selectedConversation && (
                     <p className="text-xs text-brand-gray">
-                      {selectedConversation.type === 'vendor' ? 'Mariage' : (typeConfig[selectedConversation.type]?.label || 'Client')}
-                      {selectedConversation.type === 'vendor' && selectedConversation.client_id ? ` · ${clients.find((c) => c.id === selectedConversation.client_id)?.name || ''}` : ''}
+                      {selectedConversation.type === 'vendor'
+                        ? (selectedConversation.client_id ? (clients.find((c) => c.id === selectedConversation.client_id)?.name || '') : 'Mariage')
+                        : (typeConfig[selectedConversation.type]?.label || 'Client')}
                     </p>
                   )}
                 </div>
