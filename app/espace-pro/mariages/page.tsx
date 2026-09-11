@@ -126,7 +126,7 @@ export default function VendorMariagesPage() {
             <p className="text-sm text-[#9C97A3]">
               {search
                 ? 'Essayez avec d\'autres critères'
-                : 'Vous n\'êtes pas encore booked sur un mariage'}
+                : 'Vous n\'êtes pas encore sélectionné pour un mariage'}
             </p>
           </div>
         ) : (
