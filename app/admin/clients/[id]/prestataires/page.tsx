@@ -99,9 +99,9 @@ export default function ClientPrestatairesAdminPage() {
   const [savingPlanning, setSavingPlanning] = useState(false);
   const [uploadingPlanning, setUploadingPlanning] = useState(false);
 
-  const fetchAll = async () => {
+  const fetchAll = async (withLoading = true) => {
     if (!user?.uid || !clientId) return;
-    setLoading(true);
+    if (withLoading) setLoading(true);
     try {
       // Fetch vendors and links separately so one failing doesn't block the other
       let allVendors: any[] = [];
@@ -168,7 +168,7 @@ export default function ClientPrestatairesAdminPage() {
   };
 
   useEffect(() => {
-    void fetchAll();
+    void fetchAll(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.uid, clientId]);
 
@@ -203,7 +203,7 @@ export default function ClientPrestatairesAdminPage() {
       await syncVendorBooking(vendor, clientId, user.uid);
 
       toast.success('Prestataire assigné au client');
-      await fetchAll();
+      await fetchAll(false);
     } catch (e) {
       console.error('Error assigning vendor:', e);
       toast.error("Impossible d'assigner le prestataire");
@@ -402,7 +402,7 @@ export default function ClientPrestatairesAdminPage() {
       }
 
       toast.success('Prestataire retiré');
-      await fetchAll();
+      await fetchAll(false);
     } catch (e) {
       console.error('Error unassigning vendor:', e);
       toast.error('Erreur lors du retrait');
