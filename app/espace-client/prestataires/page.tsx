@@ -6,6 +6,7 @@ import { ClientDashboardLayout } from '@/components/layout/ClientDashboardLayout
 import { useClientData } from '@/contexts/ClientDataContext';
 import { calculateDaysRemaining } from '@/lib/client-helpers';
 import { getDocuments } from '@/lib/db';
+import { getCategoryLabel } from '@/lib/discovery';
 import {
   Users,
   Calendar,
@@ -135,7 +136,7 @@ export default function PrestatairesPage() {
     const uniq = Array.from(new Set(prestataires.map((p) => p.category)));
     return [{ id: 'all', label: 'Tous', count: prestataires.length }, ...uniq.map((c) => ({
       id: c,
-      label: c,
+      label: getCategoryLabel(c),
       count: prestataires.filter((p) => p.category === c).length,
     }))];
   }, [prestataires]);
@@ -281,7 +282,7 @@ export default function PrestatairesPage() {
 
                       <h3 className="font-baskerville text-lg sm:text-xl text-brand-purple leading-snug">{presta.name}</h3>
                       <span className={`inline-block mt-1.5 text-[10px] font-bold uppercase tracking-wide px-2.5 py-1 rounded-full ${style.bg} ${style.text}`}>
-                        {presta.category}
+                        {getCategoryLabel(presta.category)}
                       </span>
 
                       <div className="mt-4 space-y-2">

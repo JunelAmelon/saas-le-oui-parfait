@@ -6,6 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useClientData } from '@/contexts/ClientDataContext';
 import { ClientDashboardLayout } from '@/components/layout/ClientDashboardLayout';
 import { getDocuments } from '@/lib/db';
+import { getCategoryLabel } from '@/lib/discovery';
 import { calculateDaysRemaining, PaymentData, getClientPayments, DocumentData, getClientDocuments } from '@/lib/client-helpers';
 import { Invoice } from '@/types/invoice';
 import { Loader2, ChevronRight, ChevronLeft, Users, Euro, Sparkles, Calendar, FileText, CreditCard, Heart, Check } from 'lucide-react';
@@ -138,7 +139,8 @@ export default function ClientPortalPage() {
         const mapped = (links as any[]).map((l: any, idx: number) => {
           const v = byId.get(l.vendor_id);
           const name = v?.name || l.vendor_name || 'Prestataire';
-          const role = v?.category || l.vendor_category || 'Prestataire';
+          const rawCategory = v?.category || l.vendor_category;
+          const role = rawCategory ? getCategoryLabel(rawCategory) : 'Prestataire';
           const initials = (String(name)
             .split(' ')
             .filter(Boolean)
