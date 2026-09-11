@@ -432,7 +432,7 @@ export default function VendorMessagesPage() {
                   <MessageSquare className="h-8 w-8 text-[#9C97A3] mx-auto mb-3 opacity-40" />
                   <p className="text-sm text-[#9C97A3]">Aucune conversation.</p>
                   <p className="text-xs text-[#9C97A3] mt-1">
-                    Vos conversations apparaîtront ici une fois que vous serez booked sur un mariage.
+                    Vos conversations apparaîtront ici une fois que vous serez sélectionné pour un mariage.
                   </p>
                 </div>
               ) : (

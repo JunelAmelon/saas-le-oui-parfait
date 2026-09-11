@@ -311,7 +311,7 @@ export default function ClientPrestatairesAdminPage() {
             recipient_id: vendor.pro_account_uid,
             type: 'booking',
             title: 'Nouveau mariage assigné',
-            message: `Vous avez été booked pour le mariage de ${clientNames}${weddingDate ? ` le ${weddingDate.split('-').reverse().join('/')}` : ''}.`,
+            message: `Vous avez été sélectionné pour le mariage de ${clientNames}${weddingDate ? ` le ${weddingDate.split('-').reverse().join('/')}` : ''}.`,
             link: '/espace-pro/mariages',
             read: false,
             created_at: new Date(),
@@ -326,7 +326,7 @@ export default function ClientPrestatairesAdminPage() {
           await sendEmailToUid({
             recipientUid: vendor.pro_account_uid,
             subject: 'Nouveau mariage assigné - Le Oui Parfait',
-            text: `Bonjour,\n\nVous avez été booked pour le mariage de ${clientNames}${weddingDate ? ` prévu le ${weddingDate.split('-').reverse().join('/')}` : ''}.\n\nRetrouvez tous les détails sur votre espace pro.\n\nLe Oui Parfait`,
+            text: `Bonjour,\n\nVous avez été sélectionné pour le mariage de ${clientNames}${weddingDate ? ` prévu le ${weddingDate.split('-').reverse().join('/')}` : ''}.\n\nRetrouvez tous les détails sur votre espace pro.\n\nLe Oui Parfait`,
           });
         } catch (e) {
           console.warn('Unable to send vendor booking email:', e);
@@ -338,7 +338,7 @@ export default function ClientPrestatairesAdminPage() {
           await sendPushToRecipient({
             recipientId: vendor.pro_account_uid,
             title: 'Nouveau mariage assigné',
-            body: `Vous avez été booked pour le mariage de ${clientNames}.`,
+            body: `Vous avez été sélectionné pour le mariage de ${clientNames}.`,
             link: '/espace-pro/mariages',
           });
         } catch (e) {
