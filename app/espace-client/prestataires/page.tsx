@@ -273,13 +273,9 @@ export default function PrestatairesPage() {
                     <div className="px-5 sm:px-6 pb-5 sm:pb-6">
                       <div className="relative -mt-10 sm:-mt-12 mb-3 flex items-end justify-between">
                         <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-white border-[5px] border-white shadow-[0_8px_24px_-8px_rgba(75,68,86,0.28)] overflow-hidden flex items-center justify-center shrink-0 z-10 relative">
-                          {presta.logoUrl ? (
-                            <img src={presta.logoUrl} alt={presta.name} className="h-full w-full object-cover" />
-                          ) : (
-                            <span className={`text-xl sm:text-2xl font-baskerville text-white h-full w-full flex items-center justify-center ${style.solid}`}>
-                              {presta.avatar}
-                            </span>
-                          )}
+                          <span className={`text-xl sm:text-2xl font-baskerville text-white h-full w-full flex items-center justify-center ${style.solid}`}>
+                            {presta.avatar}
+                          </span>
                         </div>
                       </div>
 
