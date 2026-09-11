@@ -77,6 +77,8 @@ export interface CalendarEventInput {
     useDefault?: boolean;
     overrides?: Array<{ method: 'email' | 'popup'; minutes: number }>;
   };
+  sendUpdates?: 'all' | 'externalOnly' | 'none';
+  guestsCanSeeOtherGuests?: boolean;
 }
 
 export async function createCalendarEvent(
@@ -91,24 +93,30 @@ export async function createCalendarEvent(
     ? { date: event.endDate || event.startDate }
     : { dateTime: event.endDateTime, timeZone: 'Europe/Paris' };
 
+  const requestBody: any = {
+    summary: event.summary,
+    description: event.description,
+    start: startObj,
+    end: endObj,
+    location: event.location,
+    attendees: event.attendees?.map((email) => ({ email })),
+    reminders: event.reminders || {
+      useDefault: false,
+      overrides: [
+        { method: 'email', minutes: 24 * 60 },
+        { method: 'popup', minutes: 60 },
+      ],
+    },
+  };
+
+  if (event.guestsCanSeeOtherGuests !== undefined) {
+    requestBody.guestsCanSeeOtherGuests = event.guestsCanSeeOtherGuests;
+  }
+
   const res = await calendar.events.insert({
     calendarId: 'primary',
-    sendUpdates: event.attendees?.length ? 'all' : 'none',
-    requestBody: {
-      summary: event.summary,
-      description: event.description,
-      start: startObj,
-      end: endObj,
-      location: event.location,
-      attendees: event.attendees?.map((email) => ({ email })),
-      reminders: event.reminders || {
-        useDefault: false,
-        overrides: [
-          { method: 'email', minutes: 24 * 60 },
-          { method: 'popup', minutes: 60 },
-        ],
-      },
-    },
+    sendUpdates: event.sendUpdates ?? (event.attendees?.length ? 'all' : 'none'),
+    requestBody,
   });
   return res.data.id!;
 }
@@ -126,36 +134,43 @@ export async function updateCalendarEvent(
     ? { date: event.endDate || event.startDate }
     : { dateTime: event.endDateTime, timeZone: 'Europe/Paris' };
 
+  const requestBody: any = {
+    summary: event.summary,
+    description: event.description,
+    start: startObj,
+    end: endObj,
+    location: event.location,
+    attendees: event.attendees?.map((email) => ({ email })),
+    reminders: event.reminders || {
+      useDefault: false,
+      overrides: [
+        { method: 'email', minutes: 24 * 60 },
+        { method: 'popup', minutes: 60 },
+      ],
+    },
+  };
+
+  if (event.guestsCanSeeOtherGuests !== undefined) {
+    requestBody.guestsCanSeeOtherGuests = event.guestsCanSeeOtherGuests;
+  }
+
   await calendar.events.patch({
     calendarId: 'primary',
     eventId,
-    sendUpdates: event.attendees?.length ? 'all' : 'none',
-    requestBody: {
-      summary: event.summary,
-      description: event.description,
-      start: startObj,
-      end: endObj,
-      location: event.location,
-      attendees: event.attendees?.map((email) => ({ email })),
-      reminders: event.reminders || {
-        useDefault: false,
-        overrides: [
-          { method: 'email', minutes: 24 * 60 },
-          { method: 'popup', minutes: 60 },
-        ],
-      },
-    },
+    sendUpdates: event.sendUpdates ?? (event.attendees?.length ? 'all' : 'none'),
+    requestBody,
   });
 }
 
 export async function deleteCalendarEvent(
   calendar: ReturnType<typeof google.calendar>,
   eventId: string,
+  sendUpdates: 'all' | 'externalOnly' | 'none' = 'all',
 ): Promise<void> {
   await calendar.events.delete({
     calendarId: 'primary',
     eventId,
-    sendUpdates: 'all',
+    sendUpdates,
   });
 }
 
@@ -185,12 +200,20 @@ export async function addAttendeesToCalendarEvent(
     ...newAttendees.map((email) => ({ email })),
   ];
 
+  // Hide the guest list from attendees so that vendors invited to the same
+  // event cannot see each other (or the client/other guests) in their
+  // Google Calendar invitation.
+  const requestBody: any = {
+    attendees: allAttendees,
+  };
+  if (res.data.guestsCanSeeOtherGuests !== false) {
+    requestBody.guestsCanSeeOtherGuests = false;
+  }
+
   await calendar.events.patch({
     calendarId: 'primary',
     eventId,
     sendUpdates: 'all',
-    requestBody: {
-      attendees: allAttendees,
-    },
+    requestBody,
   });
 }

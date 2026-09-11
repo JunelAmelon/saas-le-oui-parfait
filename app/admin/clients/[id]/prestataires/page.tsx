@@ -236,6 +236,50 @@ export default function ClientPrestatairesAdminPage() {
       ]);
       const existing = (allVendorBookings as any[]).filter((b) => b.client_id === clId);
 
+      const existingId = (existing as any[]).length > 0 ? (existing as any[])[0].id : null;
+      const existingGoogleEventId =
+        (existing as any[]).length > 0 ? (existing as any[])[0].google_event_id || null : null;
+
+      let googleEventId = existingGoogleEventId;
+
+      // Create a private, minimal Google Calendar event for the vendor (no email notification)
+      if (vendor.email && weddingDate && !googleEventId) {
+        try {
+          const currentUser = auth.currentUser;
+          if (currentUser) {
+            const idToken = await currentUser.getIdToken();
+            const guestCount = event?.guest_count ?? clientDoc?.guest_count ?? null;
+            const location =
+              event?.location || clientDoc?.event_location || clientDoc?.location || '';
+            const description = guestCount != null ? `Nombre d'invités : ${guestCount}` : '';
+            const res = await fetch('/api/google/sync-event', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
+              body: JSON.stringify({
+                action: 'create',
+                userId: plannerId,
+                event: {
+                  summary: 'Mariage',
+                  description,
+                  startDate: weddingDate,
+                  endDate: weddingDate,
+                  location,
+                  attendees: [vendor.email],
+                  sendUpdates: 'all',
+                  guestsCanSeeOtherGuests: false,
+                },
+              }),
+            });
+            const json = await res.json();
+            if (json?.ok && json?.googleEventId) {
+              googleEventId = json.googleEventId;
+            }
+          }
+        } catch (e) {
+          console.warn('Vendor Google Calendar event creation failed:', e);
+        }
+      }
+
       const bookingData = {
         vendor_id: vendor.id,
         vendor_uid: vendor.pro_account_uid || null,
@@ -247,11 +291,11 @@ export default function ClientPrestatairesAdminPage() {
         wedding_date: weddingDate,
         planner_name: plannerName,
         status: 'confirmed',
+        google_event_id: googleEventId || null,
         updated_at: new Date().toISOString(),
       };
 
-      if ((existing as any[]).length > 0) {
-        const existingId = (existing as any[])[0].id;
+      if (existingId) {
         await updateDocument('vendor_bookings', existingId, bookingData);
       } else {
         await addDocument('vendor_bookings', {
@@ -301,27 +345,6 @@ export default function ClientPrestatairesAdminPage() {
           console.warn('Unable to send vendor push:', e);
         }
       }
-
-      // Add vendor as attendee to the wedding Google Calendar event (best effort)
-      if (vendor.email && eventId) {
-        try {
-          const eventDoc = (await getDocument('events', eventId)) as any;
-          if (eventDoc?.google_event_id) {
-            const idToken = await auth.currentUser?.getIdToken();
-            await fetch('/api/google/add-attendee', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
-              body: JSON.stringify({
-                userId: plannerId,
-                eventId: eventDoc.google_event_id,
-                attendeeEmails: [vendor.email],
-              }),
-            });
-          }
-        } catch (e) {
-          console.warn('Google Calendar attendee sync failed:', e);
-        }
-      }
     } catch (e: any) {
       console.error('Error syncing vendor booking:', e);
       toast.error(`Erreur sync booking pro: ${e?.message || 'Erreur inconnue'}. Le prestataire est assigné mais son espace pro n'est pas mis à jour.`);
@@ -343,6 +366,28 @@ export default function ClientPrestatairesAdminPage() {
       ]);
       const bookings = (allBookings as any[]).filter((b) => b.client_id === clientId);
       for (const bk of bookings) {
+        // Delete the private Google Calendar event if it exists
+        if (bk.google_event_id) {
+          try {
+            const currentUser = auth.currentUser;
+            if (currentUser) {
+              const idToken = await currentUser.getIdToken();
+              await fetch('/api/google/sync-event', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
+                body: JSON.stringify({
+                  action: 'delete',
+                  userId: user?.uid,
+                  eventId: bk.google_event_id,
+                  sendUpdates: 'none',
+                }),
+              });
+            }
+          } catch (e) {
+            console.warn('Vendor Google Calendar event deletion failed:', e);
+          }
+        }
+
         await updateDocument('vendor_bookings', bk.id, {
           status: 'cancelled',
           updated_at: new Date().toISOString(),

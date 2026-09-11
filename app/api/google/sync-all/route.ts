@@ -56,6 +56,8 @@ function buildWeddingEvent(params: {
     startDate: eventDate,
     endDate: addOneDay(eventDate),
     location: location || undefined,
+    attendees: clientEmail ? [clientEmail] : [],
+    guestsCanSeeOtherGuests: false,
   };
 }
 
@@ -139,6 +141,7 @@ export async function POST(req: Request) {
         coupleNames,
         eventDate: normalizedDate,
         location: location || undefined,
+        clientEmail: client?.email || undefined,
         phone: phone || undefined,
         guestCount: ev.guest_count || undefined,
         notes: ev.notes || undefined,
@@ -199,6 +202,7 @@ export async function POST(req: Request) {
         coupleNames,
         eventDate: normalizedDate,
         location: client.event_location || undefined,
+        clientEmail: client.email || undefined,
         phone: client.phone || undefined,
         guestCount: client.guests ? parseInt(client.guests) : undefined,
         notes: client.notes || undefined,

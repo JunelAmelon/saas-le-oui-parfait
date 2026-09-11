@@ -35,6 +35,8 @@ export function buildWeddingCalendarEvent(params: {
     startDate: normalizedDate,
     endDate,
     location: location || undefined,
+    attendees: clientEmail ? [clientEmail] : [],
+    guestsCanSeeOtherGuests: false,
   };
 }
 

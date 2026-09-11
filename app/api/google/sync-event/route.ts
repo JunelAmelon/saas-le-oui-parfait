@@ -20,11 +20,12 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
-    const { action, userId, eventId, event } = body as {
+    const { action, userId, eventId, event, sendUpdates } = body as {
       action: 'create' | 'update' | 'delete';
       userId: string;
       eventId?: string;
       event?: CalendarEventInput;
+      sendUpdates?: 'all' | 'externalOnly' | 'none';
     };
 
     if (!userId || !action) {
@@ -75,7 +76,7 @@ export async function POST(req: Request) {
     }
 
     if (action === 'delete' && eventId) {
-      await deleteCalendarEvent(calendar, eventId);
+      await deleteCalendarEvent(calendar, eventId, sendUpdates);
       return NextResponse.json({ ok: true });
     }
 
