@@ -70,6 +70,8 @@ export default function ClientPrestatairesAdminPage() {
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [assignedLinks, setAssignedLinks] = useState<ClientVendorLink[]>([]);
   const [search, setSearch] = useState('');
+  const [assigningVendorId, setAssigningVendorId] = useState<string | null>(null);
+  const [unassigningVendorId, setUnassigningVendorId] = useState<string | null>(null);
 
   // Planning state
   const [planningOpen, setPlanningOpen] = useState(false);
@@ -183,9 +185,10 @@ export default function ClientPrestatairesAdminPage() {
   }, [vendors, search]);
 
   const assignVendor = async (vendor: Vendor) => {
-    if (!user?.uid) return;
+    if (!user?.uid || assigningVendorId || unassigningVendorId) return;
     if (assignedVendorIds.has(vendor.id)) return;
 
+    setAssigningVendorId(vendor.id);
     try {
       await addDocument('client_vendors', {
         planner_id: user.uid,
@@ -204,6 +207,8 @@ export default function ClientPrestatairesAdminPage() {
     } catch (e) {
       console.error('Error assigning vendor:', e);
       toast.error("Impossible d'assigner le prestataire");
+    } finally {
+      setAssigningVendorId(null);
     }
   };
 
@@ -352,11 +357,13 @@ export default function ClientPrestatairesAdminPage() {
   };
 
   const unassignVendor = async (vendorId: string) => {
+    if (unassigningVendorId || assigningVendorId) return;
     const link = assignedLinks.find((l) => l.vendor_id === vendorId);
     if (!link) return;
 
     if (!confirm('Retirer ce prestataire du client ?')) return;
 
+    setUnassigningVendorId(vendorId);
     try {
       await deleteDocument('client_vendors', link.id);
 
@@ -399,6 +406,8 @@ export default function ClientPrestatairesAdminPage() {
     } catch (e) {
       console.error('Error unassigning vendor:', e);
       toast.error('Erreur lors du retrait');
+    } finally {
+      setUnassigningVendorId(null);
     }
   };
 
@@ -957,8 +966,18 @@ export default function ClientPrestatairesAdminPage() {
                           <Calendar className="h-3.5 w-3.5" />
                           Planning
                         </Button>
-                        <Button size="sm" variant="destructive" className="w-full sm:w-auto" onClick={() => void unassignVendor(v.id)}>
-                          Retirer
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          className="w-full sm:w-auto"
+                          onClick={() => void unassignVendor(v.id)}
+                          disabled={!!unassigningVendorId || !!assigningVendorId}
+                        >
+                          {unassigningVendorId === v.id ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            'Retirer'
+                          )}
                         </Button>
                       </div>
                     </div>
@@ -1004,9 +1023,15 @@ export default function ClientPrestatairesAdminPage() {
                           variant={assigned ? 'outline' : 'default'}
                           className={assigned ? 'w-full sm:w-auto' : 'bg-brand-turquoise hover:bg-brand-turquoise-hover w-full sm:w-auto'}
                           onClick={() => void assignVendor(v)}
-                          disabled={assigned}
+                          disabled={assigned || !!assigningVendorId || !!unassigningVendorId}
                         >
-                          {assigned ? 'Assigné' : 'Assigner'}
+                          {assigningVendorId === v.id ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : assigned ? (
+                            'Assigné'
+                          ) : (
+                            'Assigner'
+                          )}
                         </Button>
                       </div>
                     );
