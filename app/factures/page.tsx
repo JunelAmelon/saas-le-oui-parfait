@@ -49,11 +49,13 @@ export default function FacturesPage() {
   const [filter, setFilter] = useState<'all' | 'sent' | 'payment_pending' | 'paid' | 'overdue' | 'draft' | 'cancelled'>('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [pendingPage, setPendingPage] = useState(1);
+  const [deletingInvoiceId, setDeletingInvoiceId] = useState<string | null>(null);
 
   const handleDeleteInvoice = async (invoice: Invoice) => {
     if (!invoice?.id) return;
     const ok = confirm('Supprimer définitivement cette facture ? Cette action est irréversible.');
     if (!ok) return;
+    setDeletingInvoiceId(invoice.id);
 
     try {
       await deleteDocument('invoices', invoice.id);
@@ -76,6 +78,8 @@ export default function FacturesPage() {
         description: 'Impossible de supprimer la facture',
         variant: 'destructive',
       });
+    } finally {
+      setDeletingInvoiceId(null);
     }
   };
 
@@ -371,8 +375,16 @@ export default function FacturesPage() {
 
                             <DropdownMenuSeparator />
 
-                            <DropdownMenuItem onClick={() => handleDeleteInvoice(invoice)} className="text-red-600">
-                              <Trash2 className="mr-2 h-4 w-4" />
+                            <DropdownMenuItem
+                              onClick={() => handleDeleteInvoice(invoice)}
+                              className="text-red-600"
+                              disabled={deletingInvoiceId === invoice.id}
+                            >
+                              {deletingInvoiceId === invoice.id ? (
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              ) : (
+                                <Trash2 className="mr-2 h-4 w-4" />
+                              )}
                               Supprimer
                             </DropdownMenuItem>
                           </DropdownMenuContent>

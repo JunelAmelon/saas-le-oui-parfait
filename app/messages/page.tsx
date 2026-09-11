@@ -91,6 +91,8 @@ export default function AdminMessagesPage() {
   const [filter, setFilter] = useState<'all' | 'client' | 'vendor' | 'team'>('all');
   const [loadingConvs, setLoadingConvs] = useState(true);
   const [sending, setSending] = useState(false);
+  const [deletingConversationId, setDeletingConversationId] = useState<string | null>(null);
+  const [deletingMessageId, setDeletingMessageId] = useState<string | null>(null);
   const [pendingAttachments, setPendingAttachments] = useState<File[]>([]);
   const [showAttachMenu, setShowAttachMenu] = useState(false);
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
@@ -665,6 +667,7 @@ export default function AdminMessagesPage() {
   const handleDeleteConversation = async (convId: string) => {
     if (!user?.uid || !convId) return;
     if (!confirm('Supprimer cette discussion de votre interface ? Les messages resteront conservés et le client continuera de voir son historique.')) return;
+    setDeletingConversationId(convId);
     try {
       await updateDocument('conversations', convId, { deleted_for_planner: true });
       if (selectedConversation?.id === convId) {
@@ -676,12 +679,15 @@ export default function AdminMessagesPage() {
     } catch (e) {
       console.error('Error hiding conversation:', e);
       toast.error('Impossible de masquer la discussion');
+    } finally {
+      setDeletingConversationId(null);
     }
   };
 
   const handleDeleteMessage = async (messageId: string) => {
     if (!messageId) return;
     if (!confirm('Supprimer ce message définitivement ?')) return;
+    setDeletingMessageId(messageId);
     try {
       await deleteDocument('messages', messageId);
       setMessages((prev) => prev.filter((m) => m.id !== messageId));
@@ -689,6 +695,8 @@ export default function AdminMessagesPage() {
     } catch (e) {
       console.error('Error deleting message:', e);
       toast.error('Impossible de supprimer le message');
+    } finally {
+      setDeletingMessageId(null);
     }
   };
 
@@ -949,9 +957,14 @@ export default function AdminMessagesPage() {
                             e.stopPropagation();
                             void handleDeleteConversation(conv.id);
                           }}
-                          className="p-1.5 rounded-full text-brand-gray hover:text-red-500 hover:bg-red-50 transition-colors shrink-0"
+                          disabled={deletingConversationId === conv.id}
+                          className="p-1.5 rounded-full text-brand-gray hover:text-red-500 hover:bg-red-50 transition-colors shrink-0 disabled:opacity-50"
                         >
-                          <Trash2 className="h-4 w-4" />
+                          {deletingConversationId === conv.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Trash2 className="h-4 w-4" />
+                          )}
                         </button>
                       </div>
                     </div>
@@ -1017,9 +1030,14 @@ export default function AdminMessagesPage() {
                               e.stopPropagation();
                               void handleDeleteConversation(conv.id);
                             }}
-                            className="p-1.5 rounded-full text-brand-gray hover:text-red-500 hover:bg-red-50 transition-colors shrink-0"
+                            disabled={deletingConversationId === conv.id}
+                            className="p-1.5 rounded-full text-brand-gray hover:text-red-500 hover:bg-red-50 transition-colors shrink-0 disabled:opacity-50"
                           >
-                            <Trash2 className="h-4 w-4" />
+                            {deletingConversationId === conv.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Trash2 className="h-4 w-4" />
+                            )}
                           </button>
                         ) : null}
                       </div>
@@ -1122,9 +1140,14 @@ export default function AdminMessagesPage() {
                           type="button"
                           onClick={() => handleDeleteMessage(message.id)}
                           title="Supprimer"
-                          className="absolute -top-2 -right-2 p-1 rounded-full bg-red-100 text-red-600 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-200"
+                          disabled={deletingMessageId === message.id}
+                          className="absolute -top-2 -right-2 p-1 rounded-full bg-red-100 text-red-600 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-200 disabled:opacity-50"
                         >
-                          <Trash2 className="h-3 w-3" />
+                          {deletingMessageId === message.id ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <Trash2 className="h-3 w-3" />
+                          )}
                         </button>
                       )}
                       {message.content ? (

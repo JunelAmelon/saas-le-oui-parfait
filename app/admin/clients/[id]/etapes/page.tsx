@@ -54,6 +54,10 @@ export default function ClientStepsAdminPage() {
   const [editing, setEditing] = useState<Step | null>(null);
   const [editForm, setEditForm] = useState({ title: '', description: '', deadline: '' });
 
+  const [isAdding, setIsAdding] = useState(false);
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [processingStepId, setProcessingStepId] = useState<string | null>(null);
+
   const fetchAll = async () => {
     if (!clientId) return;
     try {
@@ -100,6 +104,7 @@ export default function ClientStepsAdminPage() {
       return;
     }
 
+    setIsSavingEdit(true);
     try {
       await updateDocument('tasks', editing.id, {
         title: editForm.title.trim(),
@@ -126,6 +131,8 @@ export default function ClientStepsAdminPage() {
     } catch (e) {
       console.error('Error updating step:', e);
       toast.error("Impossible de modifier l'étape");
+    } finally {
+      setIsSavingEdit(false);
     }
   };
 
@@ -144,6 +151,7 @@ export default function ClientStepsAdminPage() {
       return;
     }
 
+    setIsAdding(true);
     try {
       const created = await addDocument('tasks', {
         kind: 'milestone',
@@ -212,10 +220,14 @@ export default function ClientStepsAdminPage() {
     } catch (e) {
       console.error('Error adding step:', e);
       toast.error("Impossible d'ajouter l'étape");
+    } finally {
+      setIsAdding(false);
     }
   };
 
   const toggleAdminConfirm = async (step: Step) => {
+    if (processingStepId) return;
+    setProcessingStepId(step.id);
     const next = !step.admin_confirmed;
     setSteps((prev) => prev.map((s) => (s.id === step.id ? { ...s, admin_confirmed: next } : s)));
     try {
@@ -223,10 +235,15 @@ export default function ClientStepsAdminPage() {
     } catch (e) {
       console.error('Error updating admin_confirmed:', e);
       toast.error('Erreur lors de la mise à jour');
+    } finally {
+      setProcessingStepId(null);
     }
   };
 
   const removeStep = async (step: Step) => {
+    if (processingStepId) return;
+    if (!confirm('Supprimer cette étape ?')) return;
+    setProcessingStepId(step.id);
     try {
       await deleteDocument('tasks', step.id);
       setSteps((prev) => prev.filter((s) => s.id !== step.id));
@@ -234,6 +251,8 @@ export default function ClientStepsAdminPage() {
     } catch (e) {
       console.error('Error deleting step:', e);
       toast.error("Impossible de supprimer l'étape");
+    } finally {
+      setProcessingStepId(null);
     }
   };
 
@@ -308,8 +327,18 @@ export default function ClientStepsAdminPage() {
                           >
                             <Pencil className="h-4 w-4 text-brand-gray" />
                           </Button>
-                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => void removeStep(s)}>
-                            <Trash2 className="h-4 w-4 text-red-500" />
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => void removeStep(s)}
+                            disabled={processingStepId === s.id}
+                          >
+                            {processingStepId === s.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin text-red-500" />
+                            ) : (
+                              <Trash2 className="h-4 w-4 text-red-500" />
+                            )}
                           </Button>
                         </div>
                       </div>
@@ -326,8 +355,15 @@ export default function ClientStepsAdminPage() {
                           variant="outline"
                           className="ml-auto"
                           onClick={() => void toggleAdminConfirm(s)}
+                          disabled={processingStepId === s.id}
                         >
-                          {s.admin_confirmed ? 'Annuler validation admin' : 'Valider côté admin'}
+                          {processingStepId === s.id ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : s.admin_confirmed ? (
+                            'Annuler validation admin'
+                          ) : (
+                            'Valider côté admin'
+                          )}
                         </Button>
                       </div>
                     </div>
@@ -359,9 +395,13 @@ export default function ClientStepsAdminPage() {
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setIsAddOpen(false)}>Annuler</Button>
-              <Button className="bg-brand-turquoise hover:bg-brand-turquoise-hover" onClick={() => void addStep()}>
-                Ajouter
+              <Button variant="outline" onClick={() => setIsAddOpen(false)} disabled={isAdding}>Annuler</Button>
+              <Button
+                className="bg-brand-turquoise hover:bg-brand-turquoise-hover"
+                onClick={() => void addStep()}
+                disabled={isAdding}
+              >
+                {isAdding ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Ajouter'}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -397,8 +437,12 @@ export default function ClientStepsAdminPage() {
               >
                 Annuler
               </Button>
-              <Button className="bg-brand-turquoise hover:bg-brand-turquoise-hover" onClick={() => void saveEdit()}>
-                Enregistrer
+              <Button
+                className="bg-brand-turquoise hover:bg-brand-turquoise-hover"
+                onClick={() => void saveEdit()}
+                disabled={isSavingEdit}
+              >
+                {isSavingEdit ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Enregistrer'}
               </Button>
             </DialogFooter>
           </DialogContent>

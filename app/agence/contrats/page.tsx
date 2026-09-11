@@ -80,6 +80,7 @@ export default function ContractsPage() {
   const [selectedContract, setSelectedContract] = useState<Contract | null>(null);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [deletingContractId, setDeletingContractId] = useState<string | null>(null);
   const contractsPerPage = 3;
 
   const syncedEnvelopeIdsRef = useRef<Set<string>>(new Set());
@@ -395,7 +396,8 @@ export default function ContractsPage() {
 
   const handleCancelContract = async (contract: Contract) => {
     if (!confirm(`Êtes-vous sûr de vouloir supprimer le contrat ${contract.reference} ?`)) return;
-    
+    setDeletingContractId(contract.id);
+
     try {
       const { deleteDocument, getDocuments } = await import('@/lib/db');
 
@@ -416,6 +418,8 @@ export default function ContractsPage() {
     } catch (e) {
       console.error('Error deleting contract:', e);
       toast.error('Erreur lors de la suppression du contrat');
+    } finally {
+      setDeletingContractId(null);
     }
   };
 
@@ -587,8 +591,13 @@ export default function ContractsPage() {
                         variant="outline"
                         className="flex-1 border-red-400 text-red-600 hover:bg-red-500 hover:text-white text-xs"
                         onClick={() => handleCancelContract(contract)}
+                        disabled={deletingContractId === contract.id}
                       >
-                        <Trash2 className="h-3 w-3 mr-1" />
+                        {deletingContractId === contract.id ? (
+                          <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-3 w-3 mr-1" />
+                        )}
                         Supprimer
                       </Button>
                     </div>

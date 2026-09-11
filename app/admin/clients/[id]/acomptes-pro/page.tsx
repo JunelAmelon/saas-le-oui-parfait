@@ -113,6 +113,7 @@ export default function ClientAcomptesProPage() {
   const [paidCustomMethod, setPaidCustomMethod] = useState('');
   const [paidPaymentId, setPaidPaymentId] = useState<string | null>(null);
   const [markingPaid, setMarkingPaid] = useState(false);
+  const [deletingPaymentId, setDeletingPaymentId] = useState<string | null>(null);
 
   // All vendors table
   const [showAllVendors, setShowAllVendors] = useState(false);
@@ -437,6 +438,7 @@ export default function ClientAcomptesProPage() {
 
   const handleDeletePayment = async (paymentId: string) => {
     if (!confirm('Supprimer cette échéance ?')) return;
+    setDeletingPaymentId(paymentId);
     try {
       await deleteDocument('vendor_payments', paymentId);
       setPayments((prev) => prev.filter((p) => p.id !== paymentId));
@@ -444,6 +446,8 @@ export default function ClientAcomptesProPage() {
     } catch (e) {
       console.error('Error deleting payment:', e);
       toast.error('Erreur lors de la suppression');
+    } finally {
+      setDeletingPaymentId(null);
     }
   };
 
@@ -751,8 +755,13 @@ export default function ClientAcomptesProPage() {
                                   className="h-8 w-8 rounded-full text-[#B9847F] hover:bg-[rgba(185,132,127,0.1)]"
                                   onClick={() => handleDeletePayment(p.id)}
                                   title="Supprimer"
+                                  disabled={deletingPaymentId === p.id}
                                 >
-                                  <Trash2 className="h-4 w-4" />
+                                  {deletingPaymentId === p.id ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <Trash2 className="h-4 w-4" />
+                                  )}
                                 </Button>
                               </div>
                               {/* Mobile: montant + statut + actions combined */}
@@ -781,8 +790,13 @@ export default function ClientAcomptesProPage() {
                                     size="icon"
                                     className="h-7 w-7 rounded-full text-[#B9847F]"
                                     onClick={() => handleDeletePayment(p.id)}
+                                    disabled={deletingPaymentId === p.id}
                                   >
-                                    <Trash2 className="h-3.5 w-3.5" />
+                                    {deletingPaymentId === p.id ? (
+                                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                    ) : (
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                    )}
                                   </Button>
                                 </div>
                               </div>

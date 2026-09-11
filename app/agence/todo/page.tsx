@@ -62,6 +62,7 @@ export default function TodoPage() {
   const [isTodoModalOpen, setIsTodoModalOpen] = useState(false);
   const [selectedTodo, setSelectedTodo] = useState<Todo | null>(null);
   const [modalMode, setModalMode] = useState<'create' | 'edit'>('create');
+  const [deletingTodoId, setDeletingTodoId] = useState<string | null>(null);
 
   // Fetch todos from Firestore
   const fetchTodos = async () => {
@@ -137,6 +138,7 @@ export default function TodoPage() {
   // Delete a task
   const handleDelete = async (id: string) => {
     if (!confirm('Voulez-vous vraiment supprimer cette tâche ?')) return;
+    setDeletingTodoId(id);
     try {
       await deleteDocument('tasks', id);
       setTodos(todos.filter(t => t.id !== id));
@@ -144,6 +146,8 @@ export default function TodoPage() {
     } catch (error) {
       console.error(error);
       toast.error('Erreur lors de la suppression');
+    } finally {
+      setDeletingTodoId(null);
     }
   };
 
@@ -300,8 +304,13 @@ export default function TodoPage() {
                         variant="outline"
                         className="border-2 border-red-300 text-red-600 hover:bg-red-500 hover:text-white w-full sm:w-auto"
                         onClick={() => handleDelete(todo.id)}
+                        disabled={deletingTodoId === todo.id}
                       >
-                        <Trash2 className="h-4 w-4 mr-1" />
+                        {deletingTodoId === todo.id ? (
+                          <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-4 w-4 mr-1" />
+                        )}
                         Supprimer
                       </Button>
                     </div>

@@ -338,6 +338,7 @@ export default function ClientPlanningPage() {
   };
 
   const removeAppointment = async (apt: AppointmentTask) => {
+    if (!confirm('Supprimer ce rendez-vous ?')) return;
     setDeletingId(apt.id);
     try {
       await deleteDocument('tasks', apt.id);

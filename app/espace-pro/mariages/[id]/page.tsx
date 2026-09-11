@@ -38,6 +38,7 @@ import {
   MoreVertical,
   Pencil,
   Trash2,
+  Loader2,
   Users,
   Palette,
   Sparkles,
@@ -96,6 +97,7 @@ export default function VendorBookingDetailPage() {
   // Upload dialog state
   const [uploadOpen, setUploadOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [deletingDocId, setDeletingDocId] = useState<string | null>(null);
   const [uploadForm, setUploadForm] = useState({
     type: 'devis' as 'devis' | 'facture',
     reference: '',
@@ -567,6 +569,7 @@ export default function VendorBookingDetailPage() {
 
   const handleDeleteDoc = async (docId: string) => {
     if (!confirm('Supprimer ce document ?')) return;
+    setDeletingDocId(docId);
     try {
       await deleteDocument('pro_documents', docId);
       setDocs((prev) => prev.filter((d) => d.id !== docId));
@@ -574,6 +577,8 @@ export default function VendorBookingDetailPage() {
     } catch (e) {
       console.error('Error deleting doc:', e);
       toast.error('Erreur lors de la suppression');
+    } finally {
+      setDeletingDocId(null);
     }
   };
 
@@ -840,8 +845,13 @@ export default function VendorBookingDetailPage() {
                                   <DropdownMenuItem
                                     onClick={() => handleDeleteDoc(d.id)}
                                     className="text-red-600"
+                                    disabled={deletingDocId === d.id}
                                   >
-                                    <Trash2 className="h-4 w-4 mr-2" />
+                                    {deletingDocId === d.id ? (
+                                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                    ) : (
+                                      <Trash2 className="h-4 w-4 mr-2" />
+                                    )}
                                     Supprimer
                                   </DropdownMenuItem>
                                 </>

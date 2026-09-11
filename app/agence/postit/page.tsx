@@ -47,6 +47,7 @@ export default function PostItPage() {
   const [modalMode, setModalMode] = useState<'create' | 'edit'>('create');
   const [draggedNote, setDraggedNote] = useState<string | null>(null);
   const [dragOverNote, setDragOverNote] = useState<string | null>(null);
+  const [deletingNoteId, setDeletingNoteId] = useState<string | null>(null);
 
   // 🔄 FETCH
   const fetchPostIts = async () => {
@@ -108,9 +109,17 @@ export default function PostItPage() {
   // ❌ DELETE
   const deleteNote = async (id: string) => {
     if (!confirm('Supprimer ce post-it ?')) return;
-    await deleteDocument('post_its', id);
-    fetchPostIts();
-    toast.success('Post-it supprimé');
+    setDeletingNoteId(id);
+    try {
+      await deleteDocument('post_its', id);
+      fetchPostIts();
+      toast.success('Post-it supprimé');
+    } catch (e) {
+      console.error('Error deleting post-it:', e);
+      toast.error('Erreur lors de la suppression');
+    } finally {
+      setDeletingNoteId(null);
+    }
   };
 
   // 🧲 DRAG (UI uniquement)
@@ -245,8 +254,16 @@ export default function PostItPage() {
               >
                 <div className="flex items-start justify-between mb-2">
                   <GripVertical className="h-4 w-4 text-gray-400 flex-shrink-0" />
-                  <button onClick={() => deleteNote(note.id)} className="text-gray-500 hover:text-red-500">
-                    <X className="h-4 w-4" />
+                  <button
+                    onClick={() => deleteNote(note.id)}
+                    disabled={deletingNoteId === note.id}
+                    className="text-gray-500 hover:text-red-500 disabled:opacity-50"
+                  >
+                    {deletingNoteId === note.id ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <X className="h-4 w-4" />
+                    )}
                   </button>
                 </div>
 

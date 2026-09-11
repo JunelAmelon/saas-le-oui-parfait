@@ -67,6 +67,7 @@ export default function ClientFilesPage() {
   const [isNewClientOpen, setIsNewClientOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [deletingClientId, setDeletingClientId] = useState<string | null>(null);
 
   const [changeRequests, setChangeRequests] = useState<any[]>([]);
   const [changeRequestsLoading, setChangeRequestsLoading] = useState(false);
@@ -394,6 +395,7 @@ export default function ClientFilesPage() {
   const handleDeleteClient = async (client: Client) => {
     if (!user) return;
     if (!confirm(`Êtes-vous sûr de vouloir supprimer définitivement la fiche client ${client.names} ?`)) return;
+    setDeletingClientId(client.id);
 
     try {
       const { deleteDocument, getDocuments } = await import('@/lib/db');
@@ -468,6 +470,8 @@ export default function ClientFilesPage() {
     } catch (e) {
       console.error('Error deleting client:', e);
       toast.error('Erreur lors de la suppression de la fiche client');
+    } finally {
+      setDeletingClientId(null);
     }
   };
 
@@ -746,8 +750,13 @@ export default function ClientFilesPage() {
                               <DropdownMenuItem
                                 onClick={() => void handleDeleteClient(client)}
                                 className="text-red-600 focus:text-red-600"
+                                disabled={deletingClientId === client.id}
                               >
-                                <Trash2 className="h-4 w-4 mr-2" />
+                                {deletingClientId === client.id ? (
+                                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                ) : (
+                                  <Trash2 className="h-4 w-4 mr-2" />
+                                )}
                                 Supprimer
                               </DropdownMenuItem>
                             </DropdownMenuContent>
@@ -882,8 +891,13 @@ export default function ClientFilesPage() {
                             e.stopPropagation();
                             void handleDeleteClient(client);
                           }}
+                          disabled={deletingClientId === client.id}
                         >
-                          <Trash2 className="h-3 w-3" />
+                          {deletingClientId === client.id ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <Trash2 className="h-3 w-3" />
+                          )}
                         </Button>
                       </div>
                     </div>

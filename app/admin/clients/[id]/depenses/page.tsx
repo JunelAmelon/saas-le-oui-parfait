@@ -42,6 +42,8 @@ export default function ClientDepensesAdminPage() {
   const [expenses, setExpenses] = useState<Expense[]>([]);
 
   const [isAddOpen, setIsAddOpen] = useState(false);
+  const [isAdding, setIsAdding] = useState(false);
+  const [deletingExpenseId, setDeletingExpenseId] = useState<string | null>(null);
   const [form, setForm] = useState({
     title: '',
     amount: '',
@@ -124,6 +126,7 @@ export default function ClientDepensesAdminPage() {
       return;
     }
 
+    setIsAdding(true);
     try {
       const created = await addDocument('expenses', {
         planner_id: user.uid,
@@ -145,12 +148,15 @@ export default function ClientDepensesAdminPage() {
     } catch (e) {
       console.error('Error adding expense:', e);
       toast.error("Impossible d'ajouter la dépense");
+    } finally {
+      setIsAdding(false);
     }
   };
 
   const removeExpense = async (exp: Expense) => {
     if (!exp?.id) return;
     if (!confirm('Supprimer cette dépense ?')) return;
+    setDeletingExpenseId(exp.id);
     try {
       await deleteDocument('expenses', exp.id);
       setExpenses((prev) => prev.filter((x) => x.id !== exp.id));
@@ -158,6 +164,8 @@ export default function ClientDepensesAdminPage() {
     } catch (e) {
       console.error('Error deleting expense:', e);
       toast.error('Impossible de supprimer la dépense');
+    } finally {
+      setDeletingExpenseId(null);
     }
   };
 
@@ -233,8 +241,18 @@ export default function ClientDepensesAdminPage() {
                         <Badge className={e.status === 'paid' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}>
                           {e.status === 'paid' ? 'Payée' : 'En attente'}
                         </Badge>
-                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => void removeExpense(e)}>
-                          <Trash2 className="h-4 w-4 text-red-500" />
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => void removeExpense(e)}
+                          disabled={deletingExpenseId === e.id}
+                        >
+                          {deletingExpenseId === e.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin text-red-500" />
+                          ) : (
+                            <Trash2 className="h-4 w-4 text-red-500" />
+                          )}
                         </Button>
                       </div>
                     </div>
@@ -330,11 +348,15 @@ export default function ClientDepensesAdminPage() {
             </div>
 
             <DialogFooter>
-              <Button variant="outline" onClick={() => setIsAddOpen(false)}>
+              <Button variant="outline" onClick={() => setIsAddOpen(false)} disabled={isAdding}>
                 Annuler
               </Button>
-              <Button className="bg-brand-turquoise hover:bg-brand-turquoise-hover" onClick={() => void addExpense()}>
-                Ajouter
+              <Button
+                className="bg-brand-turquoise hover:bg-brand-turquoise-hover"
+                onClick={() => void addExpense()}
+                disabled={isAdding}
+              >
+                {isAdding ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Ajouter'}
               </Button>
             </DialogFooter>
           </DialogContent>

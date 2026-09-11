@@ -79,6 +79,7 @@ export default function ClientAcomptesPage() {
   const [paidCustomMethod, setPaidCustomMethod] = useState('');
   const [paidAcompteId, setPaidAcompteId] = useState<string | null>(null);
   const [markingPaid, setMarkingPaid] = useState(false);
+  const [deletingAcompteId, setDeletingAcompteId] = useState<string | null>(null);
 
   const fetchData = async () => {
     if (!user?.uid || !clientId) return;
@@ -261,6 +262,7 @@ export default function ClientAcomptesPage() {
 
   const handleDeleteAcompte = async (acompteId: string) => {
     if (!confirm('Supprimer cette échéance ?')) return;
+    setDeletingAcompteId(acompteId);
     try {
       await deleteDocument('client_acomptes', acompteId);
       setAcomptes((prev) => prev.filter((a) => a.id !== acompteId));
@@ -268,6 +270,8 @@ export default function ClientAcomptesPage() {
     } catch (e) {
       console.error('Error deleting acompte:', e);
       toast.error('Erreur lors de la suppression');
+    } finally {
+      setDeletingAcompteId(null);
     }
   };
 
@@ -456,8 +460,13 @@ export default function ClientAcomptesPage() {
                               className="h-8 w-8 rounded-full text-[#B9847F] hover:bg-[rgba(185,132,127,0.1)]"
                               onClick={() => handleDeleteAcompte(a.id)}
                               title="Supprimer"
+                              disabled={deletingAcompteId === a.id}
                             >
-                              <Trash2 className="h-4 w-4" />
+                              {deletingAcompteId === a.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Trash2 className="h-4 w-4" />
+                              )}
                             </Button>
                           </div>
                           {/* Mobile: montant + statut + actions combined */}
@@ -486,8 +495,13 @@ export default function ClientAcomptesPage() {
                                 size="icon"
                                 className="h-7 w-7 rounded-full text-[#B9847F]"
                                 onClick={() => handleDeleteAcompte(a.id)}
+                                disabled={deletingAcompteId === a.id}
                               >
-                                <Trash2 className="h-3.5 w-3.5" />
+                                {deletingAcompteId === a.id ? (
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                )}
                               </Button>
                             </div>
                           </div>

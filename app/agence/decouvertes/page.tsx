@@ -45,6 +45,7 @@ export default function DiscoveryListPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [currentPage, setCurrentPage] = useState(1);
+  const [deletingDiscoveryId, setDeletingDiscoveryId] = useState<string | null>(null);
   const itemsPerPage = 6;
 
   useEffect(() => {
@@ -146,6 +147,7 @@ export default function DiscoveryListPage() {
   const handleDelete = async (e: React.MouseEvent, form: DiscoveryListItem) => {
     e.stopPropagation();
     if (!confirm(`Êtes-vous sûr de vouloir supprimer définitivement la fiche de ${form.name || 'ce prospect'} ?`)) return;
+    setDeletingDiscoveryId(form.id);
     try {
       await deleteDocument('discovery_forms', form.id);
       setForms((prev) => prev.filter((f) => f.id !== form.id));
@@ -153,6 +155,8 @@ export default function DiscoveryListPage() {
     } catch (err) {
       console.error('Error deleting discovery form:', err);
       toast.error('Erreur lors de la suppression');
+    } finally {
+      setDeletingDiscoveryId(null);
     }
   };
 
@@ -267,8 +271,13 @@ export default function DiscoveryListPage() {
                               size="icon"
                               className="h-7 w-7 text-red-500 hover:text-red-600 hover:bg-red-50"
                               onClick={(e) => handleDelete(e, form)}
+                              disabled={deletingDiscoveryId === form.id}
                             >
-                              <Trash2 className="h-4 w-4" />
+                              {deletingDiscoveryId === form.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Trash2 className="h-4 w-4" />
+                              )}
                             </Button>
                           </div>
                         </div>

@@ -85,6 +85,8 @@ export default function VendorsPage() {
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [invitingVendorId, setInvitingVendorId] = useState<string | null>(null);
   const [migrating, setMigrating] = useState(false);
+  const [deletingVendorId, setDeletingVendorId] = useState<string | null>(null);
+  const [togglingFavoriteId, setTogglingFavoriteId] = useState<string | null>(null);
   
   // Form state
   const [formData, setFormData] = useState({
@@ -219,7 +221,7 @@ export default function VendorsPage() {
 
   const handleDelete = async (vendorId: string) => {
     if (!confirm('Êtes-vous sûr de vouloir supprimer ce prestataire ?')) return;
-    
+    setDeletingVendorId(vendorId);
     try {
       await deleteDocument('vendors', vendorId);
       toast.success('Prestataire supprimé');
@@ -227,10 +229,14 @@ export default function VendorsPage() {
       fetchVendors();
     } catch (e) {
       toast.error('Erreur lors de la suppression');
+    } finally {
+      setDeletingVendorId(null);
     }
   };
 
   const toggleFavorite = async (vendor: Vendor) => {
+    if (togglingFavoriteId) return;
+    setTogglingFavoriteId(vendor.id);
     try {
       await updateDocument('vendors', vendor.id, {
         is_favorite: !vendor.isFavorite
@@ -238,6 +244,8 @@ export default function VendorsPage() {
       fetchVendors();
     } catch (e) {
       toast.error('Erreur lors de la mise à jour');
+    } finally {
+      setTogglingFavoriteId(null);
     }
   };
 
@@ -475,12 +483,19 @@ export default function VendorsPage() {
                         </Badge>
                       </div>
                     </div>
-                    <button onClick={() => toggleFavorite(vendor)}>
-                      <Star className={`h-5 w-5 transition-colors ${
+                    <button
+                      onClick={() => toggleFavorite(vendor)}
+                      disabled={togglingFavoriteId === vendor.id}
+                    >
+                      {togglingFavoriteId === vendor.id ? (
+                        <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
+                      ) : (
+                        <Star className={`h-5 w-5 transition-colors ${
                         vendor.isFavorite 
                           ? 'fill-yellow-400 text-yellow-400' 
                           : 'text-gray-300 hover:text-yellow-400'
                       }`} />
+                    )}
                     </button>
                   </div>
 
@@ -693,12 +708,17 @@ export default function VendorsPage() {
             </div>
           )}
           <DialogFooter className="flex-col sm:flex-row gap-2">
-            <Button 
-              variant="destructive" 
+            <Button
+              variant="destructive"
               onClick={() => selectedVendor && handleDelete(selectedVendor.id)}
               className="w-full sm:w-auto"
+              disabled={deletingVendorId === selectedVendor?.id}
             >
-              <Trash2 className="h-4 w-4 mr-2" />
+              {deletingVendorId === selectedVendor?.id ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Trash2 className="h-4 w-4 mr-2" />
+              )}
               Supprimer
             </Button>
             <div className="flex-1" />

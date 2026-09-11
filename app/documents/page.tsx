@@ -68,6 +68,7 @@ export default function DocumentsPage() {
   const [editingDoc, setEditingDoc] = useState<any | null>(null);
   const [editName, setEditName] = useState('');
   const [editType, setEditType] = useState('contrat');
+  const [deletingDocId, setDeletingDocId] = useState<string | null>(null);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
@@ -213,7 +214,8 @@ export default function DocumentsPage() {
 
   const handleDeleteDocument = async (docId: string) => {
     if (!confirm('Êtes-vous sûr de vouloir supprimer ce document ?')) return;
-    
+    setDeletingDocId(docId);
+
     try {
       const { deleteDocument } = await import('@/lib/db');
       await deleteDocument('documents', docId);
@@ -222,6 +224,8 @@ export default function DocumentsPage() {
     } catch (e) {
       console.error('Error deleting document:', e);
       toast.error('Erreur lors de la suppression');
+    } finally {
+      setDeletingDocId(null);
     }
   };
 
@@ -455,8 +459,13 @@ export default function DocumentsPage() {
                             variant="ghost"
                             className="text-red-500 hover:text-red-600 hover:bg-red-50"
                             onClick={() => handleDeleteDocument(doc.id)}
+                            disabled={deletingDocId === doc.id}
                           >
-                            <Trash2 className="h-4 w-4" />
+                            {deletingDocId === doc.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Trash2 className="h-4 w-4" />
+                            )}
                           </Button>
                         </div>
                       </TableCell>
