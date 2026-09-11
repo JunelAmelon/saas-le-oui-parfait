@@ -38,7 +38,6 @@ import {
   MoreVertical,
   Pencil,
   Trash2,
-  Loader2,
   Users,
   Palette,
   Sparkles,

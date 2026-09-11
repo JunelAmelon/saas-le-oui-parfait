@@ -10,6 +10,7 @@ import {
   MessageSquare,
   Send,
   Paperclip,
+  Loader2,
   FileText,
   Search,
   MoreVertical,
