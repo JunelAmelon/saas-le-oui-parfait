@@ -13,13 +13,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Loader2, Upload, User, X } from 'lucide-react';
-import { addDocument, getDocument, getDocuments, updateDocument, setDocument } from '@/lib/db';
+import { addDocument, getDocument, getDocuments, updateDocument, setDocument, deleteDocument } from '@/lib/db';
 import { DiscoveryFormData } from '@/lib/discovery';
 import { toast } from 'sonner';
 import axios from 'axios';
 import { ColorPalette } from '@/components/wedding/ColorPalette';
 import { auth } from '@/lib/firebase';
 import { buildWeddingCalendarEvent } from '@/lib/wedding-calendar';
+import { getWeddingTaskPayloads } from '@/lib/wedding-tasks';
 
 interface ClientModalProps {
   open: boolean;
@@ -345,6 +346,27 @@ export function ClientModal({ open, onOpenChange, mode, client, userId, onSucces
           created_at: new Date().toISOString(),
         });
 
+        // Générer les étapes de rétroplanning automatiques
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const eventDateObj = new Date(data.event_date + 'T00:00:00');
+        if (data.event_date && !Number.isNaN(eventDateObj.getTime()) && eventDateObj >= today) {
+          try {
+            const payloads = getWeddingTaskPayloads(
+              clientDoc.id,
+              userId,
+              (eventDoc as any).id,
+              data.event_date
+            );
+            for (const task of payloads) {
+              await addDocument('tasks', task);
+            }
+          } catch (e) {
+            console.error('Error seeding wedding tasks:', e);
+            toast.error('Erreur lors de la création des étapes automatiques');
+          }
+        }
+
         // Sync mariage vers Google Calendar (best effort)
         if (data.event_date) {
           try {
@@ -415,6 +437,37 @@ export function ClientModal({ open, onOpenChange, mode, client, userId, onSucces
               },
               notes: notes || '',
             });
+
+            // Régénérer les étapes si la date de mariage change
+            const eventDateChanged = client?.eventDate !== eventDate;
+            if (eventDateChanged) {
+              try {
+                const existingTasks = await getDocuments('tasks', [
+                  { field: 'client_id', operator: '==', value: client!.id },
+                ]);
+                const autoTasks = (existingTasks as any[]).filter(
+                  (t) => t.auto_generated && t.event_id === ev.id
+                );
+                for (const t of autoTasks) {
+                  if (t.id) await deleteDocument('tasks', t.id);
+                }
+
+                if (eventDate) {
+                  const editEventDate = new Date(eventDate + 'T00:00:00');
+                  const todayEdit = new Date();
+                  todayEdit.setHours(0, 0, 0, 0);
+                  if (!Number.isNaN(editEventDate.getTime()) && editEventDate >= todayEdit) {
+                    const payloads = getWeddingTaskPayloads(client!.id, userId, ev.id, eventDate);
+                    for (const task of payloads) {
+                      await addDocument('tasks', task);
+                    }
+                  }
+                }
+              } catch (e) {
+                console.error('Error regenerating wedding tasks:', e);
+                toast.error('Erreur lors de la mise à jour des étapes automatiques');
+              }
+            }
 
             // Sync vers Google Calendar (best effort)
             if (eventDate) {

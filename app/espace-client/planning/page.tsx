@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ClientDashboardLayout } from '@/components/layout/ClientDashboardLayout';
@@ -24,6 +24,8 @@ import {
   Loader2,
   ChevronLeft,
   ChevronRight,
+  ChevronUp,
+  ChevronDown,
   X,
   GripHorizontal,
 } from 'lucide-react';
@@ -38,8 +40,12 @@ type Step = {
   description?: string;
   deadline?: string;
   kind?: 'milestone';
+  priority?: 'normal' | 'urgent';
+  auto_generated?: boolean;
+  last_reminder_tier?: string;
   admin_confirmed?: boolean;
   client_confirmed?: boolean;
+  client_confirmed_at?: string | null;
   created_at?: any;
 };
 
@@ -67,6 +73,8 @@ interface Event {
   location: string;
   status: string;
   type: string;
+  notes?: string;
+  description?: string;
 }
 
 const months = [
@@ -84,6 +92,8 @@ export default function PlanningPage() {
   const [stepsLoading, setStepsLoading] = useState(true);
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [isEventDetailOpen, setIsEventDetailOpen] = useState(false);
+  const [selectedDetail, setSelectedDetail] = useState<Step | Event | null>(null);
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [rdvPage, setRdvPage] = useState(1);
   const [stepsPage, setStepsPage] = useState(1);
 
@@ -219,19 +229,47 @@ export default function PlanningPage() {
   const toggleClientConfirm = async (step: Step) => {
     if (!step?.id) return;
     const next = !step.client_confirmed;
-    setSteps((prev) => prev.map((s) => (s.id === step.id ? { ...s, client_confirmed: next } : s)));
+    const confirmedAt = next ? new Date().toISOString() : null;
+    setSteps((prev) =>
+      prev.map((s) =>
+        s.id === step.id ? { ...s, client_confirmed: next, client_confirmed_at: confirmedAt } : s
+      )
+    );
     try {
-      await updateDocument('tasks', step.id, { client_confirmed: next });
+      await updateDocument('tasks', step.id, {
+        client_confirmed: next,
+        client_confirmed_at: confirmedAt,
+      });
     } catch (e) {
       console.error('Error confirming step:', e);
+      setSteps((prev) =>
+        prev.map((s) =>
+          s.id === step.id
+            ? { ...s, client_confirmed: !next, client_confirmed_at: !next ? step.client_confirmed_at || null : null }
+            : s
+        )
+      );
     }
   };
 
   const daysRemaining = event ? calculateDaysRemaining(event.event_date) : 0;
 
+  // (today and groupedByMonth are defined after timelineItems)
+
   const handleEventClick = (ev: Event) => {
     setSelectedEvent(ev);
     setIsEventDetailOpen(true);
+  };
+
+  const openDetail = (item: Step | Event) => {
+    setSelectedDetail(item);
+    setIsDetailOpen(true);
+  };
+
+  const handleConfirmFromDetail = async () => {
+    if (!selectedDetail || !('client_confirmed' in selectedDetail)) return;
+    await toggleClientConfirm(selectedDetail);
+    setIsDetailOpen(false);
   };
 
   const nextRdv = rdvEvents[0];
@@ -280,6 +318,23 @@ export default function PlanningPage() {
     const t = new Date(dateStr).getTime();
     return Math.min(100, Math.max(0, ((t - minTime) / (maxTime - minTime)) * 100));
   };
+
+  // ---------- Scroll dans la frise ----------
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const [showTopHint, setShowTopHint] = useState(false);
+  const [showBottomHint, setShowBottomHint] = useState(false);
+
+  const updateScrollHints = () => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const hasOverflow = el.scrollHeight > el.clientHeight;
+    setShowTopHint(hasOverflow && el.scrollTop > 20);
+    setShowBottomHint(hasOverflow && el.scrollTop + el.clientHeight < el.scrollHeight - 40);
+  };
+
+  useEffect(() => {
+    updateScrollHints();
+  }, [timelineItems.length]);
 
   // ---------- Pagination ----------
   const rdvTotalPages = Math.max(1, Math.ceil(rdvEvents.length / ITEMS_PER_PAGE));
@@ -423,7 +478,12 @@ export default function PlanningPage() {
           ) : (
             <>
               <div className="relative -mx-6 sm:-mx-8">
-                <div className="overflow-x-auto sm:overflow-visible scrollbar-hide pb-2" style={{ WebkitOverflowScrolling: 'touch' }}>
+                <div
+                  ref={scrollRef}
+                  onScroll={updateScrollHints}
+                  className="relative overflow-x-auto overflow-y-auto no-scrollbar pb-2 max-h-[300px]"
+                  style={{ WebkitOverflowScrolling: 'touch' }}
+                >
                   <div className="min-w-[640px] px-6 sm:px-8">
                     <div className="relative">
                       <div className="absolute inset-0 flex justify-between pointer-events-none">
@@ -449,8 +509,8 @@ export default function PlanningPage() {
                               <div className="relative flex-1 h-9 min-w-0">
                                 <div className="absolute inset-y-0 left-0 right-0 my-auto h-px bg-brand-purple/6" />
                                 <button
-                                  onClick={() => (isRdv ? handleEventClick(item.raw as Event) : undefined)}
-                                  className={`absolute top-1/2 -translate-y-1/2 -translate-x-1/2 flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-full ${solid} text-white text-[10px] sm:text-[11px] font-medium whitespace-nowrap shadow-sm ${isRdv ? 'cursor-pointer hover:opacity-90' : 'cursor-default'}`}
+                                  onClick={() => void openDetail(item.raw as any)}
+                                  className={`absolute top-1/2 -translate-y-1/2 -translate-x-1/2 flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-full ${solid} text-white text-[10px] sm:text-[11px] font-medium whitespace-nowrap shadow-sm hover:opacity-90`}
                                   style={{ left: `${left}%` }}
                                 >
                                   <CalendarIcon className="w-3 h-3" />
@@ -468,6 +528,25 @@ export default function PlanningPage() {
                       <span>{new Date(maxTime).toLocaleDateString('fr-FR')}</span>
                     </div>
                   </div>
+
+                  {showTopHint && (
+                    <div
+                      onClick={() => scrollRef.current?.scrollBy({ top: -150, behavior: 'smooth' })}
+                      className="absolute top-1 left-1/2 -translate-x-1/2 flex items-center gap-1 text-[10px] text-brand-gray bg-white/80 hover:bg-white backdrop-blur-sm rounded-full px-3 py-1 shadow-sm border border-brand-purple/8 z-20 cursor-pointer transition-colors"
+                    >
+                      <ChevronUp className="w-3 h-3" />
+                      <span>Glisser vers le haut</span>
+                    </div>
+                  )}
+                  {showBottomHint && (
+                    <div
+                      onClick={() => scrollRef.current?.scrollBy({ top: 150, behavior: 'smooth' })}
+                      className="absolute bottom-1 left-1/2 -translate-x-1/2 flex items-center gap-1 text-[10px] text-brand-gray bg-white/80 hover:bg-white backdrop-blur-sm rounded-full px-3 py-1 shadow-sm border border-brand-purple/8 z-20 cursor-pointer transition-colors"
+                    >
+                      <ChevronDown className="w-3 h-3" />
+                      <span>Glisser vers le bas</span>
+                    </div>
+                  )}
                 </div>
 
                 <div className="sm:hidden absolute right-0 top-0 bottom-0 w-10 bg-gradient-to-l from-white to-transparent pointer-events-none" />
@@ -550,17 +629,20 @@ export default function PlanningPage() {
                     return (
                       <div
                         key={s.id}
-                        onClick={() => {
-                          if (!done) void toggleClientConfirm(s);
-                        }}
-                        className={`rounded-2xl overflow-hidden bg-white shadow-sm border border-brand-purple/8 flex flex-col ${
-                          done ? 'opacity-70' : 'cursor-pointer hover:shadow-md transition-shadow'
-                        }`}
+                        onClick={() => void openDetail(s)}
+                        className="rounded-2xl overflow-hidden bg-white shadow-sm border border-brand-purple/8 flex flex-col cursor-pointer hover:shadow-md transition-shadow"
                       >
                         <div className="flex items-center justify-between px-4 py-2.5 bg-[#F1EADD]">
-                          <span className={`text-xs font-semibold truncate ${done ? 'text-[#C9A96E] line-through' : 'text-[#C9A96E]'}`}>
-                            {s.title}
-                          </span>
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className={`text-xs font-semibold truncate ${done ? 'text-[#C9A96E] line-through' : 'text-[#C9A96E]'}`}>
+                              {s.title}
+                            </span>
+                            {s.priority === 'urgent' && (
+                              <span className="text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-red-100 text-red-700 shrink-0">
+                                Urgent
+                              </span>
+                            )}
+                          </div>
                           {done ? (
                             <X className="h-4 w-4 text-[#C9A96E] shrink-0" />
                           ) : (
@@ -585,21 +667,19 @@ export default function PlanningPage() {
                             >
                               {done ? 'Validée' : 'En cours'}
                             </span>
-                            {done ? (
-                              <span className="text-[10.5px] font-bold uppercase tracking-wide px-3 py-1.5 rounded-full bg-brand-turquoise/15 text-brand-turquoise-hover">
-                                Confirmé
-                              </span>
-                            ) : (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  void toggleClientConfirm(s);
-                                }}
-                                className="text-[10.5px] font-bold uppercase tracking-wide px-3 py-1.5 rounded-full bg-[#C9A96E] text-white hover:opacity-90 transition-colors"
-                              >
-                                Valider
-                              </button>
-                            )}
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                void openDetail(s);
+                              }}
+                              className={`text-[10.5px] font-bold uppercase tracking-wide px-3 py-1.5 rounded-full transition-colors ${
+                                done
+                                  ? 'bg-brand-turquoise/15 text-brand-turquoise-hover'
+                                  : 'bg-[#C9A96E] text-white hover:opacity-90'
+                              }`}
+                            >
+                              {done ? 'Voir' : 'Valider'}
+                            </button>
                           </div>
                         </div>
                       </div>
@@ -654,6 +734,97 @@ export default function PlanningPage() {
                 className="bg-brand-turquoise hover:bg-brand-turquoise-hover w-full rounded-full"
                 onClick={() => setIsEventDetailOpen(false)}
               >
+                Fermer
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Détail étape clé / RDV */}
+        <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
+          <DialogContent className="sm:max-w-md rounded-3xl">
+            <DialogHeader>
+              <DialogTitle className="font-baskerville text-2xl text-brand-purple">
+                {selectedDetail && 'client_confirmed' in selectedDetail
+                  ? selectedDetail.title
+                  : selectedDetail?.title || 'Détail'}
+              </DialogTitle>
+            </DialogHeader>
+            {selectedDetail && (
+              <div className="space-y-4 py-4">
+                {'client_confirmed' in selectedDetail ? (
+                  (() => {
+                    const step = selectedDetail as Step;
+                    return (
+                      <>
+                        <div className="flex items-center gap-3 p-4 bg-[#F1EADD] rounded-2xl">
+                          <CalendarIcon className="h-5 w-5 text-[#C9A96E] shrink-0" />
+                          <div>
+                            <p className="font-medium text-brand-purple">
+                              {step.deadline
+                                ? new Date(step.deadline).toLocaleDateString('fr-FR')
+                                : "Pas d'échéance"}
+                            </p>
+                            <p className="text-sm text-brand-gray">Échéance</p>
+                          </div>
+                        </div>
+                        {step.description ? (
+                          <p className="text-sm text-brand-gray leading-relaxed">{step.description}</p>
+                        ) : null}
+                        <div className="flex items-center justify-between pt-2">
+                          <span className="text-sm text-brand-gray">
+                            {step.client_confirmed ? 'Validée par le couple' : 'En attente'}
+                          </span>
+                          <Button
+                            onClick={() => void handleConfirmFromDetail()}
+                            className={
+                              step.client_confirmed
+                                ? 'bg-brand-turquoise/15 text-brand-turquoise-hover hover:bg-brand-turquoise/25'
+                                : 'bg-[#C9A96E] text-white hover:opacity-90'
+                            }
+                          >
+                            {step.client_confirmed ? 'Annuler la validation' : 'Valider'}
+                          </Button>
+                        </div>
+                      </>
+                    );
+                  })()
+                ) : (
+                  (() => {
+                    const ev = selectedDetail as Event;
+                    return (
+                      <>
+                        <div className="flex items-center gap-3 p-4 bg-brand-turquoise/10 rounded-2xl">
+                          <CalendarIcon className="h-5 w-5 text-brand-turquoise-hover shrink-0" />
+                          <div>
+                            <p className="font-medium text-brand-purple">
+                              {new Date(ev.date).toLocaleDateString('fr-FR', {
+                                weekday: 'long',
+                                day: 'numeric',
+                                month: 'long',
+                                year: 'numeric',
+                              })}
+                            </p>
+                            <p className="text-sm text-brand-gray">{ev.time}</p>
+                          </div>
+                        </div>
+                        {ev.location ? (
+                          <div className="flex items-center gap-3">
+                            <MapPin className="h-4.5 w-4.5 text-brand-turquoise-hover shrink-0" />
+                            <p className="text-brand-purple text-sm">{ev.location}</p>
+                          </div>
+                        ) : null}
+                        {ev.notes ? (
+                          <p className="text-sm text-brand-gray leading-relaxed">{ev.notes}</p>
+                        ) : null}
+                      </>
+                    );
+                  })()
+                )}
+              </div>
+            )}
+            <DialogFooter>
+              <Button onClick={() => setIsDetailOpen(false)} className="w-full rounded-full">
                 Fermer
               </Button>
             </DialogFooter>
