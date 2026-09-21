@@ -300,7 +300,13 @@ export function ClientModal({ open, onOpenChange, mode, client, userId, onSucces
 
             const json = await res.json().catch(() => null);
             if (!res.ok) {
-              toast.error(json?.error || "Impossible de créer l'accès client");
+              toast.error(
+                json?.error === 'email_already_in_use'
+                  ? 'Cet email est déjà utilisé par un autre compte.'
+                  : json?.error || "Impossible de créer l'accès client"
+              );
+              setIsSaving(false);
+              return;
             } else {
               clientUserId = String(json?.uid || '');
               if (clientUserId) {

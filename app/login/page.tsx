@@ -38,9 +38,18 @@ export default function LoginPage() {
         description: 'Bienvenue sur Le Oui Parfait',
       });
     } catch (error: any) {
+      const code = error?.code || error?.message;
+      let message = 'Veuillez réessayer';
+      if (code === 'account_disabled' || code === 'auth/user-disabled') {
+        message = 'Ce compte a été désactivé. Contactez l’équipe.';
+      } else if (code === 'account_not_found' || code === 'auth/user-not-found' || code === 'auth/wrong-password') {
+        message = 'Identifiants invalides ou compte introuvable.';
+      } else if (code === 'auth/invalid-credential' || code === 'auth/invalid-email') {
+        message = 'Email ou mot de passe incorrect.';
+      }
       toast({
         title: 'Erreur de connexion',
-        description: 'Veuillez réessayer',
+        description: message,
         variant: 'destructive',
       });
     } finally {

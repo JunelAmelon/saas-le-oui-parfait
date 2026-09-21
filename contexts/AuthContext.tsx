@@ -10,6 +10,7 @@ import {
   User
 } from 'firebase/auth';
 import { getDocument } from '@/lib/db';
+import { getClientFullData } from '@/lib/client-helpers';
 
 interface UserProfile {
   uid: string;
@@ -41,7 +42,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           // Fetch user profile from Firestore
           const profile = await getDocument('profiles', firebaseUser.uid) as any;
 
-          if (profile) {
+          if (!profile || profile.disabled === true) {
+            console.error(profile ? 'Account disabled:' : 'No profile found for user:', firebaseUser.uid);
+            await firebaseSignOut(auth);
+            setUser(null);
+            document.cookie = 'user_role=; path=/; max-age=0';
+            router.push('/login');
+          } else {
             setUser({
               uid: firebaseUser.uid,
               email: firebaseUser.email!,
@@ -52,16 +59,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             });
             // Set role cookie for middleware route protection
             document.cookie = `user_role=${profile.role}; path=/; max-age=${60 * 60 * 24 * 7}; samesite=lax`;
-          } else {
-            // Fallback or handle missing profile
-            // For now, let's assume if no profile, we might need to create one or just set basic info
-            // But existing users (if any) might not have profiles yet. 
-            // Since this is a migration, we expect profiles to be created on signup.
-            console.error('No profile found for user:', firebaseUser.uid);
-            // Potentially sign out or handle error
           }
         } catch (error) {
           console.error('Error fetching user profile:', error);
+          await firebaseSignOut(auth);
+          setUser(null);
+          document.cookie = 'user_role=; path=/; max-age=0';
+          router.push('/login');
         }
       } else {
         setUser(null);
@@ -72,28 +76,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [router]);
 
   const signIn = async (email: string, password: string) => {
-    try {
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      // Fetch profile to determine role and redirect
-      const profile = await getDocument('profiles', userCredential.user.uid) as any;
+    const userCredential = await signInWithEmailAndPassword(auth, email, password);
+    // Fetch profile to determine role and redirect
+    const profile = await getDocument('profiles', userCredential.user.uid) as any;
 
-      if (profile) {
-        if (profile.role === 'client') {
-          router.push('/espace-client');
-        } else if (profile.role === 'vendor') {
-          router.push('/espace-pro');
-        } else {
-          router.push('/');
-        }
-      } else {
-        // If no profile, default to home or handle error
-        router.push('/');
+    if (!profile || profile.disabled === true) {
+      await firebaseSignOut(auth);
+      setUser(null);
+      document.cookie = 'user_role=; path=/; max-age=0';
+      throw new Error(profile ? 'account_disabled' : 'account_not_found');
+    }
+
+    if (profile.role === 'client') {
+      const clientData = await getClientFullData(userCredential.user.uid);
+      if (!clientData) {
+        await firebaseSignOut(auth);
+        setUser(null);
+        document.cookie = 'user_role=; path=/; max-age=0';
+        throw new Error('account_not_found');
       }
-    } catch (error) {
-      throw error;
+      router.push('/espace-client');
+    } else if (profile.role === 'vendor') {
+      router.push('/espace-pro');
+    } else {
+      router.push('/');
     }
   };
 

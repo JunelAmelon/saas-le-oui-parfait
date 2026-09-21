@@ -720,12 +720,12 @@ export default function ClientPortalPage() {
                         </td>
                         <td className="py-3">
                           {m.client_confirmed ? (
-                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-semibold bg-[rgba(136,183,181,0.16)] text-[#6a9a98]">
+                            <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-[10px] font-semibold bg-[rgba(136,183,181,0.16)] text-[#6a9a98] whitespace-nowrap">
                               <Check className="w-3 h-3" />
                               Validé
                             </span>
                           ) : (
-                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-semibold bg-[rgba(75,68,86,0.06)] text-[#9C97A3]">
+                            <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-[10px] font-semibold bg-[rgba(75,68,86,0.06)] text-[#9C97A3] whitespace-nowrap">
                               En attente
                             </span>
                           )}

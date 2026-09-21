@@ -17,11 +17,12 @@ export async function POST(req: Request) {
     if (!email) return NextResponse.json({ error: 'missing_email' }, { status: 400 });
 
     let uid: string;
-    let alreadyExists = false;
     try {
       const existing = await adminAuth.getUserByEmail(email);
-      uid = existing.uid;
-      alreadyExists = true;
+      return NextResponse.json(
+        { error: 'email_already_in_use', uid: existing.uid },
+        { status: 409 }
+      );
     } catch (e: any) {
       if (String(e?.code || '').includes('auth/user-not-found')) {
         const created = await adminAuth.createUser({
@@ -58,7 +59,7 @@ export async function POST(req: Request) {
     const baseUrl = resolveBaseUrl(req);
     await sendPasswordResetEmail({ email, baseUrl });
 
-    return NextResponse.json({ ok: true, uid, alreadyExists });
+    return NextResponse.json({ ok: true, uid });
   } catch (e: any) {
     console.error('invite-client error:', e);
     return NextResponse.json({ error: e?.message || 'error' }, { status: 500 });
