@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useVendorData } from '@/contexts/VendorDataContext';
 import { VendorDashboardLayout } from '@/components/layout/VendorDashboardLayout';
+import { WeddingDayTimeline } from '@/components/WeddingDayTimeline';
 import {
   getVendorBookingById,
   getBookingProDocuments,
@@ -1117,6 +1118,15 @@ export default function VendorBookingDetailPage() {
         {/* Planning tab */}
         {tab === 'planning' && (
           <div className="space-y-5">
+            {eventInfo?.wedding_day_timeline?.length > 0 && (
+              <WeddingDayTimeline
+                items={(eventInfo.wedding_day_timeline || []).filter((i: any) => i.visibleTo !== 'client')}
+                coupleNames={eventInfo?.couple_names || clientInfo?.names || ''}
+                eventDate={eventInfo?.event_date || ''}
+                location={eventInfo?.location || ''}
+              />
+            )}
+
             {planning.length > 0 ? (
               <>
                 {planning.map((day: any, dayIdx: number) => (

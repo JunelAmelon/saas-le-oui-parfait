@@ -41,6 +41,7 @@ export default function ClientPlanningPage() {
   const { user } = useAuth();
 
   const [loading, setLoading] = useState(true);
+  const [event, setEvent] = useState<any>(null);
   const [eventId, setEventId] = useState<string | null>(null);
   const [plannerId, setPlannerId] = useState<string | null>(null);
   const [appointments, setAppointments] = useState<AppointmentTask[]>([]);
@@ -61,6 +62,7 @@ export default function ClientPlanningPage() {
       ]);
       const ev = ((events as any[]) || []).find((x) => Boolean(x?.event_date)) || (events?.[0] as any) || null;
       const evId = ev?.id || null;
+      setEvent(ev);
       setEventId(evId);
       setPlannerId(ev?.planner_id || user?.uid || null);
 

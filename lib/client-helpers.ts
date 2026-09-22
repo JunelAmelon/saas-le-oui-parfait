@@ -59,6 +59,19 @@ function pickWeddingEvent(events: any[]): EventData | null {
   return (scored[0]?.e as EventData) || (events[0] as EventData);
 }
 
+export interface WeddingDayTimelineItem {
+  time: string;
+  duration?: string;
+  title: string;
+  who?: string;
+  location?: string;
+  note?: string;
+  description?: string;
+  category?: 'preparation' | 'mairie' | 'eglise' | 'vindhonneur' | 'repas' | 'bal' | 'autre';
+  visibleTo?: 'all' | 'client' | 'vendors';
+  highlight?: boolean;
+}
+
 export interface EventData {
   id: string;
   client_id: string;
@@ -75,6 +88,7 @@ export interface EventData {
   };
   notes?: string;
   client_email?: string;
+  wedding_day_timeline?: WeddingDayTimelineItem[];
   created_at?: any;
 }
 

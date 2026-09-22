@@ -16,7 +16,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { Search, Plus, Heart, MapPin, Calendar, Euro, Phone, Mail, FileText, Image as ImageIcon, X, Users, CheckCircle, Clock, Edit, MessageSquare, Eye, MoreVertical, ChevronLeft, ChevronRight, Trash2, Loader2, LayoutGrid, List, ClipboardList, CreditCard, RefreshCw } from 'lucide-react';
+import { Search, Plus, Heart, MapPin, Calendar, Euro, Phone, Mail, FileText, Image as ImageIcon, X, Users, CheckCircle, Clock, Edit, MessageSquare, Eye, MoreVertical, ChevronLeft, ChevronRight, Trash2, Loader2, LayoutGrid, List, ClipboardList, CreditCard, RefreshCw, ListOrdered } from 'lucide-react';
 
 import {
   DropdownMenu,
@@ -272,6 +272,10 @@ export default function ClientFilesPage() {
 
   const handleGoToPlanning = () => {
     goToSection('planning', `/admin/clients/${selectedClient?.id}/planning`);
+  };
+
+  const handleGoToOrdreDuJour = () => {
+    goToSection('ordre-du-jour', `/admin/clients/${selectedClient?.id}/ordre-du-jour`);
   };
 
   const handleGoToGallery = () => {
@@ -1162,6 +1166,14 @@ export default function ClientFilesPage() {
                 >
                   <Calendar className="h-4 w-4" />
                   Planning
+                </Button>
+                <Button
+                  variant="outline"
+                  className={`gap-2 ${activeSection === 'ordre-du-jour' ? 'bg-brand-turquoise text-white border-brand-turquoise hover:bg-brand-turquoise-hover' : ''}`}
+                  onClick={handleGoToOrdreDuJour}
+                >
+                  <ListOrdered className="h-4 w-4" />
+                  Ordre du jour J
                 </Button>
                 <Button
                   variant="outline"
