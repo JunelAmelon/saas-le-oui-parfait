@@ -207,6 +207,8 @@ const styles = StyleSheet.create({
     marginTop: 3,
     textDecoration: 'underline',
   },
+  adresseRow: { flexDirection: 'row', alignItems: 'center' },
+  adresseIcon: { marginRight: 3 },
   note: { fontFamily: 'Cormorant', fontSize: 10, color: ENCRE_DOUCE, marginTop: 4, maxWidth: '90%' },
 
   fort: { paddingHorizontal: 6, marginHorizontal: -6, borderRadius: 2 },
@@ -474,7 +476,17 @@ export function WeddingDayTimelineDocument({ items, coupleNames, eventDate, loca
                       {m.location ? <Text style={styles.ou}>{m.location}</Text> : null}
                       {m.address ? (
                         <Link src={mapsUrl(m.address)} style={styles.adresse}>
-                          {`→ ${m.address}`}
+                          <View style={styles.adresseRow}>
+                            <Svg width={7} height={7} viewBox="0 0 10 10" style={styles.adresseIcon}>
+                              <Path
+                                d="M2 8 L8 2 M3.5 2 H8 V6.5"
+                                stroke="#B3A08B"
+                                strokeWidth={1.4}
+                                fill="none"
+                              />
+                            </Svg>
+                            <Text>{m.address}</Text>
+                          </View>
                         </Link>
                       ) : null}
                       {m.note ? <Text style={styles.note}>{m.note}</Text> : null}
