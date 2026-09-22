@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -28,12 +28,15 @@ import {
   ArrowDown,
   Send,
   Check,
+  List,
+  FileText,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { WeddingDayTimelineItem } from '@/lib/client-helpers';
 import { DEFAULT_TEMPLATES, categoryLabels, categoryOrder } from '@/lib/wedding-day-timeline-defaults';
 import { WeddingDayTimelinePages } from './WeddingDayTimelinePages';
 import { WeddingDayRecipient } from '@/lib/wedding-day-send';
+import { AddressInput } from './AddressInput';
 
 const minOf = (h: string) => {
   const [a, b] = (h || '00:00').split(':').map(Number);
@@ -41,6 +44,65 @@ const minOf = (h: string) => {
 };
 
 type Category = NonNullable<WeddingDayTimelineItem['category']>;
+
+// Champ "Qui ?" : select des prestataires assignes, ou "Autre" -> saisie libre.
+function WhoField({
+  value,
+  onChange,
+  custom,
+  onCustomChange,
+  vendors,
+}: {
+  value?: string;
+  onChange: (v: string) => void;
+  custom: boolean;
+  onCustomChange: (c: boolean) => void;
+  vendors: string[];
+}) {
+  const inList = vendors.includes(value || '');
+  const showCustom = custom || (Boolean(value) && !inList);
+  if (showCustom) {
+    return (
+      <div className="flex gap-1">
+        <Input
+          value={inList ? '' : value || ''}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="Précisez (ex : le maire)"
+        />
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-9 w-9 shrink-0"
+          title="Choisir dans la liste des prestataires"
+          onClick={() => {
+            onCustomChange(false);
+            onChange('');
+          }}
+        >
+          <List className="h-3.5 w-3.5" />
+        </Button>
+      </div>
+    );
+  }
+  return (
+    <Select
+      value={inList ? value : ''}
+      onValueChange={(v) => (v === '__autre' ? onCustomChange(true) : onChange(v))}
+    >
+      <SelectTrigger className="h-9">
+        <SelectValue placeholder="Qui ?" />
+      </SelectTrigger>
+      <SelectContent>
+        {vendors.map((v) => (
+          <SelectItem key={v} value={v}>
+            {v}
+          </SelectItem>
+        ))}
+        <SelectItem value="__autre">Autre (préciser…)</SelectItem>
+      </SelectContent>
+    </Select>
+  );
+}
 
 interface WeddingDayTimelineProps {
   items: WeddingDayTimelineItem[];
@@ -53,6 +115,7 @@ interface WeddingDayTimelineProps {
   onChange?: (items: WeddingDayTimelineItem[]) => void;
   onSend?: (blob: Blob) => void | Promise<void>;
   onFetchRecipients?: () => Promise<WeddingDayRecipient[]>;
+  vendorOptions?: string[];
 }
 
 export function WeddingDayTimeline({
@@ -66,6 +129,7 @@ export function WeddingDayTimeline({
   onChange,
   onSend,
   onFetchRecipients,
+  vendorOptions = [],
 }: WeddingDayTimelineProps) {
   const [localItems, setLocalItems] = useState<WeddingDayTimelineItem[]>(items || []);
   const [dirty, setDirty] = useState(false);
@@ -74,9 +138,21 @@ export function WeddingDayTimeline({
   const [previewOpen, setPreviewOpen] = useState(false);
   const [saveBeforeSendOpen, setSaveBeforeSendOpen] = useState(false);
   const [sendConfirmOpen, setSendConfirmOpen] = useState(false);
+  const [deleteIdx, setDeleteIdx] = useState<number | null>(null);
+  const [customWhoRows, setCustomWhoRows] = useState<Set<number>>(new Set());
+  const [formWhoCustom, setFormWhoCustom] = useState(false);
   const [recipients, setRecipients] = useState<WeddingDayRecipient[]>([]);
   const [loadingRecipients, setLoadingRecipients] = useState(false);
   const [loadingPdf, setLoadingPdf] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  const [docOpen, setDocOpen] = useState(false);
+
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 640);
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
 
   const sorted = useMemo(
     () => [...localItems].sort((a, b) => minOf(a.time) - minOf(b.time)),
@@ -89,6 +165,7 @@ export function WeddingDayTimeline({
     title: '',
     who: '',
     location: '',
+    address: '',
     note: '',
     category: 'autre',
     visibleTo: 'all',
@@ -118,7 +195,16 @@ export function WeddingDayTimeline({
       toast.info('Ce moment est déjà dans le planning');
       return;
     }
-    const next = [...localItems, { ...template }];
+    // Seul le titre est pre-rempli : le reste reste vide avec placeholders.
+    const next = [
+      ...localItems,
+      {
+        ...draft,
+        title: template.title,
+        category: template.category,
+        highlight: template.highlight,
+      },
+    ];
     updateLocal(next);
     toast.success(`${template.title} ajouté`);
   };
@@ -131,6 +217,7 @@ export function WeddingDayTimeline({
     const next = [...localItems, { ...form }];
     updateLocal(next);
     setForm(draft);
+    setFormWhoCustom(false);
   };
 
   const updateItem = (idx: number, field: keyof WeddingDayTimelineItem, value: any) => {
@@ -141,6 +228,7 @@ export function WeddingDayTimeline({
   const removeItem = (idx: number) => {
     const next = localItems.filter((_, i) => i !== idx);
     updateLocal(next);
+    setDeleteIdx(null);
   };
 
   const moveItem = (idx: number, delta: number) => {
@@ -239,7 +327,7 @@ export function WeddingDayTimeline({
   const visibleTemplates = DEFAULT_TEMPLATES.filter((t) => t.category === selectedCategory);
 
   return (
-    <div className="space-y-5">
+    <div className={`space-y-5 ${editable ? 'wdt-form' : ''}`}>
       {editable && (
         <>
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -328,56 +416,72 @@ export function WeddingDayTimeline({
             </div>
           </Card>
 
-          <Card className="p-4 border border-brand-purple/8">
-            <h3 className="font-baskerville text-lg text-[#4B4456] mb-3">Ajouter un moment personnalisé</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
-              <div className="sm:col-span-2">
-                <Label className="text-xs">Heure</Label>
-                <Input type="time" value={form.time} onChange={(e) => setForm({ ...form, time: e.target.value })} />
+          {selectedCategory === 'autre' && (
+            <Card className="p-4 border border-brand-purple/8">
+              <h3 className="font-baskerville text-lg text-[#4B4456] mb-3">Ajouter un moment personnalisé</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
+                <div className="sm:col-span-2">
+                  <Label className="text-xs">Heure</Label>
+                  <Input type="time" value={form.time} onChange={(e) => setForm({ ...form, time: e.target.value })} />
+                </div>
+                <div className="sm:col-span-2">
+                  <Label className="text-xs">Durée</Label>
+                  <Input value={form.duration} onChange={(e) => setForm({ ...form, duration: e.target.value })} placeholder="30 min" />
+                </div>
+                <div className="sm:col-span-3">
+                  <Label className="text-xs">Titre</Label>
+                  <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Ex: Arrivée photographe" />
+                </div>
+                <div className="sm:col-span-2">
+                  <Label className="text-xs">Qui ? (prestataire ou participant)</Label>
+                  <WhoField
+                    value={form.who}
+                    onChange={(v) => setForm({ ...form, who: v })}
+                    custom={formWhoCustom}
+                    onCustomChange={setFormWhoCustom}
+                    vendors={vendorOptions}
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <Label className="text-xs">Lieu</Label>
+                  <Input value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} placeholder="Lieu" />
+                </div>
+                <div className="sm:col-span-1">
+                  <Label className="text-xs">Cat.</Label>
+                  <Select value={form.category} onValueChange={(v) => setForm({ ...form, category: v as Category })}>
+                    <SelectTrigger className="h-9 text-[11px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {categoryOrder.map((cat) => (
+                        <SelectItem key={cat} value={cat}>
+                          {categoryLabels[cat]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="sm:col-span-6">
+                  <Label className="text-xs">Adresse complète</Label>
+                  <AddressInput
+                    value={form.address || ''}
+                    onChange={(v) => setForm({ ...form, address: v })}
+                    placeholder="Ex: 14 rue Albert Rémy, 91130 Ris-Orangis"
+                  />
+                </div>
+                <div className="sm:col-span-6">
+                  <Label className="text-xs">Note / description</Label>
+                  <Input value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} placeholder="Détail, consigne..." />
+                </div>
+                <div className="sm:col-span-12">
+                  <Button onClick={addManual} className="bg-[#C9A96E] hover:bg-[#B8975E] text-white">
+                    <Plus className="h-4 w-4 mr-1" />
+                    Ajouter au planning
+                  </Button>
+                </div>
               </div>
-              <div className="sm:col-span-2">
-                <Label className="text-xs">Durée</Label>
-                <Input value={form.duration} onChange={(e) => setForm({ ...form, duration: e.target.value })} placeholder="30 min" />
-              </div>
-              <div className="sm:col-span-3">
-                <Label className="text-xs">Titre</Label>
-                <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Ex: Arrivée photographe" />
-              </div>
-              <div className="sm:col-span-2">
-                <Label className="text-xs">Qui / Prestataire</Label>
-                <Input value={form.who} onChange={(e) => setForm({ ...form, who: e.target.value })} placeholder="Nom" />
-              </div>
-              <div className="sm:col-span-2">
-                <Label className="text-xs">Lieu</Label>
-                <Input value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} placeholder="Lieu" />
-              </div>
-              <div className="sm:col-span-1">
-                <Label className="text-xs">Cat.</Label>
-                <Select value={form.category} onValueChange={(v) => setForm({ ...form, category: v as Category })}>
-                  <SelectTrigger className="h-9 text-[11px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {categoryOrder.map((cat) => (
-                      <SelectItem key={cat} value={cat}>
-                        {categoryLabels[cat]}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="sm:col-span-12">
-                <Label className="text-xs">Note / description</Label>
-                <Input value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} placeholder="Détail, consigne..." />
-              </div>
-              <div className="sm:col-span-12">
-                <Button onClick={addManual} className="bg-[#C9A96E] hover:bg-[#B8975E] text-white">
-                  <Plus className="h-4 w-4 mr-1" />
-                  Ajouter au planning
-                </Button>
-              </div>
-            </div>
-          </Card>
+            </Card>
+          )}
 
           <Card className="p-4 border border-brand-purple/8">
             <div className="flex items-center justify-between mb-3">
@@ -388,7 +492,9 @@ export function WeddingDayTimeline({
               <p className="text-sm text-[#9C97A3] text-center py-6">Commencez par choisir un moment dans le catalogue.</p>
             ) : (
               <div className="space-y-2 max-h-[340px] overflow-y-auto pr-1">
-                {sorted.map((item, idx) => (
+                {sorted.map((item) => {
+                  const idx = localItems.indexOf(item);
+                  return (
                   <div
                     key={idx}
                     className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-end p-3 rounded-xl border border-[#E7DCCE] bg-[#FAF9F7]"
@@ -403,7 +509,18 @@ export function WeddingDayTimeline({
                       <Input value={item.title} onChange={(e) => updateItem(idx, 'title', e.target.value)} />
                     </div>
                     <div className="sm:col-span-2">
-                      <Input value={item.who || ''} onChange={(e) => updateItem(idx, 'who', e.target.value)} placeholder="Qui" />
+                      <WhoField
+                        value={item.who}
+                        onChange={(v) => updateItem(idx, 'who', v)}
+                        custom={customWhoRows.has(idx)}
+                        onCustomChange={(c) => {
+                          const s = new Set(customWhoRows);
+                          if (c) s.add(idx);
+                          else s.delete(idx);
+                          setCustomWhoRows(s);
+                        }}
+                        vendors={vendorOptions}
+                      />
                     </div>
                     <div className="sm:col-span-2">
                       <Input value={item.location || ''} onChange={(e) => updateItem(idx, 'location', e.target.value)} placeholder="Lieu" />
@@ -422,7 +539,14 @@ export function WeddingDayTimeline({
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="sm:col-span-12">
+                    <div className="sm:col-span-6">
+                      <AddressInput
+                        value={item.address || ''}
+                        onChange={(v) => updateItem(idx, 'address', v)}
+                        placeholder="Adresse complète"
+                      />
+                    </div>
+                    <div className="sm:col-span-6">
                       <Input value={item.note || ''} onChange={(e) => updateItem(idx, 'note', e.target.value)} placeholder="Note / description" />
                     </div>
                     <div className="sm:col-span-12 flex items-center gap-2">
@@ -442,13 +566,14 @@ export function WeddingDayTimeline({
                         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => moveItem(idx, 1)} disabled={idx === localItems.length - 1}>
                           <ArrowDown className="h-3.5 w-3.5" />
                         </Button>
-                        <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500" onClick={() => removeItem(idx)}>
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500" onClick={() => setDeleteIdx(idx)}>
                           <Trash2 className="h-3.5 w-3.5" />
                         </Button>
                       </div>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </Card>
@@ -464,24 +589,40 @@ export function WeddingDayTimeline({
         )}
       </div>
 
-      {/* Lecture seule (client / prestataire) : pages à défilement horizontal */}
+      {/* Lecture seule (client / prestataire) : liste verticale sur mobile,
+          document paysage en plein ecran ; pager horizontal sur desktop */}
       {!editable && (
         <div className="space-y-3">
           <div className="flex items-center justify-between gap-3">
             <h3 className="font-baskerville text-lg text-[#4B4456]">Ordre du jour J</h3>
-            {allowPdf && (
-              <Button
-                size="sm"
-                title="Télécharger le PDF"
-                aria-label="Télécharger le PDF"
-                className="gap-2 shrink-0 bg-[#88b7b5] hover:bg-[#6a9a98] text-white border-0"
-                disabled={loadingPdf}
-                onClick={() => void downloadPdf()}
-              >
-                {loadingPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
-                <span className="hidden sm:inline">Télécharger</span>
-              </Button>
-            )}
+            <div className="flex items-center gap-2">
+              {isMobile && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  title="Voir le document"
+                  aria-label="Voir le document"
+                  className="gap-2 shrink-0"
+                  onClick={() => setDocOpen(true)}
+                >
+                  <FileText className="h-4 w-4" />
+                  <span className="hidden sm:inline">Document</span>
+                </Button>
+              )}
+              {allowPdf && (
+                <Button
+                  size="sm"
+                  title="Télécharger le PDF"
+                  aria-label="Télécharger le PDF"
+                  className="gap-2 shrink-0 bg-[#88b7b5] hover:bg-[#6a9a98] text-white border-0"
+                  disabled={loadingPdf}
+                  onClick={() => void downloadPdf()}
+                >
+                  {loadingPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
+                  <span className="hidden sm:inline">Télécharger</span>
+                </Button>
+              )}
+            </div>
           </div>
           <WeddingDayTimelinePages
             items={sorted}
@@ -495,16 +636,18 @@ export function WeddingDayTimeline({
       {/* Edition (admin) : aperçu en modal, ouvert via le bouton Aperçu */}
       {editable && (
         <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
-          <DialogContent className="w-[98vw] max-w-6xl max-h-[95vh] overflow-y-auto p-2 sm:p-4 gap-2">
-            <DialogHeader>
+          <DialogContent className="w-[100vw] h-[100dvh] max-w-none rounded-none p-2 flex flex-col overflow-hidden sm:w-[98vw] sm:h-auto sm:max-w-6xl sm:max-h-[95vh] sm:rounded-xl sm:p-4 gap-2">
+            <DialogHeader className="shrink-0">
               <DialogTitle>Aperçu — Ordre du jour J</DialogTitle>
             </DialogHeader>
-            <WeddingDayTimelinePages
-              items={sorted}
-              coupleNames={coupleNames}
-              eventDate={eventDate}
-              location={location}
-            />
+            <div className="flex-1 min-h-0 overflow-y-auto">
+              <WeddingDayTimelinePages
+                items={sorted}
+                coupleNames={coupleNames}
+                eventDate={eventDate}
+                location={location}
+              />
+            </div>
           </DialogContent>
         </Dialog>
       )}
@@ -519,6 +662,16 @@ export function WeddingDayTimeline({
             Votre planning sera envoyé aux prestataires assignés au mariage
             {coupleNames ? ` de ${coupleNames}` : ''} :
           </p>
+          <div className="rounded-xl border border-[#C9A96E]/40 bg-[#FBF6EC] px-4 py-3">
+            <p className="text-[13px] font-semibold text-[#8C6C3B] mb-1">
+              Avant de valider, relisez bien le planning
+            </p>
+            <p className="text-[12px] text-[#6B5E53] leading-relaxed">
+              Vérifiez les horaires, les lieux et les adresses de chaque moment.
+              Cette version sera envoyée telle quelle aux prestataires et remplacera
+              la précédente. Ils recevront une notification et un email.
+            </p>
+          </div>
           {recipients.length === 0 ? (
             <p className="text-sm text-[#9C97A3] py-2">Aucun prestataire assigné à ce mariage.</p>
           ) : (
@@ -545,6 +698,52 @@ export function WeddingDayTimeline({
             >
               {loadingPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
               Envoyer
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Document plein ecran (mobile) */}
+      <Dialog open={docOpen} onOpenChange={setDocOpen}>
+        <DialogContent className="max-w-none w-[100vw] h-[100dvh] rounded-none p-2 flex flex-col gap-2">
+          <DialogHeader className="px-1">
+            <DialogTitle className="text-left">Ordre du jour J — document</DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 min-h-0 overflow-y-auto">
+            <WeddingDayTimelinePages
+              items={sorted}
+              coupleNames={coupleNames}
+              eventDate={eventDate}
+              location={location}
+            />
+            <p className="mt-2 mb-1 text-center text-[11px] text-[#9C97A3]">
+              Glissez dans la page pour zoomer, flèches pour changer de page.
+            </p>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Popup : confirmation avant suppression d'un moment */}
+      <Dialog open={deleteIdx !== null} onOpenChange={(o) => !o && setDeleteIdx(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Supprimer ce moment ?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-[#6B5E53]">
+            {deleteIdx !== null && localItems[deleteIdx]
+              ? `« ${localItems[deleteIdx].title || 'Moment sans titre'} » sera retiré de l'ordre du jour.`
+              : 'Ce moment sera retiré de l\'ordre du jour.'}
+          </p>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={() => setDeleteIdx(null)}>
+              Annuler
+            </Button>
+            <Button
+              className="bg-red-500 hover:bg-red-600 text-white gap-2"
+              onClick={() => deleteIdx !== null && removeItem(deleteIdx)}
+            >
+              <Trash2 className="h-4 w-4" />
+              Supprimer
             </Button>
           </div>
         </DialogContent>

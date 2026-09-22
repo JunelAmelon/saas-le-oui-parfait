@@ -65,6 +65,7 @@ export interface WeddingDayTimelineItem {
   title: string;
   who?: string;
   location?: string;
+  address?: string;
   note?: string;
   description?: string;
   category?: 'preparation' | 'mairie' | 'eglise' | 'vindhonneur' | 'repas' | 'bal' | 'autre';

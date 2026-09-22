@@ -13,7 +13,7 @@ import { getDocuments, updateDocument } from '@/lib/db';
 import { toast } from 'sonner';
 import { WeddingDayTimeline } from '@/components/WeddingDayTimeline';
 import { WeddingDayTimelineItem } from '@/lib/client-helpers';
-import { getWeddingDayRecipients, sendWeddingDayPdfToVendors } from '@/lib/wedding-day-send';
+import { getAssignedVendorNames, getWeddingDayRecipients, sendWeddingDayPdfToVendors, syncWeddingDayToVendorPlanning } from '@/lib/wedding-day-send';
 
 export default function ClientOrdreDuJourPage() {
   const params = useParams();
@@ -25,6 +25,7 @@ export default function ClientOrdreDuJourPage() {
   const [event, setEvent] = useState<any>(null);
   const [eventId, setEventId] = useState<string | null>(null);
   const [weddingTimeline, setWeddingTimeline] = useState<WeddingDayTimelineItem[]>([]);
+  const [vendorOptions, setVendorOptions] = useState<string[]>([]);
 
   useEffect(() => {
     const fetchAll = async () => {
@@ -41,6 +42,16 @@ export default function ClientOrdreDuJourPage() {
         setEvent(ev);
         setEventId(ev?.id || null);
         setWeddingTimeline(ev?.wedding_day_timeline || []);
+
+        if (user?.uid) {
+          getAssignedVendorNames({
+            clientId,
+            plannerId: user.uid,
+            eventId: ev?.id || undefined,
+          })
+            .then(setVendorOptions)
+            .catch(() => setVendorOptions([]));
+        }
       } catch (e) {
         console.error('Error fetching ordre du jour:', e);
         toast.error("Erreur lors du chargement de l'ordre du jour");
@@ -49,7 +60,7 @@ export default function ClientOrdreDuJourPage() {
       }
     };
     void fetchAll();
-  }, [clientId]);
+  }, [clientId, user?.uid]);
 
   const sendToVendors = async (pdfBlob: Blob) => {
     if (!clientId || !user?.uid || !eventId) {
@@ -99,6 +110,7 @@ export default function ClientOrdreDuJourPage() {
               editable
               allowPdf
               allowSend
+              vendorOptions={vendorOptions}
               onSend={sendToVendors}
               onFetchRecipients={async () =>
                 getWeddingDayRecipients({
@@ -111,6 +123,21 @@ export default function ClientOrdreDuJourPage() {
                 try {
                   setWeddingTimeline(items);
                   await updateDocument('events', eventId, { wedding_day_timeline: items });
+                  // Synchro : les moments assignes a un prestataire (champ "Qui")
+                  // creent des creneaux dans son planning (vendor_planning_days).
+                  if (user?.uid) {
+                    try {
+                      await syncWeddingDayToVendorPlanning({
+                        clientId,
+                        plannerId: user.uid,
+                        eventId,
+                        eventDate: event?.event_date || '',
+                        items,
+                      });
+                    } catch (e) {
+                      console.error('Error syncing vendor planning:', e);
+                    }
+                  }
                   toast.success('Ordre du jour enregistré');
                 } catch (e) {
                   console.error('Error saving wedding timeline:', e);

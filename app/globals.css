@@ -52,4 +52,15 @@
   .no-scrollbar::-webkit-scrollbar {
     display: none;
   }
+
+  /* Ordre du jour J : placeholders estompes pour ne pas sembler remplis */
+  .wdt-form input::placeholder {
+    color: #c2b6a6;
+    opacity: 0.75;
+    font-style: italic;
+  }
+  .wdt-form [data-placeholder] {
+    color: #c2b6a6;
+    font-style: italic;
+  }
 }

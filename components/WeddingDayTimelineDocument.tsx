@@ -6,6 +6,7 @@ import {
   Page,
   View,
   Text,
+  Link,
   StyleSheet,
   Font,
   Svg,
@@ -53,9 +54,12 @@ const CHAPITRES = [
 ];
 
 const minOf = (h: string) => {
-  const [a, b] = h.split(':').map(Number);
-  return (a < 5 ? a + 24 : a) * 60 + b;
+  const [a, b] = (h || '00:00').split(':').map(Number);
+  return ((a || 0) < 5 ? (a || 0) + 24 : a || 0) * 60 + (b || 0);
 };
+
+const mapsUrl = (address: string) =>
+  `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
 
 const chapOf = (h: string) => {
   const m = minOf(h);
@@ -63,12 +67,14 @@ const chapOf = (h: string) => {
 };
 
 const initialsOf = (coupleNames: string) => {
-  const parts = coupleNames
+  const cleaned = (coupleNames || '').trim();
+  if (!cleaned) return 'LP';
+  const parts = cleaned
     .split(/[&+]|\bet\b/i)
     .map((p) => p.trim())
     .filter(Boolean);
   if (parts.length >= 2) return `${parts[0][0] || ''}·${parts[1][0] || ''}`.toUpperCase();
-  return coupleNames.slice(0, 3).toUpperCase();
+  return cleaned.slice(0, 3).toUpperCase();
 };
 
 const SIDEBAR_W = 236;
@@ -194,6 +200,13 @@ const styles = StyleSheet.create({
   pointilles: { flex: 1, borderBottomWidth: 0.75, borderBottomStyle: 'dotted', borderBottomColor: TAUPE, marginHorizontal: 8 },
   qui: { fontFamily: 'PlexMono', fontSize: 7.5, color: ENCRE_DOUCE },
   ou: { fontFamily: 'Cormorant', fontStyle: 'italic', fontSize: 10.5, color: ENCRE_DOUCE, marginTop: 3 },
+  adresse: {
+    fontFamily: 'PlexMono',
+    fontSize: 7.5,
+    color: TAUPE,
+    marginTop: 3,
+    textDecoration: 'underline',
+  },
   note: { fontFamily: 'Cormorant', fontSize: 10, color: ENCRE_DOUCE, marginTop: 4, maxWidth: '90%' },
 
   fort: { paddingHorizontal: 6, marginHorizontal: -6, borderRadius: 2 },
@@ -459,6 +472,11 @@ export function WeddingDayTimelineDocument({ items, coupleNames, eventDate, loca
                         {m.who ? <Text style={styles.qui}>{m.who}</Text> : null}
                       </View>
                       {m.location ? <Text style={styles.ou}>{m.location}</Text> : null}
+                      {m.address ? (
+                        <Link src={mapsUrl(m.address)} style={styles.adresse}>
+                          {`→ ${m.address}`}
+                        </Link>
+                      ) : null}
                       {m.note ? <Text style={styles.note}>{m.note}</Text> : null}
                       {m.description && !m.note ? <Text style={styles.note}>{m.description}</Text> : null}
                     </View>

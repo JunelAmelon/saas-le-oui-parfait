@@ -1,8 +1,21 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Loader2, Minus, Plus } from 'lucide-react';
 import { WeddingDayTimelineItem } from '@/lib/client-helpers';
+
+interface PageLink {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  url: string;
+}
+
+interface PageImg {
+  src: string;
+  links: PageLink[];
+}
 
 interface Props {
   items: WeddingDayTimelineItem[];
@@ -12,11 +25,17 @@ interface Props {
 }
 
 // Rend le PDF react-pdf page par page via pdf.js, en defilement horizontal.
+// Les zones de lien du PDF (ex: adresses Google Maps) sont reproduites en
+// overlays cliquables positionnes par-dessus l'image de la page.
 export function WeddingDayTimelinePages({ items, coupleNames = '', eventDate = '', location = '' }: Props) {
-  const [pages, setPages] = useState<string[]>([]);
+  const [pages, setPages] = useState<PageImg[]>([]);
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState(false);
   const [current, setCurrent] = useState(0);
+  // Zoom initial plus grand sur mobile : la page paysage est petite sinon.
+  const [zoom, setZoom] = useState(() =>
+    typeof window !== 'undefined' && window.innerWidth < 640 ? 2 : 1
+  );
   const scrollerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -45,7 +64,7 @@ export function WeddingDayTimelinePages({ items, coupleNames = '', eventDate = '
         const data = await blob.arrayBuffer();
         const doc = await pdfjs.getDocument({ data }).promise;
 
-        const imgs: string[] = [];
+        const imgs: PageImg[] = [];
         for (let i = 1; i <= doc.numPages; i += 1) {
           const page = await doc.getPage(i);
           const viewport = page.getViewport({ scale: 2 });
@@ -55,7 +74,30 @@ export function WeddingDayTimelinePages({ items, coupleNames = '', eventDate = '
           const ctx = canvas.getContext('2d');
           if (!ctx) continue;
           await page.render({ canvasContext: ctx, viewport }).promise;
-          imgs.push(canvas.toDataURL('image/png'));
+
+          // Zones cliquables du PDF (annotations de liens) -> overlay HTML.
+          let links: PageLink[] = [];
+          try {
+            const annotations = await page.getAnnotations();
+            links = (annotations || [])
+              .filter((a: any) => a.subtype === 'Link' && (a.url || a.unsafeUrl))
+              .map((a: any) => {
+                const rect = viewport.convertToViewportRectangle(a.rect);
+                const left = Math.min(rect[0], rect[2]);
+                const top = Math.min(rect[1], rect[3]);
+                return {
+                  x: (left / viewport.width) * 100,
+                  y: (top / viewport.height) * 100,
+                  w: (Math.abs(rect[2] - rect[0]) / viewport.width) * 100,
+                  h: (Math.abs(rect[3] - rect[1]) / viewport.height) * 100,
+                  url: a.url || a.unsafeUrl,
+                };
+              });
+          } catch {
+            links = [];
+          }
+
+          imgs.push({ src: canvas.toDataURL('image/png'), links });
         }
         if (!cancelled) {
           setPages(imgs);
@@ -92,6 +134,10 @@ export function WeddingDayTimelinePages({ items, coupleNames = '', eventDate = '
     setCurrent(Math.round(el.scrollLeft / el.clientWidth));
   };
 
+  const zoomBy = (delta: number) => {
+    setZoom((z) => Math.max(1, Math.min(2.5, Math.round((z + delta) * 10) / 10)));
+  };
+
   if (error) {
     return (
       <div className="rounded-xl border border-[#E7DCCE] bg-[#EDE6DC] p-10 text-center text-[13px] text-[#9C97A3]">
@@ -112,18 +158,35 @@ export function WeddingDayTimelinePages({ items, coupleNames = '', eventDate = '
       <div
         ref={scrollerRef}
         onScroll={handleScroll}
-        className="flex overflow-x-auto snap-x snap-mandatory scrollbar-none"
+        className="flex overflow-x-auto snap-x snap-mandatory"
         style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}
       >
-        {pages.map((src, i) => (
-          <div key={i} className="min-w-full snap-center">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={src}
-              alt={`Page ${i + 1}`}
-              className="block w-full h-auto"
-              draggable={false}
-            />
+        {pages.map((pg, i) => (
+          <div
+            key={i}
+            className="min-w-full snap-center overflow-auto"
+            style={{ maxHeight: '85vh', scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+          >
+            <div className="relative" style={{ width: `${zoom * 100}%` }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={pg.src}
+                alt={`Page ${i + 1}`}
+                className="block w-full h-auto"
+                draggable={false}
+              />
+              {pg.links.map((l, li) => (
+                <a
+                  key={li}
+                  href={l.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title="Ouvrir dans Google Maps"
+                  className="absolute block"
+                  style={{ left: `${l.x}%`, top: `${l.y}%`, width: `${l.w}%`, height: `${l.h}%` }}
+                />
+              ))}
+            </div>
           </div>
         ))}
         {!busy && pages.length === 0 && (
@@ -132,6 +195,27 @@ export function WeddingDayTimelinePages({ items, coupleNames = '', eventDate = '
           </div>
         )}
       </div>
+
+      {pages.length > 0 && (
+        <div className="absolute top-2 right-2 z-10 flex items-center gap-1 opacity-60 hover:opacity-100 transition-opacity">
+          <button
+            aria-label="Zoom arrière"
+            className="h-6 w-6 rounded-full bg-white/60 backdrop-blur-[2px] text-[#4B4456] flex items-center justify-center hover:bg-white/85 disabled:opacity-30"
+            disabled={zoom <= 1}
+            onClick={() => zoomBy(-0.2)}
+          >
+            <Minus className="h-3.5 w-3.5" />
+          </button>
+          <button
+            aria-label="Zoom avant"
+            className="h-6 w-6 rounded-full bg-white/60 backdrop-blur-[2px] text-[#4B4456] flex items-center justify-center hover:bg-white/85 disabled:opacity-30"
+            disabled={zoom >= 2.5}
+            onClick={() => zoomBy(0.2)}
+          >
+            <Plus className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
 
       {pages.length > 1 && (
         <>
