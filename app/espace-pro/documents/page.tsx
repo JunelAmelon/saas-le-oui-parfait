@@ -7,7 +7,6 @@ import { useVendorData } from '@/contexts/VendorDataContext';
 import { VendorDashboardLayout } from '@/components/layout/VendorDashboardLayout';
 import { getVendorBookings, getBookingProDocuments, formatFrenchDate, VendorBooking, ProDocument } from '@/lib/vendor-helpers';
 import { getDocuments } from '@/lib/db';
-import { DocViewerModal } from '@/components/DocViewerModal';
 import {
   Loader2,
   FileText,
@@ -67,7 +66,6 @@ export default function VendorDocumentsPage() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
-  const [docView, setDocView] = useState<{ url: string; name: string; fileType?: string | null } | null>(null);
 
   useEffect(() => {
     if (!authLoading) {
@@ -318,9 +316,7 @@ export default function VendorDocumentsPage() {
 
                       {d.file_url ? (
                         <button
-                          onClick={() =>
-                            setDocView({ url: d.file_url, name: d.name })
-                          }
+                          onClick={() => window.open(d.file_url, '_blank')}
                           title="Ouvrir"
                           className="shrink-0 w-9 h-9 rounded-full bg-white/70 hover:bg-white flex items-center justify-center text-brand-purple hover:text-brand-turquoise-hover transition-colors shadow-sm"
                         >
@@ -341,14 +337,6 @@ export default function VendorDocumentsPage() {
           </div>
         )}
       </div>
-
-      <DocViewerModal
-        open={!!docView}
-        onOpenChange={(o) => !o && setDocView(null)}
-        url={docView?.url}
-        name={docView?.name}
-        fileType={docView?.fileType}
-      />
     </VendorDashboardLayout>
   );
 }

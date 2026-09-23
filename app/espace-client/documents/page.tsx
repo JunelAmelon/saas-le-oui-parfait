@@ -28,7 +28,6 @@ import {
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useClientData } from '@/contexts/ClientDataContext';
-import { DocViewerModal } from '@/components/DocViewerModal';
 import { calculateDaysRemaining, getClientDevis } from '@/lib/client-helpers';
 import { getDocument, getDocuments, addDocument, updateDocument } from '@/lib/db';
 import { uploadFile, uploadPdf } from '@/lib/storage';
@@ -489,14 +488,12 @@ export default function DocumentsPage() {
     }
   };
 
-  const [docView, setDocView] = useState<{ url: string; name: string; fileType?: string | null } | null>(null);
-
   const handleOpenFile = (doc: DocumentItem) => {
     if (!doc.file_url) {
       toast.error('Aucun fichier disponible');
       return;
     }
-    setDocView({ url: doc.file_url, name: doc.name, fileType: doc.file_type });
+    window.open(doc.file_url, '_blank');
   };
 
   const isAllowedFile = (file: File) => {
@@ -949,14 +946,6 @@ export default function DocumentsPage() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
-
-        <DocViewerModal
-          open={!!docView}
-          onOpenChange={(o) => !o && setDocView(null)}
-          url={docView?.url}
-          name={docView?.name}
-          fileType={docView?.fileType}
-        />
       </div>
     </ClientDashboardLayout>
   );

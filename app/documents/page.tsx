@@ -44,7 +44,6 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { useAuth } from '@/contexts/AuthContext';
 import { getDocuments, updateDocument } from '@/lib/db';
-import { DocViewerModal } from '@/components/DocViewerModal';
 import { toast } from 'sonner';
 
 export default function DocumentsPage() {
@@ -70,7 +69,6 @@ export default function DocumentsPage() {
   const [editName, setEditName] = useState('');
   const [editType, setEditType] = useState('contrat');
   const [deletingDocId, setDeletingDocId] = useState<string | null>(null);
-  const [docView, setDocView] = useState<{ url: string; name: string; fileType?: string | null } | null>(null);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
@@ -183,7 +181,7 @@ export default function DocumentsPage() {
 
   const handleViewDocument = (doc: any) => {
     if (doc.file_url) {
-      setDocView({ url: doc.file_url, name: doc.name || 'Document', fileType: doc.file_type });
+      window.open(doc.file_url, '_blank');
     } else {
       toast.error('Aucun fichier disponible');
     }
@@ -205,8 +203,8 @@ export default function DocumentsPage() {
           toast.success('Document téléchargé');
         })
         .catch(() => {
-          setDocView({ url: doc.file_url, name: doc.name || 'Document', fileType: doc.file_type });
-          toast.info('Document ouvert dans la visionneuse');
+          window.open(doc.file_url, '_blank');
+          toast.info('Document ouvert dans un nouvel onglet');
         });
     } else {
       toast.error('Aucun fichier disponible');
@@ -633,14 +631,6 @@ export default function DocumentsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      <DocViewerModal
-        open={!!docView}
-        onOpenChange={(o) => !o && setDocView(null)}
-        url={docView?.url}
-        name={docView?.name}
-        fileType={docView?.fileType}
-      />
     </DashboardLayout>
   );
 }

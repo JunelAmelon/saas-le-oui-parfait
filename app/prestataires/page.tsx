@@ -51,7 +51,6 @@ import { useAuth } from '@/contexts/AuthContext';
 import { getDocuments, addDocument, updateDocument, deleteDocument } from '@/lib/db';
 import { VENDOR_CATEGORIES, getCategoryLabel, getCategoryColor } from '@/lib/discovery';
 import { uploadFile } from '@/lib/storage';
-import { DocViewerModal } from '@/components/DocViewerModal';
 import { toast } from 'sonner';
 import axios from 'axios';
 import { auth } from '@/lib/firebase';
@@ -93,7 +92,6 @@ export default function VendorsPage() {
   const [docFiles, setDocFiles] = useState<File[]>([]);
   const [vendorDocs, setVendorDocs] = useState<any[]>([]);
   const [deletingDocId, setDeletingDocId] = useState<string | null>(null);
-  const [docView, setDocView] = useState<{ url: string; name: string; fileType?: string | null } | null>(null);
   const [invitingVendorId, setInvitingVendorId] = useState<string | null>(null);
   const [migrating, setMigrating] = useState(false);
   const [deletingVendorId, setDeletingVendorId] = useState<string | null>(null);
@@ -770,7 +768,7 @@ export default function VendorsPage() {
                         key={d.id}
                         type="button"
                         className="w-full flex items-center gap-2.5 rounded-xl bg-[#FAF9F7] hover:bg-brand-turquoise/10 px-3 py-2.5 text-[13px] text-brand-purple transition-colors text-left"
-                        onClick={() => setDocView({ url: d.file_url, name: d.name, fileType: d.file_type })}
+                        onClick={() => window.open(d.file_url, '_blank')}
                       >
                         <div className="w-7 h-7 rounded-full bg-brand-turquoise/15 flex items-center justify-center shrink-0">
                           <FileText className="h-3.5 w-3.5 text-brand-turquoise" />
@@ -1122,7 +1120,7 @@ export default function VendorsPage() {
                           type="button"
                           className="p-1 text-brand-turquoise hover:bg-brand-turquoise/10 rounded"
                           title="Voir"
-                          onClick={() => setDocView({ url: d.file_url, name: d.name, fileType: d.file_type })}
+                          onClick={() => window.open(d.file_url, '_blank')}
                         >
                           <Eye className="h-3.5 w-3.5" />
                         </button>
@@ -1162,14 +1160,6 @@ export default function VendorsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      <DocViewerModal
-        open={!!docView}
-        onOpenChange={(o) => !o && setDocView(null)}
-        url={docView?.url}
-        name={docView?.name}
-        fileType={docView?.fileType}
-      />
     </DashboardLayout>
   );
 }
