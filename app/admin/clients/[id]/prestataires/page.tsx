@@ -26,6 +26,7 @@ import {
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { DocViewerModal } from '@/components/DocViewerModal';
 
 function getRelativeDayLabel(dateStr: string, refStr: string | null): string | null {
   if (!refStr) return null;
@@ -98,6 +99,7 @@ export default function ClientPrestatairesAdminPage() {
   const [sendingReplyId, setSendingReplyId] = useState<string | null>(null);
   const [savingPlanning, setSavingPlanning] = useState(false);
   const [uploadingPlanning, setUploadingPlanning] = useState(false);
+  const [docView, setDocView] = useState<{ url: string; name: string; fileType?: string | null } | null>(null);
 
   const fetchAll = async (withLoading = true) => {
     if (!user?.uid || !clientId) return;
@@ -1322,9 +1324,18 @@ export default function ClientPrestatairesAdminPage() {
                     <span className="text-sm text-[#4B4456] truncate">{planningDocName || 'Document'}</span>
                   </div>
                   <div className="flex gap-1.5 shrink-0">
-                    <a href={planningDocUrl} target="_blank" rel="noopener noreferrer" className="text-[#88b7b5] hover:text-[#7aa9a7] text-xs font-medium px-2">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setDocView({
+                          url: planningDocUrl,
+                          name: planningDocName || 'Document de planning',
+                        })
+                      }
+                      className="text-[#88b7b5] hover:text-[#7aa9a7] text-xs font-medium px-2"
+                    >
                       Voir
-                    </a>
+                    </button>
                     <Button type="button" size="icon" variant="ghost" className="h-7 w-7 text-[#B9847F]" onClick={removePlanningDoc}>
                       <X className="h-3.5 w-3.5" />
                     </Button>
@@ -1385,6 +1396,14 @@ export default function ClientPrestatairesAdminPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <DocViewerModal
+        open={!!docView}
+        onOpenChange={(o) => !o && setDocView(null)}
+        url={docView?.url}
+        name={docView?.name}
+        fileType={docView?.fileType}
+      />
     </DashboardLayout>
   );
 }

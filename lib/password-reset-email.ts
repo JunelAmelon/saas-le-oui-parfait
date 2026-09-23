@@ -1,5 +1,6 @@
-import { adminAuth } from '@/lib/firebase-admin';
+import { adminAuth, adminDb } from '@/lib/firebase-admin';
 import nodemailer from 'nodemailer';
+import crypto from 'crypto';
 import { buildBrandedEmail } from '@/lib/email-template';
 
 export function createMailTransport() {
@@ -53,19 +54,63 @@ export function resolveBaseUrl(req: Request) {
  * Firebase (verifyPasswordResetCode / confirmPasswordReset), donc la page
  * Firebase générique n'intervient jamais.
  */
-export async function sendPasswordResetEmail(params: { email: string; baseUrl: string; role?: 'client' | 'vendor' | 'admin'; reason?: 'invitation' | 'forgot' }) {
+const INVITE_TTL_DAYS = 7;
+
+export async function sendPasswordResetEmail(params: {
+  email: string;
+  baseUrl: string;
+  role?: 'client' | 'vendor' | 'admin';
+  reason?: 'invitation' | 'forgot';
+  uid?: string;
+  meta?: Record<string, string>;
+}) {
   const email = params.email.trim().toLowerCase();
   const baseUrl = params.baseUrl;
   const role = params.role || 'client';
   const reason = params.reason || 'invitation';
 
-  const firebaseLink = await adminAuth.generatePasswordResetLink(email);
-  const oobCode = new URL(firebaseLink).searchParams.get('oobCode');
-  if (!oobCode) {
-    throw new Error('Unable to extract oobCode from the generated Firebase reset link');
-  }
+  // Invitations : jeton maison valide 7 jours (les oobCode Firebase expirent
+  // beaucoup trop vite pour ce cas d'usage). Le flux "forgot" garde oobCode.
+  let resetLink: string;
+  if (reason === 'invitation' && params.uid) {
+    const token = crypto.randomUUID();
+    const expiresAt = new Date(Date.now() + INVITE_TTL_DAYS * 24 * 60 * 60 * 1000);
 
-  const resetLink = `${baseUrl.replace(/\/$/, '')}/reset-password?oobCode=${encodeURIComponent(oobCode)}`;
+    // Les invitations precedentes non utilisees pour cet email sont annulees
+    try {
+      const prev = await adminDb
+        .collection('invites')
+        .where('email', '==', email)
+        .where('used_at', '==', null)
+        .get();
+      const batch = adminDb.batch();
+      prev.docs.forEach((d) => batch.update(d.ref, { superseded: true }));
+      if (!prev.empty) await batch.commit();
+    } catch {
+      // non bloquant
+    }
+
+    await adminDb.collection('invites').doc(token).set({
+      token,
+      email,
+      uid: params.uid,
+      role,
+      meta: params.meta || {},
+      created_at: new Date().toISOString(),
+      expires_at: expiresAt.toISOString(),
+      used_at: null,
+      superseded: false,
+    });
+
+    resetLink = `${baseUrl.replace(/\/$/, '')}/reset-password?invite=${encodeURIComponent(token)}`;
+  } else {
+    const firebaseLink = await adminAuth.generatePasswordResetLink(email);
+    const oobCode = new URL(firebaseLink).searchParams.get('oobCode');
+    if (!oobCode) {
+      throw new Error('Unable to extract oobCode from the generated Firebase reset link');
+    }
+    resetLink = `${baseUrl.replace(/\/$/, '')}/reset-password?oobCode=${encodeURIComponent(oobCode)}`;
+  }
 
   const from = process.env.SMTP_FROM || process.env.SMTP_USER;
   if (!from) throw new Error('Missing SMTP_FROM');
@@ -86,7 +131,7 @@ export async function sendPasswordResetEmail(params: { email: string; baseUrl: s
   } else {
     subject = `Accès à votre ${spaceLabel} - leouiparfait`;
     title = `Accès à votre ${spaceLabel}`;
-    text = `Bonjour,\n\nVotre accès à l'${spaceLabel} est prêt.\n\nCliquez sur le bouton ci-dessous pour définir votre mot de passe.`;
+    text = `Bonjour,\n\nVotre accès à l'${spaceLabel} est prêt.\n\nCliquez sur le bouton ci-dessous pour définir votre mot de passe. Ce lien est valable ${INVITE_TTL_DAYS} jours.`;
     ctaLabel = 'Définir mon mot de passe';
   }
 

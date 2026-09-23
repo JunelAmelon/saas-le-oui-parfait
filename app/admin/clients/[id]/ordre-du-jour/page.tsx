@@ -62,31 +62,30 @@ export default function ClientOrdreDuJourPage() {
     void fetchAll();
   }, [clientId, user?.uid]);
 
-  const sendToVendors = async (pdfBlob: Blob) => {
+  const sendToVendors = async () => {
     if (!clientId || !user?.uid || !eventId) {
-      toast.error("Impossible d'envoyer le planning");
+      toast.error('Impossible de partager le planning');
       return;
     }
     try {
-      toast.info('Génération et envoi du planning...');
+      toast.info('Partage du planning en cours...');
       await sendWeddingDayPdfToVendors({
         clientId,
         plannerId: user.uid,
         eventId,
         coupleNames: event?.couple_names || '',
-        pdfBlob,
       });
-      toast.success('Planning envoyé aux prestataires');
+      toast.success('Planning partagé aux prestataires');
     } catch (e: any) {
-      console.error('Error sending planning to vendors:', e);
-      toast.error(e?.message || "Erreur lors de l'envoi aux prestataires");
+      console.error('Error sharing planning to vendors:', e);
+      toast.error(e?.message || 'Erreur lors du partage aux prestataires');
     }
   };
 
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <PageHeader title="Ordre du jour J" description="Planning horaire complet du mariage">
+        <PageHeader title="Planning du jour J" description="Déroulé horaire complet du mariage">
           <Button variant="outline" onClick={() => router.back()} className="w-full sm:w-auto gap-2">
             <ArrowLeft className="h-4 w-4" />
             Retour
@@ -138,7 +137,7 @@ export default function ClientOrdreDuJourPage() {
                       console.error('Error syncing vendor planning:', e);
                     }
                   }
-                  toast.success('Ordre du jour enregistré');
+                  toast.success('Planning du jour enregistré');
                 } catch (e) {
                   console.error('Error saving wedding timeline:', e);
                   toast.error('Erreur lors de la sauvegarde');

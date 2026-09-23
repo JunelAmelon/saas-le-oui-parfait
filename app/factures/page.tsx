@@ -31,6 +31,7 @@ import { Invoice, Payment } from '@/types/invoice';
 import { deleteDocument, getDocuments, getDocument } from '@/lib/db';
 import { CreateInvoiceModal } from '@/components/modals/CreateInvoiceModal';
 import { ViewInvoiceModal } from '@/components/modals/ViewInvoiceModal';
+import { DocViewerModal } from '@/components/DocViewerModal';
 import { ValidatePaymentModal } from '@/components/modals/ValidatePaymentModal';
 import { useToast } from '@/hooks/use-toast';
 
@@ -50,6 +51,7 @@ export default function FacturesPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [pendingPage, setPendingPage] = useState(1);
   const [deletingInvoiceId, setDeletingInvoiceId] = useState<string | null>(null);
+  const [docView, setDocView] = useState<{ url: string; name: string; fileType?: string | null } | null>(null);
 
   const handleDeleteInvoice = async (invoice: Invoice) => {
     if (!invoice?.id) return;
@@ -353,14 +355,30 @@ export default function FacturesPage() {
                             </DropdownMenuItem>
 
                             {invoice.file_url && (
-                              <DropdownMenuItem onClick={() => window.open(invoice.file_url!, '_blank')}>
+                              <DropdownMenuItem
+                                onClick={() =>
+                                  setDocView({
+                                    url: invoice.file_url!,
+                                    name: `Facture ${invoice.number || invoice.label || ''}`.trim(),
+                                    fileType: 'application/pdf',
+                                  })
+                                }
+                              >
                                 <FileText className="mr-2 h-4 w-4" />
                                 Voir / Télécharger facture
                               </DropdownMenuItem>
                             )}
 
                             {invoice.devis_url && (
-                              <DropdownMenuItem onClick={() => window.open(invoice.devis_url!, '_blank')}>
+                              <DropdownMenuItem
+                                onClick={() =>
+                                  setDocView({
+                                    url: invoice.devis_url!,
+                                    name: `Devis ${invoice.number || invoice.label || ''}`.trim(),
+                                    fileType: 'application/pdf',
+                                  })
+                                }
+                              >
                                 <FileText className="mr-2 h-4 w-4" />
                                 Voir / Télécharger devis
                               </DropdownMenuItem>
@@ -553,6 +571,14 @@ export default function FacturesPage() {
           onSuccess={fetchData}
         />
       )}
+
+      <DocViewerModal
+        open={!!docView}
+        onOpenChange={(o) => !o && setDocView(null)}
+        url={docView?.url}
+        name={docView?.name}
+        fileType={docView?.fileType}
+      />
     </DashboardLayout>
   );
 }

@@ -17,6 +17,7 @@ import { Search, Plus, FileText, Download, Eye, Edit, CheckCircle, Clock, XCircl
 import { useState, useEffect } from 'react';
 import { ContractModal } from '@/components/modals/ContractModal';
 import { NewContractModal } from '@/components/modals/NewContractModal';
+import { DocViewerModal } from '@/components/DocViewerModal';
 import { useAuth } from '@/contexts/AuthContext';
 import { getDocuments } from '@/lib/db';
 import { toast } from 'sonner';
@@ -81,6 +82,7 @@ export default function ContractsPage() {
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [deletingContractId, setDeletingContractId] = useState<string | null>(null);
+  const [docView, setDocView] = useState<{ url: string; name: string; fileType?: string | null } | null>(null);
   const contractsPerPage = 3;
 
   const syncedEnvelopeIdsRef = useRef<Set<string>>(new Set());
@@ -205,8 +207,11 @@ export default function ContractsPage() {
 
   const handleViewContract = (contract: Contract) => {
     if (contract.pdfUrl) {
-      window.open(contract.pdfUrl, '_blank');
-      toast.success('Ouverture du PDF');
+      setDocView({
+        url: contract.pdfUrl,
+        name: `${contract.reference} — ${contract.title}`,
+        fileType: 'application/pdf',
+      });
     } else if (contract.contractContent) {
       setSelectedContract(contract);
       setIsViewModalOpen(true);
@@ -232,9 +237,13 @@ export default function ContractsPage() {
           toast.success('PDF téléchargé');
         })
         .catch(() => {
-          // Fallback: ouvrir dans un nouvel onglet
-          window.open(contract.pdfUrl, '_blank');
-          toast.info('PDF ouvert dans un nouvel onglet');
+          // Fallback: ouvrir dans la visionneuse intégrée
+          setDocView({
+            url: contract.pdfUrl!,
+            name: `${contract.reference} — ${contract.title}`,
+            fileType: 'application/pdf',
+          });
+          toast.info('PDF ouvert dans la visionneuse');
         });
     } else {
       toast.error('Aucun PDF disponible pour ce contrat');
@@ -695,6 +704,14 @@ export default function ContractsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <DocViewerModal
+        open={!!docView}
+        onOpenChange={(o) => !o && setDocView(null)}
+        url={docView?.url}
+        name={docView?.name}
+        fileType={docView?.fileType}
+      />
     </DashboardLayout>
   );
 }

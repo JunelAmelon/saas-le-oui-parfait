@@ -407,7 +407,7 @@ export function WeddingDayTimelineDocument({ items, coupleNames, eventDate, loca
           <View style={styles.sceau}>
             <Text style={styles.sceauText}>{initialsOf(coupleNames)}</Text>
           </View>
-          <Text style={styles.surtitre}>DÉROULÉ DU JOUR J</Text>
+          <Text style={styles.surtitre}>PLANNING DU JOUR J</Text>
           <Text style={styles.maries}>{coupleNames}</Text>
           {lieuDate ? <Text style={styles.lieuDate}>{lieuDate}</Text> : null}
           <View style={styles.filetTop} />

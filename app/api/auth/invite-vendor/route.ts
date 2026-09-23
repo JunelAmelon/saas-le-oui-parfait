@@ -104,7 +104,13 @@ export async function POST(req: Request) {
     }
 
     const baseUrl = resolveBaseUrl(req);
-    await sendPasswordResetEmail({ email, baseUrl, role: 'vendor' });
+    await sendPasswordResetEmail({
+      email,
+      baseUrl,
+      role: 'vendor',
+      uid,
+      meta: { vendor_id: vendorId, planner_id: plannerId },
+    });
 
     return NextResponse.json({ ok: true, uid, alreadyExists });
   } catch (e: any) {

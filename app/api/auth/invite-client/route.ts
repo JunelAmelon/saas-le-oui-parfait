@@ -57,7 +57,7 @@ export async function POST(req: Request) {
     }
 
     const baseUrl = resolveBaseUrl(req);
-    await sendPasswordResetEmail({ email, baseUrl });
+    await sendPasswordResetEmail({ email, baseUrl, uid });
 
     return NextResponse.json({ ok: true, uid });
   } catch (e: any) {

@@ -23,6 +23,7 @@ export default function ResetPasswordPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const oobCode = searchParams.get('oobCode') || '';
+  const inviteToken = searchParams.get('invite') || '';
 
   const [status, setStatus] = useState<Status>('checking');
   const [email, setEmail] = useState('');
@@ -34,6 +35,22 @@ export default function ResetPasswordPage() {
   const [resendStatus, setResendStatus] = useState<'idle' | 'sending' | 'sent'>('idle');
 
   useEffect(() => {
+    // Invitation maison (valide 7 jours) — verification via l'API
+    if (inviteToken) {
+      fetch(`/api/auth/accept-invite?token=${encodeURIComponent(inviteToken)}`)
+        .then(async (res) => {
+          const json = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(json?.error || 'invalid');
+          setEmail(String(json.email || ''));
+          setStatus('ready');
+        })
+        .catch(() => {
+          setStatus('invalid');
+          setError('Ce lien a expiré ou a déjà été utilisé. Demandez un nouveau lien.');
+        });
+      return;
+    }
+
     if (!oobCode) {
       setStatus('invalid');
       setError('Ce lien est invalide ou incomplet.');
@@ -49,7 +66,7 @@ export default function ResetPasswordPage() {
         setStatus('invalid');
         setError('Ce lien a expiré ou a déjà été utilisé. Demandez un nouveau lien.');
       });
-  }, [oobCode]);
+  }, [oobCode, inviteToken]);
 
   useEffect(() => {
     if (status !== 'success') return;
@@ -90,6 +107,26 @@ export default function ResetPasswordPage() {
 
     setStatus('submitting');
     try {
+      if (inviteToken) {
+        const res = await fetch('/api/auth/accept-invite', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token: inviteToken, password }),
+        });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          if (json?.error === 'weak_password') {
+            setError('Le mot de passe doit contenir au moins 6 caractères.');
+            setStatus('ready');
+          } else {
+            setError('Ce lien a expiré ou a déjà été utilisé. Demandez un nouveau lien.');
+            setStatus('invalid');
+          }
+          return;
+        }
+        setStatus('success');
+        return;
+      }
       await confirmPasswordReset(auth, oobCode, password);
       setStatus('success');
     } catch (err: any) {

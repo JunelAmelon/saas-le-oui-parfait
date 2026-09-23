@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { FileText, Download, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { getClientDocuments, DocumentData } from '@/lib/client-helpers';
+import { DocViewerModal } from '@/components/DocViewerModal';
 import { Loader2 } from 'lucide-react';
 
 interface DocumentsProps {
@@ -14,6 +15,7 @@ interface DocumentsProps {
 export function ClientDocuments({ eventId, clientId }: DocumentsProps) {
   const [documents, setDocuments] = useState<DocumentData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [docView, setDocView] = useState<{ url: string; name: string; fileType?: string | null } | null>(null);
 
   const parseDocDate = (doc: any) => {
     const raw = doc?.created_timestamp || doc?.uploaded_at || doc?.date || '';
@@ -107,7 +109,7 @@ export function ClientDocuments({ eventId, clientId }: DocumentsProps) {
                     size="icon"
                     variant="ghost"
                     className="h-8 w-8 text-[#5A5A5A] hover:text-[#4B4456] hover:bg-[rgba(75,68,86,0.07)]"
-                    onClick={() => window.open(doc.file_url, '_blank')}
+                    onClick={() => setDocView({ url: doc.file_url, name: doc.name, fileType: doc.file_type })}
                     title="Visualiser"
                   >
                     <Eye className="h-4 w-4" />
@@ -116,7 +118,7 @@ export function ClientDocuments({ eventId, clientId }: DocumentsProps) {
                     size="icon"
                     variant="ghost"
                     className="h-8 w-8 text-[#5A5A5A] hover:text-[#4B4456] hover:bg-[rgba(75,68,86,0.07)]"
-                    onClick={() => window.open(doc.file_url, '_blank')}
+                    onClick={() => setDocView({ url: doc.file_url, name: doc.name, fileType: doc.file_type })}
                     title="Télécharger"
                   >
                     <Download className="h-4 w-4" />
@@ -126,6 +128,13 @@ export function ClientDocuments({ eventId, clientId }: DocumentsProps) {
             </div>
           ))}
       </div>
+      <DocViewerModal
+        open={!!docView}
+        onOpenChange={(o) => !o && setDocView(null)}
+        url={docView?.url}
+        name={docView?.name}
+        fileType={docView?.fileType}
+      />
     </div>
   );
 }

@@ -93,6 +93,19 @@ export const VENDOR_CATEGORIES = [
   { key: 'accommodation', label: 'Hébergement', color: 'bg-teal-500' },
   { key: 'rings', label: 'Alliances / Bijoux', color: 'bg-yellow-600' },
   { key: 'stationery', label: 'Papeterie / Faire-part', color: 'bg-sky-500' },
+  { key: 'officiant', label: 'Officiant de cérémonie', color: 'bg-violet-500' },
+  { key: 'wedding_planner', label: 'Wedding planner / Coordinateur', color: 'bg-purple-600' },
+  { key: 'babysitter', label: 'Baby-sitter / Garde d\'enfants', color: 'bg-lime-500' },
+  { key: 'photobooth', label: 'Photobooth / Borne à selfies', color: 'bg-cyan-400' },
+  { key: 'bar_cocktails', label: 'Bar à cocktails / Barman', color: 'bg-amber-600' },
+  { key: 'magician', label: 'Magicien / Mentaliste', color: 'bg-indigo-600' },
+  { key: 'sound_light', label: 'Sonorisation / Éclairage', color: 'bg-orange-600' },
+  { key: 'food_truck', label: 'Food truck', color: 'bg-red-400' },
+  { key: 'gospel_choir', label: 'Chorale / Gospel', color: 'bg-emerald-600' },
+  { key: 'fireworks', label: 'Feu d\'artifice', color: 'bg-rose-600' },
+  { key: 'vintage_car', label: 'Voiture de collection / Chauffeur', color: 'bg-slate-600' },
+  { key: 'stylist', label: 'Styliste / Wedding designer', color: 'bg-fuchsia-600' },
+  { key: 'fire_dancer', label: 'Cracheur de feu / Artiste de rue', color: 'bg-orange-400' },
   { key: 'other', label: 'Autre', color: 'bg-gray-500' },
 ];
 
@@ -110,7 +123,16 @@ export function getCategoryLabel(category?: string | null): string {
 }
 
 export function getCategoryColor(category?: string | null): string {
-  return VENDOR_CATEGORIES.find((c) => c.key === category)?.color || 'bg-gray-500';
+  if (!category) return 'bg-gray-400';
+  const byKey = VENDOR_CATEGORIES.find((c) => c.key === category);
+  if (byKey) return byKey.color;
+  const lower = category.toLowerCase();
+  const byKeyLower = VENDOR_CATEGORIES.find((c) => c.key.toLowerCase() === lower);
+  if (byKeyLower) return byKeyLower.color;
+  const byLabel = VENDOR_CATEGORIES.find((c) => c.label.toLowerCase() === lower);
+  if (byLabel) return byLabel.color;
+  // Catégorie libre saisie par le planner — turquoise de la DA
+  return 'bg-brand-turquoise';
 }
 
 export const ANIMATION_OPTIONS = [

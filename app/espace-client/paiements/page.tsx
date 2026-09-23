@@ -21,6 +21,7 @@ import { useClientData } from '@/contexts/ClientDataContext';
 import { Invoice } from '@/types/invoice';
 import { getDocuments, getDocument } from '@/lib/db';
 import { ClientPaymentModal } from '@/components/modals/ClientPaymentModal';
+import { DocViewerModal } from '@/components/DocViewerModal';
 import {
   Euro,
   CreditCard,
@@ -39,8 +40,19 @@ import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 
 function DownloadDocs({ invoice, small = false }: { invoice: Invoice; small?: boolean }) {
+  const [docView, setDocView] = useState<{ url: string; name: string; fileType?: string | null } | null>(null);
   const hasInvoice = !!invoice.file_url;
   const hasDevis = !!invoice.devis_url;
+
+  const viewer = (
+    <DocViewerModal
+      open={!!docView}
+      onOpenChange={(o) => !o && setDocView(null)}
+      url={docView?.url}
+      name={docView?.name}
+      fileType={docView?.fileType}
+    />
+  );
 
   if (!hasInvoice && !hasDevis) return null;
 
@@ -60,35 +72,60 @@ function DownloadDocs({ invoice, small = false }: { invoice: Invoice; small?: bo
   if ((hasInvoice && !hasDevis) || (!hasInvoice && hasDevis)) {
     const url = hasInvoice ? invoice.file_url! : invoice.devis_url!;
     const label = hasInvoice ? 'Télécharger la facture' : 'Télécharger le devis';
+    const name = hasInvoice
+      ? `Facture ${invoice.number || invoice.label || ''}`.trim()
+      : `Devis ${invoice.number || invoice.label || ''}`.trim();
     return (
-      <button
-        onClick={() => window.open(url, '_blank')}
-        title={label}
-        className="flex flex-col items-center gap-2 group"
-      >
-        {buttonBody}
-      </button>
+      <>
+        <button
+          onClick={() => setDocView({ url, name, fileType: 'application/pdf' })}
+          title={label}
+          className="flex flex-col items-center gap-2 group"
+        >
+          {buttonBody}
+        </button>
+        {viewer}
+      </>
     );
   }
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button className="flex flex-col items-center gap-2 group outline-none">
-          {buttonBody}
-        </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="center">
-        <DropdownMenuItem onClick={() => window.open(invoice.file_url!, '_blank')}>
-          <FileText className="h-4 w-4 mr-2" />
-          Facture
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => window.open(invoice.devis_url!, '_blank')}>
-          <FileText className="h-4 w-4 mr-2" />
-          Devis
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button className="flex flex-col items-center gap-2 group outline-none">
+            {buttonBody}
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="center">
+          <DropdownMenuItem
+            onClick={() =>
+              setDocView({
+                url: invoice.file_url!,
+                name: `Facture ${invoice.number || invoice.label || ''}`.trim(),
+                fileType: 'application/pdf',
+              })
+            }
+          >
+            <FileText className="h-4 w-4 mr-2" />
+            Facture
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={() =>
+              setDocView({
+                url: invoice.devis_url!,
+                name: `Devis ${invoice.number || invoice.label || ''}`.trim(),
+                fileType: 'application/pdf',
+              })
+            }
+          >
+            <FileText className="h-4 w-4 mr-2" />
+            Devis
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      {viewer}
+    </>
   );
 }
 

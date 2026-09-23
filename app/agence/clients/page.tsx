@@ -1173,7 +1173,7 @@ export default function ClientFilesPage() {
                   onClick={handleGoToOrdreDuJour}
                 >
                   <ListOrdered className="h-4 w-4" />
-                  Ordre du jour J
+                  Planning du jour J
                 </Button>
                 <Button
                   variant="outline"

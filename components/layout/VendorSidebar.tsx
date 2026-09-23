@@ -11,6 +11,7 @@ import {
   Menu,
   X,
   MessageSquare,
+  FileText,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useState, useEffect } from 'react';
@@ -29,6 +30,7 @@ const vendorMenuItems: MenuItem[] = [
   { label: 'Tableau de bord', icon: LayoutDashboard, href: '/espace-pro' },
   { label: 'Mariages', icon: Calendar, href: '/espace-pro/mariages' },
   { label: 'Messages', icon: MessageSquare, href: '/espace-pro/messages' },
+  { label: 'Documents', icon: FileText, href: '/espace-pro/documents' },
 ];
 
 export function VendorSidebar() {

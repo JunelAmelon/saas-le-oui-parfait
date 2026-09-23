@@ -30,6 +30,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { DocViewerModal } from '@/components/DocViewerModal';
 
 function getPhotoUrls(p: any): { url: string; thumb: string } {
   if (typeof p === 'string') {
@@ -76,6 +77,7 @@ export default function ClientGalleryAdminPage() {
   const [movingPhoto, setMovingPhoto] = useState<any>(null);
   const [targetAlbumId, setTargetAlbumId] = useState('');
   const [moving, setMoving] = useState(false);
+  const [docView, setDocView] = useState<{ url: string; name: string; fileType?: string | null } | null>(null);
 
   useEffect(() => {
     async function fetchAll() {
@@ -549,7 +551,13 @@ export default function ClientGalleryAdminPage() {
                             size="icon"
                             variant="ghost"
                             className="text-white hover:bg-white/10"
-                            onClick={() => window.open(p.url, '_blank')}
+                            onClick={() =>
+                              setDocView({
+                                url: p.url,
+                                name: p.albumName || 'Photo',
+                                fileType: 'image/*',
+                              })
+                            }
                           >
                             <ExternalLink className="h-4 w-4" />
                           </Button>
@@ -676,6 +684,14 @@ export default function ClientGalleryAdminPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <DocViewerModal
+        open={!!docView}
+        onOpenChange={(o) => !o && setDocView(null)}
+        url={docView?.url}
+        name={docView?.name}
+        fileType={docView?.fileType}
+      />
     </DashboardLayout>
   );
 }

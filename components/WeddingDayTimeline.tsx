@@ -113,7 +113,7 @@ interface WeddingDayTimelineProps {
   allowPdf?: boolean;
   allowSend?: boolean;
   onChange?: (items: WeddingDayTimelineItem[]) => void;
-  onSend?: (blob: Blob) => void | Promise<void>;
+  onSend?: () => void | Promise<void>;
   onFetchRecipients?: () => Promise<WeddingDayRecipient[]>;
   vendorOptions?: string[];
 }
@@ -287,7 +287,7 @@ export function WeddingDayTimeline({
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `ordre-du-jour-${coupleNames || 'mariage'}.pdf`;
+    a.download = `planning-du-jour-j-${coupleNames || 'mariage'}.pdf`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -318,9 +318,7 @@ export function WeddingDayTimeline({
   };
 
   const doSend = async () => {
-    const blob = await generatePdfBlob();
-    if (!blob) return;
-    await Promise.resolve(onSend?.(blob));
+    await Promise.resolve(onSend?.());
     setSendConfirmOpen(false);
   };
 
@@ -332,7 +330,7 @@ export function WeddingDayTimeline({
         <>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h3 className="font-baskerville text-lg text-[#4B4456]">Ordre du jour J</h3>
+              <h3 className="font-baskerville text-lg text-[#4B4456]">Planning du jour J</h3>
               <p className="text-[12px] text-[#9C97A3]">
                 {dirty ? 'Modifications en cours — pensez à sauvegarder' : 'Planning à jour'}
               </p>
@@ -584,7 +582,7 @@ export function WeddingDayTimeline({
         {allowSend && onSend && (
           <Button onClick={() => void sendPdf()} disabled={loadingPdf || loadingRecipients} className="bg-[#88b7b5] hover:bg-[#6a9a98] text-white gap-2">
             {loadingPdf || loadingRecipients ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-            Envoyer aux prestataires
+            Partager le planning
           </Button>
         )}
       </div>
@@ -594,7 +592,7 @@ export function WeddingDayTimeline({
       {!editable && (
         <div className="space-y-3">
           <div className="flex items-center justify-between gap-3">
-            <h3 className="font-baskerville text-lg text-[#4B4456]">Ordre du jour J</h3>
+            <h3 className="font-baskerville text-lg text-[#4B4456]">Planning du jour J</h3>
             <div className="flex items-center gap-2">
               {isMobile && (
                 <Button
@@ -638,7 +636,7 @@ export function WeddingDayTimeline({
         <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
           <DialogContent className="w-[100vw] h-[100dvh] max-w-none rounded-none p-2 flex flex-col overflow-hidden sm:w-[98vw] sm:h-auto sm:max-w-6xl sm:max-h-[95vh] sm:rounded-xl sm:p-4 gap-2">
             <DialogHeader className="shrink-0">
-              <DialogTitle>Aperçu — Ordre du jour J</DialogTitle>
+              <DialogTitle>Aperçu — Planning du jour J</DialogTitle>
             </DialogHeader>
             <div className="flex-1 min-h-0 overflow-y-auto">
               <WeddingDayTimelinePages
@@ -656,10 +654,10 @@ export function WeddingDayTimeline({
       <Dialog open={sendConfirmOpen} onOpenChange={setSendConfirmOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Envoyer l&apos;ordre du jour</DialogTitle>
+            <DialogTitle>Partager le planning du jour J</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-[#6B5E53]">
-            Votre planning sera envoyé aux prestataires assignés au mariage
+            Votre planning sera partagé avec les prestataires assignés au mariage
             {coupleNames ? ` de ${coupleNames}` : ''} :
           </p>
           <div className="rounded-xl border border-[#C9A96E]/40 bg-[#FBF6EC] px-4 py-3">
@@ -668,7 +666,7 @@ export function WeddingDayTimeline({
             </p>
             <p className="text-[12px] text-[#6B5E53] leading-relaxed">
               Vérifiez les horaires, les lieux et les adresses de chaque moment.
-              Cette version sera envoyée telle quelle aux prestataires et remplacera
+              Cette version sera partagée telle quelle avec les prestataires et remplacera
               la précédente. Ils recevront une notification et un email.
             </p>
           </div>
@@ -707,7 +705,7 @@ export function WeddingDayTimeline({
       <Dialog open={docOpen} onOpenChange={setDocOpen}>
         <DialogContent className="max-w-none w-[100vw] h-[100dvh] rounded-none p-2 flex flex-col gap-2">
           <DialogHeader className="px-1">
-            <DialogTitle className="text-left">Ordre du jour J — document</DialogTitle>
+            <DialogTitle className="text-left">Planning du jour J — document</DialogTitle>
           </DialogHeader>
           <div className="flex-1 min-h-0 overflow-y-auto">
             <WeddingDayTimelinePages
@@ -731,8 +729,8 @@ export function WeddingDayTimeline({
           </DialogHeader>
           <p className="text-sm text-[#6B5E53]">
             {deleteIdx !== null && localItems[deleteIdx]
-              ? `« ${localItems[deleteIdx].title || 'Moment sans titre'} » sera retiré de l'ordre du jour.`
-              : 'Ce moment sera retiré de l\'ordre du jour.'}
+              ? `« ${localItems[deleteIdx].title || 'Moment sans titre'} » sera retiré du planning du jour.`
+              : 'Ce moment sera retiré du planning du jour.'}
           </p>
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="outline" onClick={() => setDeleteIdx(null)}>
@@ -756,7 +754,7 @@ export function WeddingDayTimeline({
             <DialogTitle>Modifications non sauvegardées</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-[#6B5E53]">
-            Des modifications sont en cours sur l&apos;ordre du jour. Sauvegardez-les d&apos;abord avant d&apos;envoyer le planning aux prestataires.
+            Des modifications sont en cours sur le planning du jour. Sauvegardez-les d&apos;abord avant de partager le planning avec les prestataires.
           </p>
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="outline" onClick={() => setSaveBeforeSendOpen(false)}>

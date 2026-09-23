@@ -1,5 +1,4 @@
 import { addDocument, deleteDocument, getDocuments, updateDocument } from './db';
-import { uploadPdf } from './storage';
 import { sendEmailToUid } from './email';
 import { WeddingDayTimelineItem } from './client-helpers';
 
@@ -92,19 +91,17 @@ export async function getWeddingDayRecipients(opts: {
     .map((v) => ({ vendorId: v.vendorId, name: v.name, hasAccount: true }));
 }
 
-// Envoie le PDF de l'ordre du jour J aux prestataires assignes au mariage :
-// upload sur le storage puis creation/mise a jour des vendor_plannings
-// (la derniere version remplace l'ancienne), + notification in-app et email.
+// Partage le planning du jour J aux prestataires assignes au mariage :
+// positionne odj_shared sur leur fiche vendor_plannings (le planning s'affiche
+// alors dans l'onglet Planning de leur espace pro), + notification in-app et
+// email. Les doc_url/doc_name (documents joints manuellement) sont preserves.
 export async function sendWeddingDayPdfToVendors(opts: {
   clientId: string;
   plannerId: string;
   eventId?: string;
   coupleNames?: string;
-  pdfBlob: Blob;
 }): Promise<void> {
-  const { clientId, plannerId, eventId, coupleNames, pdfBlob } = opts;
-  const docName = `Ordre du jour - ${coupleNames || 'mariage'}.pdf`;
-  const pdfUrl = await uploadPdf(pdfBlob, `planning-jour-j-${clientId}`);
+  const { clientId, plannerId, eventId, coupleNames } = opts;
 
   // Uniquement les prestataires assignes a ce mariage, avec un compte pro.
   const recipients = (await getAssignedVendors({ clientId, plannerId, eventId })).filter(
@@ -122,8 +119,8 @@ export async function sendWeddingDayPdfToVendors(opts: {
     const data: any = {
       client_id: clientId,
       planner_id: plannerId,
-      doc_url: pdfUrl,
-      doc_name: docName,
+      odj_shared: true,
+      odj_shared_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
     if (existing?.id) {
@@ -148,24 +145,24 @@ export async function sendWeddingDayPdfToVendors(opts: {
       await addDocument('notifications', {
         recipient_id: v.uid,
         type: 'planning',
-        title: 'Ordre du jour J envoyé',
-        message: `L'ordre du jour complet du mariage de ${names} vous a été envoyé. Consultez-le dans l'onglet Planning de la fiche mariage.`,
+        title: 'Planning du jour J partagé',
+        message: `Le planning complet du jour J du mariage de ${names} vous a été partagé. Consultez-le dans l'onglet Planning de la fiche mariage.`,
         link: '/espace-pro/mariages',
         read: false,
         created_at: new Date(),
       });
     } catch (e) {
-      console.warn('Unable to notify vendor for ordre du jour:', e);
+      console.warn('Unable to notify vendor for planning du jour:', e);
     }
 
     try {
       await sendEmailToUid({
         recipientUid: v.uid,
-        subject: `Ordre du jour J - ${names} - Le Oui Parfait`,
-        text: `Bonjour,\n\nLe planning complet du mariage de ${names} (ordre du jour J) vient de vous être envoyé.\n\nConnectez-vous à votre espace pro, onglet Planning de la fiche mariage, pour le consulter et le télécharger.\n\nLe Oui Parfait`,
+        subject: `Planning du jour J - ${names} - Le Oui Parfait`,
+        text: `Bonjour,\n\nLe planning complet du jour J du mariage de ${names} vient de vous être partagé.\n\nConnectez-vous à votre espace pro, onglet Planning de la fiche mariage, pour le consulter et le télécharger.\n\nLe Oui Parfait`,
       });
     } catch (e) {
-      console.warn('Unable to send ordre du jour email:', e);
+      console.warn('Unable to send planning du jour email:', e);
     }
   }
 }

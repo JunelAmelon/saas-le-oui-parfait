@@ -46,6 +46,8 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
+import { WeddingDayTimeline } from '@/components/WeddingDayTimeline';
+import { DocViewerModal } from '@/components/DocViewerModal';
 import {
   Dialog,
   DialogContent,
@@ -113,6 +115,9 @@ export default function VendorBookingDetailPage() {
   const [modifOpen, setModifOpen] = useState(false);
   const [modifText, setModifText] = useState('');
   const [sendingModif, setSendingModif] = useState(false);
+
+  // Document viewer (in-page preview)
+  const [docView, setDocView] = useState<{ url: string; name: string; fileType?: string | null } | null>(null);
 
   // Question per slot
   const [questionOpen, setQuestionOpen] = useState(false);
@@ -830,7 +835,14 @@ export default function VendorBookingDetailPage() {
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" className="w-44">
                               {fileUrl && (
-                                <DropdownMenuItem onClick={() => window.open(fileUrl, '_blank')}>
+                                <DropdownMenuItem
+                                  onClick={() =>
+                                    setDocView({
+                                      url: fileUrl,
+                                      name: d.reference || (d.type === 'devis' ? 'Devis' : 'Facture'),
+                                    })
+                                  }
+                                >
                                   <Eye className="h-4 w-4 mr-2" />
                                   Voir le document
                                 </DropdownMenuItem>
@@ -1195,15 +1207,19 @@ export default function VendorBookingDetailPage() {
                       <FileText className="w-4 h-4 text-[#88b7b5]" />
                       <span className="text-[11px] font-semibold text-[#9C97A3] uppercase tracking-wide">Document de planning</span>
                     </div>
-                    <a
-                      href={planningInfo.doc_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setDocView({
+                          url: planningInfo.doc_url,
+                          name: planningInfo.doc_name || 'Document de planning',
+                        })
+                      }
                       className="inline-flex items-center gap-2 px-4 py-2.5 rounded-full bg-[rgba(136,183,181,0.1)] text-[#88b7b5] hover:bg-[rgba(136,183,181,0.18)] transition-colors text-sm font-medium"
                     >
                       <FileText className="w-4 h-4" />
-                      {planningInfo.doc_name || 'Télécharger le document'}
-                    </a>
+                      {planningInfo.doc_name || 'Voir le document'}
+                    </button>
                   </div>
                 )}
 
@@ -1253,6 +1269,29 @@ export default function VendorBookingDetailPage() {
                 </p>
               </div>
             )}
+
+            {/* Planning complet du jour J — partagé par le wedding planner,
+                meme rendu que l'espace des mariés */}
+            {planningInfo?.odj_shared &&
+              (eventInfo?.wedding_day_timeline || []).length > 0 && (
+                <div className="bg-white rounded-[18px] border border-[rgba(75,68,86,0.06)] p-3 sm:p-5">
+                  <div className="flex items-center gap-2 mb-3 px-1">
+                    <Calendar className="w-4 h-4 text-[#88b7b5]" />
+                    <span className="text-[11px] font-semibold text-[#9C97A3] uppercase tracking-wide">
+                      Planning complet du jour
+                    </span>
+                  </div>
+                  <WeddingDayTimeline
+                    items={(eventInfo.wedding_day_timeline || []).filter(
+                      (i: any) => i.visibleTo !== 'client'
+                    )}
+                    coupleNames={eventInfo?.couple_names || clientInfo?.names || ''}
+                    eventDate={eventInfo?.event_date || ''}
+                    location={eventInfo?.location || ''}
+                    allowPdf
+                  />
+                </div>
+              )}
           </div>
         )}
       </div>
@@ -1465,6 +1504,15 @@ export default function VendorBookingDetailPage() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* In-page document viewer */}
+      <DocViewerModal
+        open={!!docView}
+        onOpenChange={(o) => !o && setDocView(null)}
+        url={docView?.url}
+        name={docView?.name}
+        fileType={docView?.fileType}
+      />
     </VendorDashboardLayout>
   );
 }

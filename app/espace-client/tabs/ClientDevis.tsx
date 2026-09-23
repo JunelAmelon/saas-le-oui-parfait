@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { FileText, Loader2, Eye, Download, CheckCircle, XCircle, MoreVertical } from 'lucide-react';
 import { addDocument, updateDocument } from '@/lib/db';
 import { DevisData, getClientDevis } from '@/lib/client-helpers';
+import { DocViewerModal } from '@/components/DocViewerModal';
 import { uploadPdf } from '@/lib/storage';
 import { auth } from '@/lib/firebase';
 import { toast } from 'sonner';
@@ -75,6 +76,7 @@ export function ClientDevis({ clientId, clientEmail, variant = 'list' }: ClientD
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [signingId, setSigningId] = useState<string | null>(null);
+  const [docView, setDocView] = useState<{ url: string; name: string; fileType?: string | null } | null>(null);
 
   const syncedEnvelopeIdsRef = useRef<Set<string>>(new Set());
 
@@ -308,6 +310,7 @@ export function ClientDevis({ clientId, clientEmail, variant = 'list' }: ClientD
 
   if (variant === 'table') {
     return (
+      <>
       <Card className="bg-white rounded-[18px] border border-[rgba(75,68,86,0.06)] shadow-none p-5 sm:p-6 overflow-hidden">
         <h3 className="text-[17px] font-semibold text-[#4B4456] mb-4 flex items-center gap-2">
           <FileText className="h-5 w-5 text-[#88b7b5]" />
@@ -345,7 +348,7 @@ export function ClientDevis({ clientId, clientEmail, variant = 'list' }: ClientD
                               size="icon"
                               variant="ghost"
                               className="h-8 w-8 text-[#5A5A5A] hover:text-[#4B4456] hover:bg-[rgba(75,68,86,0.07)]"
-                              onClick={() => window.open(dv.pdf_url, '_blank')}
+                              onClick={() => setDocView({ url: dv.pdf_url!, name: `Devis ${dv.reference || dv.id}`, fileType: 'application/pdf' })}
                               title="Voir"
                             >
                               <Eye className="h-4 w-4" />
@@ -354,7 +357,7 @@ export function ClientDevis({ clientId, clientEmail, variant = 'list' }: ClientD
                               size="icon"
                               variant="ghost"
                               className="h-8 w-8 text-[#5A5A5A] hover:text-[#4B4456] hover:bg-[rgba(75,68,86,0.07)]"
-                              onClick={() => window.open(dv.pdf_url, '_blank')}
+                              onClick={() => setDocView({ url: dv.pdf_url!, name: `Devis ${dv.reference || dv.id}`, fileType: 'application/pdf' })}
                               title="Télécharger"
                             >
                               <Download className="h-4 w-4" />
@@ -403,10 +406,19 @@ export function ClientDevis({ clientId, clientEmail, variant = 'list' }: ClientD
           </Table>
         </div>
       </Card>
+      <DocViewerModal
+        open={!!docView}
+        onOpenChange={(o) => !o && setDocView(null)}
+        url={docView?.url}
+        name={docView?.name}
+        fileType={docView?.fileType}
+      />
+      </>
     );
   }
 
   return (
+    <>
     <Card className="bg-white rounded-[18px] border border-[rgba(75,68,86,0.06)] shadow-none p-5 sm:p-6">
       <h3 className="text-[17px] font-semibold text-[#4B4456] mb-4 flex items-center gap-2">
         <FileText className="h-5 w-5 text-[#88b7b5]" />
@@ -436,7 +448,7 @@ export function ClientDevis({ clientId, clientEmail, variant = 'list' }: ClientD
                       size="icon"
                       variant="ghost"
                       className="h-8 w-8 text-[#5A5A5A] hover:text-[#4B4456] hover:bg-[rgba(75,68,86,0.07)]"
-                      onClick={() => window.open(dv.pdf_url, '_blank')}
+                      onClick={() => setDocView({ url: dv.pdf_url!, name: `Devis ${dv.reference || dv.id}`, fileType: 'application/pdf' })}
                       title="Voir"
                     >
                       <Eye className="h-4 w-4" />
@@ -482,5 +494,13 @@ export function ClientDevis({ clientId, clientEmail, variant = 'list' }: ClientD
         })}
       </div>
     </Card>
+    <DocViewerModal
+      open={!!docView}
+      onOpenChange={(o) => !o && setDocView(null)}
+      url={docView?.url}
+      name={docView?.name}
+      fileType={docView?.fileType}
+    />
+    </>
   );
 }
