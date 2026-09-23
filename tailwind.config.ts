@@ -6,6 +6,8 @@ const config: Config = {
     './pages/**/*.{js,ts,jsx,tsx,mdx}',
     './components/**/*.{js,ts,jsx,tsx,mdx}',
     './app/**/*.{js,ts,jsx,tsx,mdx}',
+    // lib/ contient des classes dynamiques (couleurs de categories, etc.)
+    './lib/**/*.{js,ts,jsx,tsx}',
   ],
   theme: {
     extend: {

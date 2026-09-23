@@ -563,7 +563,7 @@ export default function VendorsPage() {
                         <h3 className="text-lg font-bold text-brand-purple mb-1 truncate">
                           {vendor.name}
                         </h3>
-                        <Badge className={`${color} hover:${color} text-white border-0`}>
+                        <Badge className={`${color} hover:${color} text-white border-0 text-[10px] px-2 py-0.5 max-w-full whitespace-nowrap truncate`}>
                           {label === '—' ? 'Non catégorisé' : label}
                         </Badge>
                       </div>
