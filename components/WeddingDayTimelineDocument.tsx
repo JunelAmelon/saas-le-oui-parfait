@@ -453,7 +453,11 @@ export function WeddingDayTimelineDocument({ items, coupleNames, eventDate, loca
                       <Text style={[styles.heureTxt, m.highlight ? { color: g.ch.encre } : {}]}>
                         {m.time}
                       </Text>
-                      {m.duration ? <Text style={styles.duree}>{m.duration}</Text> : null}
+                      {m.endTime ? (
+                        <Text style={styles.duree}>→ {m.endTime}</Text>
+                      ) : m.duration ? (
+                        <Text style={styles.duree}>{m.duration}</Text>
+                      ) : null}
                     </View>
                     <View style={[styles.axe, { borderLeftColor: g.ch.bg }]}>
                       <View

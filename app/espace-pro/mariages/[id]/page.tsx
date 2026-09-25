@@ -1152,6 +1152,11 @@ export default function VendorBookingDetailPage() {
                                   <span className="text-[14px] font-bold text-[#88b7b5] font-baskerville">
                                     {slot.time || '—'}
                                   </span>
+                                  {slot.end_time && (
+                                    <span className="block text-[11px] font-normal text-[#9C97A3]">
+                                      → {slot.end_time}
+                                    </span>
+                                  )}
                                 </div>
                                 <div className="flex-1 min-w-0">
                                   <p className="text-[14px] font-semibold text-[#4B4456]">

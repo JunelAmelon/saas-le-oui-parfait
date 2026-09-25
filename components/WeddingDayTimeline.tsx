@@ -131,7 +131,12 @@ export function WeddingDayTimeline({
   onFetchRecipients,
   vendorOptions = [],
 }: WeddingDayTimelineProps) {
-  const [localItems, setLocalItems] = useState<WeddingDayTimelineItem[]>(items || []);
+  const [localItems, setLocalItems] = useState<WeddingDayTimelineItem[]>(
+    // Legacy : l'ancienne categorie "bal" est absorbee par "repas"
+    (items || []).map((it) =>
+      it.category === 'bal' ? { ...it, category: 'repas' as const } : it
+    )
+  );
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<Category>('preparation');
@@ -161,6 +166,7 @@ export function WeddingDayTimeline({
 
   const draft: WeddingDayTimelineItem = {
     time: '',
+    endTime: '',
     duration: '',
     title: '',
     who: '',
@@ -402,13 +408,12 @@ export function WeddingDayTimeline({
                 <button
                   key={idx}
                   onClick={() => addTemplate(t)}
-                  className="text-left p-3 rounded-xl border border-[#E7DCCE] bg-[#FAF9F7] hover:border-[#88b7b5] hover:bg-[#F0F8F7] transition-colors group"
+                  className="text-left p-3 rounded-xl border border-[#E7DCCE] bg-[#FAF9F7] hover:border-[#88b7b5] hover:bg-[#F0F8F7] transition-colors group flex items-center justify-between gap-3"
                 >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-mono text-[11px] text-[#88b7b5]">{t.time}</span>
-                    <Plus className="w-3.5 h-3.5 text-[#9C97A3] group-hover:text-[#88b7b5]" />
-                  </div>
-                  <p className="text-[13px] font-semibold text-[#4B4456] mt-1 leading-tight">{t.title}</p>
+                  <p className="text-[13px] font-semibold text-[#4B4456] leading-tight min-w-0">{t.title}</p>
+                  <span className="w-6 h-6 rounded-full bg-white border border-[#E7DCCE] flex items-center justify-center shrink-0 group-hover:border-[#88b7b5] group-hover:bg-[#88b7b5]/15 transition-colors">
+                    <Plus className="w-3 h-3 text-[#88b7b5]" />
+                  </span>
                 </button>
               ))}
             </div>
@@ -419,12 +424,12 @@ export function WeddingDayTimeline({
               <h3 className="font-baskerville text-lg text-[#4B4456] mb-3">Ajouter un moment personnalisé</h3>
               <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
                 <div className="sm:col-span-2">
-                  <Label className="text-xs">Heure</Label>
+                  <Label className="text-xs">Heure de début</Label>
                   <Input type="time" value={form.time} onChange={(e) => setForm({ ...form, time: e.target.value })} />
                 </div>
                 <div className="sm:col-span-2">
-                  <Label className="text-xs">Durée</Label>
-                  <Input value={form.duration} onChange={(e) => setForm({ ...form, duration: e.target.value })} placeholder="30 min" />
+                  <Label className="text-xs">Heure de fin</Label>
+                  <Input type="time" value={form.endTime || ''} onChange={(e) => setForm({ ...form, endTime: e.target.value })} />
                 </div>
                 <div className="sm:col-span-3">
                   <Label className="text-xs">Titre</Label>
@@ -498,10 +503,10 @@ export function WeddingDayTimeline({
                     className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-end p-3 rounded-xl border border-[#E7DCCE] bg-[#FAF9F7]"
                   >
                     <div className="sm:col-span-2">
-                      <Input type="time" value={item.time} onChange={(e) => updateItem(idx, 'time', e.target.value)} />
+                      <Input type="time" value={item.time} onChange={(e) => updateItem(idx, 'time', e.target.value)} title="Heure de début" />
                     </div>
                     <div className="sm:col-span-2">
-                      <Input value={item.duration || ''} onChange={(e) => updateItem(idx, 'duration', e.target.value)} placeholder="Durée" />
+                      <Input type="time" value={item.endTime || ''} onChange={(e) => updateItem(idx, 'endTime', e.target.value)} title="Heure de fin" />
                     </div>
                     <div className="sm:col-span-3">
                       <Input value={item.title} onChange={(e) => updateItem(idx, 'title', e.target.value)} />

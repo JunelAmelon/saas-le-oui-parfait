@@ -61,6 +61,7 @@ function pickWeddingEvent(events: any[]): EventData | null {
 
 export interface WeddingDayTimelineItem {
   time: string;
+  endTime?: string;
   duration?: string;
   title: string;
   who?: string;
@@ -68,7 +69,7 @@ export interface WeddingDayTimelineItem {
   address?: string;
   note?: string;
   description?: string;
-  category?: 'preparation' | 'mairie' | 'eglise' | 'vindhonneur' | 'repas' | 'bal' | 'autre';
+  category?: 'preparation' | 'mairie' | 'eglise' | 'ceremonie_laique' | 'vindhonneur' | 'repas' | 'bal' | 'brunch' | 'autre';
   visibleTo?: 'all' | 'client' | 'vendors';
   highlight?: boolean;
 }
@@ -90,6 +91,8 @@ export interface EventData {
   notes?: string;
   client_email?: string;
   wedding_day_timeline?: WeddingDayTimelineItem[];
+  planning_shared_client?: boolean;
+  planning_shared_client_at?: string | null;
   created_at?: any;
 }
 

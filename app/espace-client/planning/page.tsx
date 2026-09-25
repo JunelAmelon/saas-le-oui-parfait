@@ -693,16 +693,18 @@ export default function PlanningPage() {
           </div>
         </div>
 
-        {/* ---------- ORDRE DU JOUR J (tout en bas, après RDV et étapes clés) ---------- */}
-        <Card className="p-3 sm:p-4 border border-brand-purple/8 shadow-sm rounded-none bg-white">
-          <WeddingDayTimeline
-            items={(event?.wedding_day_timeline || []).filter((i: any) => i.visibleTo !== 'vendors')}
-            coupleNames={coupleNames || event?.couple_names || ''}
-            eventDate={event?.event_date || ''}
-            location={event?.location || ''}
-            allowPdf
-          />
-        </Card>
+        {/* ---------- PLANNING DU JOUR J (visible seulement si partage par le wedding planner) ---------- */}
+        {Boolean(event?.planning_shared_client) && (
+          <Card className="p-3 sm:p-4 border border-brand-purple/8 shadow-sm rounded-none bg-white">
+            <WeddingDayTimeline
+              items={(event?.wedding_day_timeline || []).filter((i: any) => i.visibleTo !== 'vendors')}
+              coupleNames={coupleNames || event?.couple_names || ''}
+              eventDate={event?.event_date || ''}
+              location={event?.location || ''}
+              allowPdf
+            />
+          </Card>
+        )}
 
         {/* ---------- DÉTAIL RDV ---------- */}
         <Dialog open={isEventDetailOpen} onOpenChange={setIsEventDetailOpen}>

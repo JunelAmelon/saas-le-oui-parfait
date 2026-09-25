@@ -9,7 +9,10 @@ const isOnEvent = (b: any, eventId?: string) =>
 export interface AssignedVendor {
   vendorId?: string;
   uid?: string; // uid du compte pro (notifications / emails)
+  // Nom "public" du pro : le champ contact (nom/pseudo du pro) plutot que le
+  // nom de l'entreprise — evite d'afficher les entreprises sur le planning.
   name: string;
+  companyName?: string; // nom de l'entreprise (legacy, matching des anciens "who")
 }
 
 // Liste UNIFIEE des prestataires assignes au mariage.
@@ -52,10 +55,11 @@ export async function getAssignedVendors(opts: {
         (b.vendor_uid && v?.pro_account_uid && b.vendor_uid === v.pro_account_uid)
     );
     const uid = v?.pro_account_uid || bk?.vendor_uid || undefined;
-    const name = l.vendor_name || v?.name || bk?.vendor_name || 'Prestataire';
+    const companyName = v?.name || l.vendor_name || bk?.vendor_name || undefined;
+    const name = v?.contact || l.vendor_name || v?.name || bk?.vendor_name || 'Prestataire';
     const vendorId = l.vendor_id || v?.id;
     if (!vendorId && !uid) continue;
-    result.set(vendorId || `uid:${uid}`, { vendorId, uid, name });
+    result.set(vendorId || `uid:${uid}`, { vendorId, uid, name, companyName });
   }
 
   return Array.from(result.values());
@@ -183,11 +187,12 @@ export async function syncWeddingDayToVendorPlanning(opts: {
   if (!eventDate) return;
 
   const vendors = await getAssignedVendors({ clientId, plannerId, eventId });
-  const byName = new Map(
-    vendors
-      .filter((v) => v.name && v.name !== 'Prestataire')
-      .map((v) => [v.name.trim().toLowerCase(), v])
-  );
+  const byName = new Map<string, AssignedVendor>();
+  for (const v of vendors) {
+    if (v.name && v.name !== 'Prestataire') byName.set(v.name.trim().toLowerCase(), v);
+    // Legacy : anciens plannings ou le "who" etait le nom de l'entreprise
+    if (v.companyName) byName.set(v.companyName.trim().toLowerCase(), v);
+  }
 
   // Slots issus de l'ordre du jour, groupes par prestataire
   const odjSlotsByVendor = new Map<string, any[]>();
@@ -199,6 +204,7 @@ export async function syncWeddingDayToVendorPlanning(opts: {
       .join(' — ');
     const slot = {
       time: it.time || '',
+      end_time: it.endTime || '',
       title: it.title || '',
       description,
       from_odj: true,
