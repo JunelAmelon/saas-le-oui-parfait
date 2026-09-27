@@ -5,11 +5,12 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useClientData } from '@/contexts/ClientDataContext';
 import { ClientDashboardLayout } from '@/components/layout/ClientDashboardLayout';
-import { getDocuments } from '@/lib/db';
+import { addDocument, getDocuments, updateDocument } from '@/lib/db';
 import { getCategoryLabel } from '@/lib/discovery';
 import { calculateDaysRemaining, PaymentData, getClientPayments, DocumentData, getClientDocuments } from '@/lib/client-helpers';
 import { Invoice } from '@/types/invoice';
-import { Loader2, ChevronRight, ChevronLeft, Users, Euro, Sparkles, Calendar, FileText, CreditCard, Heart, Check } from 'lucide-react';
+import { Loader2, ChevronRight, ChevronLeft, Users, Euro, Sparkles, Calendar, FileText, CreditCard, Heart, Check, Bell, CheckCircle2 } from 'lucide-react';
+import { toast } from 'sonner';
 import Image from 'next/image';
 
 type Milestone = {
@@ -51,6 +52,10 @@ export default function ClientPortalPage() {
   const [pendingPaymentsCount, setPendingPaymentsCount] = useState(0);
   const [pendingPaymentsTotal, setPendingPaymentsTotal] = useState(0);
   const [documents, setDocuments] = useState<DocumentData[]>([]);
+  const [reminders, setReminders] = useState<any[]>([]);
+  const [reminderBusyId, setReminderBusyId] = useState<string | null>(null);
+  const [clientReminderPage, setClientReminderPage] = useState(1);
+  const CLIENT_REMINDERS_PAGE_SIZE = 3;
 
   const displayDate = (event as any)?.event_date || (client as any)?.event_date || '';
   const displayGuests = (event as any)?.guest_count ?? (client as any)?.guests ?? 0;
@@ -61,6 +66,42 @@ export default function ClientPortalPage() {
       .trim() ||
     'Client';
   const daysRemaining = displayDate ? calculateDaysRemaining(displayDate) : 0;
+
+  // Le couple marque une étape rappelée comme bouclée → les relances s'arrêtent
+  const completeReminder = async (rem: any) => {
+    if (reminderBusyId) return;
+    setReminderBusyId(rem.id);
+    try {
+      await updateDocument('client_reminders', rem.id, {
+        completed_at: new Date().toISOString(),
+        completed_by: 'client',
+      });
+      setReminders((prev) => prev.filter((r) => r.id !== rem.id));
+      const plannerId = rem.planner_id || (client as any)?.planner_id;
+      if (plannerId) {
+        try {
+          await addDocument('notifications', {
+            recipient_id: plannerId,
+            type: 'client_reminder_done',
+            title: 'Étape bouclée par le couple',
+            message: `${coupleNames} a marqué « ${rem.label || 'Rappel'} » comme terminée.`,
+            link: `/admin/clients/${client?.id}/etapes`,
+            read: false,
+            created_at: new Date(),
+            client_id: client?.id,
+          });
+        } catch (e) {
+          console.warn('Unable to notify planner:', e);
+        }
+      }
+      toast.success('Bravo, étape marquée comme terminée !');
+    } catch (e) {
+      console.error('Error completing reminder:', e);
+      toast.error('Impossible de marquer cette étape');
+    } finally {
+      setReminderBusyId(null);
+    }
+  };
 
   const sortedMilestones = useMemo(() => {
     return milestones.slice().sort((a, b) => String(a.deadline || '').localeCompare(String(b.deadline || '')));
@@ -110,6 +151,21 @@ export default function ClientPortalPage() {
         ]);
         const only = (items as any[]).filter((t) => t?.kind === 'milestone') as Milestone[];
         setMilestones(only);
+
+        // Rappels automatiques en cours (tenue, alliances…)
+        if (clId) {
+          try {
+            const rems = await getDocuments('client_reminders', [
+              { field: 'client_id', operator: '==', value: clId },
+            ]);
+            setReminders(
+              (rems as any[]).filter((r) => r?.active !== false && !r?.completed_at),
+            );
+          } catch (e) {
+            console.warn('Error fetching reminders:', e);
+            setReminders([]);
+          }
+        }
       } catch (e) {
         console.error('Error fetching milestones (home):', e);
         setMilestones([]);
@@ -666,6 +722,69 @@ export default function ClientPortalPage() {
               </div>
             </button>
           </div>
+
+          {/* Rappels automatiques en cours */}
+          {reminders.length > 0 && (
+            <div className="bg-white rounded-[18px] border border-[rgba(75,68,86,0.06)] p-5 sm:p-6 mb-7">
+              <div className="flex items-center justify-between gap-2 mb-4">
+                <div className="flex items-center gap-2">
+                  <Bell className="h-4 w-4 text-[#C9A96E]" />
+                  <h2 className="font-baskerville text-xl text-[#4B4456]">Vos rappels</h2>
+                </div>
+                {Math.ceil(reminders.length / CLIENT_REMINDERS_PAGE_SIZE) > 1 && (
+                  <div className="flex items-center gap-1.5 text-xs text-[#9C97A3]">
+                    <span>
+                      {clientReminderPage} / {Math.ceil(reminders.length / CLIENT_REMINDERS_PAGE_SIZE)}
+                    </span>
+                    <button
+                      type="button"
+                      disabled={clientReminderPage <= 1}
+                      onClick={() => setClientReminderPage((p) => Math.max(1, p - 1))}
+                      className="w-7 h-7 rounded-lg border border-[rgba(75,68,86,0.1)] flex items-center justify-center text-[#4B4456] disabled:opacity-40 hover:bg-[#FAF9F7]"
+                      aria-label="Précédent"
+                    >
+                      <ChevronLeft className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      disabled={clientReminderPage >= Math.ceil(reminders.length / CLIENT_REMINDERS_PAGE_SIZE)}
+                      onClick={() => setClientReminderPage((p) => Math.min(Math.ceil(reminders.length / CLIENT_REMINDERS_PAGE_SIZE), p + 1))}
+                      className="w-7 h-7 rounded-lg border border-[rgba(75,68,86,0.1)] flex items-center justify-center text-[#4B4456] disabled:opacity-40 hover:bg-[#FAF9F7]"
+                      aria-label="Suivant"
+                    >
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
+              </div>
+              <div className="space-y-3">
+                {reminders
+                  .slice((clientReminderPage - 1) * CLIENT_REMINDERS_PAGE_SIZE, clientReminderPage * CLIENT_REMINDERS_PAGE_SIZE)
+                  .map((rem) => (
+                    <div key={rem.id} className="flex flex-wrap items-center justify-between gap-3 p-4 rounded-xl bg-[#FAF8F5]">
+                      <div className="min-w-0">
+                        <p className="text-[14px] font-semibold text-[#4B4456]">{rem.label || 'Rappel'}</p>
+                        <p className="text-[11.5px] text-[#9C97A3]">
+                          Pensez à faire les démarches nécessaires à temps.
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => void completeReminder(rem)}
+                        disabled={!!reminderBusyId}
+                        className="inline-flex items-center gap-1.5 h-9 px-4 rounded-full bg-[#88b7b5] hover:bg-[#6a9a98] text-white text-[12px] font-semibold transition-colors disabled:opacity-60"
+                      >
+                        {reminderBusyId === rem.id ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <CheckCircle2 className="h-3.5 w-3.5" />
+                        )}
+                        J&apos;ai terminé cette étape
+                      </button>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          )}
 
           {/* Équipe (mobile uniquement, cf. ordre demandé) */}
           <div className="xl:hidden mb-7">{teamCard}</div>

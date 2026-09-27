@@ -29,6 +29,7 @@ import {
   ChevronDown,
   X,
   GripHorizontal,
+  ExternalLink,
 } from 'lucide-react';
 import { updateDocument } from '@/lib/db';
 
@@ -589,7 +590,20 @@ export default function PlanningPage() {
                         </div>
                         <div className="flex items-center gap-2 text-xs text-brand-gray min-h-[18px]">
                           <MapPin className="h-3.5 w-3.5 text-brand-turquoise-hover shrink-0" />
-                          <span className="truncate">{e.location || '—'}</span>
+                          {e.location ? (
+                            <a
+                              href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(e.location)}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="truncate hover:underline text-[#6a9a98]"
+                              title="Ouvrir dans Google Maps"
+                              onClick={(ev) => ev.stopPropagation()}
+                            >
+                              {e.location}
+                            </a>
+                          ) : (
+                            <span className="truncate">—</span>
+                          )}
                         </div>
                         <div className="flex items-center justify-between pt-1 mt-auto">
                           <span className="text-[10px] font-bold uppercase tracking-wide px-2.5 py-1 rounded-full bg-brand-turquoise/15 text-brand-turquoise-hover">
@@ -735,7 +749,16 @@ export default function PlanningPage() {
                 {selectedEvent.location && (
                   <div className="flex items-center gap-3">
                     <MapPin className="h-4.5 w-4.5 text-brand-turquoise-hover shrink-0" />
-                    <p className="text-brand-purple text-sm">{selectedEvent.location}</p>
+                    <a
+                      href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(selectedEvent.location)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-brand-purple hover:text-brand-turquoise text-sm hover:underline flex items-center gap-1.5"
+                      title="Ouvrir dans Google Maps"
+                    >
+                      <span>{selectedEvent.location}</span>
+                      <ExternalLink className="h-3.5 w-3.5 text-brand-turquoise shrink-0" />
+                    </a>
                   </div>
                 )}
                 <span className="inline-block text-[10px] font-semibold uppercase tracking-wide px-3 py-1 rounded-full bg-brand-turquoise/15 text-brand-turquoise-hover">

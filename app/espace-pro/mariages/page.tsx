@@ -22,6 +22,7 @@ export default function VendorMariagesPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(0);
+  const [tab, setTab] = useState<'upcoming' | 'past'>('upcoming');
 
   useEffect(() => {
     if (!authLoading) {
@@ -49,34 +50,41 @@ export default function VendorMariagesPage() {
     fetchData();
   }, [vendor?.id, user?.uid]);
 
+  const upcomingCount = useMemo(() => bookings.filter((b) => calculateDaysUntil(b.wedding_date) >= 0).length, [bookings]);
+  const pastCount = useMemo(() => bookings.filter((b) => calculateDaysUntil(b.wedding_date) < 0).length, [bookings]);
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
+    const tabFiltered = bookings.filter((b) => {
+      const isPast = calculateDaysUntil(b.wedding_date) < 0;
+      return tab === 'upcoming' ? !isPast : isPast;
+    });
+
     const list = q
-      ? bookings.filter((b) =>
+      ? tabFiltered.filter((b) =>
           b.client_names.toLowerCase().includes(q) ||
           (b.planner_name || '').toLowerCase().includes(q) ||
           formatFrenchDate(b.wedding_date).toLowerCase().includes(q)
         )
-      : bookings;
+      : tabFiltered;
+
     return [...list].sort((a, b) => {
-      const da = calculateDaysUntil(a.wedding_date);
-      const db = calculateDaysUntil(b.wedding_date);
-      // Upcoming first (ascending), then past (descending)
-      if (da >= 0 && db < 0) return -1;
-      if (da < 0 && db >= 0) return 1;
-      if (da >= 0) return a.wedding_date.localeCompare(b.wedding_date);
+      if (tab === 'upcoming') {
+        return a.wedding_date.localeCompare(b.wedding_date);
+      }
+      // Passés : plus récent en premier
       return b.wedding_date.localeCompare(a.wedding_date);
     });
-  }, [bookings, search]);
+  }, [bookings, search, tab]);
 
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
   const currentPage = Math.min(page, Math.max(0, totalPages - 1));
   const paginated = filtered.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE);
 
   useEffect(() => {
-    // Reset page when search changes
+    // Reset page when search or tab changes
     setPage(0);
-  }, [search]);
+  }, [search, tab]);
 
   if (authLoading || !user || user.role !== 'vendor' || vendorLoading) {
     return (
@@ -85,9 +93,6 @@ export default function VendorMariagesPage() {
       </div>
     );
   }
-
-  const upcomingCount = bookings.filter((b) => calculateDaysUntil(b.wedding_date) >= 0).length;
-  const pastCount = bookings.length - upcomingCount;
 
   return (
     <VendorDashboardLayout vendorName={vendor?.name}>
@@ -98,8 +103,49 @@ export default function VendorMariagesPage() {
             Mes mariages
           </h1>
           <p className="text-sm text-[#9C97A3]">
-            {bookings.length} mariage{bookings.length > 1 ? 's' : ''} · {upcomingCount} à venir · {pastCount} passé{pastCount > 1 ? 's' : ''}
+            {bookings.length} mariage{bookings.length > 1 ? 's' : ''} au total
           </p>
+        </div>
+
+        {/* Onglets À venir / Historique */}
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setTab('upcoming')}
+            className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
+              tab === 'upcoming'
+                ? 'bg-[#88b7b5] text-white shadow-sm'
+                : 'bg-white text-[#4B4456] border border-[rgba(75,68,86,0.1)] hover:bg-[#FAF9F7]'
+            }`}
+          >
+            <span>Mariages à venir</span>
+            <span
+              className={`text-xs px-2 py-0.5 rounded-full ${
+                tab === 'upcoming' ? 'bg-white/20 text-white' : 'bg-gray-100 text-[#9C97A3]'
+              }`}
+            >
+              {upcomingCount}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setTab('past')}
+            className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
+              tab === 'past'
+                ? 'bg-[#4B4456] text-white shadow-sm'
+                : 'bg-white text-[#4B4456] border border-[rgba(75,68,86,0.1)] hover:bg-[#FAF9F7]'
+            }`}
+          >
+            <span>Historique / Passés</span>
+            <span
+              className={`text-xs px-2 py-0.5 rounded-full ${
+                tab === 'past' ? 'bg-white/20 text-white' : 'bg-gray-100 text-[#9C97A3]'
+              }`}
+            >
+              {pastCount}
+            </span>
+          </button>
         </div>
 
         {/* Search */}
@@ -121,12 +167,18 @@ export default function VendorMariagesPage() {
           <div className="bg-white rounded-[18px] border border-[rgba(75,68,86,0.06)] p-12 text-center">
             <Heart className="h-12 w-12 text-[#9C97A3] mx-auto mb-4 opacity-40" />
             <h3 className="text-lg font-semibold text-[#4B4456] mb-2">
-              {search ? 'Aucun résultat' : 'Aucun mariage'}
+              {search
+                ? 'Aucun résultat'
+                : tab === 'past'
+                ? 'Aucun mariage passé'
+                : 'Aucun mariage à venir'}
             </h3>
             <p className="text-sm text-[#9C97A3]">
               {search
                 ? 'Essayez avec d\'autres critères'
-                : 'Vous n\'êtes pas encore sélectionné pour un mariage'}
+                : tab === 'past'
+                ? 'Vos mariages terminés seront conservés ici dans votre historique.'
+                : 'Vous n\'avez aucun mariage programmé prochainement.'}
             </p>
           </div>
         ) : (

@@ -27,6 +27,8 @@ export interface VendorBooking {
   wedding_date: string;
   planner_name?: string;
   status: 'option' | 'confirmed' | 'cancelled';
+  // null = pro pas encore notifie (mariage masque) ; absent = legacy visible
+  notified_at?: any;
   created_at?: any;
 }
 
@@ -140,6 +142,10 @@ export async function getVendorBookings(vendorId: string, vendorUid?: string): P
 
     return unique
       .filter((b) => b.status !== 'cancelled')
+      // Mariage visible seulement apres notification du pro : notified_at
+      // est explicitement a null tant que le bouton "Notifier" n'a pas ete
+      // actionne ; les anciens bookings (champ absent) restent visibles.
+      .filter((b) => b.notified_at !== null)
       .sort((a, b) => String(a.wedding_date || '').localeCompare(String(b.wedding_date || ''))) as VendorBooking[];
   } catch (error) {
     console.error('Error fetching vendor bookings:', error);

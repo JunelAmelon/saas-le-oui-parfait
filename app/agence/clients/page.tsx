@@ -24,7 +24,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import { useAuth } from '@/contexts/AuthContext';
@@ -38,6 +38,7 @@ interface Client {
   names: string;
   photo?: string;
   eventDate: string;
+  eventDateRaw?: string;
   eventLocation: string;
   budget: number;
   guests: number;
@@ -52,6 +53,17 @@ interface Client {
   notes?: string;
   clientUserId?: string;
   createdAt?: any; // Pour le tri
+}
+
+function isClientPastOrDone(c: Client): boolean {
+  const s = String(c.status || '').toLowerCase();
+  if (s === 'terminé' || s === 'termine' || s === 'archivé' || s === 'archive' || s === 'annulé' || s === 'annule') {
+    return true;
+  }
+  if (!c.eventDateRaw) return false;
+  const d = new Date(c.eventDateRaw + 'T23:59:59');
+  if (Number.isNaN(d.getTime())) return false;
+  return d.getTime() < Date.now();
 }
 
 export default function ClientFilesPage() {
@@ -75,6 +87,9 @@ export default function ClientFilesPage() {
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
 
+  // Onglet statut : En cours ou Passés & terminés
+  const [statusTab, setStatusTab] = useState<'active' | 'archived'>('active');
+
   // Vue liste ou grille
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
   const itemsPerPage = viewMode === 'grid' ? 3 : 2;
@@ -94,6 +109,7 @@ export default function ClientFilesPage() {
             names: `${c.name} & ${c.partner}`,
             photo: c.photo || undefined,
             eventDate: c.event_date ? new Date(c.event_date).toLocaleDateString('fr-FR') : '',
+            eventDateRaw: c.event_date || '',
             eventLocation: c.event_location || '',
             budget: parseInt(c.budget) || 0,
             guests: parseInt(c.guests) || 0,
@@ -492,6 +508,7 @@ export default function ClientFilesPage() {
         names: `${c.name} & ${c.partner}`,
         photo: c.photo || undefined,
         eventDate: c.event_date ? new Date(c.event_date).toLocaleDateString('fr-FR') : '',
+        eventDateRaw: c.event_date || '',
         eventLocation: c.event_location || '',
         budget: parseInt(c.budget) || 0,
         guests: parseInt(c.guests) || 0,
@@ -518,23 +535,36 @@ export default function ClientFilesPage() {
     }
   };
 
+  // Compteurs par statut (actifs vs passés/terminés)
+  const activeClientsCount = useMemo(() => clients.filter(c => !isClientPastOrDone(c)).length, [clients]);
+  const pastClientsCount = useMemo(() => clients.filter(c => isClientPastOrDone(c)).length, [clients]);
+
+  // Clients selon l'onglet actif
+  const tabClients = useMemo(() => {
+    return clients.filter(c => statusTab === 'active' ? !isClientPastOrDone(c) : isClientPastOrDone(c));
+  }, [clients, statusTab]);
+
   // Filter clients based on search
-  const filteredClients = clients.filter(client =>
-    client.names.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    client.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    client.eventLocation.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredClients = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return tabClients;
+    return tabClients.filter((client: Client) =>
+      client.names.toLowerCase().includes(q) ||
+      client.email.toLowerCase().includes(q) ||
+      client.eventLocation.toLowerCase().includes(q)
+    );
+  }, [tabClients, searchQuery]);
 
   // Pagination calculations
   const totalPages = Math.ceil(filteredClients.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
-  const currentClients = filteredClients.slice(startIndex, endIndex);
+  const currentClients: Client[] = filteredClients.slice(startIndex, endIndex);
 
-  // Reset to page 1 when search changes
+  // Reset to page 1 when search or tab changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery]);
+  }, [searchQuery, statusTab]);
 
   // Restore saved view mode
   useEffect(() => {
@@ -666,6 +696,33 @@ export default function ClientFilesPage() {
           </div>
         </div>
 
+        {/* Onglets Statut : En cours / Passés & terminés */}
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            variant={statusTab === 'active' ? 'default' : 'outline'}
+            className={statusTab === 'active' ? 'bg-brand-turquoise hover:bg-brand-turquoise-hover text-white gap-2' : 'gap-2 text-brand-purple hover:bg-gray-100'}
+            onClick={() => setStatusTab('active')}
+          >
+            <span>Mariages en cours</span>
+            <Badge className={statusTab === 'active' ? 'bg-white/20 text-white border-0' : 'bg-gray-100 text-brand-gray border-0'}>
+              {activeClientsCount}
+            </Badge>
+          </Button>
+
+          <Button
+            type="button"
+            variant={statusTab === 'archived' ? 'default' : 'outline'}
+            className={statusTab === 'archived' ? 'bg-brand-purple hover:bg-brand-purple/90 text-white gap-2' : 'gap-2 text-brand-purple hover:bg-gray-100'}
+            onClick={() => setStatusTab('archived')}
+          >
+            <span>Passés & terminés</span>
+            <Badge className={statusTab === 'archived' ? 'bg-white/20 text-white border-0' : 'bg-gray-100 text-brand-gray border-0'}>
+              {pastClientsCount}
+            </Badge>
+          </Button>
+        </div>
+
         <Card className="p-4 shadow-xl border-0">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-brand-gray" />
@@ -682,12 +739,20 @@ export default function ClientFilesPage() {
           <Card className="p-12 text-center shadow-xl border-0">
             <Users className="h-16 w-16 text-brand-gray/30 mx-auto mb-4" />
             <h3 className="text-lg font-semibold text-brand-purple mb-2">
-              {searchQuery ? 'Aucun client trouvé' : 'Aucun client'}
+              {searchQuery
+                ? 'Aucun client trouvé'
+                : statusTab === 'archived'
+                ? 'Aucun mariage passé ou terminé'
+                : 'Aucun client en cours'}
             </h3>
             <p className="text-brand-gray mb-6">
-              {searchQuery ? 'Essayez une autre recherche' : 'Créez votre première fiche client pour commencer'}
+              {searchQuery
+                ? 'Essayez une autre recherche'
+                : statusTab === 'archived'
+                ? 'Les mariages dont la date est passée ou marqués comme terminés apparaîtront ici.'
+                : 'Créez votre première fiche client pour commencer'}
             </p>
-            {!searchQuery && (
+            {!searchQuery && statusTab === 'active' && (
               <Button
                 onClick={() => setIsNewClientOpen(true)}
                 className="bg-brand-turquoise hover:bg-brand-turquoise-hover"
@@ -701,7 +766,7 @@ export default function ClientFilesPage() {
           <>
             {viewMode === 'list' ? (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {currentClients.map((client) => (
+                {currentClients.map((client: Client) => (
                   <Card key={client.id} className="p-3 shadow-xl border-0 hover:shadow-2xl transition-shadow cursor-pointer group">
                     <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
                       <div
@@ -790,7 +855,7 @@ export default function ClientFilesPage() {
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {currentClients.map((client) => (
+                {currentClients.map((client: Client) => (
                   <Card
                     key={client.id}
                     className="overflow-hidden shadow-xl border-0 hover:shadow-2xl transition-shadow cursor-pointer group flex flex-col"

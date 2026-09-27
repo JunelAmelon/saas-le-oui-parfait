@@ -8,7 +8,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Loader2, Users, Calendar, Plus, Trash2, Clock, Upload, FileText, X, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, Loader2, Users, Calendar, Plus, Trash2, Clock, Upload, FileText, X, CheckCircle2, Bell } from 'lucide-react';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { useAuth } from '@/contexts/AuthContext';
 import { addDocument, deleteDocument, getDocuments, getDocument, updateDocument } from '@/lib/db';
@@ -58,6 +58,7 @@ interface ClientVendorLink {
   vendor_name?: string;
   vendor_category?: string;
   created_at?: any;
+  notified_at?: any;
 }
 
 export default function ClientPrestatairesAdminPage() {
@@ -93,6 +94,8 @@ export default function ClientPrestatairesAdminPage() {
   const [planningGlobalId, setPlanningGlobalId] = useState<string | null>(null);
   const [planningGlobal, setPlanningGlobal] = useState<any>(null);
   const [planningRequests, setPlanningRequests] = useState<any[]>([]);
+  const [notifyingVendorId, setNotifyingVendorId] = useState<string | null>(null);
+  const [notifyTarget, setNotifyTarget] = useState<Vendor | null>(null);
   const [processingRequestId, setProcessingRequestId] = useState<string | null>(null);
   const [replyTextByRequest, setReplyTextByRequest] = useState<Record<string, string>>({});
   const [sendingReplyId, setSendingReplyId] = useState<string | null>(null);
@@ -153,10 +156,28 @@ export default function ClientPrestatairesAdminPage() {
         vendor_name: d.vendor_name,
         vendor_category: d.vendor_category,
         created_at: d.created_at,
+        notified_at: d.notified_at,
       })) as ClientVendorLink[];
 
       setVendors(mappedVendors);
       setAssignedLinks(mappedLinks);
+
+      // Backfill : les bookings crees avant le flag notified_at sont consideres
+      // "non notifies" -> on ecrit notified_at: null pour les masquer dans
+      // l'espace pro tant que le bouton Notifier n'a pas ete actionne.
+      try {
+        const clientBookings = await getDocuments('vendor_bookings', [
+          { field: 'client_id', operator: '==', value: clientId },
+        ]);
+        const stale = (clientBookings as any[]).filter(
+          (b) => b.notified_at === undefined && b.status !== 'cancelled',
+        );
+        await Promise.all(
+          stale.map((b) => updateDocument('vendor_bookings', b.id, { notified_at: null })),
+        );
+      } catch (e) {
+        console.warn('Backfill notified_at failed:', e);
+      }
     } catch (e) {
       console.error('Error fetching client vendors:', e);
       toast.error('Erreur lors du chargement des prestataires');
@@ -270,7 +291,8 @@ export default function ClientPrestatairesAdminPage() {
                   endDate: weddingDate,
                   location,
                   attendees: [vendor.email],
-                  sendUpdates: 'all',
+                  // Silencieux : aucune notif Google avant le bouton "Notifier"
+                  sendUpdates: 'none',
                   guestsCanSeeOtherGuests: false,
                 },
               }),
@@ -297,6 +319,9 @@ export default function ClientPrestatairesAdminPage() {
         planner_name: plannerName,
         status: 'confirmed',
         google_event_id: googleEventId || null,
+        // null = le pro n'a pas encore ete notifie -> mariage masque dans
+        // son espace ; conserve la valeur existante sur mise a jour.
+        notified_at: existing[0]?.notified_at ?? null,
         updated_at: new Date().toISOString(),
       };
 
@@ -308,15 +333,51 @@ export default function ClientPrestatairesAdminPage() {
           created_at: new Date().toISOString(),
         });
       }
+    } catch (e: any) {
+      console.error('Error syncing vendor booking:', e);
+      toast.error(`Erreur sync booking pro: ${e?.message || 'Erreur inconnue'}. Le prestataire est assigné mais son espace pro n'est pas mis à jour.`);
+    }
+  };
 
-      // Always notify the vendor if they have a pro account (both for new and updated bookings)
+  // Notification explicite : rend le mariage visible dans l'espace pro et
+  // envoie notif in-app + email + push. Jamais appelee automatiquement.
+  const sendVendorNotification = async (vendor: Vendor) => {
+    if (!user?.uid || notifyingVendorId) return;
+    const link = assignedLinks.find((l) => l.vendor_id === vendor.id);
+    if (!link) return;
+    setNotifyingVendorId(vendor.id);
+    try {
+      const [clientDoc, eventsRaw] = await Promise.all([
+        getDocument('clients', clientId).catch(() => null) as Promise<any>,
+        getDocuments('events', [{ field: 'client_id', operator: '==', value: clientId }]).catch(() => []),
+      ]);
+      const couple = [clientDoc?.partner1_first_name || '', clientDoc?.partner2_first_name || ''].filter(Boolean).join(' & ');
+      const names = couple || [clientDoc?.first_name, clientDoc?.last_name].filter(Boolean).join(' ') || 'ce mariage';
+      const wedding = (eventsRaw as any[])
+        .filter((e) => e?.date)
+        .sort((a, b) => String(a.date).localeCompare(String(b.date)))[0];
+      const wDate: string | undefined = wedding?.date;
+      const wDateFr = wDate ? wDate.split('-').reverse().join('/') : '';
+      const notifiedAt = new Date().toISOString();
+
+      // Devoiler le mariage dans l'espace pro + marquer le lien comme notifie
+      const bookings = await getDocuments('vendor_bookings', [
+        { field: 'client_id', operator: '==', value: clientId },
+      ]).catch(() => []);
+      await Promise.all(
+        (bookings as any[])
+          .filter((b) => b.vendor_id === vendor.id || (vendor.pro_account_uid && b.vendor_uid === vendor.pro_account_uid))
+          .map((b) => updateDocument('vendor_bookings', b.id, { notified_at: notifiedAt })),
+      );
+      await updateDocument('client_vendors', link.id, { notified_at: notifiedAt });
+
       if (vendor.pro_account_uid) {
         try {
           await addDocument('notifications', {
             recipient_id: vendor.pro_account_uid,
             type: 'booking',
-            title: 'Nouveau mariage assigné',
-            message: `Vous avez été sélectionné pour le mariage de ${clientNames}${weddingDate ? ` le ${weddingDate.split('-').reverse().join('/')}` : ''}.`,
+            title: 'Invitation au mariage',
+            message: `Vous avez été invité(e) à intervenir au mariage de ${names}${wDateFr ? ` le ${wDateFr}` : ''}. Consultez les détails dans votre espace pro.`,
             link: '/espace-pro/mariages',
             read: false,
             created_at: new Date(),
@@ -325,34 +386,41 @@ export default function ClientPrestatairesAdminPage() {
           // non-blocking
         }
 
-        // Send email to vendor
         try {
           const { sendEmailToUid } = await import('@/lib/email');
+          const firstName = (vendor.contact_name || vendor.name || '').split(' ')[0] || 'Bonjour';
           await sendEmailToUid({
             recipientUid: vendor.pro_account_uid,
-            subject: 'Nouveau mariage assigné - Le Oui Parfait',
-            text: `Bonjour,\n\nVous avez été sélectionné pour le mariage de ${clientNames}${weddingDate ? ` prévu le ${weddingDate.split('-').reverse().join('/')}` : ''}.\n\nRetrouvez tous les détails sur votre espace pro.\n\nLe Oui Parfait`,
+            subject: `Invitation au mariage de ${names} — Le Oui Parfait`,
+            text: `Bonjour ${firstName},\n\nVous avez été invité(e) à intervenir au mariage de ${names}.\n\nTous les détails sont disponibles dès maintenant dans votre espace pro, onglet Mariages.\n\nPour toute question ou information complémentaire, n'hésitez pas à nous contacter. Nous restons à votre disposition.\n\nCordialement,\nL'équipe Le Oui Parfait`,
           });
         } catch (e) {
           console.warn('Unable to send vendor booking email:', e);
         }
 
-        // Send push
         try {
           const { sendPushToRecipient } = await import('@/lib/push');
           await sendPushToRecipient({
             recipientId: vendor.pro_account_uid,
-            title: 'Nouveau mariage assigné',
-            body: `Vous avez été sélectionné pour le mariage de ${clientNames}.`,
+            title: 'Invitation au mariage',
+            body: `Vous avez été invité(e) à intervenir au mariage de ${names}.`,
             link: '/espace-pro/mariages',
           });
         } catch (e) {
           console.warn('Unable to send vendor push:', e);
         }
+      } else {
+        toast.success('Mariage dévoilé dans l\'espace pro. Ce prestataire n\'a pas de compte pro : aucune notification envoyée.');
       }
+
+      setAssignedLinks((prev) => prev.map((l) => (l.id === link.id ? { ...l, notified_at: notifiedAt } : l)));
+      setNotifyTarget(null);
+      if (vendor.pro_account_uid) toast.success(`Notification envoyée à ${vendor.name}.`);
     } catch (e: any) {
-      console.error('Error syncing vendor booking:', e);
-      toast.error(`Erreur sync booking pro: ${e?.message || 'Erreur inconnue'}. Le prestataire est assigné mais son espace pro n'est pas mis à jour.`);
+      console.error('Error notifying vendor:', e);
+      toast.error(`Erreur lors de la notification : ${e?.message || 'inconnue'}`);
+    } finally {
+      setNotifyingVendorId(null);
     }
   };
 
@@ -943,45 +1011,78 @@ export default function ClientPrestatairesAdminPage() {
                 <p className="text-sm text-brand-gray">Aucun prestataire assigné.</p>
               ) : (
                 <div className="space-y-2">
-                  {assignedVendors.map((v) => (
-                    <div key={v.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-lg bg-gray-50 gap-3">
-                      <div className="min-w-0 flex items-center gap-3">
-                        <div className="relative h-10 w-10 rounded-full bg-white border border-gray-200 overflow-hidden flex-shrink-0">
-                          {v.logoUrl ? (
-                            <Image src={v.logoUrl} alt={v.name} fill sizes="40px" className="object-cover" />
-                          ) : null}
+                  {assignedVendors.map((v) => {
+                    const link = assignedLinks.find((l) => l.vendor_id === v.id);
+                    const notifiedAt = link?.notified_at;
+                    const notifiedDate = notifiedAt
+                      ? new Date(notifiedAt?.toDate ? notifiedAt.toDate() : notifiedAt).toLocaleDateString('fr-FR')
+                      : '';
+                    return (
+                      <div key={v.id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 p-3 rounded-lg bg-gray-50">
+                        <div className="min-w-0 flex-1 flex items-center gap-3">
+                          <div className="relative h-10 w-10 rounded-full bg-white border border-gray-200 overflow-hidden flex-shrink-0">
+                            {v.logoUrl ? (
+                              <Image src={v.logoUrl} alt={v.name} fill sizes="40px" className="object-cover" />
+                            ) : null}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="font-semibold text-brand-purple text-sm">{v.name}</p>
+                            <p className="flex flex-wrap items-center gap-x-2 text-xs">
+                              {notifiedAt ? (
+                                <span className="inline-flex items-center gap-1 font-medium text-brand-turquoise">
+                                  <CheckCircle2 className="h-3 w-3" />
+                                  Notifié le {notifiedDate}
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 font-medium text-amber-600">
+                                  <Clock className="h-3 w-3" />
+                                  Non notifié
+                                </span>
+                              )}
+                            </p>
+                          </div>
                         </div>
-                        <div className="min-w-0">
-                          <p className="font-medium text-brand-purple text-sm truncate">{v.name}</p>
-                          <p className="text-xs text-brand-gray">{getCategoryLabel(v.category)}</p>
+                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                          <Button
+                            size="icon"
+                            className="h-8 w-8 bg-brand-purple hover:bg-brand-purple/90"
+                            title={notifiedAt ? 'Renvoyer la notification' : 'Notifier le prestataire'}
+                            onClick={() => setNotifyTarget(v)}
+                            disabled={!!notifyingVendorId || !!assigningVendorId || !!unassigningVendorId}
+                          >
+                            {notifyingVendorId === v.id ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <Bell className="h-4 w-4" />
+                            )}
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="outline"
+                            className="h-8 w-8 text-brand-turquoise border-brand-turquoise/30 hover:bg-brand-turquoise/5"
+                            title="Planning"
+                            onClick={() => void openPlanning(v)}
+                          >
+                            <Calendar className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8 text-red-500 hover:text-red-600 hover:bg-red-50"
+                            title="Retirer du mariage"
+                            onClick={() => void unassignVendor(v.id)}
+                            disabled={!!unassigningVendorId || !!assigningVendorId || !!notifyingVendorId}
+                          >
+                            {unassigningVendorId === v.id ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <Trash2 className="h-4 w-4" />
+                            )}
+                          </Button>
                         </div>
                       </div>
-                      <div className="flex gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="gap-1.5 text-brand-turquoise border-brand-turquoise/30 hover:bg-brand-turquoise/5"
-                          onClick={() => void openPlanning(v)}
-                        >
-                          <Calendar className="h-3.5 w-3.5" />
-                          Planning
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          className="w-full sm:w-auto"
-                          onClick={() => void unassignVendor(v.id)}
-                          disabled={!!unassigningVendorId || !!assigningVendorId}
-                        >
-                          {unassigningVendorId === v.id ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          ) : (
-                            'Retirer'
-                          )}
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </Card>
@@ -1013,7 +1114,7 @@ export default function ClientPrestatairesAdminPage() {
                           <div className="min-w-0">
                             <p className="font-medium text-brand-purple text-sm truncate">{v.name}</p>
                             <div className="flex items-center gap-2">
-                              <Badge variant="outline" className="text-xs">{getCategoryLabel(v.category)}</Badge>
+                              <Badge variant="outline" className="text-[9px] px-1.5 py-0 leading-4">{getCategoryLabel(v.category)}</Badge>
                               {v.city ? <span className="text-xs text-brand-gray">{v.city}</span> : null}
                             </div>
                           </div>
@@ -1386,6 +1487,37 @@ export default function ClientPrestatairesAdminPage() {
               {savingPlanning && <Loader2 className="h-4 w-4 animate-spin" />}
               <Calendar className="h-4 w-4" />
               Enregistrer & envoyer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Confirmation envoi de la notification au prestataire */}
+      <Dialog open={!!notifyTarget} onOpenChange={(o) => { if (!o) setNotifyTarget(null); }}>
+        <DialogContent className="sm:max-w-[420px] w-[95vw] rounded-[20px]">
+          <DialogHeader className="pb-2">
+            <div className="w-12 h-12 rounded-full bg-brand-purple/10 flex items-center justify-center mb-3">
+              <Bell className="h-6 w-6 text-brand-purple" />
+            </div>
+            <DialogTitle className="text-[18px] font-baskerville text-[#4B4456]">
+              Notifier {notifyTarget?.name} ?
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-brand-gray leading-relaxed">
+            Le prestataire recevra une notification et un email, et le mariage
+            deviendra visible dans son espace pro.
+          </p>
+          <DialogFooter className="gap-2 pt-2">
+            <Button variant="outline" onClick={() => setNotifyTarget(null)} disabled={!!notifyingVendorId}>
+              Annuler
+            </Button>
+            <Button
+              className="bg-brand-purple hover:bg-brand-purple/90 gap-1.5"
+              disabled={!!notifyingVendorId}
+              onClick={() => { if (notifyTarget) void sendVendorNotification(notifyTarget); }}
+            >
+              {notifyingVendorId ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bell className="h-4 w-4" />}
+              Envoyer la notification
             </Button>
           </DialogFooter>
         </DialogContent>

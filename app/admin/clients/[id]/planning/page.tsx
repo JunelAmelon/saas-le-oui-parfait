@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
-import { Calendar, Clock, MapPin, Loader2, Plus, Trash2, Pencil, ArrowLeft } from 'lucide-react';
+import { Calendar, Clock, MapPin, Loader2, Plus, Trash2, Pencil, ArrowLeft, ExternalLink } from 'lucide-react';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
@@ -16,6 +16,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { addDocument, deleteDocument, getDocuments, updateDocument } from '@/lib/db';
 import { toast } from 'sonner';
 import { auth } from '@/lib/firebase';
+import { AddressInput } from '@/components/AddressInput';
 
 type AppointmentTask = {
   id: string;
@@ -473,10 +474,17 @@ export default function ClientPlanningPage() {
                             {a.confirmed_time}
                           </span>
                           {a.location ? (
-                            <span className="inline-flex items-center gap-1">
-                              <MapPin className="h-4 w-4" />
-                              {a.location}
-                            </span>
+                            <a
+                              href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(a.location)}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 text-brand-turquoise hover:underline group"
+                              title="Ouvrir l'adresse dans Google Maps"
+                            >
+                              <MapPin className="h-4 w-4 text-brand-turquoise group-hover:scale-110 transition-transform shrink-0" />
+                              <span className="truncate max-w-[280px] sm:max-w-[400px]">{a.location}</span>
+                              <ExternalLink className="h-3 w-3 opacity-60 group-hover:opacity-100" />
+                            </a>
                           ) : null}
                         </div>
                         {a.notes ? <p className="text-sm text-brand-gray mt-2">{a.notes}</p> : null}
@@ -526,8 +534,12 @@ export default function ClientPlanningPage() {
                 </div>
               </div>
               <div className="space-y-2">
-                <Label>Lieu</Label>
-                <Input value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} />
+                <Label>Lieu / Adresse</Label>
+                <AddressInput
+                  value={form.location}
+                  onChange={(val) => setForm({ ...form, location: val })}
+                  placeholder="Rechercher une adresse ou saisir un lieu..."
+                />
               </div>
               <div className="space-y-2">
                 <Label>Notes</Label>
@@ -567,8 +579,12 @@ export default function ClientPlanningPage() {
                 </div>
               </div>
               <div className="space-y-2">
-                <Label>Lieu</Label>
-                <Input value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} />
+                <Label>Lieu / Adresse</Label>
+                <AddressInput
+                  value={form.location}
+                  onChange={(val) => setForm({ ...form, location: val })}
+                  placeholder="Rechercher une adresse ou saisir un lieu..."
+                />
               </div>
               <div className="space-y-2">
                 <Label>Notes</Label>

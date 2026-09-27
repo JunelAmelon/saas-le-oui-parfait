@@ -75,6 +75,9 @@ export async function POST(req: NextRequest) {
         wedding_date: weddingDate,
         planner_name: plannerName,
         status: 'confirmed',
+        // Le mariage reste masque dans l'espace pro tant que le bouton
+        // "Notifier" n'a pas ete actionne (null = pas encore notifie).
+        notified_at: existingDoc?.data()?.notified_at ?? null,
         updated_at: new Date().toISOString(),
       };
 

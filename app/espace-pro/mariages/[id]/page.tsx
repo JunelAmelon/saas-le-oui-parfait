@@ -136,7 +136,8 @@ export default function VendorBookingDetailPage() {
     setLoading(true);
     try {
       const bk = await getVendorBookingById(bookingId);
-      if (!bk) {
+      // notified_at === null => pro pas encore notifie -> acces refuse
+      if (!bk || bk.notified_at === null) {
         toast.error('Mariage introuvable');
         router.push('/espace-pro/mariages');
         return;

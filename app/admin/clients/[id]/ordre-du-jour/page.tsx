@@ -3,7 +3,7 @@
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Loader2, Eye, EyeOff } from 'lucide-react';
+import { ArrowLeft, Loader2 } from 'lucide-react';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
@@ -120,7 +120,7 @@ export default function ClientOrdreDuJourPage() {
               recipient_id: uid,
               type: 'planning',
               title: 'Planning du jour J disponible',
-              message: `Le planning du jour J de ${names} est disponible dans votre espace client, onglet Planning.`,
+              message: `Votre planning du jour J est disponible — consultez-le et téléchargez-le dans l'onglet Planning de votre espace client.`,
               link: '/espace-client/planning',
               read: false,
               created_at: new Date(),
@@ -129,8 +129,8 @@ export default function ClientOrdreDuJourPage() {
             });
             await sendEmailToUid({
               recipientUid: uid,
-              subject: 'Planning du jour J disponible - Le Oui Parfait',
-              text: `Bonjour,\n\nLe planning du jour J de ${names} est disponible dans votre espace client, onglet Planning.\n\nLe Oui Parfait`,
+              subject: 'Votre planning du jour J est disponible — Le Oui Parfait',
+              text: `Bonjour ${names},\n\nLe planning du jour J de votre mariage est désormais disponible dans votre espace client, onglet « Planning ».\n\nVous pouvez le consulter et le télécharger en PDF à tout moment.\n\nÀ très vite,\nL'équipe Le Oui Parfait`,
             });
           } else {
             console.warn('Aucun compte client lie (client_user_id manquant)', { email });
@@ -154,20 +154,6 @@ export default function ClientOrdreDuJourPage() {
     <DashboardLayout>
       <div className="space-y-6">
         <PageHeader title="Planning du jour J" description="Déroulé horaire complet du mariage">
-          {eventId && (
-            <Button
-              variant={planningShared ? 'outline' : 'default'}
-              onClick={() => setShareConfirmOpen(true)}
-              className={`w-full sm:w-auto gap-2 ${
-                planningShared
-                  ? 'border-[#B9847F] text-[#B9847F] hover:bg-[#B9847F]/10'
-                  : 'bg-[#C9A96E] hover:bg-[#B8975E] text-white border-0'
-              }`}
-            >
-              {planningShared ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              {planningShared ? 'Masquer au couple' : 'Afficher au couple'}
-            </Button>
-          )}
           <Button variant="outline" onClick={() => router.back()} className="w-full sm:w-auto gap-2">
             <ArrowLeft className="h-4 w-4" />
             Retour
@@ -192,6 +178,8 @@ export default function ClientOrdreDuJourPage() {
               allowPdf
               allowSend
               vendorOptions={vendorOptions}
+              clientShared={planningShared}
+              onToggleClientShare={() => setShareConfirmOpen(true)}
               onSend={sendToVendors}
               onFetchRecipients={async () =>
                 getWeddingDayRecipients({

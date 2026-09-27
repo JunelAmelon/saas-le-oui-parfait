@@ -56,7 +56,16 @@ export async function getAssignedVendors(opts: {
     );
     const uid = v?.pro_account_uid || bk?.vendor_uid || undefined;
     const companyName = v?.name || l.vendor_name || bk?.vendor_name || undefined;
-    const name = v?.contact || l.vendor_name || v?.name || bk?.vendor_name || 'Prestataire';
+    // Afficher d'abord le nom de contact du pro (et non le nom d'entreprise).
+    const name =
+      v?.contact_name ||
+      v?.contact ||
+      l.vendor_contact_name ||
+      l.contact_name ||
+      l.vendor_name ||
+      v?.name ||
+      bk?.vendor_name ||
+      'Prestataire';
     const vendorId = l.vendor_id || v?.id;
     if (!vendorId && !uid) continue;
     result.set(vendorId || `uid:${uid}`, { vendorId, uid, name, companyName });
@@ -65,16 +74,26 @@ export async function getAssignedVendors(opts: {
   return Array.from(result.values());
 }
 
-// Noms des prestataires assignes (pour la liste du champ "Qui ?").
+// Noms des prestataires (pour la liste du champ "Qui ?").
+// IMPORTANT: on utilise la collection `vendors` (meme source que la page
+// admin Prestataires), pas `client_vendors`, pour eviter les noms stale.
 export async function getAssignedVendorNames(opts: {
   clientId: string;
   plannerId?: string;
   eventId?: string;
 }): Promise<string[]> {
-  const vendors = await getAssignedVendors(opts);
-  return Array.from(
-    new Set(vendors.map((v) => v.name).filter((n) => n && n !== 'Prestataire'))
-  );
+  const { plannerId } = opts;
+  if (!plannerId) return [];
+
+  const vendors = (await getDocuments('vendors', [
+    { field: 'planner_id', operator: '==', value: plannerId },
+  ]).catch(() => [] as any[])) as any[];
+
+  const names = vendors
+    .map((v: any) => (v?.contact_name || v?.contact || v?.name || '').trim())
+    .filter((n: string) => Boolean(n) && n !== 'Prestataire');
+
+  return Array.from(new Set(names)).sort((a, b) => a.localeCompare(b, 'fr'));
 }
 
 export interface WeddingDayRecipient {

@@ -105,12 +105,30 @@ export default function Home() {
         [...eventsByPlanner, ...eventsByOwner].forEach((e: any) => eventMap.set(e.id, e));
         const events = Array.from(eventMap.values());
 
+        const isPastClient = (c: any) => {
+          const s = String(c?.status || '').trim().toLowerCase();
+          if (['terminé', 'termine', 'archivé', 'archive', 'annulé', 'annule'].includes(s)) return true;
+          if (!c?.event_date) return false;
+          const d = new Date(c.event_date + 'T23:59:59');
+          return !Number.isNaN(d.getTime()) && d.getTime() < Date.now();
+        };
+
+        const isPastEvent = (e: any) => {
+          const s = String(e?.status || '').trim().toLowerCase();
+          if (['completed', 'terminé', 'termine', 'cancelled', 'canceled'].includes(s)) return true;
+          const dateStr = e?.event_date || e?.date;
+          if (!dateStr) return false;
+          const d = new Date(dateStr + 'T23:59:59');
+          return !Number.isNaN(d.getTime()) && d.getTime() < Date.now();
+        };
+
+        const activeClients = (clients as any[]).filter((c) => !isPastClient(c));
+
         const signedEvents = events.filter((e: any) =>
-          !e.status || ['confirmed', 'in_progress', 'completed'].includes(e.status)
+          !isPastEvent(e) && (!e.status || ['confirmed', 'in_progress'].includes(e.status))
         );
 
-
-        const caSigne = (clients as any[])
+        const caSigne = activeClients
           .filter((c: any) => String(c?.status || '').trim().toLowerCase() === 'en cours')
           .reduce((acc: number, c: any) => acc + Number(c?.budget || 0), 0);
 
@@ -166,7 +184,8 @@ export default function Home() {
         }
 
         const activeEvents = events
-          .filter((e: any) => !e.status || ['confirmed', 'in_progress'].includes(e.status))
+          .filter((e: any) => !isPastEvent(e) && (!e.status || ['confirmed', 'in_progress'].includes(e.status)))
+          .sort((a: any, b: any) => String(a.event_date || a.date || '').localeCompare(String(b.event_date || b.date || '')))
           .slice(0, 5)
           .map((e: any) => {
             const client = clients.find((c: any) => c.id === e.client_id);
@@ -200,7 +219,7 @@ export default function Home() {
         setRecentInvoices(sortedInvoices);
 
         setStats({
-          clientsCount: clients.length,
+          clientsCount: activeClients.length,
           eventsCount: signedEvents.length,
           caSigne,
           paidAmount,

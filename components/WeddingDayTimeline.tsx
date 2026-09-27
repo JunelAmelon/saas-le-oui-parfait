@@ -23,6 +23,7 @@ import {
   Trash2,
   FileDown,
   Eye,
+  EyeOff,
   Loader2,
   ArrowUp,
   ArrowDown,
@@ -116,6 +117,8 @@ interface WeddingDayTimelineProps {
   onSend?: () => void | Promise<void>;
   onFetchRecipients?: () => Promise<WeddingDayRecipient[]>;
   vendorOptions?: string[];
+  clientShared?: boolean;
+  onToggleClientShare?: () => void;
 }
 
 export function WeddingDayTimeline({
@@ -130,6 +133,8 @@ export function WeddingDayTimeline({
   onSend,
   onFetchRecipients,
   vendorOptions = [],
+  clientShared = false,
+  onToggleClientShare,
 }: WeddingDayTimelineProps) {
   const [localItems, setLocalItems] = useState<WeddingDayTimelineItem[]>(
     // Legacy : l'ancienne categorie "bal" est absorbee par "repas"
@@ -243,16 +248,6 @@ export function WeddingDayTimeline({
     const [m] = next.splice(idx, 1);
     next.splice(idx + delta, 0, m);
     updateLocal(next);
-  };
-
-  const applyAllTemplates = () => {
-    const existing = new Set(localItems.map((it) => `${it.time}-${it.title}`));
-    const next = [...localItems];
-    for (const t of DEFAULT_TEMPLATES) {
-      if (!existing.has(`${t.time}-${t.title}`)) next.push({ ...t });
-    }
-    updateLocal(next);
-    toast.success('Planning type chargé');
   };
 
   const clearAll = () => {
@@ -378,9 +373,6 @@ export function WeddingDayTimeline({
             <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
               <h3 className="font-baskerville text-lg text-[#4B4456]">Catalogue de moments</h3>
               <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={applyAllTemplates}>
-                  Planning type complet
-                </Button>
                 <Button variant="ghost" size="sm" className="text-red-500" onClick={clearAll}>
                   Tout effacer
                 </Button>
@@ -587,7 +579,21 @@ export function WeddingDayTimeline({
         {allowSend && onSend && (
           <Button onClick={() => void sendPdf()} disabled={loadingPdf || loadingRecipients} className="bg-[#88b7b5] hover:bg-[#6a9a98] text-white gap-2">
             {loadingPdf || loadingRecipients ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-            Partager le planning
+            Partager aux pros
+          </Button>
+        )}
+        {onToggleClientShare && (
+          <Button
+            onClick={onToggleClientShare}
+            variant={clientShared ? 'outline' : 'default'}
+            className={
+              clientShared
+                ? 'gap-2 border-[#B9847F] text-[#B9847F] hover:bg-[#B9847F]/10'
+                : 'gap-2 bg-[#C9A96E] hover:bg-[#B8975E] text-white border-0'
+            }
+          >
+            {clientShared ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            {clientShared ? 'Masquer au couple' : 'Afficher au couple'}
           </Button>
         )}
       </div>

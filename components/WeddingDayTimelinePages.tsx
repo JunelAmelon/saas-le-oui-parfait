@@ -147,7 +147,7 @@ export function WeddingDayTimelinePages({ items, coupleNames = '', eventDate = '
   }
 
   return (
-    <div className="relative rounded-xl overflow-hidden border border-[#E7DCCE] bg-[#EDE6DC]">
+    <div className="relative rounded-xl overflow-hidden border border-[#E7DCCE] bg-[#EDE6DC] min-h-[320px] sm:min-h-[520px]">
       {busy && (
         <div className="absolute inset-0 z-10 flex items-center justify-center gap-2 text-[13px] text-[#9C97A3] bg-[#EDE6DC]">
           <Loader2 className="h-4 w-4 animate-spin" />
@@ -158,7 +158,7 @@ export function WeddingDayTimelinePages({ items, coupleNames = '', eventDate = '
       <div
         ref={scrollerRef}
         onScroll={handleScroll}
-        className="flex overflow-x-auto snap-x snap-mandatory"
+        className="flex overflow-x-auto snap-x snap-mandatory min-h-[320px] sm:min-h-[520px]"
         style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}
       >
         {pages.map((pg, i) => (

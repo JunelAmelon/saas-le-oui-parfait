@@ -20,7 +20,7 @@ import axios from 'axios';
 import { ColorPalette } from '@/components/wedding/ColorPalette';
 import { auth } from '@/lib/firebase';
 import { buildWeddingCalendarEvent } from '@/lib/wedding-calendar';
-import { getWeddingTaskPayloads } from '@/lib/wedding-tasks';
+import { defaultReminderPayloads, reminderDef, calculateFirstSendDate } from '@/lib/client-reminders';
 
 interface ClientModalProps {
   open: boolean;
@@ -352,25 +352,14 @@ export function ClientModal({ open, onOpenChange, mode, client, userId, onSucces
           created_at: new Date().toISOString(),
         });
 
-        // Générer les étapes de rétroplanning automatiques
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const eventDateObj = new Date(data.event_date + 'T00:00:00');
-        if (data.event_date && !Number.isNaN(eventDateObj.getTime()) && eventDateObj >= today) {
-          try {
-            const payloads = getWeddingTaskPayloads(
-              clientDoc.id,
-              userId,
-              (eventDoc as any).id,
-              data.event_date
-            );
-            for (const task of payloads) {
-              await addDocument('tasks', task);
-            }
-          } catch (e) {
-            console.error('Error seeding wedding tasks:', e);
-            toast.error('Erreur lors de la création des étapes automatiques');
+        // Rappels automatiques au couple calculés selon le rétroplanning (Option B)
+        try {
+          for (const payload of defaultReminderPayloads(clientDoc.id, userId, data.event_date)) {
+            await addDocument('client_reminders', payload);
           }
+        } catch (e) {
+          console.error('Error seeding client reminders:', e);
+          toast.error('Erreur lors de la création des rappels automatiques');
         }
 
         // Sync mariage vers Google Calendar (best effort)
@@ -444,34 +433,24 @@ export function ClientModal({ open, onOpenChange, mode, client, userId, onSucces
               notes: notes || '',
             });
 
-            // Régénérer les étapes si la date de mariage change
+            // Mettre à jour les rappels non encore envoyés si la date du mariage a changé (Option B)
             const eventDateChanged = client?.eventDate !== eventDate;
-            if (eventDateChanged) {
+            if (eventDateChanged && client?.id && eventDate) {
               try {
-                const existingTasks = await getDocuments('tasks', [
-                  { field: 'client_id', operator: '==', value: client!.id },
+                const rems = await getDocuments('client_reminders', [
+                  { field: 'client_id', operator: '==', value: client.id },
                 ]);
-                const autoTasks = (existingTasks as any[]).filter(
-                  (t) => t.auto_generated && t.event_id === ev.id
-                );
-                for (const t of autoTasks) {
-                  if (t.id) await deleteDocument('tasks', t.id);
-                }
-
-                if (eventDate) {
-                  const editEventDate = new Date(eventDate + 'T00:00:00');
-                  const todayEdit = new Date();
-                  todayEdit.setHours(0, 0, 0, 0);
-                  if (!Number.isNaN(editEventDate.getTime()) && editEventDate >= todayEdit) {
-                    const payloads = getWeddingTaskPayloads(client!.id, userId, ev.id, eventDate);
-                    for (const task of payloads) {
-                      await addDocument('tasks', task);
+                for (const r of rems as any[]) {
+                  if ((r.sent_count || 0) === 0 && !r.completed_at && r.schedule_mode !== 'manual') {
+                    const def = reminderDef(r.type);
+                    if (def) {
+                      const freshDate = calculateFirstSendDate(def, eventDate);
+                      await updateDocument('client_reminders', r.id, { next_send_at: freshDate.toISOString() });
                     }
                   }
                 }
               } catch (e) {
-                console.error('Error regenerating wedding tasks:', e);
-                toast.error('Erreur lors de la mise à jour des étapes automatiques');
+                console.warn('Update client_reminders on date change failed:', e);
               }
             }
 
