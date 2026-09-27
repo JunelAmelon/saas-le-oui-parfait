@@ -105,6 +105,10 @@ export const DEFAULT_TEMPLATES: WeddingDayTimelineItem[] = [
     location: 'Mairie',
     note: "Ordre : garçons d'honneur, demoiselles d'honneur, mariés.",
   }),
+  T("Organisation du cortège de sortie", 'mairie', {
+    who: 'Wedding planner',
+    location: 'Mairie',
+  }),
   T('Cérémonie civile', 'mairie', {
     who: "Officier d'état civil",
     location: 'Mairie',
@@ -120,7 +124,7 @@ export const DEFAULT_TEMPLATES: WeddingDayTimelineItem[] = [
   T("Récupération de l'acte de mariage civil", 'mairie', {
     who: 'Wedding planner',
     location: 'Mairie',
-    note: "Document remis par la mairie — à apporter à l'église pour signature.",
+    note: "Document remis par la mairie - à apporter à l'église pour signature.",
     visibleTo: 'vendors',
   }),
   T('Photos devant la mairie', 'mairie', {
@@ -186,7 +190,7 @@ export const DEFAULT_TEMPLATES: WeddingDayTimelineItem[] = [
   T('Confirmation officiant & intervenants', 'ceremonie_laique', {
     who: 'Wedding planner',
     location: 'Lieu de la cérémonie laïque',
-    note: "Officiant professionnel ou proche de la famille — confirmer le nombre d'intervenants.",
+    note: "Officiant professionnel ou proche de la famille - confirmer le nombre d'intervenants.",
     visibleTo: 'vendors',
   }),
   T('Cérémonie laïque', 'ceremonie_laique', {
@@ -198,7 +202,7 @@ export const DEFAULT_TEMPLATES: WeddingDayTimelineItem[] = [
   T('Musiques de la cérémonie laïque', 'ceremonie_laique', {
     who: 'DJ',
     location: 'Lieu de la cérémonie laïque',
-    note: 'Musiques choisies par les mariés — programme envoyé au DJ.',
+    note: 'Musiques choisies par les mariés - programme envoyé au DJ.',
     visibleTo: 'vendors',
   }),
 
@@ -254,7 +258,7 @@ export const DEFAULT_TEMPLATES: WeddingDayTimelineItem[] = [
     who: 'Témoins',
     location: "Salle d'honneur",
   }),
-  T('Dîner — service à table ou buffet', 'repas', {
+  T('Dîner - service à table ou buffet', 'repas', {
     who: 'Traiteur',
     location: "Salle d'honneur",
     note: 'Service en trois vagues.',
@@ -273,19 +277,19 @@ export const DEFAULT_TEMPLATES: WeddingDayTimelineItem[] = [
     note: 'Passage de relais au DJ et au traiteur.',
     visibleTo: 'vendors',
   }),
-  T('Départ — photographe', 'repas', {
+  T('Départ - photographe', 'repas', {
     who: 'Photographe',
     location: "Salle d'honneur",
     note: 'Fin de prestation du photographe.',
     visibleTo: 'vendors',
   }),
-  T('Départ — vidéaste', 'repas', {
+  T('Départ - vidéaste', 'repas', {
     who: 'Vidéaste',
     location: "Salle d'honneur",
     note: 'Fin de prestation du vidéaste.',
     visibleTo: 'vendors',
   }),
-  T('Départ — DJ & équipe technique', 'repas', {
+  T('Départ - DJ & équipe technique', 'repas', {
     who: 'DJ',
     location: "Salle d'honneur",
     note: 'Fin de prestation du DJ et rangement du matériel.',
@@ -346,9 +350,14 @@ export const DEFAULT_TEMPLATES: WeddingDayTimelineItem[] = [
     location: 'Domaine',
     visibleTo: 'vendors',
   }),
-  T('Heure limite — quitter le lieu', 'brunch', {
+  T('Heure limite - quitter le lieu', 'brunch', {
     who: 'Domaine',
     location: 'Domaine',
     note: "Fin d'utilisation du domaine.",
+  }),
+  T('Départ de la wedding planner', 'brunch', {
+    who: 'Wedding planner',
+    location: 'Domaine',
+    visibleTo: 'vendors',
   }),
 ];
