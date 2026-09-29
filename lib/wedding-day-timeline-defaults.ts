@@ -55,11 +55,6 @@ export const DEFAULT_TEMPLATES: WeddingDayTimelineItem[] = [
     location: 'Suite nuptiale',
     note: 'Prévoir le plateau la veille au soir.',
   }),
-  T('Coiffure et maquillage', 'preparation', {
-    who: 'Coiffeuse / maquilleuse',
-    location: 'Salon du premier étage',
-    note: "La mariée en dernier, les témoins d'abord.",
-  }),
   T('Livraison des fleurs', 'preparation', {
     who: 'Fleuriste',
     location: 'Entrée de service',
@@ -69,6 +64,29 @@ export const DEFAULT_TEMPLATES: WeddingDayTimelineItem[] = [
     who: 'Fleuriste',
     location: 'Suite nuptiale',
     visibleTo: 'vendors',
+  }),
+  T('Décoration du lieu de préparation de la mariée', 'preparation', {
+    who: 'Décorateur',
+    location: 'Suite nuptiale',
+    visibleTo: 'vendors',
+  }),
+  T("Arrivée de la coiffeuse", 'preparation', {
+    who: 'Coiffeuse',
+    location: 'Lieu des préparatifs',
+    visibleTo: 'vendors',
+  }),
+  T("Arrivée de la maquilleuse", 'preparation', {
+    who: 'Maquilleuse',
+    location: 'Lieu des préparatifs',
+    visibleTo: 'vendors',
+  }),
+  T("Arrivée des demoiselles d'honneur", 'preparation', {
+    who: "Demoiselles d'honneur",
+    location: 'Lieu des préparatifs',
+  }),
+  T("Arrivée des garçons d'honneur", 'preparation', {
+    who: "Garçons d'honneur",
+    location: 'Lieu des préparatifs',
   }),
   T('Arrivée photographe', 'preparation', {
     who: 'Photographe',
@@ -80,19 +98,19 @@ export const DEFAULT_TEMPLATES: WeddingDayTimelineItem[] = [
     location: 'Hôtel / domicile',
     note: 'Captation vidéo des préparatifs.',
   }),
-  T("Montage de l'arche", 'preparation', {
-    who: 'Fleuriste / décorateur',
-    location: 'Jardin sud',
-    visibleTo: 'vendors',
-  }),
-  T('Décoration du lieu de préparation de la mariée', 'preparation', {
-    who: 'Décorateur',
-    location: 'Suite nuptiale',
-    visibleTo: 'vendors',
-  }),
   T('Habillage des mariés', 'preparation', {
     who: 'Témoins',
     location: 'Suites',
+  }),
+  T('Checking livret de famille des mariés', 'preparation', {
+    who: 'Wedding planner',
+    location: 'Lieu des préparatifs',
+    note: 'Vérifier que le livret de famille est bien avec les mariés.',
+  }),
+  T("Arrivée du véhicule de luxe", 'preparation', {
+    who: 'Chauffeur / transport',
+    location: 'Lieu des préparatifs',
+    visibleTo: 'vendors',
   }),
 
   // ============================ Mairie ============================
@@ -100,20 +118,24 @@ export const DEFAULT_TEMPLATES: WeddingDayTimelineItem[] = [
     who: 'Wedding planner',
     location: 'Mairie',
   }),
+  T("Checking pièces d'identité témoins", 'mairie', {
+    who: 'Wedding planner',
+    location: 'Mairie',
+    note: "Vérification des pièces d'identité des témoins avant la cérémonie.",
+  }),
+  T('Arrivée du marié', 'mairie', {
+    who: 'Marié',
+    location: 'Mairie',
+  }),
+  T('Arrivée de la mariée', 'mairie', {
+    who: 'Mariée',
+    location: 'Mairie',
+    highlight: true,
+  }),
   T("Organisation du cortège d'entrée", 'mairie', {
     who: 'Wedding planner',
     location: 'Mairie',
     note: "Ordre : garçons d'honneur, demoiselles d'honneur, mariés.",
-  }),
-  T("Organisation du cortège de sortie", 'mairie', {
-    who: 'Wedding planner',
-    location: 'Mairie',
-  }),
-  T('Cérémonie civile', 'mairie', {
-    who: "Officier d'état civil",
-    location: 'Mairie',
-    note: "Rappel : pièces d'identité originales des témoins à transmettre à la mairie pour la signature des registres.",
-    highlight: true,
   }),
   T('Musiques de la cérémonie civile', 'mairie', {
     who: 'DJ / wedding planner',
@@ -121,15 +143,39 @@ export const DEFAULT_TEMPLATES: WeddingDayTimelineItem[] = [
     note: "Musique d'entrée et de sortie à choisir à l'avance.",
     visibleTo: 'vendors',
   }),
+  T('Célébration cérémonie civile', 'mairie', {
+    who: "Officier d'état civil",
+    location: 'Mairie',
+    note: "Rappel : pièces d'identité originales des témoins à transmettre à la mairie pour la signature des registres.",
+    highlight: true,
+  }),
+  T("Organisation du cortège de sortie", 'mairie', {
+    who: 'Wedding planner',
+    location: 'Mairie',
+  }),
+  T('Prise en charge confettis et autres', 'mairie', {
+    who: 'Wedding planner',
+    location: 'Mairie',
+    visibleTo: 'vendors',
+  }),
+  T('Photos devant la mairie', 'mairie', {
+    who: 'Photographe',
+    location: 'Devant la mairie',
+  }),
   T("Récupération de l'acte de mariage civil", 'mairie', {
     who: 'Wedding planner',
     location: 'Mairie',
     note: "Document remis par la mairie - à apporter à l'église pour signature.",
     visibleTo: 'vendors',
   }),
-  T('Photos devant la mairie', 'mairie', {
-    who: 'Photographe',
-    location: 'Devant la mairie',
+  T('Prise en charge récupération acte de mariage', 'mairie', {
+    who: 'Wedding planner',
+    location: 'Mairie',
+    visibleTo: 'vendors',
+  }),
+  T('Départ mairie', 'mairie', {
+    who: 'Wedding planner',
+    location: 'Mairie',
   }),
 
   // ============================ Église ============================
@@ -137,19 +183,23 @@ export const DEFAULT_TEMPLATES: WeddingDayTimelineItem[] = [
     who: 'Wedding planner',
     location: 'Église',
   }),
+  T("Décoration de l'église (si prévue)", 'eglise', {
+    who: 'Décorateur / fleuriste',
+    location: 'Église',
+    visibleTo: 'vendors',
+  }),
+  T('Arrivée du marié', 'eglise', {
+    who: 'Marié',
+    location: 'Église',
+  }),
+  T('Arrivée de la mariée', 'eglise', {
+    who: 'Mariée',
+    location: 'Église',
+    highlight: true,
+  }),
   T("Organisation du cortège d'entrée", 'eglise', {
     who: 'Wedding planner',
     location: 'Église',
-  }),
-  T('Séance photo couple & invités', 'eglise', {
-    who: 'Photographe',
-    location: 'Allée des palmiers',
-  }),
-  T('Cérémonie religieuse', 'eglise', {
-    who: 'Officiant',
-    location: 'Église',
-    note: "Entrée de la mariée au signal de la musique. Programme de l'église remis aux mariés, à transmettre au wedding planner.",
-    highlight: true,
   }),
   T('Musiques de la cérémonie religieuse', 'eglise', {
     who: 'Organiste / DJ',
@@ -157,9 +207,11 @@ export const DEFAULT_TEMPLATES: WeddingDayTimelineItem[] = [
     note: "Musiques d'entrée, de signature des registres et de sortie.",
     visibleTo: 'vendors',
   }),
-  T("Organisation du cortège de sortie", 'eglise', {
-    who: 'Wedding planner',
+  T('Célébration cérémonie religieuse', 'eglise', {
+    who: 'Officiant',
     location: 'Église',
+    note: "Entrée de la mariée au signal de la musique. Programme de l'église remis aux mariés, à transmettre au wedding planner.",
+    highlight: true,
   }),
   T("Signature de l'acte de mariage civil", 'eglise', {
     who: 'Officiant',
@@ -167,14 +219,26 @@ export const DEFAULT_TEMPLATES: WeddingDayTimelineItem[] = [
     note: 'Document récupéré à la mairie, signé pendant la cérémonie.',
     visibleTo: 'vendors',
   }),
-  T("Décoration de l'église (si prévue)", 'eglise', {
-    who: 'Décorateur / fleuriste',
+  T("Organisation du cortège de sortie", 'eglise', {
+    who: 'Wedding planner',
+    location: 'Église',
+  }),
+  T('Prise en charge confettis et autres', 'eglise', {
+    who: 'Wedding planner',
     location: 'Église',
     visibleTo: 'vendors',
+  }),
+  T('Séance photo couple & invités', 'eglise', {
+    who: 'Photographe',
+    location: 'Allée des palmiers',
   }),
   T('Photos de groupe', 'eglise', {
     who: 'Photographe',
     location: "Escalier d'honneur",
+  }),
+  T('Départ église', 'eglise', {
+    who: 'Wedding planner',
+    location: 'Église',
   }),
 
   // ====================== Cérémonie laïque ======================
@@ -193,10 +257,18 @@ export const DEFAULT_TEMPLATES: WeddingDayTimelineItem[] = [
     note: "Officiant professionnel ou proche de la famille - confirmer le nombre d'intervenants.",
     visibleTo: 'vendors',
   }),
-  T('Cérémonie laïque', 'ceremonie_laique', {
+  T("Arrivée de l'officiant", 'ceremonie_laique', {
     who: 'Officiant',
     location: 'Lieu de la cérémonie laïque',
-    note: "Programme de la cérémonie transmis au DJ à l'avance.",
+    visibleTo: 'vendors',
+  }),
+  T('Arrivée du marié', 'ceremonie_laique', {
+    who: 'Marié',
+    location: 'Lieu de la cérémonie laïque',
+  }),
+  T('Arrivée de la mariée', 'ceremonie_laique', {
+    who: 'Mariée',
+    location: 'Lieu de la cérémonie laïque',
     highlight: true,
   }),
   T('Musiques de la cérémonie laïque', 'ceremonie_laique', {
@@ -205,17 +277,53 @@ export const DEFAULT_TEMPLATES: WeddingDayTimelineItem[] = [
     note: 'Musiques choisies par les mariés - programme envoyé au DJ.',
     visibleTo: 'vendors',
   }),
+  T('Cérémonie laïque officiant', 'ceremonie_laique', {
+    who: 'Officiant',
+    location: 'Lieu de la cérémonie laïque',
+    note: "Programme de la cérémonie transmis au DJ à l'avance.",
+    highlight: true,
+  }),
+  T('Cérémonie laïque proche', 'ceremonie_laique', {
+    who: 'Proche / famille',
+    location: 'Lieu de la cérémonie laïque',
+    note: 'Version de cérémonie animée par un proche de la famille.',
+  }),
+  T("Départ de l'officiant", 'ceremonie_laique', {
+    who: 'Officiant',
+    location: 'Lieu de la cérémonie laïque',
+    visibleTo: 'vendors',
+  }),
 
   // ========================== Vin d'honneur ==========================
-  T('Accueil des invités', 'vindhonneur', {
-    who: 'Placiers / wedding planner',
-    location: "Cour d'honneur",
-  }),
   T('Contrôle des mises en place du traiteur', 'vindhonneur', {
     who: 'Wedding planner',
     location: 'Terrasse / salle',
     note: "Vérifier le dressage, le nappage et le matériel avant l'arrivée des invités.",
     visibleTo: 'vendors',
+  }),
+  T('Livraisons (gâteau, matériel…)', 'vindhonneur', {
+    who: 'Prestataires',
+    location: 'Entrée de service',
+    visibleTo: 'vendors',
+  }),
+  T('Installation animation photobooth', 'vindhonneur', {
+    who: 'Prestataire animation',
+    location: 'Espace vin d’honneur',
+    visibleTo: 'vendors',
+  }),
+  T('Installation animation bar à cigare', 'vindhonneur', {
+    who: 'Prestataire animation',
+    location: 'Espace vin d’honneur',
+    visibleTo: 'vendors',
+  }),
+  T('Installation animation candy bar', 'vindhonneur', {
+    who: 'Prestataire animation',
+    location: 'Espace vin d’honneur',
+    visibleTo: 'vendors',
+  }),
+  T('Accueil des invités', 'vindhonneur', {
+    who: 'Placiers / wedding planner',
+    location: "Cour d'honneur",
   }),
   T("Vin d'honneur", 'vindhonneur', {
     who: 'Traiteur',
@@ -226,22 +334,17 @@ export const DEFAULT_TEMPLATES: WeddingDayTimelineItem[] = [
     location: 'Terrasse ouest',
     note: 'Créneau dédié photos de couple et photos avec les invités.',
   }),
-  T('Animation bouquet de la mariée', 'vindhonneur', {
-    who: 'DJ',
-    location: 'Terrasse ouest',
-  }),
   T('Animations (flamenco, DJ…)', 'vindhonneur', {
     who: 'Artistes / DJ',
+    location: 'Terrasse ouest',
+  }),
+  T('Animation bouquet de la mariée', 'vindhonneur', {
+    who: 'DJ',
     location: 'Terrasse ouest',
   }),
   T('Changement de tenues', 'vindhonneur', {
     who: 'Mariés',
     location: 'Suites',
-  }),
-  T('Livraisons (gâteau, matériel…)', 'vindhonneur', {
-    who: 'Prestataires',
-    location: 'Entrée de service',
-    visibleTo: 'vendors',
   }),
 
   // ==================== Dîner / Repas & Soirée ====================
@@ -267,32 +370,18 @@ export const DEFAULT_TEMPLATES: WeddingDayTimelineItem[] = [
     who: 'DJ / artistes',
     location: "Salle d'honneur",
   }),
-  T('Gâteau et dessert', 'repas', {
+  T('Animations jeux etc', 'repas', {
+    who: 'DJ / wedding planner',
+    location: "Salle d'honneur",
+  }),
+  T('Pièce montée', 'repas', {
     who: 'Pâtissier',
     location: "Salle d'honneur",
   }),
-  T('Départ de la wedding planner (au gâteau)', 'repas', {
+  T('Départ de la wedding planner', 'repas', {
     who: 'Wedding planner',
     location: "Salle d'honneur",
     note: 'Passage de relais au DJ et au traiteur.',
-    visibleTo: 'vendors',
-  }),
-  T('Départ - photographe', 'repas', {
-    who: 'Photographe',
-    location: "Salle d'honneur",
-    note: 'Fin de prestation du photographe.',
-    visibleTo: 'vendors',
-  }),
-  T('Départ - vidéaste', 'repas', {
-    who: 'Vidéaste',
-    location: "Salle d'honneur",
-    note: 'Fin de prestation du vidéaste.',
-    visibleTo: 'vendors',
-  }),
-  T('Départ - DJ & équipe technique', 'repas', {
-    who: 'DJ',
-    location: "Salle d'honneur",
-    note: 'Fin de prestation du DJ et rangement du matériel.',
     visibleTo: 'vendors',
   }),
   T('Première danse', 'repas', {
@@ -313,6 +402,39 @@ export const DEFAULT_TEMPLATES: WeddingDayTimelineItem[] = [
     who: 'Traiteur',
     location: 'Terrasse ouest',
   }),
+  T('Emballage animation photobooth', 'repas', {
+    who: 'Prestataire animation',
+    location: "Salle d'honneur",
+    visibleTo: 'vendors',
+  }),
+  T('Emballage animation bar à cigare', 'repas', {
+    who: 'Prestataire animation',
+    location: "Salle d'honneur",
+    visibleTo: 'vendors',
+  }),
+  T('Emballage animation candy bar', 'repas', {
+    who: 'Prestataire animation',
+    location: "Salle d'honneur",
+    visibleTo: 'vendors',
+  }),
+  T('Départ - photographe', 'repas', {
+    who: 'Photographe',
+    location: "Salle d'honneur",
+    note: 'Fin de prestation du photographe.',
+    visibleTo: 'vendors',
+  }),
+  T('Départ - vidéaste', 'repas', {
+    who: 'Vidéaste',
+    location: "Salle d'honneur",
+    note: 'Fin de prestation du vidéaste.',
+    visibleTo: 'vendors',
+  }),
+  T('Départ - DJ & équipe technique', 'repas', {
+    who: 'DJ',
+    location: "Salle d'honneur",
+    note: 'Fin de prestation du DJ et rangement du matériel.',
+    visibleTo: 'vendors',
+  }),
   T('Départ des invités', 'repas', {
     who: 'Navettes',
     location: "Cour d'honneur",
@@ -331,19 +453,19 @@ export const DEFAULT_TEMPLATES: WeddingDayTimelineItem[] = [
     location: 'Domaine',
     note: 'Heure de démarrage de la wedding planner.',
   }),
-  T('Mise en place matériel & mobilier', 'brunch', {
+  T('Mise en place matériel & mobilier par le traiteur', 'brunch', {
     who: 'Traiteur',
     location: 'Domaine',
     visibleTo: 'vendors',
   }),
-  T('Brunch', 'brunch', {
+  T('Brunch avec les invités', 'brunch', {
     who: 'Traiteur',
     location: 'Domaine',
   }),
-  T('Check-out des chambres', 'brunch', {
-    who: 'Domaine',
+  T('Libération des chambres par les invités', 'brunch', {
+    who: 'Invités / Domaine',
     location: 'Chambres',
-    note: 'Sortie des chambres au plus tard à midi.',
+    note: 'Les invités libèrent les chambres au plus tard à midi.',
   }),
   T('Débarrassage & ménage', 'brunch', {
     who: 'Traiteur',

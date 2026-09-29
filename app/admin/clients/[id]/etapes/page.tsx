@@ -21,7 +21,7 @@ import { ArrowLeft, CheckCircle, Circle, Loader2, Plus, Trash2, Pencil, Bell, Pa
 import { PageHeader } from '@/components/layout/PageHeader';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
-import { CLIENT_REMINDER_DEFS, defaultReminderPayloads, reminderDef, calculateFirstSendDate } from '@/lib/client-reminders';
+import { CLIENT_REMINDER_DEFS, defaultReminderPayloads, reminderDef, calculateScheduledSendDate } from '@/lib/client-reminders';
 
 type Step = {
   id: string;
@@ -133,22 +133,31 @@ export default function ClientStepsAdminPage() {
           const list = byType[key];
           list.sort((a: any, b: any) => String(a.created_at || '').localeCompare(String(b.created_at || '')));
           const primary = list[0];
-          // Option B : Rétroplanning basé sur la date du mariage.
-          // Si le rappel par défaut n'a pas encore été envoyé (0 envoi) et n'est pas bouclé,
-          // on aligne sa prochaine date sur le rétroplanning de la date du mariage.
+          // Option B : rétroplanning basé sur la date du mariage.
+          // On synchronise aussi les anciens rappels avec la nouvelle configuration
+          // (2 envois maximum + bon intervalle de relance).
           const def = reminderDef(primary?.type);
-          if (
-            def &&
-            (primary.sent_count || 0) === 0 &&
-            !primary.completed_at &&
-            primary.schedule_mode !== 'manual'
-          ) {
+          if (def && primary.schedule_mode !== 'manual') {
             const wDate = ev?.event_date || eventDate;
-            const targetDate = calculateFirstSendDate(def, wDate, now);
-            const targetIso = targetDate.toISOString();
-            if (primary.next_send_at !== targetIso) {
-              primary.next_send_at = targetIso;
-              void updateDocument('client_reminders', primary.id, { next_send_at: targetIso });
+            const updates: Record<string, any> = {};
+
+            if (primary.label !== def.label) updates.label = def.label;
+            if (Number(primary.interval_days || 0) !== def.intervalDays) updates.interval_days = def.intervalDays;
+            if (primary.max_sends !== def.maxSends) updates.max_sends = def.maxSends;
+            if (primary.schedule_mode !== 'wedding_based') updates.schedule_mode = 'wedding_based';
+
+            const sentCount = Number(primary.sent_count || 0);
+            if (def.maxSends !== null && sentCount >= def.maxSends) {
+              updates.active = false;
+              if (!primary.finished_at) updates.finished_at = now.toISOString();
+            } else if (!primary.completed_at && wDate) {
+              const targetIso = calculateScheduledSendDate(def, wDate, sentCount, now).toISOString();
+              if (primary.next_send_at !== targetIso) updates.next_send_at = targetIso;
+            }
+
+            if (Object.keys(updates).length > 0) {
+              Object.assign(primary, updates);
+              void updateDocument('client_reminders', primary.id, updates);
             }
           }
           kept.push(primary);

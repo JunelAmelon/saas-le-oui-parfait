@@ -86,6 +86,12 @@ const months = [
 
 const ITEMS_PER_PAGE = 4;
 
+const isRdvPast = (item: any) => {
+  if (!item?.date) return false;
+  const dateTime = new Date(`${item.date}T${item.time || '23:59'}:00`);
+  return !Number.isNaN(dateTime.getTime()) && dateTime.getTime() < Date.now();
+};
+
 export default function PlanningPage() {
   const { client, event, loading: dataLoading } = useClientData();
   const [rdvEvents, setRdvEvents] = useState<any[]>([]);
@@ -98,6 +104,7 @@ export default function PlanningPage() {
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [rdvPage, setRdvPage] = useState(1);
   const [stepsPage, setStepsPage] = useState(1);
+  const [rdvTab, setRdvTab] = useState<'upcoming' | 'archive'>('upcoming');
 
   const coupleNames = useMemo(() => {
     const n1 = client?.name || '';
@@ -220,9 +227,29 @@ export default function PlanningPage() {
     }
   }, [event?.id, client?.id, dataLoading]);
 
+  const upcomingRdvEvents = useMemo(
+    () => rdvEvents.filter((item) => !isRdvPast(item)),
+    [rdvEvents]
+  );
+
+  const archivedRdvEvents = useMemo(
+    () =>
+      rdvEvents
+        .filter((item) => isRdvPast(item))
+        .slice()
+        .sort(
+          (a, b) =>
+            new Date(`${b.date}T${b.time || '23:59'}:00`).getTime() -
+            new Date(`${a.date}T${a.time || '23:59'}:00`).getTime()
+        ),
+    [rdvEvents]
+  );
+
+  const displayedRdvEvents = rdvTab === 'upcoming' ? upcomingRdvEvents : archivedRdvEvents;
+
   useEffect(() => {
     setRdvPage(1);
-  }, [rdvEvents.length]);
+  }, [displayedRdvEvents.length, rdvTab]);
 
   useEffect(() => {
     setStepsPage(1);
@@ -274,7 +301,7 @@ export default function PlanningPage() {
     setIsDetailOpen(false);
   };
 
-  const nextRdv = rdvEvents[0];
+  const nextRdv = upcomingRdvEvents[0];
 
   // ---------- Frise chronologique : fusion RDV + étapes ----------
   type TimelineItem = {
@@ -286,7 +313,7 @@ export default function PlanningPage() {
   };
 
   const timelineItems: TimelineItem[] = useMemo(() => {
-    const rdvItems: TimelineItem[] = rdvEvents
+    const rdvItems: TimelineItem[] = upcomingRdvEvents
       .filter((e) => e.date)
       .map((e) => ({ id: `rdv-${e.id}`, title: e.title, date: e.date, kind: 'rdv', raw: e }));
     const stepItems: TimelineItem[] = steps
@@ -295,7 +322,7 @@ export default function PlanningPage() {
     return [...rdvItems, ...stepItems].sort(
       (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
     );
-  }, [rdvEvents, steps]);
+  }, [upcomingRdvEvents, steps]);
 
   const { minTime, maxTime } = useMemo(() => {
     if (timelineItems.length === 0) {
@@ -339,8 +366,8 @@ export default function PlanningPage() {
   }, [timelineItems.length]);
 
   // ---------- Pagination ----------
-  const rdvTotalPages = Math.max(1, Math.ceil(rdvEvents.length / ITEMS_PER_PAGE));
-  const rdvPaginated = rdvEvents.slice((rdvPage - 1) * ITEMS_PER_PAGE, (rdvPage - 1) * ITEMS_PER_PAGE + ITEMS_PER_PAGE);
+  const rdvTotalPages = Math.max(1, Math.ceil(displayedRdvEvents.length / ITEMS_PER_PAGE));
+  const rdvPaginated = displayedRdvEvents.slice((rdvPage - 1) * ITEMS_PER_PAGE, (rdvPage - 1) * ITEMS_PER_PAGE + ITEMS_PER_PAGE);
 
   const sortedSteps = useMemo(
     () => steps.slice().sort((a, b) => (a.deadline || '').localeCompare(b.deadline || '')),
@@ -414,7 +441,7 @@ export default function PlanningPage() {
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-brand-beige/60 text-sm">
               <span className="flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-brand-turquoise" />
-                {rdvEvents.length} rendez-vous
+                {upcomingRdvEvents.length} rendez-vous à venir
               </span>
               <span className="flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-[#C9A96E]" />
@@ -564,12 +591,40 @@ export default function PlanningPage() {
 
         {/* ---------- DEUX COLONNES SYMÉTRIQUES, SÉPARATION VISIBLE SUR DESKTOP ---------- */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-0 lg:divide-x lg:divide-brand-purple/10">
-          {/* Prochains rendez-vous */}
+          {/* Rendez-vous */}
           <div className="lg:pr-8">
-            <h3 className="font-baskerville text-xl text-brand-purple mb-4">Prochains rendez-vous</h3>
-            {rdvEvents.length === 0 ? (
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+              <h3 className="font-baskerville text-xl text-brand-purple">Rendez-vous</h3>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setRdvTab('upcoming')}
+                  className={`px-3 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-wide transition-colors ${
+                    rdvTab === 'upcoming'
+                      ? 'bg-brand-turquoise text-white'
+                      : 'bg-white text-brand-purple border border-brand-purple/10 hover:bg-brand-purple/5'
+                  }`}
+                >
+                  À venir ({upcomingRdvEvents.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRdvTab('archive')}
+                  className={`px-3 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-wide transition-colors ${
+                    rdvTab === 'archive'
+                      ? 'bg-brand-purple text-white'
+                      : 'bg-white text-brand-purple border border-brand-purple/10 hover:bg-brand-purple/5'
+                  }`}
+                >
+                  Archives ({archivedRdvEvents.length})
+                </button>
+              </div>
+            </div>
+            {displayedRdvEvents.length === 0 ? (
               <div className="rounded-2xl shadow-sm bg-white p-6 text-center">
-                <p className="text-sm text-brand-gray">Aucun rendez-vous de prévu</p>
+                <p className="text-sm text-brand-gray">
+                  {rdvTab === 'upcoming' ? 'Aucun rendez-vous à venir' : 'Aucun rendez-vous archivé'}
+                </p>
               </div>
             ) : (
               <>
@@ -606,8 +661,14 @@ export default function PlanningPage() {
                           )}
                         </div>
                         <div className="flex items-center justify-between pt-1 mt-auto">
-                          <span className="text-[10px] font-bold uppercase tracking-wide px-2.5 py-1 rounded-full bg-brand-turquoise/15 text-brand-turquoise-hover">
-                            Confirmé
+                          <span
+                            className={`text-[10px] font-bold uppercase tracking-wide px-2.5 py-1 rounded-full ${
+                              isRdvPast(e)
+                                ? 'bg-gray-100 text-brand-gray'
+                                : 'bg-brand-turquoise/15 text-brand-turquoise-hover'
+                            }`}
+                          >
+                            {isRdvPast(e) ? 'Passé' : 'Confirmé'}
                           </span>
                           <button
                             onClick={() => handleEventClick(e as Event)}

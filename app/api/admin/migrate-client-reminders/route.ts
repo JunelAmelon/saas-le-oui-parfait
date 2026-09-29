@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
-import { calculateFirstSendDate, reminderDef } from '@/lib/client-reminders';
+import { calculateScheduledSendDate, reminderDef } from '@/lib/client-reminders';
 
 export const runtime = 'nodejs';
 
@@ -109,14 +109,29 @@ export async function GET(req: Request) {
       const sentCount = Number(data.sent_count || 0);
 
       const updates: Record<string, any> = {};
-      if (!data.schedule_mode) {
-        updates.schedule_mode = 'wedding_based';
-      }
 
-      // On ne réaligne que les rappels non encore envoyés.
-      if (sentCount === 0) {
-        const expected = calculateFirstSendDate(def, weddingDate, now).toISOString();
-        if (String(data.next_send_at || '') !== expected) {
+      // Synchronise l'ancienne configuration avec la nouvelle version.
+      if (data.label !== def.label) updates.label = def.label;
+      if (Number(data.interval_days || 0) !== def.intervalDays) updates.interval_days = def.intervalDays;
+      if (data.max_sends !== def.maxSends) updates.max_sends = def.maxSends;
+      if (data.schedule_mode !== 'wedding_based') updates.schedule_mode = 'wedding_based';
+
+      const maxSends = def.maxSends;
+      if (maxSends !== null && sentCount >= maxSends) {
+        if (data.active !== false) updates.active = false;
+        if (!data.finished_at) updates.finished_at = now.toISOString();
+      } else if (weddingDate && weddingDate < now) {
+        if (data.active !== false) updates.active = false;
+        if (!data.completed_at) updates.completed_at = now.toISOString();
+        if (data.completed_by !== 'auto_wedding_passed') updates.completed_by = 'auto_wedding_passed';
+      } else if (!data.completed_at) {
+        // Recalcule aussi la relance des rappels déjà partiellement envoyés.
+        // Si la date théorique est déjà passée, le helper repousse à J+7 au lieu
+        // de provoquer un envoi immédiat pendant la migration.
+        const expected = weddingDate
+          ? calculateScheduledSendDate(def, weddingDate, sentCount, now).toISOString()
+          : null;
+        if (expected && String(data.next_send_at || '') !== expected) {
           updates.next_send_at = expected;
         }
       }

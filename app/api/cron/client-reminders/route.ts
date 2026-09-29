@@ -1,7 +1,12 @@
 import { NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebase-admin';
 import { sendEmailServer } from '@/lib/notifications.server';
-import { buildReminderEmail, reminderDef, calculateFirstSendDate } from '@/lib/client-reminders';
+import {
+  buildReminderEmail,
+  buildReminderNotification,
+  reminderDef,
+  calculateScheduledSendDate,
+} from '@/lib/client-reminders';
 
 export const runtime = 'nodejs';
 
@@ -30,15 +35,33 @@ async function getClientInfo(clientId: string) {
     if (!snap.exists) return null;
     const data = snap.data() as any;
     const email = data.email || data.client_email || null;
+    const firstNames = [data.partner1_first_name, data.partner2_first_name]
+      .map((x) => String(x || '').trim())
+      .filter(Boolean)
+      .join(' & ');
     const coupleNames =
+      firstNames ||
       data.couple_names ||
       `${data.name || ''}${data.name && data.partner ? ' & ' : ''}${data.partner || ''}`.trim() ||
       data.name ||
       'Client';
+    const plannerId = data.planner_id || null;
+    let plannerName = 'Votre wedding planner';
+    if (plannerId) {
+      try {
+        const plannerSnap = await adminDb.collection('profiles').doc(plannerId).get();
+        const plannerData = plannerSnap.exists ? (plannerSnap.data() as any) : null;
+        plannerName = plannerData?.full_name || plannerData?.displayName || plannerData?.email || plannerName;
+      } catch {
+        // fallback below
+      }
+    }
+
     return {
       email,
       name: coupleNames,
-      plannerId: data.planner_id || null,
+      plannerId,
+      plannerName,
       clientUserId: data.client_user_id || null,
       eventDate: data.event_date || null,
     };
@@ -110,6 +133,21 @@ export async function GET(req: Request) {
       }
 
       const sentCount = Number(data.sent_count || 0);
+
+      // Synchronise les anciens rappels par défaut avec la configuration actuelle,
+      // sans toucher aux rappels modifiés manuellement.
+      if (def && data.schedule_mode !== 'manual') {
+        const configUpdates: Record<string, any> = {};
+        if (data.label !== def.label) configUpdates.label = def.label;
+        if (Number(data.interval_days || 0) !== def.intervalDays) configUpdates.interval_days = def.intervalDays;
+        if (data.max_sends !== def.maxSends) configUpdates.max_sends = def.maxSends;
+        if (data.schedule_mode !== 'wedding_based') configUpdates.schedule_mode = 'wedding_based';
+        if (Object.keys(configUpdates).length > 0) {
+          await doc.ref.update(configUpdates);
+          Object.assign(data, configUpdates);
+        }
+      }
+
       const maxSends = data.max_sends === null || data.max_sends === undefined
         ? def?.maxSends ?? null
         : Number(data.max_sends);
@@ -126,23 +164,8 @@ export async function GET(req: Request) {
       }
 
       const weddingDate = await getWeddingDate(clientId, client.eventDate);
-      // Option B global : réaligne automatiquement le 1er envoi des rappels
-      // par défaut non envoyés (sent_count=0) sur le rétroplanning mariage.
-      if (def && sentCount === 0 && !data.completed_at && data.schedule_mode !== 'manual') {
-        const expected = calculateFirstSendDate(def, weddingDate, now).toISOString();
-        if (data.next_send_at !== expected) {
-          await doc.ref.update({ next_send_at: expected, schedule_mode: 'wedding_based' });
-          data.next_send_at = expected;
-        }
-      }
 
-      const nextSendAt = toJsDate(data.next_send_at);
-      if (!nextSendAt || nextSendAt > now) {
-        push('skipped_not_due');
-        continue;
-      }
-
-      // Mariage passé → on arrête les relances automatiquement
+      // Mariage passé → on arrête les relances automatiquement avant toute autre logique.
       if (weddingDate && weddingDate < now) {
         await doc.ref.update({
           active: false,
@@ -153,7 +176,42 @@ export async function GET(req: Request) {
         continue;
       }
 
-      const { subject, text } = buildReminderEmail(type, client.name, baseUrl, label);
+      // Option B global : chaque envoi par défaut suit le rétroplanning du mariage.
+      // sent_count=0 → mail d'information, sent_count=1 → relance.
+      if (def && weddingDate && !data.completed_at && data.schedule_mode !== 'manual') {
+        const expected = calculateScheduledSendDate(def, weddingDate, sentCount, now).toISOString();
+        if (data.next_send_at !== expected) {
+          await doc.ref.update({ next_send_at: expected, schedule_mode: 'wedding_based' });
+          data.next_send_at = expected;
+        }
+      } else if (def && !data.next_send_at && data.schedule_mode !== 'manual') {
+        const fallback = new Date(now);
+        fallback.setDate(fallback.getDate() + def.intervalDays);
+        await doc.ref.update({ next_send_at: fallback.toISOString(), schedule_mode: 'wedding_based' });
+        data.next_send_at = fallback.toISOString();
+      }
+
+      const nextSendAt = toJsDate(data.next_send_at);
+      if (!nextSendAt || nextSendAt > now) {
+        push('skipped_not_due');
+        continue;
+      }
+
+      const daysRemaining = weddingDate
+        ? Math.max(0, Math.ceil((weddingDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)))
+        : null;
+      const { subject, text } = buildReminderEmail(type, client.name, baseUrl, {
+        sendIndex: sentCount,
+        plannerName: client.plannerName,
+        daysRemaining,
+        customLabel: label,
+      });
+      const notification = buildReminderNotification(type, label, {
+        sendIndex: sentCount,
+        plannerName: client.plannerName,
+        daysRemaining,
+        customLabel: label,
+      });
 
       if (dryRun) {
         push('dry_run');
@@ -168,8 +226,8 @@ export async function GET(req: Request) {
             await adminDb.collection('notifications').add({
               recipient_id: client.clientUserId,
               type: 'client_reminder',
-              title: subject,
-              message: `Rappel : ${label} — marquez l'étape comme bouclée dans votre espace pour arrêter les relances.`,
+              title: notification.title,
+              message: notification.message,
               link: '/espace-client',
               read: false,
               created_at: now,
@@ -183,9 +241,15 @@ export async function GET(req: Request) {
         }
 
         const intervalDays = Number(data.interval_days || def?.intervalDays || 30);
-        const next = new Date(now);
-        next.setDate(next.getDate() + intervalDays);
         const reachedMax = maxSends !== null && sentCount + 1 >= maxSends;
+        const next =
+          def && weddingDate && !reachedMax
+            ? calculateScheduledSendDate(def, weddingDate, sentCount + 1, now)
+            : (() => {
+                const d = new Date(now);
+                d.setDate(d.getDate() + intervalDays);
+                return d;
+              })();
 
         await doc.ref.update({
           sent_count: sentCount + 1,

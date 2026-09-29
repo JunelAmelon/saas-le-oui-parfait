@@ -35,6 +35,12 @@ type AppointmentTask = {
   google_event_id?: string;
 };
 
+const isAppointmentPast = (apt: AppointmentTask) => {
+  if (!apt.confirmed_date) return false;
+  const dateTime = new Date(`${apt.confirmed_date}T${apt.confirmed_time || '23:59'}:00`);
+  return !Number.isNaN(dateTime.getTime()) && dateTime.getTime() < Date.now();
+};
+
 export default function ClientPlanningPage() {
   const params = useParams();
   const router = useRouter();
@@ -53,6 +59,7 @@ export default function ClientPlanningPage() {
   const [form, setForm] = useState({ title: '', date: '', time: '', location: '', notes: '' });
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [appointmentTab, setAppointmentTab] = useState<'upcoming' | 'archive'>('upcoming');
 
   const fetchAll = async () => {
     if (!clientId) return;
@@ -224,11 +231,25 @@ export default function ClientPlanningPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clientId, user?.uid]);
 
-  const sortedAppointments = useMemo(() => {
-    return appointments
-      .slice()
-      .sort((a, b) => `${a.confirmed_date}T${a.confirmed_time}`.localeCompare(`${b.confirmed_date}T${b.confirmed_time}`));
-  }, [appointments]);
+  const upcomingAppointments = useMemo(
+    () =>
+      appointments
+        .filter((apt) => !isAppointmentPast(apt))
+        .slice()
+        .sort((a, b) => `${a.confirmed_date}T${a.confirmed_time}`.localeCompare(`${b.confirmed_date}T${b.confirmed_time}`)),
+    [appointments]
+  );
+
+  const archivedAppointments = useMemo(
+    () =>
+      appointments
+        .filter((apt) => isAppointmentPast(apt))
+        .slice()
+        .sort((a, b) => `${b.confirmed_date}T${b.confirmed_time}`.localeCompare(`${a.confirmed_date}T${a.confirmed_time}`)),
+    [appointments]
+  );
+
+  const displayedAppointments = appointmentTab === 'upcoming' ? upcomingAppointments : archivedAppointments;
 
   const addAppointment = async () => {
     if (!form.title.trim() || !form.date || !form.time) {
@@ -448,18 +469,47 @@ export default function ClientPlanningPage() {
           </Card>
         ) : (
           <Card className="p-6 shadow-xl border-0">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
               <div>
                 <h2 className="text-xl font-bold text-brand-purple">Rendez-vous</h2>
-                <p className="text-sm text-brand-gray">{appointments.length} rendez-vous</p>
+                <p className="text-sm text-brand-gray">
+                  {upcomingAppointments.length} à venir · {archivedAppointments.length} archivé(s)
+                </p>
               </div>
             </div>
 
-            {sortedAppointments.length === 0 ? (
-              <div className="text-center py-10 text-brand-gray">Aucun rendez-vous</div>
+            <div className="flex flex-wrap items-center gap-2 mb-6">
+              <Button
+                type="button"
+                variant={appointmentTab === 'upcoming' ? 'default' : 'outline'}
+                className={appointmentTab === 'upcoming' ? 'bg-brand-turquoise hover:bg-brand-turquoise-hover text-white gap-2' : 'gap-2 text-brand-purple hover:bg-gray-100'}
+                onClick={() => setAppointmentTab('upcoming')}
+              >
+                <span>À venir</span>
+                <Badge className={appointmentTab === 'upcoming' ? 'bg-white/20 text-white border-0' : 'bg-gray-100 text-brand-gray border-0'}>
+                  {upcomingAppointments.length}
+                </Badge>
+              </Button>
+              <Button
+                type="button"
+                variant={appointmentTab === 'archive' ? 'default' : 'outline'}
+                className={appointmentTab === 'archive' ? 'bg-brand-purple hover:bg-brand-purple/90 text-white gap-2' : 'gap-2 text-brand-purple hover:bg-gray-100'}
+                onClick={() => setAppointmentTab('archive')}
+              >
+                <span>Archives</span>
+                <Badge className={appointmentTab === 'archive' ? 'bg-white/20 text-white border-0' : 'bg-gray-100 text-brand-gray border-0'}>
+                  {archivedAppointments.length}
+                </Badge>
+              </Button>
+            </div>
+
+            {displayedAppointments.length === 0 ? (
+              <div className="text-center py-10 text-brand-gray">
+                {appointmentTab === 'upcoming' ? 'Aucun rendez-vous à venir' : 'Aucun rendez-vous archivé'}
+              </div>
             ) : (
               <div className="space-y-3">
-                {sortedAppointments.map((a) => (
+                {displayedAppointments.map((a) => (
                   <div key={a.id} className="p-4 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors">
                     <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
                       <div className="min-w-0">
@@ -490,7 +540,9 @@ export default function ClientPlanningPage() {
                         {a.notes ? <p className="text-sm text-brand-gray mt-2">{a.notes}</p> : null}
                       </div>
                       <div className="flex items-center gap-2">
-                        <Badge className="bg-green-100 text-green-700">Confirmé</Badge>
+                        <Badge className={isAppointmentPast(a) ? 'bg-gray-100 text-brand-gray' : 'bg-green-100 text-green-700'}>
+                          {isAppointmentPast(a) ? 'Passé' : 'Confirmé'}
+                        </Badge>
                         <Button
                           variant="ghost"
                           size="icon"

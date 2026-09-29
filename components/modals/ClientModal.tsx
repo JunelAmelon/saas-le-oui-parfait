@@ -20,7 +20,7 @@ import axios from 'axios';
 import { ColorPalette } from '@/components/wedding/ColorPalette';
 import { auth } from '@/lib/firebase';
 import { buildWeddingCalendarEvent } from '@/lib/wedding-calendar';
-import { defaultReminderPayloads, reminderDef, calculateFirstSendDate } from '@/lib/client-reminders';
+import { defaultReminderPayloads, reminderDef, calculateScheduledSendDate } from '@/lib/client-reminders';
 
 interface ClientModalProps {
   open: boolean;
@@ -441,13 +441,21 @@ export function ClientModal({ open, onOpenChange, mode, client, userId, onSucces
                   { field: 'client_id', operator: '==', value: client.id },
                 ]);
                 for (const r of rems as any[]) {
-                  if ((r.sent_count || 0) === 0 && !r.completed_at && r.schedule_mode !== 'manual') {
-                    const def = reminderDef(r.type);
-                    if (def) {
-                      const freshDate = calculateFirstSendDate(def, eventDate);
-                      await updateDocument('client_reminders', r.id, { next_send_at: freshDate.toISOString() });
-                    }
-                  }
+                  const def = reminderDef(r.type);
+                  if (!def || r.completed_at || r.schedule_mode === 'manual') continue;
+
+                  const sentCount = Number(r.sent_count || 0);
+                  if (def.maxSends !== null && sentCount >= def.maxSends) continue;
+
+                  const freshDate = calculateScheduledSendDate(def, eventDate, sentCount);
+                  const updates: Record<string, any> = {
+                    label: def.label,
+                    interval_days: def.intervalDays,
+                    max_sends: def.maxSends,
+                    schedule_mode: 'wedding_based',
+                    next_send_at: freshDate.toISOString(),
+                  };
+                  await updateDocument('client_reminders', r.id, updates);
                 }
               } catch (e) {
                 console.warn('Update client_reminders on date change failed:', e);
