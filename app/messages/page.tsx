@@ -199,6 +199,17 @@ export default function AdminMessagesPage() {
     return conversations.reduce((sum, conv) => sum + (conv.unread || 0), 0);
   }, [conversations]);
 
+  const unreadByType = useMemo(() => {
+    const counts: Record<'client' | 'vendor' | 'team', number> = { client: 0, vendor: 0, team: 0 };
+    conversations.forEach((conv) => {
+      if (conv.unread > 0 && !conv.deletedForPlanner) {
+        const t = (conv.type || 'client') as 'client' | 'vendor' | 'team';
+        counts[t] = (counts[t] || 0) + conv.unread;
+      }
+    });
+    return counts;
+  }, [conversations]);
+
   const fetchConversations = async () => {
     if (!user?.uid) return;
     setLoadingConvs(true);
@@ -889,15 +900,27 @@ export default function AdminMessagesPage() {
               <div className="flex gap-2 overflow-x-auto pb-1">
                 <Button size="sm" variant={filter === 'all' ? 'default' : 'outline'} onClick={() => setFilter('all')} className={filter === 'all' ? 'bg-brand-turquoise' : ''}>
                   Tous
+                  {totalUnread > 0 && (
+                    <Badge className="ml-1.5 bg-red-500 text-white border-0 text-[10px] px-1.5 py-0 min-w-[18px] h-[18px] flex items-center justify-center">{totalUnread}</Badge>
+                  )}
                 </Button>
                 <Button size="sm" variant={filter === 'client' ? 'default' : 'outline'} onClick={() => setFilter('client')} className={filter === 'client' ? 'bg-brand-turquoise' : ''}>
                   Clients
+                  {unreadByType.client > 0 && (
+                    <Badge className="ml-1.5 bg-red-500 text-white border-0 text-[10px] px-1.5 py-0 min-w-[18px] h-[18px] flex items-center justify-center">{unreadByType.client}</Badge>
+                  )}
                 </Button>
                 <Button size="sm" variant={filter === 'vendor' ? 'default' : 'outline'} onClick={() => setFilter('vendor')} className={filter === 'vendor' ? 'bg-brand-turquoise' : ''}>
                   Prestataires
+                  {unreadByType.vendor > 0 && (
+                    <Badge className="ml-1.5 bg-red-500 text-white border-0 text-[10px] px-1.5 py-0 min-w-[18px] h-[18px] flex items-center justify-center">{unreadByType.vendor}</Badge>
+                  )}
                 </Button>
                 <Button size="sm" variant={filter === 'team' ? 'default' : 'outline'} onClick={() => setFilter('team')} className={filter === 'team' ? 'bg-brand-turquoise' : ''}>
                   Équipe
+                  {unreadByType.team > 0 && (
+                    <Badge className="ml-1.5 bg-red-500 text-white border-0 text-[10px] px-1.5 py-0 min-w-[18px] h-[18px] flex items-center justify-center">{unreadByType.team}</Badge>
+                  )}
                 </Button>
               </div>
             </div>

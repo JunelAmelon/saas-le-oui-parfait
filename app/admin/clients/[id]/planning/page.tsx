@@ -35,6 +35,13 @@ type AppointmentTask = {
   google_event_id?: string;
 };
 
+function formatFrDate(iso: string): string {
+  if (!iso) return '—';
+  const d = new Date(iso.includes('T') ? iso : `${iso}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' });
+}
+
 const isAppointmentPast = (apt: AppointmentTask) => {
   if (!apt.confirmed_date) return false;
   const dateTime = new Date(`${apt.confirmed_date}T${apt.confirmed_time || '23:59'}:00`);
@@ -162,7 +169,7 @@ export default function ClientPlanningPage() {
             recipient_id: clientUserId,
             type: 'planning',
             title: 'Rendez-vous modifié',
-            message: `Le rendez-vous "${form.title.trim()}" a été modifié (${form.date} ${form.time})`,
+            message: `Le rendez-vous "${form.title.trim()}" a été modifié (${formatFrDate(form.date)} à ${form.time})`,
             link: '/espace-client/planning',
             read: false,
             created_at: new Date(),
@@ -177,7 +184,7 @@ export default function ClientPlanningPage() {
             await sendPushToRecipient({
               recipientId: clientUserId,
               title: 'Rendez-vous modifié',
-              body: `Le rendez-vous "${form.title.trim()}" a été modifié (${form.date} ${form.time})`,
+              body: `Le rendez-vous "${form.title.trim()}" a été modifié (${formatFrDate(form.date)} à ${form.time})`,
               link: '/espace-client/planning',
             });
           } catch (e) {
@@ -189,7 +196,7 @@ export default function ClientPlanningPage() {
             await sendEmailToUid({
               recipientUid: clientUserId,
               subject: 'Rendez-vous modifié - Le Oui Parfait',
-              text: `Le rendez-vous "${form.title.trim()}" a été modifié.\nNouvelle date : ${form.date} ${form.time}\nLieu : ${form.location.trim() || 'non précisé'}\n\nConnectez-vous à votre espace client pour le consulter.`,
+              text: `Le rendez-vous "${form.title.trim()}" a été modifié.\nNouvelle date : ${formatFrDate(form.date)} à ${form.time}\nLieu : ${form.location.trim() || 'non précisé'}\n\nConnectez-vous à votre espace client pour le consulter.`,
             });
           } catch (e) {
             console.warn('Unable to send email:', e);
@@ -312,7 +319,7 @@ export default function ClientPlanningPage() {
             recipient_id: clientUserId,
             type: 'planning',
             title: 'Nouveau rendez-vous',
-            message: `Un nouveau rendez-vous a été ajouté : ${form.title.trim()} (${form.date} ${form.time})`,
+            message: `Un nouveau rendez-vous a été ajouté : ${form.title.trim()} (${formatFrDate(form.date)} à ${form.time})`,
             link: '/espace-client/planning',
             read: false,
             created_at: new Date(),
@@ -327,7 +334,7 @@ export default function ClientPlanningPage() {
             await sendPushToRecipient({
               recipientId: clientUserId,
               title: 'Nouveau rendez-vous',
-              body: `Un nouveau rendez-vous a été ajouté : ${form.title.trim()} (${form.date} ${form.time})`,
+              body: `Un nouveau rendez-vous a été ajouté : ${form.title.trim()} (${formatFrDate(form.date)} à ${form.time})`,
               link: '/espace-client/planning',
             });
           } catch (e) {
@@ -339,7 +346,7 @@ export default function ClientPlanningPage() {
             await sendEmailToUid({
               recipientUid: clientUserId,
               subject: 'Nouveau rendez-vous - Le Oui Parfait',
-              text: `Un nouveau rendez-vous a été ajouté : ${form.title.trim()}\nDate : ${form.date} ${form.time}\nLieu : ${form.location.trim()}\n\nConnectez-vous à votre espace client pour le consulter.`,
+              text: `Un nouveau rendez-vous a été ajouté : ${form.title.trim()}\nDate : ${formatFrDate(form.date)} à ${form.time}\nLieu : ${form.location.trim()}\n\nConnectez-vous à votre espace client pour le consulter.`,
             });
           } catch (e) {
             console.warn('Unable to send email:', e);
@@ -425,7 +432,7 @@ export default function ClientPlanningPage() {
             await sendEmailToUid({
               recipientUid: clientUserId,
               subject: 'Rendez-vous annulé - Le Oui Parfait',
-              text: `Le rendez-vous "${apt.title}" prévu le ${apt.confirmed_date} à ${apt.confirmed_time} a été annulé.\n\nConnectez-vous à votre espace client pour plus d'informations.`,
+              text: `Le rendez-vous "${apt.title}" prévu le ${formatFrDate(apt.confirmed_date)} à ${apt.confirmed_time} a été annulé.\n\nConnectez-vous à votre espace client pour plus d'informations.`,
             });
           } catch (e) {
             console.warn('Unable to send email:', e);
@@ -517,7 +524,7 @@ export default function ClientPlanningPage() {
                         <div className="flex flex-wrap items-center gap-3 text-sm text-brand-gray mt-1">
                           <span className="inline-flex items-center gap-1">
                             <Calendar className="h-4 w-4" />
-                            {a.confirmed_date}
+                            {formatFrDate(a.confirmed_date)}
                           </span>
                           <span className="inline-flex items-center gap-1">
                             <Clock className="h-4 w-4" />

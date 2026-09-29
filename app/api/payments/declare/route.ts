@@ -79,7 +79,15 @@ export async function POST(request: NextRequest) {
         payment_id: paymentRef.id,
       });
 
-      const emailText = `Bonjour,\n\n${client_name || 'Un client'} a déclaré un virement bancaire pour la facture ${invoice?.number}.\n\nMontant : ${amount.toLocaleString('fr-FR')}€\nDate du virement : ${transfer_date}\nRéférence : ${transfer_reference}\nJustificatif : ${proof_url}\n\nVeuillez vérifier le virement et valider le paiement dans l'administration.\n\nLe Oui Parfait`;
+      const formattedTransferDate = (() => {
+        try {
+          const d = new Date(transfer_date.includes('T') ? transfer_date : `${transfer_date}T00:00:00`);
+          return Number.isNaN(d.getTime()) ? transfer_date : d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' });
+        } catch {
+          return transfer_date;
+        }
+      })();
+      const emailText = `Bonjour,\n\n${client_name || 'Un client'} a déclaré un virement bancaire pour la facture ${invoice?.number}.\n\nMontant : ${amount.toLocaleString('fr-FR')}€\nDate du virement : ${formattedTransferDate}\nRéférence : ${transfer_reference}\nJustificatif : ${proof_url}\n\nVeuillez vérifier le virement et valider le paiement dans l'administration.\n\nLe Oui Parfait`;
 
       const contactEmail = process.env.CONTACT_EMAIL || 'contact@leouiparfait.com';
 
