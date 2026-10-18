@@ -675,21 +675,6 @@ export function ClientFacturationProTab({ clientId }: ClientFacturationProTabPro
               </div>
             </div>
 
-            {/* Statut */}
-            <div>
-              <Label className="text-[12px] font-semibold text-[#4B4456]">Statut paiement</Label>
-              <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v as ProDocStatus })}>
-                <SelectTrigger className="mt-1.5 h-10 rounded-xl border-[rgba(75,68,86,0.1)]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="recu">Reçu</SelectItem>
-                  <SelectItem value="en_attente">En attente</SelectItem>
-                  <SelectItem value="paye">Payé</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
             {/* Notes */}
             <div>
               <Label className="text-[12px] font-semibold text-[#4B4456]">Description / Notes</Label>
