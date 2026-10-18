@@ -74,18 +74,6 @@ interface ClientFacturationProTabProps {
   clientId: string;
 }
 
-const statusLabels: Record<ProDocStatus, string> = {
-  recu: 'Reçu',
-  en_attente: 'En attente',
-  paye: 'Payé',
-};
-
-const statusColors: Record<ProDocStatus, string> = {
-  recu: 'bg-blue-100 text-blue-700 hover:bg-blue-100',
-  en_attente: 'bg-orange-100 text-orange-700 hover:bg-orange-100',
-  paye: 'bg-green-100 text-green-700 hover:bg-green-100',
-};
-
 export function ClientFacturationProTab({ clientId }: ClientFacturationProTabProps) {
   const { user } = useAuth();
   const [docs, setDocs] = useState<ProDocument[]>([]);
@@ -207,17 +195,6 @@ export function ClientFacturationProTab({ clientId }: ClientFacturationProTabPro
     } catch (e) {
       console.error('Error deleting pro document:', e);
       toast.error('Erreur lors de la suppression');
-    }
-  };
-
-  const handleStatusChange = async (docId: string, newStatus: ProDocStatus) => {
-    setDocs((prev) => prev.map((d) => (d.id === docId ? { ...d, status: newStatus } : d)));
-    try {
-      await updateDocument('pro_documents', docId, { status: newStatus, updated_at: new Date().toISOString() });
-      toast.success('Statut mis à jour');
-    } catch (e) {
-      console.error('Error updating status:', e);
-      toast.error('Erreur lors de la mise à jour');
     }
   };
 
@@ -435,14 +412,12 @@ export function ClientFacturationProTab({ clientId }: ClientFacturationProTabPro
                 <TableHead className="text-[11px] font-semibold text-[#9C97A3] uppercase tracking-wide bg-[#FAF9F7]">Référence</TableHead>
                 <TableHead className="text-[11px] font-semibold text-[#9C97A3] uppercase tracking-wide bg-[#FAF9F7]">Montant</TableHead>
                 <TableHead className="text-[11px] font-semibold text-[#9C97A3] uppercase tracking-wide bg-[#FAF9F7]">Date</TableHead>
-                <TableHead className="text-[11px] font-semibold text-[#9C97A3] uppercase tracking-wide bg-[#FAF9F7]">Paiement</TableHead>
                 <TableHead className="text-[11px] font-semibold text-[#9C97A3] uppercase tracking-wide bg-[#FAF9F7]">Validation pro</TableHead>
                 <TableHead className="text-[11px] font-semibold text-[#9C97A3] uppercase tracking-wide bg-[#FAF9F7] text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {docs.map((d) => {
-                const docStatus = d.status || 'recu';
                 const files = getFileUrls(d);
                 const isVendorDoc = d.uploaded_by === 'vendor';
                 return (
@@ -483,19 +458,6 @@ export function ClientFacturationProTab({ clientId }: ClientFacturationProTabPro
                     <TableCell className="text-[13px] font-bold text-[#4B4456]">{d.amount.toLocaleString('fr-FR')} €</TableCell>
                     {/* Date */}
                     <TableCell className="text-[12px] text-[#9C97A3]">{d.date ? d.date.split('-').reverse().join('/') : '—'}</TableCell>
-                    {/* Statut paiement */}
-                    <TableCell>
-                      <Select value={docStatus} onValueChange={(v) => handleStatusChange(d.id, v as ProDocStatus)}>
-                        <SelectTrigger className="w-[110px] h-8 border-[rgba(75,68,86,0.1)] bg-[#FAF9F7] text-[12px] rounded-full">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {(['recu', 'en_attente', 'paye'] as ProDocStatus[]).map((s) => (
-                            <SelectItem key={s} value={s}>{statusLabels[s]}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </TableCell>
                     {/* Validation pro */}
                     <TableCell>
                       {isVendorDoc ? (
