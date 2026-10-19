@@ -1,24 +1,28 @@
 /**
  * Fonctions pour envoyer des notifications email
+ * Utilise le même contrat que /api/email/send : { recipientEmail, subject, text }
  */
+import { auth } from '@/lib/firebase';
 
-export async function sendInvoiceCreatedEmail(invoiceData: {
-  client_email: string;
-  client_name: string;
-  invoice_number: string;
-  amount: number;
-  due_date: string;
-  invoice_url?: string;
-}) {
+async function sendNotificationEmail(params: {
+  to: string;
+  subject: string;
+  text: string;
+}): Promise<boolean> {
   try {
+    const idToken = await auth.currentUser?.getIdToken().catch(() => null);
+    if (!idToken) return false;
+
     const response = await fetch('/api/email/send', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${idToken}`,
+      },
       body: JSON.stringify({
-        to: invoiceData.client_email,
-        subject: `Nouvelle facture ${invoiceData.invoice_number}`,
-        template: 'invoice_created',
-        data: invoiceData,
+        recipientEmail: params.to,
+        subject: params.subject,
+        text: params.text,
       }),
     });
 
@@ -28,9 +32,38 @@ export async function sendInvoiceCreatedEmail(invoiceData: {
 
     return true;
   } catch (error) {
-    console.error('Error sending invoice email:', error);
+    console.error('Error sending notification email:', error);
     return false;
   }
+}
+
+function formatAmount(amount: number) {
+  return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(amount);
+}
+
+function formatDateFr(dateStr: string) {
+  try {
+    const d = new Date(dateStr.includes('T') ? dateStr : `${dateStr}T00:00:00`);
+    if (Number.isNaN(d.getTime())) return dateStr;
+    return d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' });
+  } catch {
+    return dateStr;
+  }
+}
+
+export async function sendInvoiceCreatedEmail(invoiceData: {
+  client_email: string;
+  client_name: string;
+  invoice_number: string;
+  amount: number;
+  due_date: string;
+  invoice_url?: string;
+}) {
+  return sendNotificationEmail({
+    to: invoiceData.client_email,
+    subject: `Nouvelle facture ${invoiceData.invoice_number} - Le Oui Parfait`,
+    text: `Bonjour ${invoiceData.client_name || ''},\n\nUne nouvelle facture (${invoiceData.invoice_number}) d'un montant de ${formatAmount(invoiceData.amount)} est disponible.\n\nÉchéance : ${formatDateFr(invoiceData.due_date)}${invoiceData.invoice_url ? `\nLien : ${invoiceData.invoice_url}` : ''}\n\nConnectez-vous à votre espace client pour la consulter.\n\nLe Oui Parfait`,
+  });
 }
 
 export async function sendPaymentPendingEmail(paymentData: {
@@ -41,27 +74,11 @@ export async function sendPaymentPendingEmail(paymentData: {
   transfer_date: string;
   proof_url: string;
 }) {
-  try {
-    const response = await fetch('/api/email/send', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        to: paymentData.admin_email,
-        subject: `Nouveau paiement à valider - ${paymentData.invoice_number}`,
-        template: 'payment_pending',
-        data: paymentData,
-      }),
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to send email');
-    }
-
-    return true;
-  } catch (error) {
-    console.error('Error sending payment notification email:', error);
-    return false;
-  }
+  return sendNotificationEmail({
+    to: paymentData.admin_email,
+    subject: `Nouveau paiement à valider - ${paymentData.invoice_number}`,
+    text: `Bonjour,\n\n${paymentData.client_name || 'Un client'} a déclaré un virement pour la facture ${paymentData.invoice_number}.\n\nMontant : ${formatAmount(paymentData.amount)}\nDate du virement : ${formatDateFr(paymentData.transfer_date)}\nJustificatif : ${paymentData.proof_url}\n\nVeuillez vérifier et valider le paiement dans l'administration.\n\nLe Oui Parfait`,
+  });
 }
 
 export async function sendPaymentValidatedEmail(paymentData: {
@@ -70,27 +87,11 @@ export async function sendPaymentValidatedEmail(paymentData: {
   invoice_number: string;
   amount: number;
 }) {
-  try {
-    const response = await fetch('/api/email/send', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        to: paymentData.client_email,
-        subject: `Paiement validé - ${paymentData.invoice_number}`,
-        template: 'payment_validated',
-        data: paymentData,
-      }),
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to send email');
-    }
-
-    return true;
-  } catch (error) {
-    console.error('Error sending payment validated email:', error);
-    return false;
-  }
+  return sendNotificationEmail({
+    to: paymentData.client_email,
+    subject: `Paiement validé - ${paymentData.invoice_number} - Le Oui Parfait`,
+    text: `Bonjour ${paymentData.client_name || ''},\n\nVotre paiement de ${formatAmount(paymentData.amount)} pour la facture ${paymentData.invoice_number} a bien été validé.\n\nMerci de votre confiance.\n\nLe Oui Parfait`,
+  });
 }
 
 export async function sendPaymentRejectedEmail(paymentData: {
@@ -100,25 +101,9 @@ export async function sendPaymentRejectedEmail(paymentData: {
   amount: number;
   reason: string;
 }) {
-  try {
-    const response = await fetch('/api/email/send', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        to: paymentData.client_email,
-        subject: `Paiement refusé - ${paymentData.invoice_number}`,
-        template: 'payment_rejected',
-        data: paymentData,
-      }),
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to send email');
-    }
-
-    return true;
-  } catch (error) {
-    console.error('Error sending payment rejected email:', error);
-    return false;
-  }
+  return sendNotificationEmail({
+    to: paymentData.client_email,
+    subject: `Paiement refusé - ${paymentData.invoice_number} - Le Oui Parfait`,
+    text: `Bonjour ${paymentData.client_name || ''},\n\nVotre paiement de ${formatAmount(paymentData.amount)} pour la facture ${paymentData.invoice_number} a été refusé.\n\nMotif : ${paymentData.reason}\n\nMerci de procéder à un nouveau paiement depuis votre espace client.\n\nLe Oui Parfait`,
+  });
 }

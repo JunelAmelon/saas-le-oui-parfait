@@ -351,8 +351,8 @@ export default function ClientPrestatairesAdminPage() {
         getDocument('clients', clientId).catch(() => null) as Promise<any>,
         getDocuments('events', [{ field: 'client_id', operator: '==', value: clientId }]).catch(() => []),
       ]);
-      const couple = [clientDoc?.partner1_first_name || '', clientDoc?.partner2_first_name || ''].filter(Boolean).join(' & ');
-      const names = couple || [clientDoc?.first_name, clientDoc?.last_name].filter(Boolean).join(' ') || 'ce mariage';
+      const names = `${clientDoc?.name || ''}${clientDoc?.name && clientDoc?.partner ? ' & ' : ''}${clientDoc?.partner || ''}`.trim();
+      const weddingRef = names ? `au mariage de ${names}` : 'à un mariage';
       const wedding = (eventsRaw as any[])
         .filter((e) => e?.date)
         .sort((a, b) => String(a.date).localeCompare(String(b.date)))[0];
@@ -377,7 +377,7 @@ export default function ClientPrestatairesAdminPage() {
             recipient_id: vendor.pro_account_uid,
             type: 'booking',
             title: 'Invitation au mariage',
-            message: `Vous avez été invité(e) à intervenir au mariage de ${names}${wDateFr ? ` le ${wDateFr}` : ''}. Consultez les détails dans votre espace pro.`,
+            message: `Vous avez été invité(e) à intervenir ${weddingRef}${wDateFr ? ` le ${wDateFr}` : ''}. Consultez les détails dans votre espace pro.`,
             link: '/espace-pro/mariages',
             read: false,
             created_at: new Date(),
@@ -388,11 +388,11 @@ export default function ClientPrestatairesAdminPage() {
 
         try {
           const { sendEmailToUid } = await import('@/lib/email');
-          const firstName = (vendor.contact_name || vendor.name || '').split(' ')[0] || 'Bonjour';
+          const firstName = (vendor.contact_name || vendor.name || '').split(' ')[0];
           await sendEmailToUid({
             recipientUid: vendor.pro_account_uid,
-            subject: `Invitation au mariage de ${names} — Le Oui Parfait`,
-            text: `Bonjour ${firstName},\n\nVous avez été invité(e) à intervenir au mariage de ${names}.\n\nTous les détails sont disponibles dès maintenant dans votre espace pro, onglet Mariages.\n\nPour toute question ou information complémentaire, n'hésitez pas à nous contacter. Nous restons à votre disposition.\n\nCordialement,\nL'équipe Le Oui Parfait`,
+            subject: `Invitation ${weddingRef} — Le Oui Parfait`,
+            text: `Bonjour${firstName ? ` ${firstName}` : ''},\n\nVous avez été invité(e) à intervenir ${weddingRef}.\n\nTous les détails sont disponibles dès maintenant dans votre espace pro, onglet Mariages.\n\nPour toute question ou information complémentaire, n'hésitez pas à nous contacter. Nous restons à votre disposition.\n\nCordialement,\nL'équipe Le Oui Parfait`,
           });
         } catch (e) {
           console.warn('Unable to send vendor booking email:', e);
@@ -403,7 +403,7 @@ export default function ClientPrestatairesAdminPage() {
           await sendPushToRecipient({
             recipientId: vendor.pro_account_uid,
             title: 'Invitation au mariage',
-            body: `Vous avez été invité(e) à intervenir au mariage de ${names}.`,
+            body: `Vous avez été invité(e) à intervenir ${weddingRef}.`,
             link: '/espace-pro/mariages',
           });
         } catch (e) {
@@ -749,7 +749,7 @@ export default function ClientPrestatairesAdminPage() {
           const { sendEmailToUid } = await import('@/lib/email');
           await sendEmailToUid({
             recipientUid: req.vendor_uid,
-            subject: `Réponse à votre question - ${clientNames}`,
+            subject: `Réponse à votre question${clientNames ? ` - ${clientNames}` : ''} — Le Oui Parfait`,
             text: `Bonjour,\n\nVotre wedding planner a répondu à votre question concernant le créneau du ${slotDate ? new Date(slotDate + 'T00:00:00').toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' }) : '—'} à ${slotTime} — ${slotTitle}.\n\nRéponse :\n${text}\n\nConnectez-vous à votre espace pro pour consulter la conversation.\n\nLe Oui Parfait`,
           });
         }

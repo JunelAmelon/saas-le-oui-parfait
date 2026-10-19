@@ -35,12 +35,7 @@ async function getClientInfo(clientId: string) {
     if (!snap.exists) return null;
     const data = snap.data() as any;
     const email = data.email || data.client_email || null;
-    const firstNames = [data.partner1_first_name, data.partner2_first_name]
-      .map((x) => String(x || '').trim())
-      .filter(Boolean)
-      .join(' & ');
     const coupleNames =
-      firstNames ||
       data.couple_names ||
       `${data.name || ''}${data.name && data.partner ? ' & ' : ''}${data.partner || ''}`.trim() ||
       data.name ||

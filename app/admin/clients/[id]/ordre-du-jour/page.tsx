@@ -110,7 +110,7 @@ export default function ClientOrdreDuJourPage() {
       setShareConfirmOpen(false);
 
       if (next) {
-        const names = event?.couple_names || 'votre mariage';
+        const names = (event?.couple_names || '').trim();
         try {
           const clientDoc = (await getDocument('clients', clientId)) as any;
           const uid = clientDoc?.client_user_id;
@@ -130,7 +130,7 @@ export default function ClientOrdreDuJourPage() {
             await sendEmailToUid({
               recipientUid: uid,
               subject: 'Votre planning du jour J est disponible — Le Oui Parfait',
-              text: `Bonjour ${names},\n\nLe planning du jour J de votre mariage est désormais disponible dans votre espace client, onglet « Planning ».\n\nVous pouvez le consulter et le télécharger en PDF à tout moment.\n\nÀ très vite,\nL'équipe Le Oui Parfait`,
+              text: `Bonjour${names ? ` ${names}` : ''},\n\nLe planning du jour J de votre mariage est désormais disponible dans votre espace client, onglet « Planning ».\n\nVous pouvez le consulter et le télécharger en PDF à tout moment.\n\nÀ très vite,\nL'équipe Le Oui Parfait`,
             });
           } else {
             console.warn('Aucun compte client lie (client_user_id manquant)', { email });

@@ -16,7 +16,7 @@ export function buildBrandedEmail(params: {
   text?: string;
   cta?: Cta;
 }) {
-  const appName = params.appName || 'leouiparfait';
+  const appName = params.appName || 'Le Oui Parfait';
   const baseUrl = params.baseUrl || '';
   const title = params.title || 'Notification';
   const text = (params.text || '').trim();

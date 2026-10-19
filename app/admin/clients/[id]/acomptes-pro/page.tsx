@@ -307,6 +307,18 @@ export default function ClientAcomptesProPage() {
       await updateDocument('vendor_payments', paymentId, updateData);
       toast.success('Acompte marqué comme payé');
 
+      // Fetch couple names once for vendor + couple notifications
+      let clientDoc: any = null;
+      try {
+        if (payment?.client_id) clientDoc = (await getDocument('clients', payment.client_id)) as any;
+      } catch {
+        // non-blocking
+      }
+      const coupleNames = clientDoc
+        ? `${clientDoc.name || ''}${clientDoc.name && clientDoc.partner ? ' & ' : ''}${clientDoc.partner || ''}`.trim()
+        : '';
+      const weddingLabel = coupleNames || booking?.client_names || '';
+
       // Notify the vendor
       if (payment?.vendor_uid) {
         try {
@@ -314,7 +326,7 @@ export default function ClientAcomptesProPage() {
             recipient_id: payment.vendor_uid,
             type: 'payment',
             title: 'Acompte reçu',
-            message: `${payment.label} de ${Number(payment.amount || 0).toLocaleString('fr-FR')} € pour ${booking?.client_names || 'le mariage'} a été marqué comme payé (${method}).`,
+            message: `${payment.label} de ${Number(payment.amount || 0).toLocaleString('fr-FR')} € pour ${weddingLabel ? `le mariage de ${weddingLabel}` : 'le mariage'} a été marqué comme payé (${method}).`,
             link: booking ? `/espace-pro/mariages/${booking.id}` : '/espace-pro',
             read: false,
             created_at: new Date(),
@@ -329,7 +341,7 @@ export default function ClientAcomptesProPage() {
           await sendEmailToUid({
             recipientUid: payment.vendor_uid,
             subject: 'Acompte reçu - Le Oui Parfait',
-            text: `Bonjour,\n\nUn acompte a été marqué comme reçu pour vous :\n\nLibellé : ${payment.label}\nMontant : ${Number(payment.amount || 0).toLocaleString('fr-FR')} €\nMéthode : ${method}\nMariage : ${booking?.client_names || 'N/A'}\n\nRetrouvez le détail sur votre espace pro.\n\nLe Oui Parfait`,
+            text: `Bonjour,\n\nUn acompte a été marqué comme reçu pour vous :\n\nLibellé : ${payment.label}\nMontant : ${Number(payment.amount || 0).toLocaleString('fr-FR')} €\nMéthode : ${method}\nMariage : ${weddingLabel || '—'}\n\nRetrouvez le détail sur votre espace pro.\n\nLe Oui Parfait`,
           });
         } catch (e) {
           console.warn('Unable to send vendor email:', e);
@@ -352,11 +364,7 @@ export default function ClientAcomptesProPage() {
       // Notify the couple
       try {
         if (!payment) throw new Error('Payment not found');
-        const clientDoc = (await getDocument('clients', payment.client_id)) as any;
         const clientUserId = clientDoc?.client_user_id || null;
-        const coupleNames = clientDoc
-          ? `${clientDoc.name || ''}${clientDoc.name && clientDoc.partner ? ' & ' : ''}${clientDoc.partner || ''}`.trim()
-          : '';
 
         // Find vendor contact name
         let vendorName = 'votre prestataire';

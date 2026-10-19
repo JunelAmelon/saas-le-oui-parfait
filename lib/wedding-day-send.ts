@@ -160,7 +160,8 @@ export async function sendWeddingDayPdfToVendors(opts: {
   }
 
   // Notifications in-app + email aux prestataires (best effort, non bloquant)
-  const names = coupleNames || 'vos mariés';
+  const names = (coupleNames || '').trim();
+  const weddingRef = names ? `du mariage de ${names}` : 'de votre mariage';
   for (const v of recipients) {
     if (!v.uid) continue;
 
@@ -169,7 +170,7 @@ export async function sendWeddingDayPdfToVendors(opts: {
         recipient_id: v.uid,
         type: 'planning',
         title: 'Planning du jour J partagé',
-        message: `Le planning complet du jour J du mariage de ${names} vous a été partagé. Consultez-le dans l'onglet Planning de la fiche mariage.`,
+        message: `Le planning complet du jour J ${weddingRef} vous a été partagé. Consultez-le dans l'onglet Planning de la fiche mariage.`,
         link: '/espace-pro/mariages',
         read: false,
         created_at: new Date(),
@@ -181,8 +182,8 @@ export async function sendWeddingDayPdfToVendors(opts: {
     try {
       await sendEmailToUid({
         recipientUid: v.uid,
-        subject: `Planning du jour J - ${names} - Le Oui Parfait`,
-        text: `Bonjour,\n\nLe planning complet du jour J du mariage de ${names} vient de vous être partagé.\n\nConnectez-vous à votre espace pro, onglet Planning de la fiche mariage, pour le consulter et le télécharger.\n\nLe Oui Parfait`,
+        subject: `Planning du jour J${names ? ` - ${names}` : ''} - Le Oui Parfait`,
+        text: `Bonjour,\n\nLe planning complet du jour J ${weddingRef} vient de vous être partagé.\n\nConnectez-vous à votre espace pro, onglet Planning de la fiche mariage, pour le consulter et le télécharger.\n\nLe Oui Parfait`,
       });
     } catch (e) {
       console.warn('Unable to send planning du jour email:', e);

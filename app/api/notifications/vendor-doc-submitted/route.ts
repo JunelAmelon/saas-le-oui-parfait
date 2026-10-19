@@ -21,7 +21,8 @@ export async function POST(req: NextRequest) {
     const plannerId = body.planner_id;
     const vendorName = body.vendor_name || 'Prestataire';
     const docType = body.doc_type === 'facture' ? 'facture' : 'devis';
-    const clientNames = body.client_names || 'un mariage';
+    const clientNames = (body.client_names || '').trim();
+    const weddingRef = clientNames ? `le mariage de ${clientNames}` : 'un mariage';
     const clientId = body.client_id || '';
 
     if (!plannerId) return NextResponse.json({ error: 'missing_planner_id' }, { status: 400 });
@@ -32,7 +33,7 @@ export async function POST(req: NextRequest) {
         recipient_id: plannerId,
         type: 'vendor_doc',
         title: `${docType === 'devis' ? 'Devis' : 'Facture'} soumis par ${vendorName}`,
-        message: `${vendorName} a soumis un ${docType} pour le mariage de ${clientNames}. Vérifiez et validez-le.`,
+        message: `${vendorName} a soumis un ${docType} pour ${weddingRef}. Vérifiez et validez-le.`,
         link: clientId ? `/admin/clients/${clientId}/facturation-pro` : '/factures',
         read: false,
         created_at: new Date(),
@@ -48,7 +49,7 @@ export async function POST(req: NextRequest) {
         await sendEmailServer({
           to: contactEmail,
           subject: `${docType === 'devis' ? 'Devis' : 'Facture'} soumis par ${vendorName}`,
-          text: `Bonjour,\n\n${vendorName} a soumis un ${docType} pour le mariage de ${clientNames}.\n\nVérifiez et validez ce document dans l'administration.\n\nLe Oui Parfait`,
+          text: `Bonjour,\n\n${vendorName} a soumis un ${docType} pour ${weddingRef}.\n\nVérifiez et validez ce document dans l'administration.\n\nLe Oui Parfait`,
         });
       }
     } catch (e) {
@@ -60,7 +61,7 @@ export async function POST(req: NextRequest) {
       await sendPushServer({
         recipientId: plannerId,
         title: `${docType === 'devis' ? 'Devis' : 'Facture'} soumis`,
-        body: `${vendorName} a soumis un ${docType} pour ${clientNames}.`,
+        body: `${vendorName} a soumis un ${docType} pour ${weddingRef}.`,
         link: clientId ? `/admin/clients/${clientId}/facturation-pro` : '/factures',
       });
     } catch (e) {

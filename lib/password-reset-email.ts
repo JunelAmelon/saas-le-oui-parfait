@@ -124,12 +124,12 @@ export async function sendPasswordResetEmail(params: {
   let ctaLabel: string;
 
   if (reason === 'forgot') {
-    subject = `Réinitialisation de votre mot de passe - leouiparfait`;
+    subject = `Réinitialisation de votre mot de passe - Le Oui Parfait`;
     title = `Réinitialisation de votre mot de passe`;
     text = `Bonjour,\n\nVous avez demandé à réinitialiser votre mot de passe pour votre ${spaceLabel}.\n\nCliquez sur le bouton ci-dessous pour en définir un nouveau.`;
     ctaLabel = 'Définir mon nouveau mot de passe';
   } else {
-    subject = `Accès à votre ${spaceLabel} - leouiparfait`;
+    subject = `Accès à votre ${spaceLabel} - Le Oui Parfait`;
     title = `Accès à votre ${spaceLabel}`;
     text = `Bonjour,\n\nVotre accès à l'${spaceLabel} est prêt.\n\nCliquez sur le bouton ci-dessous pour définir votre mot de passe. Ce lien est valable ${INVITE_TTL_DAYS} jours.`;
     ctaLabel = 'Définir mon mot de passe';
@@ -138,7 +138,7 @@ export async function sendPasswordResetEmail(params: {
   const plainText = `${text}\n\nSi vous n'êtes pas à l'origine de cette demande, ignorez cet email.\n`;
 
   const html = buildBrandedEmail({
-    appName: 'leouiparfait',
+    appName: 'Le Oui Parfait',
     baseUrl,
     title,
     text,

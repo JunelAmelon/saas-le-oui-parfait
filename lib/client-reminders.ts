@@ -163,6 +163,7 @@ export function buildReminderEmail(
 ): { subject: string; text: string } {
   const url = `${baseUrl.replace(/\/$/, '')}/espace-client`;
   const planner = plannerSignature(context.plannerName);
+  const greeting = coupleNames && coupleNames !== 'Client' ? `Bonjour ${coupleNames}` : 'Bonjour';
   const days = daysText(context.daysRemaining);
   const isRelance = (context.sendIndex || 0) > 0;
 
@@ -171,7 +172,7 @@ export function buildReminderEmail(
       ? {
           subject: 'Vos tenues du jour J, on en est où ? — Le Oui Parfait',
           text:
-            `Bonjour ${coupleNames},\n\n` +
+            `${greeting},\n\n` +
             `${days}, et je reviens vers vous pour vos tenues du jour J.\n\n` +
             `Avez-vous déjà trouvé la robe et le costume ? Si vous êtes encore en phase de recherche ou de retouches, c’est vraiment le bon moment pour sécuriser tout ça tranquillement.\n\n` +
             `Et si tout est déjà réglé, alors c’est une excellente nouvelle. Vous pouvez simplement marquer cette étape comme terminée ici :\n${url}\n\n` +
@@ -181,7 +182,7 @@ export function buildReminderEmail(
       : {
           subject: 'Un petit point sur vos tenues du jour J — Le Oui Parfait',
           text:
-            `Bonjour ${coupleNames},\n\n` +
+            `${greeting},\n\n` +
             `${days}, et c’est le bon moment pour commencer à penser à vos tenues, sans vous mettre de pression.\n\n` +
             `Pour la robe comme pour le costume, les plus belles options partent souvent vite, surtout quand il faut prévoir les essayages et les retouches. L’idée n’est pas de tout finaliser tout de suite, mais simplement de lancer les recherches tranquillement.\n\n` +
             `Quelques adresses, quelques essayages, et le reste viendra naturellement.\n\n` +
@@ -195,7 +196,7 @@ export function buildReminderEmail(
       ? {
           subject: 'Petite relance pour vos alliances — Le Oui Parfait',
           text:
-            `Bonjour ${coupleNames},\n\n` +
+            `${greeting},\n\n` +
             `Je reviens vers vous pour vos alliances. ${days}, et c’est le bon moment pour vérifier que tout est en ordre.\n\n` +
             `Si vous les avez déjà choisies, tant mieux. Sinon, il est encore temps de finaliser tranquillement le modèle, la taille, la gravure et la récupération.\n\n` +
             `Une fois cette étape bouclée, vous pourrez la marquer dans votre espace client :\n${url}\n\n` +
@@ -205,7 +206,7 @@ export function buildReminderEmail(
       : {
           subject: 'On parle alliances ? — Le Oui Parfait',
           text:
-            `Bonjour ${coupleNames},\n\n` +
+            `${greeting},\n\n` +
             `${days}, et c’est une très bonne période pour commencer à réfléchir à vos alliances.\n\n` +
             `C’est le genre de détail qui semble rapide au départ, puis on découvre les modèles, les tailles, les gravures et les délais de fabrication. Autant le faire calmement, pour trouver vraiment ce qui vous ressemble.\n\n` +
             `Prenez simplement un moment pour essayer quelques modèles et comparer vos coups de cœur.\n\n` +
@@ -219,7 +220,7 @@ export function buildReminderEmail(
       ? {
           subject: 'Dernier petit point sur les cadeaux invités — Le Oui Parfait',
           text:
-            `Bonjour ${coupleNames},\n\n` +
+            `${greeting},\n\n` +
             `${days} — on y est presque.\n\n` +
             `Je reviens vers vous pour les cadeaux invités : est-ce que tout est prêt de votre côté ? Si la commande et les petites finitions sont réglées, vous pouvez marquer cette étape comme terminée ici :\n${url}\n\n` +
             `Et s’il reste un dernier détail à boucler, c’est le bon moment pour le faire tranquillement.\n\n` +
@@ -229,7 +230,7 @@ export function buildReminderEmail(
       : {
           subject: 'Une petite attention pour vos invités — Le Oui Parfait',
           text:
-            `Bonjour ${coupleNames},\n\n` +
+            `${greeting},\n\n` +
             `${days}, et c’est un bon moment pour commencer à penser aux cadeaux invités.\n\n` +
             `Pas besoin d’en faire trop. Une petite attention simple, choisie avec le cœur, sera déjà parfaite. L’important, c’est surtout d’avoir une idée claire avant que les derniers mois arrivent.\n\n` +
             `Quand vous saurez ce que vous voulez offrir, tout le reste deviendra beaucoup plus simple.\n\n` +
@@ -244,7 +245,7 @@ export function buildReminderEmail(
       ? `Petite relance — ${label} — Le Oui Parfait`
       : `Petit point — ${label} — Le Oui Parfait`,
     text:
-      `Bonjour ${coupleNames},\n\n` +
+      `${greeting},\n\n` +
       `${days}, et je reviens vers vous au sujet de « ${label} ».\n\n` +
       (isRelance
         ? `Si cette étape est déjà bouclée, c’est parfait. Sinon, c’est le bon moment pour la sécuriser tranquillement.\n\n`

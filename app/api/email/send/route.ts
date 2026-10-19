@@ -94,7 +94,7 @@ export async function POST(req: Request) {
     const finalHtml = html
       ? html
       : buildBrandedEmail({
-          appName: 'leouiparfait',
+          appName: 'Le Oui Parfait',
           baseUrl,
           title: subject,
           text,

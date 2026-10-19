@@ -604,7 +604,7 @@ export default function AdminMessagesPage() {
             await sendEmailToUid({
               recipientUid: convRaw.vendor_uid,
               subject: 'Nouveau message de votre wedding planner - Le Oui Parfait',
-              text: `Bonjour ${vendorName},\n\nVotre wedding planner vous a envoyé un message${content ? ` :\n\n${content}` : ''}${attachmentPreview ? `\n\nAvec : ${attachmentPreview.replace('📎 ', '')}` : ''}\n\nConnectez-vous à votre espace pro pour répondre.\n\nLe Oui Parfait`,
+              text: `Bonjour${convRaw?.vendor_name ? ` ${convRaw.vendor_name}` : ''},\n\nVotre wedding planner vous a envoyé un message${content ? ` :\n\n${content}` : ''}${attachmentPreview ? `\n\nAvec : ${attachmentPreview.replace('📎 ', '')}` : ''}\n\nConnectez-vous à votre espace pro pour répondre.\n\nLe Oui Parfait`,
             });
           } catch (e) {
             console.warn('Unable to send email to vendor:', e);

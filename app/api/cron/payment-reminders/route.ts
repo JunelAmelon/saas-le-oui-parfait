@@ -115,13 +115,14 @@ function buildClientText(
   const absDays = Math.abs(daysLate);
   const formattedAmount = formatAmount(amount);
   const formattedDate = formatDate(dueDate);
+  const greeting = name && name !== 'Client' ? `Bonjour ${name}` : 'Bonjour';
   const itemLabel = isVendor
     ? `l'acompte ${reference} pour ${vendorName || 'votre prestataire'}`
     : `la facture ${reference}`;
 
   if (daysLate === -14) {
     return (
-      `Bonjour ${name},\n\n`
+      `${greeting},\n\n`
       + `Nous vous informons que votre paiement de ${formattedAmount} pour ${itemLabel} arrive à échéance le ${formattedDate} (soit dans 14 jours).\n\n`
       + `Merci de prévoir le règlement dans les meilleurs délais via votre espace client.\n\n`
       + `Cordialement,\nL'équipe Le Oui Parfait`
@@ -129,7 +130,7 @@ function buildClientText(
   }
   if (daysLate === -3) {
     return (
-      `Bonjour ${name},\n\n`
+      `${greeting},\n\n`
       + `Votre paiement de ${formattedAmount} pour ${itemLabel} arrive à échéance le ${formattedDate} (soit dans 3 jours).\n\n`
       + `Merci de procéder au règlement dans les meilleurs délais.\n\n`
       + `Cordialement,\nL'équipe Le Oui Parfait`
@@ -137,7 +138,7 @@ function buildClientText(
   }
   if (daysLate === 0) {
     return (
-      `Bonjour ${name},\n\n`
+      `${greeting},\n\n`
       + `Votre paiement de ${formattedAmount} pour ${itemLabel} arrive à échéance aujourd'hui (${formattedDate}).\n\n`
       + `Merci de procéder au règlement dès que possible.\n\n`
       + `Cordialement,\nL'équipe Le Oui Parfait`
@@ -145,7 +146,7 @@ function buildClientText(
   }
   // Retard (J+3, J+7, J+14)
   return (
-    `Bonjour ${name},\n\n`
+    `${greeting},\n\n`
     + `Votre paiement de ${formattedAmount} pour ${itemLabel} était attendu pour le ${formattedDate} (soit ${absDays} jour${absDays > 1 ? 's' : ''} de retard).\n\n`
     + `Merci de régulariser votre situation dans les meilleurs délais.\n\n`
     + `Cordialement,\nL'équipe Le Oui Parfait`
