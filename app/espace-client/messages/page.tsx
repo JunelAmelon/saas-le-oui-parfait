@@ -191,9 +191,10 @@ export default function MessagesPage() {
     const existing = await getDocuments('conversations', [
       { field: 'client_id', operator: '==', value: client.id },
     ]);
+    const clientConvs = (existing as any[]).filter((c) => (c?.type || 'client') === 'client');
     const conv0 =
-      (existing as any[])?.find((c) => c?.planner_id === client.planner_id) ||
-      (existing as any[])?.[0] ||
+      clientConvs.find((c) => c?.planner_id === client.planner_id) ||
+      clientConvs[0] ||
       null;
     if (conv0?.id) {
       return conv0;

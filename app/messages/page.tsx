@@ -357,7 +357,7 @@ export default function AdminMessagesPage() {
       { field: 'planner_id', operator: '==', value: user.uid },
       { field: 'client_id', operator: '==', value: cid },
     ]).catch(() => []);
-    const existing0 = (existingItems as any[])?.find((c) => (c?.type || 'client') === 'client') || (existingItems as any[])?.[0] || null;
+    const existing0 = (existingItems as any[])?.find((c) => (c?.type || 'client') === 'client') || null;
     if (existing0?.id) {
       if (existing0.deleted_for_planner === true) {
         await updateDocument('conversations', existing0.id, { deleted_for_planner: false });
