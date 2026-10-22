@@ -712,9 +712,9 @@ export default function AdminMessagesPage() {
     }
   };
 
-  const handleAttachmentsSelected = (files: FileList | null) => {
-    if (!files || files.length === 0) return;
-    setPendingAttachments(prev => [...prev, ...Array.from(files)]);
+  const handleAttachmentsSelected = (files: File[]) => {
+    if (!files.length) return;
+    setPendingAttachments(prev => [...prev, ...files]);
   };
 
   const removePendingAttachment = (index: number) => {
@@ -1281,8 +1281,9 @@ export default function AdminMessagesPage() {
                 aria-label="Joindre des images"
                 className="hidden"
                 onChange={(e) => {
-                  handleAttachmentsSelected(e.target.files);
+                  const selected = Array.from(e.target.files || []);
                   e.target.value = '';
+                  handleAttachmentsSelected(selected);
                 }}
               />
               <input
@@ -1292,8 +1293,9 @@ export default function AdminMessagesPage() {
                 aria-label="Joindre des documents"
                 className="hidden"
                 onChange={(e) => {
-                  handleAttachmentsSelected(e.target.files);
+                  const selected = Array.from(e.target.files || []);
                   e.target.value = '';
+                  handleAttachmentsSelected(selected);
                 }}
               />
 

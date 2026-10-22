@@ -377,9 +377,9 @@ export default function VendorMessagesPage() {
     }
   };
 
-  const handleAttachmentsSelected = (files: FileList | null) => {
-    if (!files || files.length === 0) return;
-    setPendingAttachments(prev => [...prev, ...Array.from(files)]);
+  const handleAttachmentsSelected = (files: File[]) => {
+    if (!files.length) return;
+    setPendingAttachments(prev => [...prev, ...files]);
   };
 
   const removePendingAttachment = (index: number) => {
@@ -607,14 +607,22 @@ export default function VendorMessagesPage() {
                 accept="image/*"
                 multiple
                 className="hidden"
-                onChange={(e) => { handleAttachmentsSelected(e.target.files); e.target.value = ''; }}
+                onChange={(e) => {
+                  const selected = Array.from(e.target.files || []);
+                  e.target.value = '';
+                  handleAttachmentsSelected(selected);
+                }}
               />
               <input
                 id={documentInputId}
                 type="file"
                 multiple
                 className="hidden"
-                onChange={(e) => { handleAttachmentsSelected(e.target.files); e.target.value = ''; }}
+                onChange={(e) => {
+                  const selected = Array.from(e.target.files || []);
+                  e.target.value = '';
+                  handleAttachmentsSelected(selected);
+                }}
               />
 
               {pendingAttachments.length > 0 && (
