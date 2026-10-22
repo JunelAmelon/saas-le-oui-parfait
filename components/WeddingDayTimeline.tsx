@@ -645,7 +645,7 @@ export function WeddingDayTimeline({
       {/* Edition (admin) : aperçu en modal, ouvert via le bouton Aperçu */}
       {editable && (
         <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
-          <DialogContent className="w-[100vw] h-[100dvh] max-w-none rounded-none p-2 flex flex-col overflow-hidden sm:w-[98vw] sm:h-auto sm:max-w-6xl sm:max-h-[95vh] sm:rounded-xl sm:p-4 gap-2">
+          <DialogContent className="w-[100vw] h-screen supports-[height:100dvh]:h-[100dvh] max-w-none rounded-none p-2 flex flex-col overflow-hidden sm:w-[98vw] sm:h-auto sm:max-w-6xl sm:max-h-[95vh] sm:rounded-xl sm:p-4 gap-2">
             <DialogHeader className="shrink-0">
               <DialogTitle>Aperçu — Planning du jour J</DialogTitle>
             </DialogHeader>
@@ -714,7 +714,7 @@ export function WeddingDayTimeline({
 
       {/* Document plein ecran (mobile) */}
       <Dialog open={docOpen} onOpenChange={setDocOpen}>
-        <DialogContent className="max-w-none w-[100vw] h-[100dvh] rounded-none p-2 flex flex-col gap-2">
+        <DialogContent className="max-w-none w-[100vw] h-screen supports-[height:100dvh]:h-[100dvh] rounded-none p-2 flex flex-col gap-2">
           <DialogHeader className="px-1">
             <DialogTitle className="text-left">Planning du jour J — document</DialogTitle>
           </DialogHeader>
