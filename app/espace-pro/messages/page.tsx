@@ -396,7 +396,7 @@ export default function VendorMessagesPage() {
 
   return (
     <VendorDashboardLayout vendorName={vendor?.name}>
-      <div className="space-y-3 h-[calc(100vh-80px)] flex flex-col">
+      <div className="space-y-3 h-[calc(100dvh-80px)] flex flex-col">
         {/* Hero */}
         <div className="relative overflow-hidden rounded-2xl bg-[#4B4456] px-5 py-3 sm:px-6 sm:py-4 shrink-0">
           <div className="absolute -top-8 -right-8 w-40 h-40 rounded-full bg-[#88b7b5]/10 blur-3xl pointer-events-none" />

@@ -207,7 +207,7 @@ export function ClientSidebar() {
             className="fixed inset-0 z-40 bg-black/50 md:hidden"
             onClick={() => setIsMobileMenuOpen(false)}
           />
-          <aside className="fixed left-0 top-0 z-50 h-screen w-[260px] bg-white flex flex-col md:hidden py-8 px-5 overflow-y-auto">
+          <aside className="fixed left-0 top-0 z-50 h-[100dvh] w-[260px] bg-white flex flex-col md:hidden py-8 px-5 overflow-y-auto">
             <SidebarContent />
           </aside>
         </>

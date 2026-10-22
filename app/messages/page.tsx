@@ -886,7 +886,7 @@ export default function AdminMessagesPage() {
           </Button>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[calc(100vh-250px)] min-h-[500px]">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[calc(100dvh-250px)] min-h-[500px]">
           <Card
             className={`p-4 shadow-xl border-0 overflow-hidden flex flex-col ${
               showChatOnMobile ? 'hidden lg:flex' : 'flex'

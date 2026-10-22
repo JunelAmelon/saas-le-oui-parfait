@@ -286,7 +286,7 @@ export function Sidebar() {
             className="fixed inset-0 z-40 bg-black/50 md:hidden"
             onClick={() => setIsMobileMenuOpen(false)}
           />
-          <aside className="fixed left-0 top-0 z-50 h-screen w-64 border-r border-[#E5E5E5] bg-white flex flex-col md:hidden transform transition-transform">
+          <aside className="fixed left-0 top-0 z-50 h-[100dvh] w-64 border-r border-[#E5E5E5] bg-white flex flex-col md:hidden transform transition-transform">
             <SidebarContent />
           </aside>
         </>

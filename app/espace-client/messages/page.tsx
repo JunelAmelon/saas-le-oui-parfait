@@ -388,7 +388,7 @@ export default function MessagesPage() {
 
   return (
     <ClientDashboardLayout clientName={clientName} daysRemaining={daysRemaining}>
-      <div className="space-y-3 h-[calc(100vh-80px)] flex flex-col">
+      <div className="space-y-3 h-[calc(100dvh-80px)] flex flex-col">
 
         {/* ---------- HERO COMPACT ---------- */}
         <div className="relative overflow-hidden rounded-2xl bg-brand-purple px-5 py-3 sm:px-6 sm:py-4 shrink-0">
