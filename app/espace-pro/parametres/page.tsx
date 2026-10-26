@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useVendorData } from '@/contexts/VendorDataContext';
 import { VendorDashboardLayout } from '@/components/layout/VendorDashboardLayout';
-import { Loader2, Mail, Phone, Globe, MapPin, User } from 'lucide-react';
+import { Loader2, Mail, Phone, Globe, MapPin, User, Shield } from 'lucide-react';
+import { ChangePasswordSection } from '@/components/settings/ChangePasswordSection';
 
 export default function VendorParametresPage() {
   const { user, loading: authLoading } = useAuth();
@@ -70,6 +71,14 @@ export default function VendorParametresPage() {
               Pour modifier vos informations, contactez votre wedding planner.
             </p>
           </div>
+        </div>
+
+        <div className="bg-white rounded-[18px] border border-[rgba(75,68,86,0.06)] p-6">
+          <h2 className="text-[15px] font-semibold text-[#4B4456] mb-5 flex items-center gap-2">
+            <Shield className="w-4 h-4 text-[#88b7b5]" />
+            Sécurité
+          </h2>
+          <ChangePasswordSection description="Modifiez le mot de passe de votre espace pro." />
         </div>
       </div>
     </VendorDashboardLayout>

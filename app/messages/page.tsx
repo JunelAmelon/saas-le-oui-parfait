@@ -1142,7 +1142,7 @@ export default function AdminMessagesPage() {
                   <div className={`flex items-end gap-2 ${message.isMe ? 'flex-row-reverse' : 'flex-row'}`}>
                     <Avatar className="h-8 w-8">
                       {message.isMe ? (
-                        <AvatarImage src={profilePhotoUrl || '/kathy.png'} alt="Cathy" />
+                        <AvatarImage src={profilePhotoUrl || '/kathy.png'} alt="Kathy" />
                       ) : null}
                       {!message.isMe && selectedConversation?.photoUrl ? (
                         <AvatarImage src={selectedConversation.photoUrl} alt={selectedConversation.name} />

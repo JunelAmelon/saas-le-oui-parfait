@@ -75,7 +75,7 @@ export function ForgotPasswordModal({ open, onOpenChange }: ForgotPasswordModalP
             <div className="relative w-20 h-20 rounded-none ring-4 ring-white overflow-hidden bg-brand-beige shrink-0">
               <Image
                 src="/kathy.png"
-                alt="Cathy"
+                alt="Kathy"
                 fill
                 className="object-cover"
                 sizes="80px"

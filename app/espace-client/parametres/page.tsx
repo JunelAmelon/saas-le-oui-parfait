@@ -11,7 +11,9 @@ import {
   Mail,
   Phone,
   Camera,
+  Shield,
 } from 'lucide-react';
+import { ChangePasswordSection } from '@/components/settings/ChangePasswordSection';
 import { useClientData } from '@/contexts/ClientDataContext';
 import { calculateDaysRemaining } from '@/lib/client-helpers';
 
@@ -95,6 +97,14 @@ export default function ParametresPage() {
               </div>
             </div>
           </div>
+        </Card>
+
+        <Card className="p-6 sm:p-8 shadow-xl border-0">
+          <h2 className="text-xl font-bold text-brand-purple mb-5 flex items-center gap-2">
+            <Shield className="h-5 w-5 text-brand-turquoise" />
+            Sécurité
+          </h2>
+          <ChangePasswordSection description="Modifiez le mot de passe de votre espace client." />
         </Card>
       </div>
     </ClientDashboardLayout>

@@ -23,6 +23,7 @@ import {
   Check,
   Loader2,
 } from 'lucide-react';
+import { ChangePasswordSection } from '@/components/settings/ChangePasswordSection';
 
 export default function SettingsPage() {
   const { toast } = useToast();
@@ -31,9 +32,6 @@ export default function SettingsPage() {
   const [googleConnected, setGoogleConnected] = useState(false);
   const [checkingGoogle, setCheckingGoogle] = useState(true);
   const [settingsId, setSettingsId] = useState<string | null>(null);
-  const [currentPassword, setCurrentPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
 
   const [notifications, setNotifications] = useState({
     emailNewProspect: true,
@@ -143,62 +141,6 @@ export default function SettingsPage() {
     }
   };
 
-  const handleChangePassword = async () => {
-    if (!currentPassword || !newPassword || !confirmPassword) {
-      sonnerToast.error('Veuillez remplir tous les champs');
-      return;
-    }
-
-    if (newPassword !== confirmPassword) {
-      sonnerToast.error('Les mots de passe ne correspondent pas');
-      return;
-    }
-
-    if (newPassword.length < 6) {
-      sonnerToast.error('Le mot de passe doit contenir au moins 6 caractères');
-      return;
-    }
-
-    setLoading(true);
-    try {
-      // Utiliser Firebase Auth pour changer le mot de passe
-      const { updatePassword, reauthenticateWithCredential, EmailAuthProvider } = await import('firebase/auth');
-      const { auth } = await import('@/lib/firebase');
-      
-      if (!auth.currentUser) {
-        sonnerToast.error('Utilisateur non connecté');
-        return;
-      }
-
-      // Ré-authentifier l'utilisateur avec le mot de passe actuel
-      const credential = EmailAuthProvider.credential(
-        auth.currentUser.email!,
-        currentPassword
-      );
-      
-      await reauthenticateWithCredential(auth.currentUser, credential);
-      
-      // Mettre à jour le mot de passe
-      await updatePassword(auth.currentUser, newPassword);
-      
-      sonnerToast.success('Mot de passe modifié avec succès');
-      setCurrentPassword('');
-      setNewPassword('');
-      setConfirmPassword('');
-    } catch (error: any) {
-      console.error('Error changing password:', error);
-      if (error.code === 'auth/wrong-password') {
-        sonnerToast.error('Mot de passe actuel incorrect');
-      } else if (error.code === 'auth/weak-password') {
-        sonnerToast.error('Le mot de passe est trop faible');
-      } else {
-        sonnerToast.error('Erreur lors du changement de mot de passe');
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -234,45 +176,7 @@ export default function SettingsPage() {
                   <h3 className="font-medium text-brand-purple">
                     Modifier le mot de passe
                   </h3>
-                  <div className="space-y-2">
-                    <Label htmlFor="current-password">Mot de passe actuel</Label>
-                    <Input
-                      id="current-password"
-                      type="password"
-                      value={currentPassword}
-                      onChange={(e) => setCurrentPassword(e.target.value)}
-                      className="border-[#E5E5E5] focus-visible:ring-brand-turquoise"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="new-password">Nouveau mot de passe</Label>
-                    <Input
-                      id="new-password"
-                      type="password"
-                      value={newPassword}
-                      onChange={(e) => setNewPassword(e.target.value)}
-                      className="border-[#E5E5E5] focus-visible:ring-brand-turquoise"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="confirm-password">
-                      Confirmer le nouveau mot de passe
-                    </Label>
-                    <Input
-                      id="confirm-password"
-                      type="password"
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      className="border-[#E5E5E5] focus-visible:ring-brand-turquoise"
-                    />
-                  </div>
-                  <Button 
-                    onClick={handleChangePassword}
-                    disabled={loading}
-                    className="bg-brand-turquoise hover:bg-brand-turquoise-hover"
-                  >
-                    {loading ? 'Modification...' : 'Modifier le mot de passe'}
-                  </Button>
+                  <ChangePasswordSection />
                 </div>
 
                 <div className="pt-6 border-t border-gray-200">

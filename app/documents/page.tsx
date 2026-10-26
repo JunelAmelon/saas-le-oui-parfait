@@ -39,6 +39,8 @@ import {
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { useRef } from 'react';
 import { useState, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { PageHeader } from '@/components/layout/PageHeader';
@@ -69,6 +71,108 @@ export default function DocumentsPage() {
   const [editName, setEditName] = useState('');
   const [editType, setEditType] = useState('contrat');
   const [deletingDocId, setDeletingDocId] = useState<string | null>(null);
+  const [replacingDocId, setReplacingDocId] = useState<string | null>(null);
+  const replaceInputRef = useRef<HTMLInputElement | null>(null);
+
+  const typeBadgeClasses: Record<string, string> = {
+    contrat: 'bg-brand-purple/10 text-brand-purple border-brand-purple/20',
+    devis: 'bg-brand-turquoise/10 text-brand-turquoise border-brand-turquoise/30',
+    facture: 'bg-orange-100 text-orange-600 border-orange-200',
+    planning: 'bg-blue-100 text-blue-600 border-blue-200',
+    photo: 'bg-pink-100 text-pink-600 border-pink-200',
+  };
+
+  const docOpened = (doc: any) => Boolean(doc?.opened_at);
+  const docOpenedLabel = (doc: any) => {
+    const raw = doc?.opened_at;
+    const d = raw?.toDate ? raw.toDate() : raw ? new Date(raw) : null;
+    return d && !Number.isNaN(d.getTime()) ? `Vu le ${d.toLocaleDateString('fr-FR')}` : 'Vu';
+  };
+
+  // Remplace le fichier d'un document existant (meme entree, nouveau fichier).
+  // Le statut "vu" repart a zero : le nouveau contenu n'a pas encore ete lu.
+  const handleReplaceFile = async (doc: any, file: File) => {
+    setReplacingDocId(doc.id);
+    try {
+      const { uploadFile } = await import('@/lib/storage');
+      const fileUrl = await uploadFile(file, 'documents');
+      await updateDocument('documents', doc.id, {
+        file_url: fileUrl,
+        file_type: file.type,
+        file_size: file.size,
+        uploaded_at: new Date().toLocaleDateString('fr-FR'),
+        opened_at: null,
+        last_opened_at: null,
+        view_count: 0,
+        reminder_sent_at: null,
+        view_tracked: true,
+      });
+      toast.success('Fichier remplacé');
+      await fetchDocuments();
+    } catch (e) {
+      console.error('Error replacing file:', e);
+      toast.error('Erreur lors du remplacement');
+    } finally {
+      setReplacingDocId(null);
+    }
+  };
+
+  const openReplacePicker = (doc: any) => {
+    const input = replaceInputRef.current;
+    if (!input) return;
+    input.dataset.docId = doc.id;
+    input.click();
+  };
+
+  // Renvoie la notification "nouveau document" au couple (notif + push + email).
+  const handleRelancerClient = async (doc: any) => {
+    if (!user?.uid || !doc?.client_id) {
+      toast.error('Document sans client associé');
+      return;
+    }
+    try {
+      const { addDocument, getDocument } = await import('@/lib/db');
+      const clientRaw = (await getDocument('clients', doc.client_id)) as any;
+      const clientUserId = clientRaw?.client_user_id || null;
+      const coupleName = `${clientRaw?.name || ''}${clientRaw?.partner ? ' & ' + clientRaw.partner : ''}`.trim() || 'le couple';
+      if (!clientUserId) {
+        toast.error('Aucun compte client lié à ce document');
+        return;
+      }
+      await addDocument('notifications', {
+        recipient_id: clientUserId,
+        type: 'document',
+        title: 'Rappel : document à consulter',
+        message: `Un document est disponible dans votre espace : ${doc.name || 'Document'}`,
+        link: '/espace-client/documents',
+        read: false,
+        created_at: new Date(),
+        planner_id: user.uid,
+        client_id: doc.client_id,
+      });
+      try {
+        const { sendEmailToUid } = await import('@/lib/email');
+        await sendEmailToUid({
+          recipientUid: clientUserId,
+          subject: `Rappel : un document vous attend dans votre espace client`,
+          text: `Bonjour ${coupleName},\n\nLe document « ${doc.name || 'Document'} » est disponible dans votre espace client, onglet Documents. Pensez à le consulter.\n\nÀ très vite,\nLe Oui Parfait`,
+        });
+      } catch { /* non-blocking */ }
+      try {
+        const { sendPushToRecipient } = await import('@/lib/push');
+        await sendPushToRecipient({
+          recipientId: clientUserId,
+          title: 'Rappel : document à consulter',
+          body: `Un document est disponible : ${doc.name || 'Document'}`,
+          link: '/espace-client/documents',
+        });
+      } catch { /* non-blocking */ }
+      toast.success(`Rappel envoyé à ${coupleName}`);
+    } catch (e) {
+      console.error('Error sending reminder:', e);
+      toast.error('Erreur lors de l\'envoi du rappel');
+    }
+  };
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
@@ -137,6 +241,30 @@ export default function DocumentsPage() {
 
       const data = await getDocuments('documents', filters);
       setDocuments(data);
+
+      // Backfill : les documents crees avant le tracking sont consideres
+      // "vus" (pas de rappel retroactif possible). On les marque une fois.
+      try {
+        const legacy = (data as any[]).filter((d) => d.view_tracked !== true && !d.opened_at);
+        if (legacy.length > 0) {
+          await Promise.all(
+            legacy.map((d) =>
+              updateDocument('documents', d.id, {
+                view_tracked: true,
+                opened_at: d.created_timestamp || new Date(),
+                opened_by: 'legacy',
+              }).catch(() => undefined)
+            )
+          );
+          setDocuments((prev) =>
+            prev.map((d) =>
+              legacy.some((l) => l.id === d.id)
+                ? { ...d, view_tracked: true, opened_at: d.created_timestamp || new Date() }
+                : d
+            )
+          );
+        }
+      } catch { /* non-blocking */ }
     } catch (e) {
       console.error('Error fetching documents:', e);
       toast.error('Erreur lors du chargement des documents');
@@ -259,6 +387,7 @@ export default function DocumentsPage() {
         file_size: selectedFile.size,
         uploaded_at: new Date().toLocaleDateString('fr-FR'),
         created_timestamp: new Date(),
+        view_tracked: true,
       };
 
       await addDocument('documents', docData);
@@ -403,6 +532,7 @@ export default function DocumentsPage() {
                       <TableHead className="font-bold text-brand-purple whitespace-nowrap">Type</TableHead>
                       <TableHead className="font-bold text-brand-purple whitespace-nowrap">Date</TableHead>
                       <TableHead className="font-bold text-brand-purple whitespace-nowrap">Taille</TableHead>
+                      <TableHead className="font-bold text-brand-purple whitespace-nowrap">Consulté</TableHead>
                       <TableHead className="font-bold text-brand-purple text-center whitespace-nowrap">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -416,7 +546,7 @@ export default function DocumentsPage() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Badge variant="outline" className="border-brand-turquoise text-brand-turquoise">
+                        <Badge variant="outline" className={typeBadgeClasses[doc.type] || 'bg-gray-100 text-gray-600 border-gray-200'}>
                           {doc.type || 'Autre'}
                         </Badge>
                       </TableCell>
@@ -427,12 +557,24 @@ export default function DocumentsPage() {
                         {doc.file_size ? `${(doc.file_size / 1024).toFixed(2)} KB` : 'N/A'}
                       </TableCell>
                       <TableCell>
+                        {docOpened(doc) ? (
+                          <Badge className="bg-brand-turquoise/10 text-brand-turquoise border-0 whitespace-nowrap">
+                            {docOpenedLabel(doc)}
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-gray-500 border-gray-300 whitespace-nowrap">
+                            Non vu
+                          </Badge>
+                        )}
+                      </TableCell>
+                      <TableCell>
                         <div className="flex items-center justify-center gap-1">
                           <Button
                             size="sm"
                             variant="ghost"
                             className="text-brand-turquoise hover:text-brand-turquoise hover:bg-brand-turquoise/10"
                             onClick={() => handleViewDocument(doc)}
+                            title="Voir"
                           >
                             <Eye className="h-4 w-4" />
                           </Button>
@@ -441,31 +583,50 @@ export default function DocumentsPage() {
                             variant="ghost"
                             className="text-brand-turquoise hover:text-brand-turquoise hover:bg-brand-turquoise/10"
                             onClick={() => handleDownloadDocument(doc)}
+                            title="Télécharger"
                           >
                             <Download className="h-4 w-4" />
                           </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="text-brand-gray hover:text-brand-purple hover:bg-gray-100"
-                            onClick={() => openEdit(doc)}
-                            title="Modifier"
-                          >
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="text-red-500 hover:text-red-600 hover:bg-red-50"
-                            onClick={() => handleDeleteDocument(doc.id)}
-                            disabled={deletingDocId === doc.id}
-                          >
-                            {deletingDocId === doc.id ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <Trash2 className="h-4 w-4" />
-                            )}
-                          </Button>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="text-brand-gray hover:text-brand-purple hover:bg-gray-100"
+                                title="Plus d'actions"
+                              >
+                                {replacingDocId === doc.id ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <MoreVertical className="h-4 w-4" />
+                                )}
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-56">
+                              <DropdownMenuItem onClick={() => openEdit(doc)}>
+                                Renommer
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => openReplacePicker(doc)}>
+                                Remplacer le fichier
+                              </DropdownMenuItem>
+                              {!docOpened(doc) && doc.client_id && (
+                                <>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem onClick={() => void handleRelancerClient(doc)}>
+                                    Relancer le client
+                                  </DropdownMenuItem>
+                                </>
+                              )}
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                className="text-red-600 focus:text-red-600"
+                                onClick={() => handleDeleteDocument(doc.id)}
+                                disabled={deletingDocId === doc.id}
+                              >
+                                Supprimer
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -510,6 +671,19 @@ export default function DocumentsPage() {
           </>
         )}
       </div>
+
+      <input
+        ref={replaceInputRef}
+        type="file"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          const docId = e.target.dataset.docId;
+          e.target.value = '';
+          const target = documents.find((d) => d.id === docId);
+          if (file && target) void handleReplaceFile(target, file);
+        }}
+      />
 
       <Dialog open={isUploadModalOpen} onOpenChange={setIsUploadModalOpen}>
         <DialogContent>

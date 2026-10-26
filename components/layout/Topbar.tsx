@@ -96,14 +96,14 @@ export function Topbar() {
             <DropdownMenuTrigger asChild>
               <button className="ml-1 md:ml-2 flex items-center gap-2 md:gap-3 rounded-lg p-1 hover:bg-gray-100">
                 <Avatar className="h-8 w-8 md:h-9 md:w-9">
-                  <AvatarImage src="/kathy.png" alt="Cathy" />
+                  <AvatarImage src="/kathy.png" alt="Kathy" />
                   <AvatarFallback className="bg-brand-turquoise text-white font-medium text-sm">
-                    CA
+                    KA
                   </AvatarFallback>
                 </Avatar>
                 <div className="text-left hidden lg:block">
                   <p className="text-sm font-medium text-brand-purple">
-                    Cathy
+                    Kathy
                   </p>
                   <p className="text-xs text-brand-gray">Wedding Planner</p>
                 </div>

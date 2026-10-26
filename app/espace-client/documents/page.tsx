@@ -493,6 +493,16 @@ export default function DocumentsPage() {
       toast.error('Aucun fichier disponible');
       return;
     }
+    // Trace l'ouverture pour le statut "Vu / Non vu" cote planner (best-effort).
+    if (doc.id) {
+      const now = new Date();
+      updateDocument('documents', doc.id, {
+        opened_at: (doc as any).opened_at || now,
+        last_opened_at: now,
+        view_count: Number((doc as any).view_count || 0) + 1,
+        view_tracked: true,
+      }).catch(() => undefined);
+    }
     window.open(doc.file_url, '_blank');
   };
 
