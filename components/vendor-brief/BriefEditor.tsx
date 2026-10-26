@@ -82,6 +82,7 @@ export function BriefEditor({
       init.map((p) => ({
         name: p.name || '',
         role: p.role || 'autre',
+        custom_role: typeof p.custom_role === 'string' ? p.custom_role : '',
         services: Array.isArray(p.services) ? p.services : [],
         touch_up: p.touch_up === true,
         notes: p.notes || '',
@@ -222,7 +223,7 @@ export function BriefEditor({
                           <Label className="text-[11px] uppercase tracking-wide text-[#9C97A3]">Rôle</Label>
                           <Select
                             value={person.role}
-                            onValueChange={(v) => patchPerson(idx, { role: v })}
+                            onValueChange={(v) => patchPerson(idx, { role: v, ...(v !== 'autre' ? { custom_role: '' } : {}) })}
                           >
                             <SelectTrigger className="mt-1">
                               <SelectValue placeholder="Rôle" />
@@ -236,6 +237,19 @@ export function BriefEditor({
                             </SelectContent>
                           </Select>
                         </div>
+                        {person.role === 'autre' && schema.people!.allowCustomRole && (
+                          <div className="sm:col-span-2">
+                            <Label className="text-[11px] uppercase tracking-wide text-[#9C97A3]">
+                              {schema.people!.customRoleLabel || 'Précisez qui'} *
+                            </Label>
+                            <Input
+                              value={person.custom_role || ''}
+                              onChange={(e) => patchPerson(idx, { custom_role: e.target.value })}
+                              placeholder="Ex : Belle-mère, cousine, maquilleuse remplaçante..."
+                              className="mt-1"
+                            />
+                          </div>
+                        )}
                       </div>
                       <button
                         type="button"

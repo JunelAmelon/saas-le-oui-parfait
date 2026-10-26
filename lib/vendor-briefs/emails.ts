@@ -31,7 +31,7 @@ const formatWeddingDate = (iso?: string | null): string => {
 };
 
 function personLine(schema: VendorBriefSchema, person: BriefPerson): string {
-  const role = getPersonRoleLabel(schema, person.role);
+  const role = getPersonRoleLabel(schema, person.role, person.custom_role);
   const services = (person.services || [])
     .map((s) => getPersonServiceLabel(schema, s))
     .filter(Boolean)

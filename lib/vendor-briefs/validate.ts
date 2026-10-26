@@ -43,6 +43,10 @@ function sanitizePerson(
   }
 
   const role = allowedRoles.has(String(src.role)) ? String(src.role) : 'autre';
+  const customRole = trim(src.custom_role, MAX_NAME_LENGTH);
+  if (role === 'autre' && cfg?.allowCustomRole && !customRole) {
+    return { person: null, error: `${name} : précisez qui est cette personne` };
+  }
 
   const services = Array.isArray(src.services)
     ? src.services.filter((s): s is string => typeof s === 'string' && allowedServices.has(s))
@@ -67,6 +71,7 @@ function sanitizePerson(
     touch_up: src.touch_up === true,
     photos,
   };
+  if (customRole) person.custom_role = customRole;
   const personNotes = trim(src.notes, MAX_PERSON_NOTES_LENGTH);
   if (personNotes) person.notes = personNotes;
 

@@ -29,7 +29,7 @@ export function VendorTopbar({ vendorName = 'Prestataire' }: VendorTopbarProps) 
 
   // Filter to only vendor-relevant notifications
   // Exclude client-specific types (document=contrats/devis client, step, planning, change_request)
-  const VENDOR_NOTIFICATION_TYPES = ['booking', 'message', 'vendor_doc', 'payment'];
+  const VENDOR_NOTIFICATION_TYPES = ['booking', 'message', 'vendor_doc', 'payment', 'brief'];
   const notifications: AppNotification[] = rawNotifications.filter((n) =>
     VENDOR_NOTIFICATION_TYPES.includes(n.type)
   );

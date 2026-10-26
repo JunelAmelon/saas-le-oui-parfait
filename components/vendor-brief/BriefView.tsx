@@ -13,7 +13,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
-import { Sparkles, StickyNote, X } from 'lucide-react';
+import { ClipboardList, Scissors, StickyNote, X } from 'lucide-react';
 import {
   getPersonRoleLabel,
   getPersonServiceLabel,
@@ -46,15 +46,17 @@ export function BriefView({ schema, data }: BriefViewProps) {
   const notes = typeof data?.notes === 'string' ? data.notes : '';
   const touchUpCount = people.filter((p) => p.touch_up).length;
 
+  const Icon = schema.icon === 'scissors' ? Scissors : ClipboardList;
+
   if (people.length === 0 && !notes) return null;
 
   return (
     <>
       <div className="bg-white rounded-[18px] border border-[rgba(75,68,86,0.06)] p-5">
         <div className="flex items-center gap-2 mb-1">
-          <Sparkles className="w-4 h-4 text-fuchsia-500" />
+          <Icon className="w-4 h-4 text-fuchsia-500" />
           <span className="text-[11px] font-semibold text-[#9C97A3] uppercase tracking-wide">
-            Votre fiche de préparation — {schema.serviceLabel}
+            Votre fiche de préparation · {schema.serviceLabel}
           </span>
         </div>
         {people.length > 0 && (
@@ -64,7 +66,7 @@ export function BriefView({ schema, data }: BriefViewProps) {
           </p>
         )}
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 min-[420px]:grid-cols-2 lg:grid-cols-3 gap-3">
           {people.map((person, idx) => (
             <button
               key={idx}
@@ -86,7 +88,7 @@ export function BriefView({ schema, data }: BriefViewProps) {
               <div className="min-w-0">
                 <p className="text-[13px] font-semibold text-[#4B4456] truncate">{person.name}</p>
                 <p className="text-[11px] text-[#9C97A3] truncate">
-                  {getPersonRoleLabel(schema, person.role)}
+                  {getPersonRoleLabel(schema, person.role, person.custom_role)}
                 </p>
                 <div className="flex flex-wrap gap-1 mt-1">
                   {(person.services || []).map((s) => (
@@ -125,7 +127,7 @@ export function BriefView({ schema, data }: BriefViewProps) {
                 <DialogTitle className="text-[18px] font-baskerville text-[#4B4456]">
                   {selected.name}
                   <span className="block text-sm font-medium text-[#9C97A3] mt-0.5">
-                    {getPersonRoleLabel(schema, selected.role)}
+                    {getPersonRoleLabel(schema, selected.role, selected.custom_role)}
                   </span>
                 </DialogTitle>
               </DialogHeader>

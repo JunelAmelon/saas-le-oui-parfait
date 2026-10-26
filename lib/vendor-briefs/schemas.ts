@@ -29,6 +29,9 @@ export interface PeopleConfig {
   services: BriefOption[];
   touchUpLabel: string;
   servicesRequired: boolean;
+  /** true → champ libre "Précisez qui" quand role === 'autre' */
+  allowCustomRole?: boolean;
+  customRoleLabel?: string;
 }
 
 export interface VendorBriefSchema {
@@ -37,6 +40,8 @@ export interface VendorBriefSchema {
   title: string;
   /** Libellé métier utilisé dans les emails ("coiffure & maquillage") */
   serviceLabel: string;
+  /** Clé d'icône affichée sur la carte briefing (voir BriefView) */
+  icon?: 'scissors' | 'clipboard';
   fields: BriefField[];
   people: PeopleConfig | null;
 }
@@ -49,6 +54,8 @@ export interface BriefPersonPhoto {
 export interface BriefPerson {
   name: string;
   role: string;
+  /** Libellé libre quand role === 'autre' et allowCustomRole */
+  custom_role?: string;
   services: string[];
   touch_up: boolean;
   notes?: string;
@@ -68,6 +75,7 @@ const HAIR_MAKEUP_SCHEMA: VendorBriefSchema = {
   categories: ['hair_makeup', 'hairMakeup', 'makeup_beauty'],
   title: 'Fiche de préparation coiffure & maquillage',
   serviceLabel: 'coiffure & maquillage',
+  icon: 'scissors',
   fields: [
     {
       key: 'people',
@@ -83,12 +91,20 @@ const HAIR_MAKEUP_SCHEMA: VendorBriefSchema = {
     maxPhotos: 6,
     roles: [
       { value: 'mariee', label: 'Mariée' },
+      { value: 'marie', label: 'Marié' },
       { value: 'temoin', label: 'Témoin' },
       { value: 'maman', label: 'Maman' },
+      { value: 'papa', label: 'Papa' },
       { value: 'soeur', label: 'Sœur' },
+      { value: 'frere', label: 'Frère' },
+      { value: 'grand_mere', label: 'Grand-mère' },
+      { value: 'enfant', label: 'Enfant' },
       { value: 'amie', label: 'Amie' },
+      { value: 'ami', label: 'Ami' },
       { value: 'autre', label: 'Autre' },
     ],
+    allowCustomRole: true,
+    customRoleLabel: 'Précisez qui',
     services: [
       { value: 'maquillage', label: 'Maquillage' },
       { value: 'coiffure', label: 'Coiffure' },
@@ -111,7 +127,12 @@ export function getBriefSchema(category?: string | null): VendorBriefSchema | nu
   return BRIEF_SCHEMAS.find((s) => s.categories.some((c) => c.toLowerCase() === lower)) || null;
 }
 
-export function getPersonRoleLabel(schema: VendorBriefSchema, role?: string): string {
+export function getPersonRoleLabel(
+  schema: VendorBriefSchema,
+  role?: string,
+  customRole?: string
+): string {
+  if (role === 'autre' && customRole?.trim()) return customRole.trim();
   return schema.people?.roles.find((r) => r.value === role)?.label || role || '—';
 }
 
