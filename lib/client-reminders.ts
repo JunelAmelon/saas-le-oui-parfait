@@ -25,7 +25,7 @@ export const CLIENT_REMINDER_DEFS: ClientReminderDef[] = [
   {
     type: 'tenue',
     label: 'Robe de mariée & costume',
-    subject: 'Un petit point sur vos tenues du jour J — Le Oui Parfait',
+    subject: 'Un petit point sur vos tenues du jour J · Le Oui Parfait',
     intervalDays: 120,
     daysBeforeWedding: 240, // 1er envoi ~8 mois avant, relance ~4 mois avant
     maxSends: 2,
@@ -33,7 +33,7 @@ export const CLIENT_REMINDER_DEFS: ClientReminderDef[] = [
   {
     type: 'alliances',
     label: 'Alliances',
-    subject: 'On parle alliances ? — Le Oui Parfait',
+    subject: 'On parle alliances ? · Le Oui Parfait',
     intervalDays: 90,
     daysBeforeWedding: 180, // 1er envoi ~6 mois avant, relance ~3 mois avant
     maxSends: 2,
@@ -41,7 +41,7 @@ export const CLIENT_REMINDER_DEFS: ClientReminderDef[] = [
   {
     type: 'cadeaux_invites',
     label: 'Finalisation des cadeaux des invités',
-    subject: 'Une petite attention pour vos invités — Le Oui Parfait',
+    subject: 'Une petite attention pour vos invités · Le Oui Parfait',
     intervalDays: 90,
     daysBeforeWedding: 120, // 1er envoi ~4 mois avant, relance ~1 mois avant
     maxSends: 2,
@@ -170,7 +170,7 @@ export function buildReminderEmail(
   if (type === 'tenue') {
     return isRelance
       ? {
-          subject: 'Vos tenues du jour J, on en est où ? — Le Oui Parfait',
+          subject: 'Vos tenues du jour J, on en est où ? · Le Oui Parfait',
           text:
             `${greeting},\n\n` +
             `${days}, et je reviens vers vous pour vos tenues du jour J.\n\n` +
@@ -180,7 +180,7 @@ export function buildReminderEmail(
             `À très vite,\n${planner}`,
         }
       : {
-          subject: 'Un petit point sur vos tenues du jour J — Le Oui Parfait',
+          subject: 'Un petit point sur vos tenues du jour J · Le Oui Parfait',
           text:
             `${greeting},\n\n` +
             `${days}, et c’est le bon moment pour commencer à penser à vos tenues, sans vous mettre de pression.\n\n` +
@@ -194,7 +194,7 @@ export function buildReminderEmail(
   if (type === 'alliances') {
     return isRelance
       ? {
-          subject: 'Petite relance pour vos alliances — Le Oui Parfait',
+          subject: 'Petite relance pour vos alliances · Le Oui Parfait',
           text:
             `${greeting},\n\n` +
             `Je reviens vers vous pour vos alliances. ${days}, et c’est le bon moment pour vérifier que tout est en ordre.\n\n` +
@@ -204,7 +204,7 @@ export function buildReminderEmail(
             `À très vite,\n${planner}`,
         }
       : {
-          subject: 'On parle alliances ? — Le Oui Parfait',
+          subject: 'On parle alliances ? · Le Oui Parfait',
           text:
             `${greeting},\n\n` +
             `${days}, et c’est une très bonne période pour commencer à réfléchir à vos alliances.\n\n` +
@@ -218,17 +218,17 @@ export function buildReminderEmail(
   if (type === 'cadeaux_invites') {
     return isRelance
       ? {
-          subject: 'Dernier petit point sur les cadeaux invités — Le Oui Parfait',
+          subject: 'Dernier petit point sur les cadeaux invités · Le Oui Parfait',
           text:
             `${greeting},\n\n` +
-            `${days} — on y est presque.\n\n` +
+            `${days}, on y est presque.\n\n` +
             `Je reviens vers vous pour les cadeaux invités : est-ce que tout est prêt de votre côté ? Si la commande et les petites finitions sont réglées, vous pouvez marquer cette étape comme terminée ici :\n${url}\n\n` +
             `Et s’il reste un dernier détail à boucler, c’est le bon moment pour le faire tranquillement.\n\n` +
             `Encore quelques petites choses à valider, et ensuite… place à la fête.\n\n` +
             `À très vite,\n${planner}`,
         }
       : {
-          subject: 'Une petite attention pour vos invités — Le Oui Parfait',
+          subject: 'Une petite attention pour vos invités · Le Oui Parfait',
           text:
             `${greeting},\n\n` +
             `${days}, et c’est un bon moment pour commencer à penser aux cadeaux invités.\n\n` +
@@ -242,8 +242,8 @@ export function buildReminderEmail(
   const label = context.customLabel || 'Votre étape';
   return {
     subject: isRelance
-      ? `Petite relance — ${label} — Le Oui Parfait`
-      : `Petit point — ${label} — Le Oui Parfait`,
+      ? `Petite relance : ${label} · Le Oui Parfait`
+      : `Petit point : ${label} · Le Oui Parfait`,
     text:
       `${greeting},\n\n` +
       `${days}, et je reviens vers vous au sujet de « ${label} ».\n\n` +
@@ -284,7 +284,7 @@ export function buildReminderNotification(
   }
 
   return {
-    title: `${stage} — ${label}`,
+    title: `${stage} : ${label}`,
     message: `${planner} vous a envoyé un rappel au sujet de « ${label} ». Marquez l’étape comme terminée quand tout est réglé.`,
   };
 }

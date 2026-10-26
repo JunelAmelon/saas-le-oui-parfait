@@ -240,7 +240,7 @@ export function buildWeddingDayTimelineHtml(
   const dateText = eventDate
     ? new Date(eventDate + 'T00:00:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
     : '';
-  const lieuDate = [dateText, location].filter(Boolean).join(' — ');
+  const lieuDate = [dateText, location].filter(Boolean).join(' · ');
 
   const reperes = sorted.length
     ? [
@@ -298,7 +298,7 @@ export function buildWeddingDayTimelineHtml(
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Planning du jour J — ${esc(coupleNames)}</title>
+<title>Planning du jour J · ${esc(coupleNames)}</title>
 <style>${css}</style>
 </head>
 <body>

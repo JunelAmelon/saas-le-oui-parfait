@@ -603,13 +603,13 @@ export default function ContractsPage() {
 
                     {(contract.status === 'draft' || contract.status === 'sent') && !fullySigned && adminSigned ? (
                       <div className="text-xs text-brand-gray pt-1">
-                        Signature prestataire effectuée — en attente du client.
+                        Signature prestataire effectuée, en attente du client.
                       </div>
                     ) : null}
 
                     {(contract.status === 'draft' || contract.status === 'sent') && !fullySigned && clientSigned && !adminSigned ? (
                       <div className="text-xs text-brand-gray pt-1">
-                        Le client a signé — il reste votre signature.
+                        Le client a signé, il reste votre signature.
                       </div>
                     ) : null}
 

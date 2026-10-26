@@ -291,7 +291,7 @@ export default function MariagePage() {
         {/* ---------- PAGE DE VISAS (tampons, style template, sans border-radius) ---------- */}
         <div className="bg-brand-beige p-6 sm:p-10">
           <p className="text-center text-[10px] tracking-[0.25em] uppercase text-brand-gray mb-8">
-            — Informations générales —
+            · Informations générales ·
           </p>
 
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 sm:gap-8">

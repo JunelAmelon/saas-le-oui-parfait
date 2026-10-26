@@ -8,7 +8,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Loader2, Users, Calendar, Plus, Trash2, Clock, Upload, FileText, X, CheckCircle2, Bell } from 'lucide-react';
+import { ArrowLeft, Loader2, Users, Calendar, Plus, Trash2, Clock, Upload, FileText, X, CheckCircle2, Bell, ClipboardList } from 'lucide-react';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { useAuth } from '@/contexts/AuthContext';
 import { addDocument, deleteDocument, getDocuments, getDocument, updateDocument } from '@/lib/db';
@@ -26,6 +26,9 @@ import {
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { BriefEditor } from '@/components/vendor-brief/BriefEditor';
+import { getBriefSchema, BRIEF_SCHEMA_VERSION, type BriefData } from '@/lib/vendor-briefs/schemas';
+import { sendBriefNotifications } from '@/lib/vendor-briefs/emails';
 
 function getRelativeDayLabel(dateStr: string, refStr: string | null): string | null {
   if (!refStr) return null;
@@ -101,6 +104,18 @@ export default function ClientPrestatairesAdminPage() {
   const [sendingReplyId, setSendingReplyId] = useState<string | null>(null);
   const [savingPlanning, setSavingPlanning] = useState(false);
   const [uploadingPlanning, setUploadingPlanning] = useState(false);
+
+  // Brief prestataire (infos métier visibles par le pro)
+  const [briefVendor, setBriefVendor] = useState<Vendor | null>(null);
+  const [briefOpen, setBriefOpen] = useState(false);
+  const [briefLoading, setBriefLoading] = useState(false);
+  const [briefSaving, setBriefSaving] = useState(false);
+  const [briefDocId, setBriefDocId] = useState<string | null>(null);
+  const [briefBookingId, setBriefBookingId] = useState<string | null>(null);
+  const [briefData, setBriefData] = useState<BriefData | null>(null);
+  const [briefNotified, setBriefNotified] = useState(false);
+  const [briefWeddingDate, setBriefWeddingDate] = useState<string | null>(null);
+  const [briefPlannerName, setBriefPlannerName] = useState<string>('');
 
   const fetchAll = async (withLoading = true) => {
     if (!user?.uid || !clientId) return;
@@ -225,6 +240,11 @@ export default function ClientPrestatairesAdminPage() {
 
       toast.success('Prestataire assigné au client');
       await fetchAll(false);
+
+      // Si la catégorie a un schéma de brief, proposer de le remplir tout de suite
+      if (getBriefSchema(vendor.category)) {
+        void openBrief(vendor);
+      }
     } catch (e) {
       console.error('Error assigning vendor:', e);
       toast.error("Impossible d'assigner le prestataire");
@@ -339,6 +359,118 @@ export default function ClientPrestatairesAdminPage() {
     }
   };
 
+  // ---- Brief prestataire (infos métier par catégorie, visibles côté pro) ----
+
+  const openBrief = async (vendor: Vendor) => {
+    if (!user?.uid || briefLoading) return;
+    const schema = getBriefSchema(vendor.category);
+    if (!schema) {
+      toast.info("Aucun brief n'est disponible pour cette catégorie de prestataire.");
+      return;
+    }
+    setBriefVendor(vendor);
+    setBriefData(null);
+    setBriefDocId(null);
+    setBriefBookingId(null);
+    setBriefNotified(false);
+    setBriefWeddingDate(null);
+    setBriefPlannerName('');
+    setBriefOpen(true);
+    setBriefLoading(true);
+    try {
+      // Retrouve le booking (single-field query puis filtre client-side)
+      const bks = await getDocuments('vendor_bookings', [
+        { field: 'vendor_id', operator: '==', value: vendor.id },
+      ]).catch(() => []);
+      const bk = (bks as any[]).find(
+        (b) => b.client_id === clientId && b.planner_id === user.uid && b.status !== 'cancelled'
+      );
+      if (bk) {
+        setBriefBookingId(bk.id);
+        setBriefNotified(bk.notified_at != null);
+        setBriefWeddingDate(bk.wedding_date || null);
+        setBriefPlannerName(bk.planner_name || '');
+        const briefs = await getDocuments('booking_briefs', [
+          { field: 'booking_id', operator: '==', value: bk.id },
+        ]).catch(() => []);
+        const doc = (briefs as any[])[0] || null;
+        if (doc) {
+          setBriefDocId(doc.id);
+          setBriefData((doc.data as BriefData) || null);
+        }
+      }
+
+      if (!clientNames) {
+        const clientDoc = (await getDocument('clients', clientId).catch(() => null)) as any;
+        const couple = `${clientDoc?.name || ''}${clientDoc?.name && clientDoc?.partner ? ' & ' : ''}${clientDoc?.partner || ''}`.trim();
+        if (couple) setClientNames(couple);
+      }
+    } catch (e) {
+      console.error('Error loading brief:', e);
+    } finally {
+      setBriefLoading(false);
+    }
+  };
+
+  const saveBrief = async (data: BriefData) => {
+    if (!user?.uid || !briefVendor) return;
+    const schema = getBriefSchema(briefVendor.category);
+    if (!schema) return;
+    const kind: 'created' | 'updated' = briefDocId ? 'updated' : 'created';
+    setBriefSaving(true);
+    try {
+      const payload = {
+        booking_id: briefBookingId,
+        client_id: clientId,
+        vendor_id: briefVendor.id,
+        vendor_uid: briefVendor.pro_account_uid || null,
+        planner_id: user.uid,
+        category: schema.key,
+        schema_version: BRIEF_SCHEMA_VERSION,
+        data,
+        updated_at: new Date(),
+        updated_by: user.uid,
+      };
+      if (briefDocId) {
+        await updateDocument('booking_briefs', briefDocId, payload);
+      } else {
+        const created = await addDocument('booking_briefs', {
+          ...payload,
+          created_at: new Date(),
+        });
+        setBriefDocId(created.id);
+      }
+      toast.success('Fiche de préparation enregistrée');
+      setBriefOpen(false);
+
+      // Notifie le prestataire : uniquement s'il a un compte pro ET que
+      // le mariage lui est déjà dévoilé (notified_at) — sinon l'email
+      // révèlerait le mariage avant le clic "Notifier".
+      if (briefVendor.pro_account_uid && briefNotified) {
+        void sendBriefNotifications({
+          vendorUid: briefVendor.pro_account_uid,
+          bookingId: briefBookingId,
+          kind,
+          schema,
+          data,
+          ctx: {
+            coupleNames: clientNames || 'un couple',
+            weddingDate: briefWeddingDate,
+            plannerName: briefPlannerName,
+            vendorFirstName: (briefVendor.contact_name || briefVendor.name || '').split(' ')[0] || null,
+          },
+        }).catch((e) => console.warn('Brief notifications failed:', e));
+      } else if (briefVendor.pro_account_uid && !briefNotified) {
+        toast.info("Le prestataire n'est pas encore notifié : il verra la fiche quand vous cliquerez sur « Notifier ». Aucun email envoyé.");
+      }
+    } catch (e) {
+      console.error('Error saving brief:', e);
+      toast.error("Erreur lors de l'enregistrement du brief");
+    } finally {
+      setBriefSaving(false);
+    }
+  };
+
   // Notification explicite : rend le mariage visible dans l'espace pro et
   // envoie notif in-app + email + push. Jamais appelee automatiquement.
   const sendVendorNotification = async (vendor: Vendor) => {
@@ -391,7 +523,7 @@ export default function ClientPrestatairesAdminPage() {
           const firstName = (vendor.contact_name || vendor.name || '').split(' ')[0];
           await sendEmailToUid({
             recipientUid: vendor.pro_account_uid,
-            subject: `Invitation ${weddingRef} — Le Oui Parfait`,
+            subject: `Invitation ${weddingRef} · Le Oui Parfait`,
             text: `Bonjour${firstName ? ` ${firstName}` : ''},\n\nVous avez été invité(e) à intervenir ${weddingRef}.\n\nTous les détails sont disponibles dès maintenant dans votre espace pro, onglet Mariages.\n\nPour toute question ou information complémentaire, n'hésitez pas à nous contacter. Nous restons à votre disposition.\n\nCordialement,\nL'équipe Le Oui Parfait`,
           });
         } catch (e) {
@@ -467,6 +599,15 @@ export default function ClientPrestatairesAdminPage() {
           status: 'cancelled',
           updated_at: new Date().toISOString(),
         });
+
+        // Le brief contient des infos/photos personnelles : on le supprime
+        // pour que le pro retiré n'y ait plus accès.
+        try {
+          const briefs = await getDocuments('booking_briefs', [
+            { field: 'booking_id', operator: '==', value: bk.id },
+          ]);
+          await Promise.all((briefs as any[]).map((b) => deleteDocument('booking_briefs', b.id)));
+        } catch { /* non-blocking */ }
       }
 
       toast.success('Prestataire retiré');
@@ -695,7 +836,7 @@ export default function ClientPrestatairesAdminPage() {
         const dateLabel = slotDate
           ? new Date(slotDate + 'T00:00:00').toLocaleDateString('fr-FR', { day: '2-digit', month: 'long' })
           : '—';
-        const responseContent = `Re : créneau du ${dateLabel} à ${slotTime} — ${slotTitle}\n\n${text}`;
+        const responseContent = `Re : créneau du ${dateLabel} à ${slotTime} : ${slotTitle}\n\n${text}`;
         await addDocument('messages', {
           conversation_id: conversationId,
           sender_id: user.uid,
@@ -749,8 +890,8 @@ export default function ClientPrestatairesAdminPage() {
           const { sendEmailToUid } = await import('@/lib/email');
           await sendEmailToUid({
             recipientUid: req.vendor_uid,
-            subject: `Réponse à votre question${clientNames ? ` - ${clientNames}` : ''} — Le Oui Parfait`,
-            text: `Bonjour,\n\nVotre wedding planner a répondu à votre question concernant le créneau du ${slotDate ? new Date(slotDate + 'T00:00:00').toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' }) : '—'} à ${slotTime} — ${slotTitle}.\n\nRéponse :\n${text}\n\nConnectez-vous à votre espace pro pour consulter la conversation.\n\nLe Oui Parfait`,
+            subject: `Réponse à votre question${clientNames ? ` - ${clientNames}` : ''} · Le Oui Parfait`,
+            text: `Bonjour,\n\nVotre wedding planner a répondu à votre question concernant le créneau du ${slotDate ? new Date(slotDate + 'T00:00:00').toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' }) : 'date à confirmer'} à ${slotTime} : ${slotTitle}.\n\nRéponse :\n${text}\n\nConnectez-vous à votre espace pro pour consulter la conversation.\n\nLe Oui Parfait`,
           });
         }
       } catch { /* non-blocking */ }
@@ -937,7 +1078,7 @@ export default function ClientPrestatairesAdminPage() {
       <html lang="fr">
         <head>
           <meta charset="utf-8">
-          <title>Planning — ${clientDocName}</title>
+          <title>Planning · ${clientDocName}</title>
           <style>
             body { font-family: 'Helvetica Neue', Arial, sans-serif; margin: 40px; color: #4B4456; }
             h1 { font-size: 24px; margin-bottom: 8px; }
@@ -958,12 +1099,12 @@ export default function ClientPrestatairesAdminPage() {
           <div class="no-print" style="margin-bottom: 24px; text-align: right;">
             <button onclick="window.print()" style="padding: 10px 18px; background: #88b7b5; color: white; border: none; border-radius: 999px; cursor: pointer; font-weight: 600;">Imprimer / Enregistrer en PDF</button>
           </div>
-          <h1>Planning — ${clientDocName}</h1>
-          <p class="subtitle">${clientNames ? `Mariage de ${clientNames}` : 'Mariage du client'}${weddingDate ? ` — ${new Date(weddingDate + 'T00:00:00').toLocaleDateString('fr-FR')}` : ''}</p>
+          <h1>Planning · ${clientDocName}</h1>
+          <p class="subtitle">${clientNames ? `Mariage de ${clientNames}` : 'Mariage du client'}${weddingDate ? ` · ${new Date(weddingDate + 'T00:00:00').toLocaleDateString('fr-FR')}` : ''}</p>
           ${globalNotesHtml}
           ${globalDocHtml}
           ${rows}
-          <p style="margin-top: 40px; font-size: 11px; color: #9C97A3; text-align: center;">Le Oui Parfait — Exporté le ${new Date().toLocaleDateString('fr-FR')}</p>
+          <p style="margin-top: 40px; font-size: 11px; color: #9C97A3; text-align: center;">Le Oui Parfait · Exporté le ${new Date().toLocaleDateString('fr-FR')}</p>
         </body>
       </html>
     `;
@@ -1018,8 +1159,8 @@ export default function ClientPrestatairesAdminPage() {
                       ? new Date(notifiedAt?.toDate ? notifiedAt.toDate() : notifiedAt).toLocaleDateString('fr-FR')
                       : '';
                     return (
-                      <div key={v.id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 p-3 rounded-lg bg-gray-50">
-                        <div className="min-w-0 flex-1 flex items-center gap-3">
+                      <div key={v.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3 p-3 rounded-lg bg-gray-50">
+                        <div className="min-w-0 flex items-center gap-3">
                           <div className="relative h-10 w-10 rounded-full bg-white border border-gray-200 overflow-hidden flex-shrink-0">
                             {v.logoUrl ? (
                               <Image src={v.logoUrl} alt={v.name} fill sizes="40px" className="object-cover" />
@@ -1042,7 +1183,7 @@ export default function ClientPrestatairesAdminPage() {
                             </p>
                           </div>
                         </div>
-                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                        <div className="flex items-center gap-1.5 flex-shrink-0 self-end sm:self-auto">
                           <Button
                             size="icon"
                             className="h-8 w-8 bg-brand-purple hover:bg-brand-purple/90"
@@ -1065,6 +1206,17 @@ export default function ClientPrestatairesAdminPage() {
                           >
                             <Calendar className="h-4 w-4" />
                           </Button>
+                          {getBriefSchema(v.category) && (
+                            <Button
+                              size="icon"
+                              variant="outline"
+                              className="h-8 w-8 text-fuchsia-500 border-fuchsia-300 hover:bg-fuchsia-50"
+                              title="Infos pro"
+                              onClick={() => void openBrief(v)}
+                            >
+                              <ClipboardList className="h-4 w-4" />
+                            </Button>
+                          )}
                           <Button
                             size="icon"
                             variant="ghost"
@@ -1152,7 +1304,7 @@ export default function ClientPrestatairesAdminPage() {
               <Calendar className="h-6 w-6 text-[#88b7b5]" />
             </div>
             <DialogTitle className="text-[18px] font-baskerville text-[#4B4456]">
-              Planning — {planningVendor?.name}
+              Planning · {planningVendor?.name}
               {clientNames && (
                 <span className="block text-sm font-medium text-[#88b7b5] mt-1">
                   {clientNames}
@@ -1179,7 +1331,7 @@ export default function ClientPrestatairesAdminPage() {
                       <FileText className="w-4 h-4 text-[#C9A96E] shrink-0 mt-0.5" />
                       <div className="flex-1 min-w-0">
                         <p className="text-[13px] font-semibold text-[#4B4456] mb-1">
-                          {req.request_type === 'slot_question' ? 'Question sur un créneau' : 'Demande de modification'} {req.vendor_name ? `— ${req.vendor_name}` : ''}
+                          {req.request_type === 'slot_question' ? 'Question sur un créneau' : 'Demande de modification'} {req.vendor_name ? ` · ${req.vendor_name}` : ''}
                         </p>
                         {req.request_type === 'slot_question' && (
                           <p className="text-[11px] text-[#9C97A3] mb-1">
@@ -1522,6 +1674,22 @@ export default function ClientPrestatairesAdminPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Brief prestataire (infos métier visibles par le pro) */}
+      {briefVendor && getBriefSchema(briefVendor.category) && (
+        <BriefEditor
+          open={briefOpen}
+          onOpenChange={setBriefOpen}
+          schema={getBriefSchema(briefVendor.category)!}
+          initialData={briefData}
+          loading={briefLoading}
+          saving={briefSaving}
+          title={briefVendor.name}
+          subtitle={clientNames}
+          uploadFolder={`briefs/${clientId}/${briefVendor.id}`}
+          onSave={saveBrief}
+        />
+      )}
     </DashboardLayout>
   );
 }

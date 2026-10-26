@@ -92,7 +92,7 @@ export default function VendorDocumentsPage() {
             const type = doc.type === 'facture' ? 'facture' : 'devis';
             all.push({
               id: doc.id,
-              name: `${type === 'devis' ? 'Devis' : 'Facture'}${doc.reference ? ` — ${doc.reference}` : ''}`,
+              name: `${type === 'devis' ? 'Devis' : 'Facture'}${doc.reference ? ` · ${doc.reference}` : ''}`,
               type,
               file_url: doc.devis_file_url || doc.facture_file_url || doc.file_url || '',
               date: doc.date,
@@ -204,7 +204,7 @@ export default function VendorDocumentsPage() {
               Mes Documents
             </h1>
             <p className="text-sm text-brand-beige/70">
-              {docs.length} document{docs.length > 1 ? 's' : ''} — devis, factures et fichiers partagés
+              {docs.length} document{docs.length > 1 ? 's' : ''} : devis, factures et fichiers partagés
             </p>
           </div>
         </div>

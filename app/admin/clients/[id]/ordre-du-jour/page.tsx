@@ -120,7 +120,7 @@ export default function ClientOrdreDuJourPage() {
               recipient_id: uid,
               type: 'planning',
               title: 'Planning du jour J disponible',
-              message: `Votre planning du jour J est disponible — consultez-le et téléchargez-le dans l'onglet Planning de votre espace client.`,
+              message: `Votre planning du jour J est disponible : consultez-le et téléchargez-le dans l'onglet Planning de votre espace client.`,
               link: '/espace-client/planning',
               read: false,
               created_at: new Date(),
@@ -129,7 +129,7 @@ export default function ClientOrdreDuJourPage() {
             });
             await sendEmailToUid({
               recipientUid: uid,
-              subject: 'Votre planning du jour J est disponible — Le Oui Parfait',
+              subject: 'Votre planning du jour J est disponible · Le Oui Parfait',
               text: `Bonjour${names ? ` ${names}` : ''},\n\nLe planning du jour J de votre mariage est désormais disponible dans votre espace client, onglet « Planning ».\n\nVous pouvez le consulter et le télécharger en PDF à tout moment.\n\nÀ très vite,\nL'équipe Le Oui Parfait`,
             });
           } else {
@@ -138,7 +138,7 @@ export default function ClientOrdreDuJourPage() {
         } catch (e) {
           console.warn('Unable to notify client about planning:', e);
         }
-        toast.success('Planning visible pour le couple — notification envoyée');
+        toast.success('Planning visible pour le couple : notification envoyée');
       } else {
         toast.success('Planning masqué pour le couple');
       }

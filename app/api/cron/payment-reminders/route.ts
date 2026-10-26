@@ -89,18 +89,18 @@ const REMINDER_TIERS = [
 
 function buildClientSubject(daysLate: number, reference: string, isVendor: boolean, vendorName?: string): string {
   if (daysLate === -14) {
-    return `Échéance dans 14 jours : ${reference} — Le Oui Parfait`;
+    return `Échéance dans 14 jours : ${reference} · Le Oui Parfait`;
   }
   if (daysLate === -3) {
-    return `Échéance dans 3 jours : ${reference} — Le Oui Parfait`;
+    return `Échéance dans 3 jours : ${reference} · Le Oui Parfait`;
   }
   if (daysLate === 0) {
-    return `Échéance aujourd'hui : ${reference} — Le Oui Parfait`;
+    return `Échéance aujourd'hui : ${reference} · Le Oui Parfait`;
   }
   if (isVendor) {
-    return `Rappel acompte : ${vendorName || 'Prestataire'} — Le Oui Parfait`;
+    return `Rappel acompte : ${vendorName || 'Prestataire'} · Le Oui Parfait`;
   }
-  return `Rappel de paiement : ${reference} — Le Oui Parfait`;
+  return `Rappel de paiement : ${reference} · Le Oui Parfait`;
 }
 
 function buildClientText(
@@ -443,7 +443,7 @@ export async function GET(req: Request) {
     // Recap factures + acomptes client (un seul mail)
     await sendPlannerRecap(
       [...invoiceReminders, ...clientAcompteReminders],
-      `Récapitulatif des rappels de paiement — Le Oui Parfait`,
+      `Récapitulatif des rappels de paiement · Le Oui Parfait`,
       `Voici le récapitulatif des paiements à venir et en retard de vos couples :`,
     );
 

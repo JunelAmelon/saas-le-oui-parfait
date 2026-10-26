@@ -738,9 +738,9 @@ export default function DocumentsPage() {
                               {fullySigned
                                 ? '✓ Contrat signé'
                                 : clientSigned
-                                  ? 'Vous avez signé — en attente du planner'
+                                  ? 'Vous avez signé, en attente du planner'
                                   : adminSigned
-                                    ? 'Planner a signé — il reste votre signature'
+                                    ? 'Planner a signé, il reste votre signature'
                                     : doc.status || ''}
                             </p>
                           )}

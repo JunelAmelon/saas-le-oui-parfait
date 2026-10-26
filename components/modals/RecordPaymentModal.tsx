@@ -159,7 +159,7 @@ export function RecordPaymentModal({ isOpen, onClose }: RecordPaymentModalProps)
               <SelectContent>
                 {invoices.map((inv) => (
                   <SelectItem key={inv.id} value={inv.id}>
-                    {(inv.reference || inv.id) + (inv.client ? ` — ${inv.client}` : '')}
+                    {(inv.reference || inv.id) + (inv.client ? ` · ${inv.client}` : '')}
                   </SelectItem>
                 ))}
               </SelectContent>

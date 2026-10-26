@@ -333,7 +333,7 @@ export function WeddingDayTimeline({
             <div>
               <h3 className="font-baskerville text-lg text-[#4B4456]">Planning du jour J</h3>
               <p className="text-[12px] text-[#9C97A3]">
-                {dirty ? 'Modifications en cours — pensez à sauvegarder' : 'Planning à jour'}
+                {dirty ? 'Modifications en cours : pensez à sauvegarder' : 'Planning à jour'}
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -647,7 +647,7 @@ export function WeddingDayTimeline({
         <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
           <DialogContent className="w-[100vw] h-screen supports-[height:100dvh]:h-[100dvh] max-w-none rounded-none p-2 flex flex-col overflow-hidden sm:w-[98vw] sm:h-auto sm:max-w-6xl sm:max-h-[95vh] sm:rounded-xl sm:p-4 gap-2">
             <DialogHeader className="shrink-0">
-              <DialogTitle>Aperçu — Planning du jour J</DialogTitle>
+              <DialogTitle>Aperçu · Planning du jour J</DialogTitle>
             </DialogHeader>
             <div className="flex-1 min-h-0 overflow-y-auto">
               <WeddingDayTimelinePages

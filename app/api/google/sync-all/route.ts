@@ -49,7 +49,7 @@ function buildWeddingEvent(params: {
   if (phone) descParts.push(`Téléphone: ${phone}`);
   if (guestCount) descParts.push(`Invités: ${guestCount}`);
   if (notes) descParts.push(`Notes: ${notes}`);
-  descParts.push('— Le Oui Parfait');
+  descParts.push('Le Oui Parfait');
   return {
     summary: `Mariage ${coupleNames}`,
     description: descParts.join('\n'),

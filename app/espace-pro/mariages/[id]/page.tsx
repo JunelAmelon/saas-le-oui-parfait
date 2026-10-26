@@ -47,6 +47,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { WeddingDayTimeline } from '@/components/WeddingDayTimeline';
+import { BriefView } from '@/components/vendor-brief/BriefView';
+import { getBriefSchema } from '@/lib/vendor-briefs/schemas';
 import {
   Dialog,
   DialogContent,
@@ -86,6 +88,7 @@ export default function VendorBookingDetailPage() {
   const [payments, setPayments] = useState<VendorPayment[]>([]);
   const [clientInfo, setClientInfo] = useState<any>(null);
   const [eventInfo, setEventInfo] = useState<any>(null);
+  const [brief, setBrief] = useState<any>(null);
   const [planning, setPlanning] = useState<any[]>([]);
   const [planningInfo, setPlanningInfo] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -145,17 +148,22 @@ export default function VendorBookingDetailPage() {
       setBooking(bk);
 
       if (bk.client_id && bk.vendor_id) {
-        const [d, p, clientDoc, eventDocs, planningDocs, planningGlobal] = await Promise.all([
+        const [d, p, clientDoc, eventDocs, planningDocs, planningGlobal, briefDocs] = await Promise.all([
           getBookingProDocuments(bk.client_id, bk.vendor_id),
           getBookingPayments(bookingId),
           getDocument('clients', bk.client_id).catch(() => null),
           getDocuments('events', [{ field: 'client_id', operator: '==', value: bk.client_id }]).catch(() => []),
           getDocuments('vendor_planning_days', [{ field: 'vendor_id', operator: '==', value: bk.vendor_id }]).catch(() => []),
           getDocuments('vendor_plannings', [{ field: 'vendor_id', operator: '==', value: bk.vendor_id }]).catch(() => []),
+          getDocuments('booking_briefs', [{ field: 'vendor_id', operator: '==', value: bk.vendor_id }]).catch(() => []),
         ]);
         setDocs(d);
         setPayments(p);
         setClientInfo(clientDoc);
+        const foundBrief = (briefDocs as any[]).find(
+          (b) => b.client_id === bk.client_id && (b.booking_id === bookingId || !b.booking_id)
+        ) || null;
+        setBrief(foundBrief);
         // Pick the best event (the one with the most wedding info)
         const events = (eventDocs as any[]) || [];
         const eventDoc = events.find((e) => e?.event_date) || events[0] || null;
@@ -386,7 +394,7 @@ export default function VendorBookingDetailPage() {
           const dateLabel = slotDate
             ? new Date(slotDate + 'T00:00:00').toLocaleDateString('fr-FR', { day: '2-digit', month: 'long' })
             : '—';
-          const questionContent = `Question sur le créneau du ${dateLabel} à ${slotTime} — ${slotTitle}\n\n${questionText.trim()}`;
+          const questionContent = `Question sur le créneau du ${dateLabel} à ${slotTime} : ${slotTitle}\n\n${questionText.trim()}`;
           await addDocument('messages', {
             conversation_id: conversationId,
             sender_id: user.uid,
@@ -427,7 +435,7 @@ export default function VendorBookingDetailPage() {
         await sendEmailToUid({
           recipientUid: booking.planner_id,
           subject: `Question sur un créneau - ${booking.client_names}`,
-          text: `Bonjour,\n\n${vendor?.name || 'Un prestataire'} a une question concernant un créneau du mariage de ${booking.client_names}.\n\nDate du mariage : ${booking.wedding_date ? new Date(booking.wedding_date + 'T00:00:00').toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' }) : '—'}\nCréneau concerné : ${slotDate ? new Date(slotDate + 'T00:00:00').toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' }) : '—'} à ${slotTime}\nMission : ${slotTitle}\n\nMessage :\n${questionText.trim()}\n\nConnectez-vous à votre espace admin pour consulter la demande.\n\nLe Oui Parfait`,
+          text: `Bonjour,\n\n${vendor?.name || 'Un prestataire'} a une question concernant un créneau du mariage de ${booking.client_names}.\n\nDate du mariage : ${booking.wedding_date ? new Date(booking.wedding_date + 'T00:00:00').toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' }) : 'à confirmer'}\nCréneau concerné : ${slotDate ? new Date(slotDate + 'T00:00:00').toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' }) : 'à confirmer'} à ${slotTime}\nMission : ${slotTitle}\n\nMessage :\n${questionText.trim()}\n\nConnectez-vous à votre espace admin pour consulter la demande.\n\nLe Oui Parfait`,
         });
       } catch { /* non-blocking */ }
 
@@ -730,12 +738,12 @@ export default function VendorBookingDetailPage() {
         {/* Documents tab */}
         {tab === 'documents' && (
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-[15px] font-semibold text-[#4B4456]">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="text-[15px] font-semibold text-[#4B4456] whitespace-nowrap">
                 Documents ({docs.length})
               </h2>
               <Button
-                className="bg-brand-turquoise hover:bg-brand-turquoise-hover gap-2"
+                className="bg-brand-turquoise hover:bg-brand-turquoise-hover gap-2 w-full sm:w-auto"
                 onClick={() => { setEditingDoc(null); setUploadForm({ type: 'devis', reference: '', amount: '', date: new Date().toISOString().split('T')[0], notes: '' }); setSelectedFile(null); setUploadOpen(true); }}
               >
                 <Plus className="h-4 w-4" />
@@ -1100,8 +1108,13 @@ export default function VendorBookingDetailPage() {
                     </div>
                   )}
 
+                  {/* Briefing prestataire (infos métier remplies par le planner) */}
+                  {brief && getBriefSchema(brief.category) && (
+                    <BriefView schema={getBriefSchema(brief.category)!} data={brief.data} />
+                  )}
+
                   {/* Empty state */}
-                  {!location && !guestCount && !themeStyle && !themeDescription && themeColors.length === 0 && (
+                  {!location && !guestCount && !themeStyle && !themeDescription && themeColors.length === 0 && !brief && (
                     <div className="bg-white rounded-[18px] border border-[rgba(75,68,86,0.06)] p-12 text-center">
                       <Sparkles className="h-10 w-10 text-[#9C97A3] mx-auto mb-3 opacity-40" />
                       <p className="text-sm text-[#9C97A3]">

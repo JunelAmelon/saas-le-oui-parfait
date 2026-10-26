@@ -341,7 +341,7 @@ export default function ClientAcomptesProPage() {
           await sendEmailToUid({
             recipientUid: payment.vendor_uid,
             subject: 'Acompte reçu - Le Oui Parfait',
-            text: `Bonjour,\n\nUn acompte a été marqué comme reçu pour vous :\n\nLibellé : ${payment.label}\nMontant : ${Number(payment.amount || 0).toLocaleString('fr-FR')} €\nMéthode : ${method}\nMariage : ${weddingLabel || '—'}\n\nRetrouvez le détail sur votre espace pro.\n\nLe Oui Parfait`,
+            text: `Bonjour,\n\nUn acompte a été marqué comme reçu pour vous :\n\nLibellé : ${payment.label}\nMontant : ${Number(payment.amount || 0).toLocaleString('fr-FR')} €\nMéthode : ${method}\nMariage : ${weddingLabel || 'non précisé'}\n\nRetrouvez le détail sur votre espace pro.\n\nLe Oui Parfait`,
           });
         } catch (e) {
           console.warn('Unable to send vendor email:', e);
@@ -393,7 +393,7 @@ export default function ClientAcomptesProPage() {
             const { sendEmailToUid } = await import('@/lib/email');
             await sendEmailToUid({
               recipientUid: clientUserId,
-              subject: 'Paiement effectué pour votre mariage — Le Oui Parfait',
+              subject: 'Paiement effectué pour votre mariage · Le Oui Parfait',
               text: `Bonjour${coupleNames ? ` ${coupleNames}` : ''},\n\nUn paiement a été effectué pour le compte de votre mariage auprès de ${vendorName}.\n\nRetrouvez le détail sur votre espace client, page Paiements.\n\nLe Oui Parfait`,
             });
           } catch (e) {

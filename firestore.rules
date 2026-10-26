@@ -42,6 +42,17 @@ service cloud.firestore {
       allow create, update, delete: if isAuthenticated() && request.auth.uid == request.resource.data.planner_id;
     }
 
+    // Booking briefs (infos métier remplies par le planner, lues par le pro).
+    // - Planner (owner) can read/write
+    // - Vendor (linked via vendor_uid) can read only
+    match /booking_briefs/{briefId} {
+      allow read: if isAuthenticated() && (
+        resource.data.planner_id == request.auth.uid ||
+        resource.data.vendor_uid == request.auth.uid
+      );
+      allow create, update, delete: if isAuthenticated() && request.auth.uid == request.resource.data.planner_id;
+    }
+
     // Pro documents (devis/factures prestataires).
     // - Planner can read/write all docs where planner_id matches
     // - Vendor can read docs where vendor_uid matches, and create docs with vendor_status 'submitted'

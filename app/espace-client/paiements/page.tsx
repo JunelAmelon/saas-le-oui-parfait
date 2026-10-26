@@ -529,7 +529,7 @@ export default function PaiementsPage() {
                       <div className="flex items-center gap-2 flex-1 min-w-0">
                         <FileText className="h-4 w-4 shrink-0 text-brand-purple" />
                         <p className="text-xs font-semibold truncate text-brand-purple">
-                          {inv.number} — {inv.label || inv.number || 'Facture'}
+                          {inv.number} · {inv.label || inv.number || 'Facture'}
                         </p>
                       </div>
                       {getStatusBadge(overdue && inv.status !== 'payment_pending' ? 'overdue' : inv.status)}
@@ -592,7 +592,7 @@ export default function PaiementsPage() {
                       <div className="flex items-center gap-2 flex-1 min-w-0">
                         <CreditCard className="h-4 w-4 shrink-0 text-brand-turquoise" />
                         <p className="text-xs font-semibold truncate text-brand-purple">
-                          {a.label || 'Acompte'} — {typeLabel}
+                          {a.label || 'Acompte'} · {typeLabel}
                         </p>
                       </div>
                       {overdue
@@ -761,7 +761,7 @@ export default function PaiementsPage() {
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="text-sm font-semibold text-brand-purple truncate">
-                      {inv.number} — {inv.label}
+                      {inv.number} · {inv.label}
                     </div>
                     <div className="text-xs text-brand-gray mt-0.5">
                       {formatAmount(inv.amount_ttc ?? 0)}

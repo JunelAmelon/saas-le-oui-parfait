@@ -389,7 +389,7 @@ export function ClientModal({ open, onOpenChange, mode, client, userId, onSucces
               await updateDocument('events', (eventDoc as any).id, { google_event_id: syncData.googleEventId });
               toast.success('Événement ajouté à Google Calendar');
             } else if (syncData?.error?.includes('not connected')) {
-              toast.info('Google Calendar non connecté — rendez-vous dans Paramètres pour l\'activer');
+              toast.info('Google Calendar non connecté : rendez-vous dans Paramètres pour l\'activer');
             } else {
               console.warn('Google Calendar sync failed:', syncData);
             }
@@ -492,7 +492,7 @@ export function ClientModal({ open, onOpenChange, mode, client, userId, onSucces
                   }
                   toast.success('Google Calendar mis à jour');
                 } else if (syncData?.error?.includes('not connected')) {
-                  toast.info('Google Calendar non connecté — rendez-vous dans Paramètres pour l\'activer');
+                  toast.info('Google Calendar non connecté : rendez-vous dans Paramètres pour l\'activer');
                 } else {
                   console.warn('Google Calendar sync failed (update):', syncData);
                 }

@@ -711,7 +711,7 @@ export default function VendorsPage() {
               {/* Contact */}
               <div className="rounded-2xl border border-brand-purple/8 bg-[#FAF9F7] p-4">
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-brand-gray mb-3">
-                  Contact — {selectedVendor.contactName}
+                  Contact · {selectedVendor.contactName}
                 </p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2.5">
                   <div className="flex items-center gap-2.5 min-w-0">
@@ -1061,7 +1061,7 @@ export default function VendorsPage() {
                   Cliquez pour ajouter des fichiers
                 </p>
                 <p className="text-[11px] text-brand-gray">
-                  PDF, images, Word, Excel — plusieurs fichiers possibles
+                  PDF, images, Word, Excel : plusieurs fichiers possibles
                 </p>
                 <input
                   id="vendor-docs-input"

@@ -221,7 +221,7 @@ export async function syncWeddingDayToVendorPlanning(opts: {
     if (!v || !v.vendorId) continue;
     const description = [it.location, it.address, it.note || it.description]
       .filter(Boolean)
-      .join(' — ');
+      .join(' · ');
     const slot = {
       time: it.time || '',
       end_time: it.endTime || '',

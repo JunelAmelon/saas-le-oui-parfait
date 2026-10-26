@@ -364,7 +364,7 @@ interface Props {
 
 export function WeddingDayTimelineDocument({ items, coupleNames, eventDate, location }: Props) {
   const sorted = [...items].sort((a, b) => minOf(a.time) - minOf(b.time));
-  const version = new Date().toLocaleDateString('fr-FR') + ' — ' + new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  const version = new Date().toLocaleDateString('fr-FR') + ' à ' + new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
   const dateText = eventDate
     ? new Date(eventDate + 'T00:00:00').toLocaleDateString('fr-FR', {
         weekday: 'long',
@@ -373,7 +373,7 @@ export function WeddingDayTimelineDocument({ items, coupleNames, eventDate, loca
         year: 'numeric',
       })
     : '';
-  const lieuDate = [dateText, location].filter(Boolean).join(' — ');
+  const lieuDate = [dateText, location].filter(Boolean).join(' · ');
 
   const reperes = sorted.length
     ? [
@@ -395,7 +395,7 @@ export function WeddingDayTimelineDocument({ items, coupleNames, eventDate, loca
 
   return (
     <Document
-      title={`Planning du jour J — ${coupleNames}`}
+      title={`Planning du jour J · ${coupleNames}`}
       author="Le Oui Parfait"
     >
       <Page size="A4" orientation="landscape" style={styles.page}>
