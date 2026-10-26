@@ -73,6 +73,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { DocumentPreviewDialog } from '@/components/documents/DocumentPreviewDialog';
 
 type Tab = 'documents' | 'acomptes' | 'infos' | 'planning';
 
@@ -89,6 +90,7 @@ export default function VendorBookingDetailPage() {
   const [clientInfo, setClientInfo] = useState<any>(null);
   const [eventInfo, setEventInfo] = useState<any>(null);
   const [brief, setBrief] = useState<any>(null);
+  const [previewDoc, setPreviewDoc] = useState<any | null>(null);
   const [planning, setPlanning] = useState<any[]>([]);
   const [planningInfo, setPlanningInfo] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -841,7 +843,7 @@ export default function VendorBookingDetailPage() {
                             <DropdownMenuContent align="end" className="w-44">
                               {fileUrl && (
                                 <DropdownMenuItem
-                                  onClick={() => window.open(fileUrl, '_blank')}
+                                  onClick={() => setPreviewDoc({ name: (d as any).doc_name || (d as any).reference || 'Document', file_url: fileUrl, file_type: (d as any).file_type })}
                                 >
                                   <Eye className="h-4 w-4 mr-2" />
                                   Voir le document
@@ -1510,6 +1512,7 @@ export default function VendorBookingDetailPage() {
           </form>
         </DialogContent>
       </Dialog>
+      <DocumentPreviewDialog doc={previewDoc} onClose={() => setPreviewDoc(null)} />
     </VendorDashboardLayout>
   );
 }
