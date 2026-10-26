@@ -30,6 +30,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useClientData } from '@/contexts/ClientDataContext';
 import { calculateDaysRemaining, getClientDevis } from '@/lib/client-helpers';
 import { getDocument, getDocuments, addDocument, updateDocument } from '@/lib/db';
+import { DocumentPreviewDialog } from '@/components/documents/DocumentPreviewDialog';
 import { uploadFile, uploadPdf } from '@/lib/storage';
 import { toast } from 'sonner';
 import { auth } from '@/lib/firebase';
@@ -93,6 +94,7 @@ export default function DocumentsPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [docName, setDocName] = useState('');
   const [docType, setDocType] = useState<'contrat' | 'facture' | 'planning' | 'photo' | 'autre'>('contrat');
+  const [previewDoc, setPreviewDoc] = useState<DocumentItem | null>(null);
 
   const clientName = useMemo(() => {
     const n1 = client?.name || '';
@@ -503,7 +505,7 @@ export default function DocumentsPage() {
         view_tracked: true,
       }).catch(() => undefined);
     }
-    window.open(doc.file_url, '_blank');
+    setPreviewDoc(doc);
   };
 
   const isAllowedFile = (file: File) => {
@@ -957,6 +959,7 @@ export default function DocumentsPage() {
           </DialogContent>
         </Dialog>
       </div>
+      <DocumentPreviewDialog doc={previewDoc} onClose={() => setPreviewDoc(null)} />
     </ClientDashboardLayout>
   );
 }

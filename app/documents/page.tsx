@@ -40,6 +40,7 @@ import {
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { DocumentPreviewDialog } from '@/components/documents/DocumentPreviewDialog';
 import { useRef } from 'react';
 import { useState, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
@@ -63,6 +64,7 @@ export default function DocumentsPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [docName, setDocName] = useState('');
   const [docType, setDocType] = useState('contrat');
+  const [docCustomType, setDocCustomType] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const documentsPerPage = 5;
 
@@ -70,9 +72,11 @@ export default function DocumentsPage() {
   const [editingDoc, setEditingDoc] = useState<any | null>(null);
   const [editName, setEditName] = useState('');
   const [editType, setEditType] = useState('contrat');
+  const [editCustomType, setEditCustomType] = useState('');
   const [deletingDocId, setDeletingDocId] = useState<string | null>(null);
   const [replacingDocId, setReplacingDocId] = useState<string | null>(null);
   const [relancingDocId, setRelancingDocId] = useState<string | null>(null);
+  const [previewDoc, setPreviewDoc] = useState<any | null>(null);
   const replaceInputRef = useRef<HTMLInputElement | null>(null);
 
   const typeBadgeClasses: Record<string, string> = {
@@ -231,6 +235,7 @@ export default function DocumentsPage() {
     setEditingDoc(doc);
     setEditName(doc?.name || '');
     setEditType(doc?.type || 'contrat');
+    setEditCustomType(doc?.custom_type || '');
     setIsEditOpen(true);
   };
 
@@ -241,9 +246,14 @@ export default function DocumentsPage() {
       return;
     }
     try {
+      if (editType === 'autre' && !editCustomType.trim()) {
+        toast.error('Précisez le type de document');
+        return;
+      }
       await updateDocument('documents', editingDoc.id, {
         name: editName.trim(),
         type: editType,
+        custom_type: editType === 'autre' ? editCustomType.trim() : null,
       });
       toast.success('Document modifié');
       setIsEditOpen(false);
@@ -337,7 +347,7 @@ export default function DocumentsPage() {
 
   const handleViewDocument = (doc: any) => {
     if (doc.file_url) {
-      window.open(doc.file_url, '_blank');
+      setPreviewDoc(doc);
     } else {
       toast.error('Aucun fichier disponible');
     }
@@ -397,6 +407,10 @@ export default function DocumentsPage() {
       toast.error('Veuillez remplir tous les champs');
       return;
     }
+    if (docType === 'autre' && !docCustomType.trim()) {
+      toast.error('Précisez le type de document');
+      return;
+    }
 
     setUploading(true);
     try {
@@ -410,6 +424,7 @@ export default function DocumentsPage() {
         client_id: clientId || null,
         name: docName,
         type: docType,
+        custom_type: docType === 'autre' ? docCustomType.trim() : null,
         file_url: fileUrl,
         file_type: selectedFile.type,
         file_size: selectedFile.size,
@@ -575,7 +590,7 @@ export default function DocumentsPage() {
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline" className={typeBadgeClasses[doc.type] || 'bg-gray-100 text-gray-600 border-gray-200'}>
-                          {doc.type || 'Autre'}
+                          {doc.type === 'autre' && doc.custom_type ? doc.custom_type : doc.type || 'Autre'}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-brand-gray">
@@ -737,7 +752,7 @@ export default function DocumentsPage() {
               <Input
                 value={docName}
                 onChange={(e) => setDocName(e.target.value)}
-                placeholder="Ex: Contrat sign\u00e9"
+                placeholder="Ex : Contrat signé"
                 className="mt-1"
               />
             </div>
@@ -751,25 +766,34 @@ export default function DocumentsPage() {
                   <SelectItem value="contrat">Contrat</SelectItem>
                   <SelectItem value="devis">Devis</SelectItem>
                   <SelectItem value="facture">Facture</SelectItem>
-                  <SelectItem value="photo">Photo</SelectItem>
                   <SelectItem value="planning">Planning</SelectItem>
                   <SelectItem value="autre">Autre</SelectItem>
                 </SelectContent>
               </Select>
+              {docType === 'autre' && (
+                <Input
+                  value={docCustomType}
+                  onChange={(e) => setDocCustomType(e.target.value)}
+                  placeholder="Précisez le type (ex : Autorisation, Attestation...)"
+                  className="mt-2"
+                />
+              )}
             </div>
             <div>
               <Label>Fichier</Label>
               <div className="mt-1">
                 <input
                   type="file"
+                  accept=".pdf,image/*"
                   aria-label="Sélectionner un fichier"
                   onChange={handleFileSelect}
                   className="w-full text-sm text-brand-gray file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-brand-turquoise file:text-white hover:file:bg-brand-turquoise-hover"
                 />
               </div>
+              <p className="text-[11px] text-brand-gray mt-1.5">PDF ou image (JPG, PNG...)</p>
               {selectedFile && (
                 <p className="text-xs text-brand-gray mt-2">
-                  Fichier s\u00e9lectionn\u00e9: {selectedFile.name} ({(selectedFile.size / 1024).toFixed(2)} KB)
+                  Fichier sélectionné : {selectedFile.name} ({(selectedFile.size / 1024).toFixed(2)} KB)
                 </p>
               )}
             </div>
@@ -799,6 +823,13 @@ export default function DocumentsPage() {
         </DialogContent>
       </Dialog>
 
+      {/* Apercu integre : PDF / image / Office directement dans la page */}
+      <DocumentPreviewDialog
+        doc={previewDoc}
+        onClose={() => setPreviewDoc(null)}
+        onDownload={(d) => handleDownloadDocument(d)}
+      />
+
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
         <DialogContent>
           <DialogHeader>
@@ -820,11 +851,18 @@ export default function DocumentsPage() {
                   <SelectItem value="contrat">Contrat</SelectItem>
                   <SelectItem value="devis">Devis</SelectItem>
                   <SelectItem value="facture">Facture</SelectItem>
-                  <SelectItem value="photo">Photo</SelectItem>
                   <SelectItem value="planning">Planning</SelectItem>
                   <SelectItem value="autre">Autre</SelectItem>
                 </SelectContent>
               </Select>
+              {editType === 'autre' && (
+                <Input
+                  value={editCustomType}
+                  onChange={(e) => setEditCustomType(e.target.value)}
+                  placeholder="Précisez le type (ex : Autorisation, Attestation...)"
+                  className="mt-2"
+                />
+              )}
             </div>
           </div>
           <DialogFooter>

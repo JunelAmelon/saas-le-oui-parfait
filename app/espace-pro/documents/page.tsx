@@ -7,6 +7,7 @@ import { useVendorData } from '@/contexts/VendorDataContext';
 import { VendorDashboardLayout } from '@/components/layout/VendorDashboardLayout';
 import { getVendorBookings, getBookingProDocuments, formatFrenchDate, VendorBooking, ProDocument } from '@/lib/vendor-helpers';
 import { getDocuments } from '@/lib/db';
+import { DocumentPreviewDialog } from '@/components/documents/DocumentPreviewDialog';
 import {
   Loader2,
   FileText,
@@ -65,6 +66,7 @@ export default function VendorDocumentsPage() {
   const [docs, setDocs] = useState<DocCard[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [previewDoc, setPreviewDoc] = useState<DocCard | null>(null);
   const [selectedCategory, setSelectedCategory] = useState('all');
 
   useEffect(() => {
@@ -316,7 +318,7 @@ export default function VendorDocumentsPage() {
 
                       {d.file_url ? (
                         <button
-                          onClick={() => window.open(d.file_url, '_blank')}
+                          onClick={() => setPreviewDoc(d)}
                           title="Ouvrir"
                           className="shrink-0 w-9 h-9 rounded-full bg-white/70 hover:bg-white flex items-center justify-center text-brand-purple hover:text-brand-turquoise-hover transition-colors shadow-sm"
                         >
@@ -337,6 +339,7 @@ export default function VendorDocumentsPage() {
           </div>
         )}
       </div>
+      <DocumentPreviewDialog doc={previewDoc} onClose={() => setPreviewDoc(null)} />
     </VendorDashboardLayout>
   );
 }
