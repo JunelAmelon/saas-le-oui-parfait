@@ -65,17 +65,6 @@ export function NotificationsModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-[95vw] sm:w-full sm:max-w-2xl max-h-[90vh] overflow-y-auto p-0 gap-0">
         <DialogHeader className="relative bg-brand-beige/40 px-6 pt-10 pb-6">
-          <div className="absolute top-4 right-4">
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => onOpenChange(false)}
-              className="h-8 w-8 rounded-full border-brand-purple/15 text-brand-purple hover:bg-brand-purple/8 hover:text-brand-purple bg-white/80"
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
-
           <div className="flex flex-col items-center text-center">
             <div className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-full overflow-hidden ring-4 ring-white shadow-[0_8px_24px_-8px_rgba(75,68,86,0.25)] mb-4 bg-brand-purple">
               <Image

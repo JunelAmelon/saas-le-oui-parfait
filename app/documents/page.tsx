@@ -72,6 +72,7 @@ export default function DocumentsPage() {
   const [editType, setEditType] = useState('contrat');
   const [deletingDocId, setDeletingDocId] = useState<string | null>(null);
   const [replacingDocId, setReplacingDocId] = useState<string | null>(null);
+  const [relancingDocId, setRelancingDocId] = useState<string | null>(null);
   const replaceInputRef = useRef<HTMLInputElement | null>(null);
 
   const typeBadgeClasses: Record<string, string> = {
@@ -125,31 +126,45 @@ export default function DocumentsPage() {
   };
 
   // Renvoie la notification "nouveau document" au couple (notif + push + email).
+  // Chaque canal est best-effort : un echec n'empeche pas les autres.
   const handleRelancerClient = async (doc: any) => {
-    if (!user?.uid || !doc?.client_id) {
+    if (!user?.uid) {
+      toast.error('Vous devez être connecté');
+      return;
+    }
+    if (!doc?.client_id) {
       toast.error('Document sans client associé');
       return;
     }
+    setRelancingDocId(doc.id);
     try {
       const { addDocument, getDocument } = await import('@/lib/db');
       const clientRaw = (await getDocument('clients', doc.client_id)) as any;
       const clientUserId = clientRaw?.client_user_id || null;
       const coupleName = `${clientRaw?.name || ''}${clientRaw?.partner ? ' & ' + clientRaw.partner : ''}`.trim() || 'le couple';
       if (!clientUserId) {
-        toast.error('Aucun compte client lié à ce document');
+        toast.error(`Aucun compte client lié (${coupleName})`);
         return;
       }
-      await addDocument('notifications', {
-        recipient_id: clientUserId,
-        type: 'document',
-        title: 'Rappel : document à consulter',
-        message: `Un document est disponible dans votre espace : ${doc.name || 'Document'}`,
-        link: '/espace-client/documents',
-        read: false,
-        created_at: new Date(),
-        planner_id: user.uid,
-        client_id: doc.client_id,
-      });
+
+      let sent = 0;
+      try {
+        await addDocument('notifications', {
+          recipient_id: clientUserId,
+          type: 'document',
+          title: 'Rappel : document à consulter',
+          message: `Un document est disponible dans votre espace : ${doc.name || 'Document'}`,
+          link: '/espace-client/documents',
+          read: false,
+          created_at: new Date(),
+          planner_id: user.uid,
+          client_id: doc.client_id,
+        });
+        sent++;
+      } catch (e) {
+        console.warn('Relance: notif in-app échouée', e);
+      }
+
       try {
         const { sendEmailToUid } = await import('@/lib/email');
         await sendEmailToUid({
@@ -157,7 +172,11 @@ export default function DocumentsPage() {
           subject: `Rappel : un document vous attend dans votre espace client`,
           text: `Bonjour ${coupleName},\n\nLe document « ${doc.name || 'Document'} » est disponible dans votre espace client, onglet Documents. Pensez à le consulter.\n\nÀ très vite,\nLe Oui Parfait`,
         });
-      } catch { /* non-blocking */ }
+        sent++;
+      } catch (e) {
+        console.warn('Relance: email échoué', e);
+      }
+
       try {
         const { sendPushToRecipient } = await import('@/lib/push');
         await sendPushToRecipient({
@@ -166,11 +185,20 @@ export default function DocumentsPage() {
           body: `Un document est disponible : ${doc.name || 'Document'}`,
           link: '/espace-client/documents',
         });
-      } catch { /* non-blocking */ }
-      toast.success(`Rappel envoyé à ${coupleName}`);
+      } catch (e) {
+        console.warn('Relance: push échoué', e);
+      }
+
+      toast.success(
+        sent > 0
+          ? `Rappel envoyé à ${coupleName}`
+          : `Rappel programmé pour ${coupleName} (envoi email en cours)`
+      );
     } catch (e) {
       console.error('Error sending reminder:', e);
       toast.error('Erreur lors de l\'envoi du rappel');
+    } finally {
+      setRelancingDocId(null);
     }
   };
 
@@ -612,8 +640,18 @@ export default function DocumentsPage() {
                               {!docOpened(doc) && doc.client_id && (
                                 <>
                                   <DropdownMenuSeparator />
-                                  <DropdownMenuItem onClick={() => void handleRelancerClient(doc)}>
-                                    Relancer le client
+                                  <DropdownMenuItem
+                                    disabled={relancingDocId === doc.id}
+                                    onClick={() => void handleRelancerClient(doc)}
+                                  >
+                                    {relancingDocId === doc.id ? (
+                                      <span className="flex items-center gap-2">
+                                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                        Envoi en cours...
+                                      </span>
+                                    ) : (
+                                      'Relancer le client'
+                                    )}
                                   </DropdownMenuItem>
                                 </>
                               )}
