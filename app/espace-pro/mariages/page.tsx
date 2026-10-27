@@ -224,15 +224,15 @@ export default function VendorMariagesPage() {
 
                       {/* Noms + planner */}
                       <div className="min-w-0">
-                        <div className="text-[14px] font-semibold text-[#4B4456] truncate flex items-center gap-2">
-                          {b.client_names}
+                        <div className="text-[14px] font-semibold text-[#4B4456] flex items-center gap-2" title={b.client_names}>
+                          <span className="line-clamp-2 break-words">{b.client_names}</span>
                           {b.status === 'option' && (
                             <span className="text-[9px] font-semibold text-[#C9A96E] bg-[rgba(201,169,110,0.15)] px-2 py-0.5 rounded-full whitespace-nowrap">
                               Option
                             </span>
                           )}
                         </div>
-                        <div className="text-[11.5px] text-[#9C97A3] truncate flex items-center gap-1.5 mt-0.5">
+                        <div className="text-[11.5px] text-[#9C97A3] truncate flex items-center gap-1.5 mt-0.5" title={b.planner_name || 'Wedding Planner'}>
                           <Heart className="w-3 h-3 shrink-0" />
                           {b.planner_name || 'Wedding Planner'}
                         </div>

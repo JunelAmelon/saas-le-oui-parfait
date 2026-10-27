@@ -87,6 +87,20 @@ export default function EspaceProDashboardPage() {
     .filter((p) => p.status === 'late')
     .reduce((sum, p) => sum + Number(p.amount || 0), 0);
 
+  // Prochain versement : date la plus proche des paiements "scheduled".
+  // Si plusieurs paiements tombent ce jour-la, on affiche leur total.
+  const scheduledPayments = payments
+    .filter((p) => p.status === 'scheduled' && p.due_date)
+    .sort((a, b) => String(a.due_date).localeCompare(String(b.due_date)));
+  const nextDueDate = scheduledPayments[0]?.due_date || '';
+  const nextDueCount = scheduledPayments.filter((p) => p.due_date === nextDueDate).length;
+  const nextDueTotal = scheduledPayments
+    .filter((p) => p.due_date === nextDueDate)
+    .reduce((sum, p) => sum + Number(p.amount || 0), 0);
+  const nextDueLabel = nextDueDate
+    ? new Date(`${nextDueDate}T00:00:00`).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })
+    : '';
+
   const initials = (() => {
     const src = vendorName;
     return (
@@ -164,7 +178,9 @@ export default function EspaceProDashboardPage() {
                 {totalPaid.toLocaleString('fr-FR')} €
               </div>
               <div className="text-[11.5px] text-[#9C97A3] mt-1">
-                {payments.filter((p) => p.status === 'paid').length} paiement(s) reçus
+                {nextDueDate
+                  ? `À venir : ${nextDueLabel}${nextDueCount > 1 ? ` · ${nextDueTotal.toLocaleString('fr-FR')} €` : ''}`
+                  : 'Aucune échéance à venir'}
               </div>
             </div>
 
@@ -251,13 +267,13 @@ export default function EspaceProDashboardPage() {
                         </div>
                         {/* Noms + planner */}
                         <div className="min-w-0">
-                          <div className="text-[14px] font-semibold text-[#4B4456] truncate flex items-center gap-2">
-                            {b.client_names}
+                          <div className="text-[14px] font-semibold text-[#4B4456] flex items-center gap-2" title={b.client_names}>
+                            <span className="line-clamp-2 break-words">{b.client_names}</span>
                             {b.status === 'option' && (
                               <span className="text-[9px] font-semibold text-[#C9A96E] bg-[rgba(201,169,110,0.15)] px-2 py-0.5 rounded-full">Option</span>
                             )}
                           </div>
-                          <div className="text-[11.5px] text-[#9C97A3] truncate flex items-center gap-1.5 mt-0.5">
+                          <div className="text-[11.5px] text-[#9C97A3] truncate flex items-center gap-1.5 mt-0.5" title={b.planner_name || 'Wedding Planner'}>
                             <Heart className="w-3 h-3 shrink-0" />
                             {b.planner_name || 'Wedding Planner'}
                           </div>
