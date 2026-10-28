@@ -28,6 +28,7 @@ const OBJECT_CHOICES: { kind: SceneObjectKind; hint: string }[] = [
   { kind: 'buffet', hint: 'Table de service traiteur' },
   { kind: 'bar', hint: 'Comptoir boissons' },
   { kind: 'photobooth', hint: 'Borne photos invités' },
+  { kind: 'photobooth360', hint: 'Plateforme caméra 360°' },
   { kind: 'candy_bar', hint: 'Coin gourmandises' },
   { kind: 'scene', hint: 'DJ / orchestre' },
   { kind: 'urne', hint: 'Urne et livre d\'or' },

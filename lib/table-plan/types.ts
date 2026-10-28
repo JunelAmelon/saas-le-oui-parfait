@@ -52,6 +52,7 @@ export type SceneObjectKind =
   | 'bar'
   | 'urne'
   | 'photobooth'
+  | 'photobooth360'
   | 'candy_bar'
   | 'estrade'
   | 'allee';

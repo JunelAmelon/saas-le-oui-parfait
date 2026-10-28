@@ -20,6 +20,7 @@ const SHAPE_RADIUS: Record<TableShape, { rx: number; rz: number }> = {
 /** Zones réservées par objet (pour le dimensionnement de la salle). */
 const OBJECT_FOOTPRINT: Partial<Record<SceneObjectKind, number>> = {
   estrade: 5, scene: 4.5, buffet: 3.5, bar: 3, piste: 6, photobooth: 2,
+  photobooth360: 2.5,
   urne: 1.5, candy_bar: 2, allee: 2,
 };
 
@@ -55,6 +56,7 @@ function objectPosition(kind: SceneObjectKind, room: RoomConfig, i: number): { x
     case 'bar': return { x: W / 2 - 2.4, z: L / 2 - 3 };
     case 'candy_bar': return { x: W / 2 - 2.2, z: L / 2 - 6 };
     case 'photobooth': return { x: -W / 2 + 2.2, z: L / 2 - 6 };
+    case 'photobooth360': return { x: W / 2 - 2.4, z: L / 2 - 8.5 };
     default: return { x: -W / 2 + 2 + i * 1.5, z: L / 2 - 2 };
   }
 }
@@ -79,7 +81,7 @@ export function generatePlan(opts: {
   // Zone utile : on évite le haut (estrade/scène) et le bas (piste).
   const topClear = objectKinds.some((k) => ['estrade', 'scene'].includes(k)) ? 5.5 : 2.5;
   const bottomClear = objectKinds.includes('piste') ? 6 : 2.5;
-  const sideClear = (objectKinds.includes('buffet') || objectKinds.includes('photobooth')) ? 4.5 : 3;
+  const sideClear = (objectKinds.includes('buffet') || objectKinds.includes('photobooth') || objectKinds.includes('photobooth360')) ? 4.5 : 3;
 
   const ux = room.width - sideClear * 2;
   const uz = room.length - topClear - bottomClear;
@@ -115,6 +117,7 @@ export function generatePlan(opts: {
     const labels: Record<SceneObjectKind, string> = {
       piste: 'Piste de danse', scene: 'Scène', buffet: 'Buffet', bar: 'Bar',
       urne: "Urne / Livre d'or", photobooth: 'Photobooth', candy_bar: 'Candy bar',
+      photobooth360: 'Photobooth 360°',
       estrade: 'Estrade + cœurs', allee: 'Allée tapis blanc',
     };
     return { id: `o${i + 1}`, kind: k, label: labels[k], x: pos.x, z: pos.z, rotation: 0 };

@@ -8,8 +8,8 @@
  */
 
 import { Suspense, createContext, useContext, useMemo, useRef, useState } from 'react';
-import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { OrbitControls, ContactShadows, Html, Float, PointerLockControls } from '@react-three/drei';
+import { Canvas, useFrame, useThree, useLoader } from '@react-three/fiber';
+import { OrbitControls, ContactShadows, Html, Float, PointerLockControls, useGLTF } from '@react-three/drei';
 import { useEffect } from 'react';
 import { EffectComposer, Bloom, Vignette } from '@react-three/postprocessing';
 import * as THREE from 'three';
@@ -276,19 +276,23 @@ function Centerpiece({ accent, x = 0, z = 0 }: { accent: string; x?: number; z?:
         <cylinderGeometry args={[0.16, 0.05, 0.09, 20]} />
         <meshStandardMaterial color={C.gold} metalness={0.8} roughness={0.25} />
       </mesh>
-      {/* bouquet : GLTF si flower.glb, sinon fleurs à pétales procédurales.
-          NB : la position est portée par DecorModel — le fallback doit être à [0,0,0]. */}
-      {FLOWERS.map((f, i) => (
-        <DecorModel key={i} decor="flower" position={f.pos}
-          fallback={<Flower position={[0, 0, 0]} color={f.col} size={f.s} tilt={f.tilt} />} />
-      ))}
-      {/* feuilles vertes tombantes */}
-      {[0.4, 1.6, 2.8, 4.0, 5.2].map((a, i) => (
-        <mesh key={i} position={[Math.cos(a) * 0.19, 1.28, Math.sin(a) * 0.19]} rotation={[0.85, a, 0]} castShadow>
-          <boxGeometry args={[0.022, 0.24, 0.006]} />
-          <meshStandardMaterial color="#5f8a5f" roughness={0.9} />
-        </mesh>
-      ))}
+      {/* bouquet : vrai modèle lys+roses si flower.glb présent,
+          sinon fleurs à pétales procédurales (un bouquet par table) */}
+      <DecorModel decor="flower" position={[0, 1.3, 0]}
+        fallback={
+          <group>
+            {FLOWERS.map((f, i) => (
+              <Flower key={i} position={[f.pos[0], f.pos[1] - 1.3, f.pos[2]]} color={f.col} size={f.s} tilt={f.tilt} />
+            ))}
+            {/* feuilles tombantes : uniquement dans le fallback procédural */}
+            {[0.4, 1.6, 2.8, 4.0, 5.2].map((a, i) => (
+              <mesh key={i} position={[Math.cos(a) * 0.19, 0.02, Math.sin(a) * 0.19]} rotation={[0.85, a, 0]} castShadow>
+                <boxGeometry args={[0.022, 0.24, 0.006]} />
+                <meshStandardMaterial color="#5f8a5f" roughness={0.9} />
+              </mesh>
+            ))}
+          </group>
+        } />
     </group>
   );
 }
@@ -442,10 +446,42 @@ export const OBJECT_DEFS: Record<
   bar: { label: 'Bar', color: '#5a4a3a', w: 2.4, d: 1.0, h: 1.0 },
   urne: { label: 'Urne / Livre d\'or', color: '#c9a96e', w: 0.9, d: 0.9, h: 1.0 },
   photobooth: { label: 'Photobooth', color: '#e8b4b8', w: 1.4, d: 1.4, h: 1.8 },
+  photobooth360: { label: 'Photobooth 360°', color: '#7c6f9b', w: 1.7, d: 1.7, h: 1.4 },
   candy_bar: { label: 'Candy bar', color: '#d98fa0', w: 1.6, d: 0.9, h: 1.0 },
   estrade: { label: 'Estrade + cœurs', color: '#8a6fb8', w: 4.6, d: 2.6, h: 0.45 },
   allee: { label: 'Allée tapis blanc', color: '#f2eee8', w: 1.8, d: 5.0, h: 0.02 },
 };
+
+/* ---------- Photobooth 360° : vrai modèle GLB (CGTrader) ---------- */
+// GLB unique avec textures embarquées : converti depuis obj.obj + texture.zip
+// dans /public/photoboot 360/ via obj2gltf.
+const PB360_URL = '/models/table-plan/photobooth360.glb';
+
+function Photobooth360Model() {
+  const { scene } = useGLTF(PB360_URL);
+  const model = useMemo(() => {
+    const inst = scene.clone(true);
+    inst.traverse((c: any) => {
+      if (!c.isMesh) return;
+      c.castShadow = c.receiveShadow = true;
+      // Leds/écrans : rendre les matériaux émissifs légèrement lumineux.
+      const m = c.material;
+      if (m?.name && /led|flash|tela|vidro/i.test(m.name)) {
+        m.emissive = new THREE.Color('#ffffff');
+        m.emissiveIntensity = 0.6;
+      }
+    });
+    // Échelle : côté le plus large ramené à ~1.6 m, posé au sol, centré.
+    const box = new THREE.Box3().setFromObject(inst);
+    const size = box.getSize(new THREE.Vector3());
+    const s = 1.6 / (Math.max(size.x, size.z) || 1);
+    inst.scale.setScalar(s);
+    const b2 = new THREE.Box3().setFromObject(inst);
+    inst.position.set(-(b2.min.x + b2.max.x) / 2, -b2.min.y, -(b2.min.z + b2.max.z) / 2);
+    return inst;
+  }, [scene]);
+  return <primitive object={model} />;
+}
 
 /* ---------- Rendus réels par kind (Open/Closed : 1 entrée par objet) ---------- */
 const Speaker = ({ x }: { x: number }) => (
@@ -600,6 +636,17 @@ const OBJECT_RENDERERS: Record<SceneObjectKind, () => JSX.Element> = {
     </group>
   ),
   // Table nappée + bocaux de bonbons transparents
+  // Photobooth 360° : vrai modèle CGTrader (OBJ + textures 4K), fallback procédural simple
+  photobooth360: () => (
+    <Suspense fallback={
+      <mesh position={[0, 0.7, 0]} castShadow>
+        <cylinderGeometry args={[0.7, 0.7, 1.4, 24]} />
+        <meshStandardMaterial color="#7c6f9b" roughness={0.6} />
+      </mesh>
+    }>
+      <Photobooth360Model />
+    </Suspense>
+  ),
   candy_bar: () => (
     <group>
       <mesh position={[0, 0.42, 0]} castShadow>
