@@ -7,7 +7,7 @@
  * = une entrée dans TABLE_SHAPES.
  */
 
-import { Suspense, useMemo, useRef, useState } from 'react';
+import { Suspense, createContext, useContext, useMemo, useRef, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, ContactShadows, Html, Float, PointerLockControls } from '@react-three/drei';
 import { useEffect } from 'react';
@@ -364,8 +364,13 @@ function Chair({ accent, kind }: { accent: string; kind: SeatKind }) {
  * pointermove projette le rayon caméra→sol et appelle onMove(x, z).
  * pointerup termine le drag. Utilisé par tables ET objets de salle.
  */
-function useFloorDrag(onMove: (x: number, z: number) => void, onEnd?: () => void) {
-  const { gl, camera } = useThree();
+const DragMode = createContext({ allowed: true, touchId: null as string | null });
+
+function useFloorDrag(onMove: (x: number, z: number) => void, onEnd: () => void, onStart: () => void, id: string, origin: { x: number; z: number }) {
+  const { gl, camera, controls } = useThree();
+  const mode = useContext(DragMode);
+  const cleanup = useRef<(() => void) | null>(null);
+  useEffect(() => () => cleanup.current?.(), []);
   const raycaster = useMemo(() => new THREE.Raycaster(), []);
   const plane = useMemo(() => new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), []);
   const point = useMemo(() => new THREE.Vector3(), []);
@@ -374,8 +379,26 @@ function useFloorDrag(onMove: (x: number, z: number) => void, onEnd?: () => void
   return (e: any) => {
     // Bloque la propagation : ne déclenche ni sélection ni orbite.
     e.stopPropagation();
-    e.target.setPointerCapture?.(e.pointerId);
+    if (!mode.allowed || (e.pointerType !== 'mouse' && mode.touchId !== id) || e.isPrimary === false) return;
+    cleanup.current?.();
+    const control = controls as unknown as { enabled: boolean } | undefined;
+    const wasEnabled = control?.enabled ?? false;
+    if (control) control.enabled = false;
+    onStart();
+    const pointerId = e.pointerId;
+    const target = e.target;
+    target.setPointerCapture?.(pointerId);
+    const project = (clientX: number, clientY: number) => {
+      const rect = gl.domElement.getBoundingClientRect();
+      ndc.set(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1);
+      raycaster.setFromCamera(ndc, camera);
+      return raycaster.ray.intersectPlane(plane, point);
+    };
+    const start = project(e.clientX, e.clientY);
+    const offsetX = start ? origin.x - start.x : 0;
+    const offsetZ = start ? origin.z - start.z : 0;
     const move = (ev: PointerEvent) => {
+      if (ev.pointerId !== pointerId) return;
       const rect = gl.domElement.getBoundingClientRect();
       ndc.set(
         ((ev.clientX - rect.left) / rect.width) * 2 - 1,
@@ -383,15 +406,27 @@ function useFloorDrag(onMove: (x: number, z: number) => void, onEnd?: () => void
       );
       raycaster.setFromCamera(ndc, camera);
       // Intersection du rayon avec le sol (y=0) → nouvelle position.
-      if (raycaster.ray.intersectPlane(plane, point)) onMove(point.x, point.z);
+      if (raycaster.ray.intersectPlane(plane, point)) onMove(point.x + offsetX, point.z + offsetZ);
     };
-    const up = () => {
+    const up = (ev?: PointerEvent) => {
+      if (ev && ev.pointerId !== pointerId) return;
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
-      onEnd?.();
+      window.removeEventListener('pointercancel', up);
+      window.removeEventListener('blur', blur);
+      gl.domElement.removeEventListener('lostpointercapture', up);
+      cleanup.current = null;
+      target.releasePointerCapture?.(pointerId);
+      if (control) control.enabled = wasEnabled;
+      onEnd();
     };
+    const blur = () => up();
+    cleanup.current = blur;
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
+    window.addEventListener('blur', blur);
+    gl.domElement.addEventListener('lostpointercapture', up);
   };
 }
 
@@ -734,7 +769,7 @@ function SceneObjectMesh({
   onDragEnd: () => void;
 }) {
   const def = OBJECT_DEFS[obj.kind];
-  const drag = useFloorDrag((x, z) => onMove(x, z), onDragEnd);
+  const drag = useFloorDrag((x, z) => onMove(x, z), onDragEnd, onDragStart, obj.id, obj);
   return (
     <group
       position={[obj.x, 0, obj.z]}
@@ -742,7 +777,6 @@ function SceneObjectMesh({
       onPointerDown={(e) => {
         e.stopPropagation();
         onSelect();
-        onDragStart();
         drag(e);
       }}
     >
@@ -897,7 +931,7 @@ function Table3D({
   const def = TABLE_SHAPES[table.shape];
   const seats = def.seats(table.seatCount);
   // Drag : pointerdown sur la table → suit le sol, lève le drag à pointerup.
-  const drag = useFloorDrag((x, z) => onMove(table.id, x, z), onDragEnd);
+  const drag = useFloorDrag((x, z) => onMove(table.id, x, z), onDragEnd, onDragStart, table.id, table);
 
   return (
     <group
@@ -909,7 +943,6 @@ function Table3D({
           // Clic table = sélection + début de drag possible.
           e.stopPropagation();
           onSelect(table.id);
-          onDragStart();
           drag(e);
         }}
       >
@@ -1318,8 +1351,36 @@ export function StaticHallScene({
   const evening = mood === 'soiree';
   // Bloque l'orbite caméra pendant un drag de table/objet.
   const [dragging, setDragging] = useState(false);
+  const [touch, setTouch] = useState(false);
+  const [movingId, setMovingId] = useState<string | null>(null);
+  useEffect(() => {
+    const query = window.matchMedia('(any-pointer: coarse)');
+    const update = () => setTouch(query.matches);
+    update();
+    query.addEventListener('change', update);
+    return () => query.removeEventListener('change', update);
+  }, []);
+  useEffect(() => { setMovingId(null); }, [selectedId, walkMode, tour]);
+  const editing = !walkMode && !tour;
+  const touchMoving = editing && !!movingId && movingId === selectedId;
   return (
+    <div className="relative w-full h-full">
+      {touch && editing && (
+        <div className="absolute top-3 left-3 right-3 z-20 flex flex-wrap items-center justify-center gap-2 pointer-events-none">
+          <span role="status" className="rounded-xl bg-white/95 px-3 py-2 text-xs text-[#4b4456] shadow-sm">
+            {touchMoving ? 'Glissez l’élément sélectionné pour le déplacer' : 'Explorer : touchez un élément pour le sélectionner'}
+          </span>
+          {selectedId && (
+            <button type="button" onClick={() => setMovingId(touchMoving ? null : selectedId)}
+              className="pointer-events-auto min-h-[44px] rounded-xl bg-[#4b4456] px-4 py-2 text-sm font-semibold text-white shadow">
+              {touchMoving ? 'Terminer' : 'Déplacer l’élément'}
+            </button>
+          )}
+        </div>
+      )}
+      <DragMode.Provider value={{ allowed: editing, touchId: touchMoving ? movingId : null }}>
     <Canvas
+      style={{ touchAction: 'none' }}
       shadows
       dpr={[1, 1.8]}
       camera={{ position: [7.5, 5.5, 8.5], fov: 42 }}
@@ -1393,12 +1454,14 @@ export function StaticHallScene({
       ) : walkMode ? (
         <WalkControls active camRef={camRef} />
       ) : (
-        <CameraRig enabled={!dragging} flyTo={flyTo} camRef={camRef} />
+        <CameraRig enabled={!dragging && !touchMoving} flyTo={flyTo} camRef={camRef} />
       )}
       <EffectComposer>
         <Bloom intensity={evening ? 0.55 : 0.25} luminanceThreshold={0.75} luminanceSmoothing={0.2} />
         <Vignette eskil={false} offset={0.18} darkness={0.55} />
       </EffectComposer>
     </Canvas>
+      </DragMode.Provider>
+    </div>
   );
 }
