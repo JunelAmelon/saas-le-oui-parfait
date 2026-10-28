@@ -14,7 +14,7 @@ import { useGLTF, Clone } from '@react-three/drei';
 
 /** Registry des pièces décoratives → URL publique + réglages. */
 export const DECOR_MODELS = {
-  chair: { url: '/models/table-plan/chair.glb', scale: 1 },
+  chair: { url: '/models/table-plan/chair.gltf', scale: 1 },
   flower: { url: '/models/table-plan/flower.glb', scale: 1 },
   chandelier: { url: '/models/table-plan/chandelier.glb', scale: 1 },
 } as const;

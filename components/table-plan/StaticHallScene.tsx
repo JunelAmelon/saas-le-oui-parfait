@@ -275,10 +275,11 @@ function Centerpiece({ accent, x = 0, z = 0 }: { accent: string; x?: number; z?:
         <cylinderGeometry args={[0.16, 0.05, 0.09, 20]} />
         <meshStandardMaterial color={C.gold} metalness={0.8} roughness={0.25} />
       </mesh>
-      {/* bouquet : GLTF si flower.glb, sinon fleurs à pétales procédurales */}
+      {/* bouquet : GLTF si flower.glb, sinon fleurs à pétales procédurales.
+          NB : la position est portée par DecorModel — le fallback doit être à [0,0,0]. */}
       {FLOWERS.map((f, i) => (
         <DecorModel key={i} decor="flower" position={f.pos}
-          fallback={<Flower position={f.pos} color={f.col} size={f.s} tilt={f.tilt} />} />
+          fallback={<Flower position={[0, 0, 0]} color={f.col} size={f.s} tilt={f.tilt} />} />
       ))}
       {/* feuilles vertes tombantes */}
       {[0.4, 1.6, 2.8, 4.0, 5.2].map((a, i) => (
@@ -353,8 +354,7 @@ function Chair({ accent, kind }: { accent: string; kind: SeatKind }) {
       ))}
     </group>
   );
-  // GLTF si /models/table-plan/chair.glb présent, sinon Napoléon procédural.
-  return <DecorModel decor="chair" fallback={napoleon} />;
+  return napoleon;
 }
 
 
