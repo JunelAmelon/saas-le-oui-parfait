@@ -68,11 +68,13 @@ export function generatePlan(opts: {
   shape: TableShape;
   seatCount: number;
   objectKinds: SceneObjectKind[];
+  /** Nombre de tables forcé (sinon auto : invités / places). */
+  tableCount?: number;
 }): { room: RoomConfig; tables: PlanTable[]; objects: SceneObject[] } {
   const { guestCount, shape, seatCount, objectKinds } = opts;
   const room = roomSizeFor(guestCount, seatCount, shape, objectKinds);
   const r = SHAPE_RADIUS[shape];
-  const tableCount = Math.max(1, Math.ceil(guestCount / Math.max(1, seatCount)));
+  const tableCount = Math.max(1, opts.tableCount ?? Math.ceil(guestCount / Math.max(1, seatCount)));
 
   // Zone utile : on évite le haut (estrade/scène) et le bas (piste).
   const topClear = objectKinds.some((k) => ['estrade', 'scene'].includes(k)) ? 5.5 : 2.5;

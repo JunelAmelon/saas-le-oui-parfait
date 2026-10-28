@@ -52,10 +52,14 @@ export function SetupWizard({
   const toggleKind = (k: SceneObjectKind) =>
     setKinds((p) => (p.includes(k) ? p.filter((x) => x !== k) : [...p, k]));
 
-  const tableCount = Math.ceil(guestCount / Math.max(1, seatCount));
+  // Suggestion auto : tables nécessaires pour caser tous les invités.
+  const suggested = Math.ceil(guestCount / Math.max(1, seatCount));
+  const [extraTables, setExtraTables] = useState(0);
+  const tableCount = Math.max(1, suggested + extraTables);
+  const capacity = tableCount * seatCount;
 
   const finish = () => {
-    onGenerate(generatePlan({ guestCount, shape, seatCount, objectKinds: kinds }));
+    onGenerate(generatePlan({ guestCount, shape, seatCount, objectKinds: kinds, tableCount }));
   };
 
   const canNext = step === 0 ? guestCount > 0 : true;
@@ -171,6 +175,26 @@ export function SetupWizard({
                     </button>
                   ))}
                 </div>
+              </div>
+              {/* tables auto-calculées + ajustement libre */}
+              <div className="rounded-2xl bg-[#FAF9F7] border border-[rgba(75,68,86,0.08)] p-4">
+                <div className="flex items-center justify-between mb-1.5">
+                  <p className="text-[12.5px] font-semibold text-brand-purple">Nombre de tables</p>
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => setExtraTables((e) => e - 1)}
+                      className="w-7 h-7 rounded-full bg-white border border-[rgba(75,68,86,0.12)] text-brand-purple font-bold">−</button>
+                    <span className="text-lg font-bold text-brand-purple w-8 text-center">{tableCount}</span>
+                    <button onClick={() => setExtraTables((e) => e + 1)}
+                      className="w-7 h-7 rounded-full bg-white border border-[rgba(75,68,86,0.12)] text-brand-purple font-bold">+</button>
+                  </div>
+                </div>
+                <p className="text-[11.5px] text-brand-gray">
+                  Suggestion : {suggested} table{suggested > 1 ? 's' : ''} pour {guestCount} invités
+                  → {capacity} places au total{capacity < guestCount ? ` (il manque ${guestCount - capacity} places)` : ' (libres : ' + (capacity - guestCount) + ')'}
+                </p>
+                <p className="text-[11px] text-brand-turquoise mt-1">
+                  Ajuste librement : tu pourras toujours ajouter d'autres tables ensuite.
+                </p>
               </div>
             </div>
           )}

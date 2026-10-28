@@ -594,31 +594,81 @@ const OBJECT_RENDERERS: Record<SceneObjectKind, () => JSX.Element> = {
     <group>
       <mesh position={[0, 0.22, 0]} castShadow>
         <boxGeometry args={[4.6, 0.45, 2.6]} />
-        <meshStandardMaterial color="#241f2e" roughness={0.5} />
+        <meshStandardMaterial color="#f1e8d8" roughness={0.9} />
       </mesh>
       {/* marche */}
       <mesh position={[0, 0.12, 1.7]} castShadow>
         <boxGeometry args={[1.6, 0.24, 0.8]} />
-        <meshStandardMaterial color="#3a3244" roughness={0.5} />
+        <meshStandardMaterial color="#f1e8d8" roughness={0.9} />
       </mesh>
-      {/* backdrop + cœurs lumineux */}
+      {/* backdrop + 2 cœurs lumineux (vraie forme de cœur extrudée) */}
       <mesh position={[0, 2.4, -1.1]} castShadow>
         <boxGeometry args={[4.6, 4.2, 0.15]} />
         <meshStandardMaterial color="#efe9e0" roughness={0.85} />
       </mesh>
-      {[-0.62, 0.62].map((x, i) => (
-        <group key={i} position={[x, 2.9, -1.0]} rotation={[0, 0, i === 0 ? 0.12 : -0.12]}>
-          <mesh castShadow>
-            <sphereGeometry args={[0.52, 24, 24]} />
-            <meshStandardMaterial color="#c9a8e8" emissive="#8a5fc8" emissiveIntensity={0.55} roughness={0.4} />
-          </mesh>
-          <mesh position={[x === 0 ? 0.26 : 0.26 * (i === 0 ? 1 : -1) * -1, -0.34, 0]} rotation={[0, 0, Math.PI / 4]} castShadow>
-            <boxGeometry args={[0.44, 0.44, 0.44]} />
-            <meshStandardMaterial color="#c9a8e8" emissive="#8a5fc8" emissiveIntensity={0.55} roughness={0.4} />
-          </mesh>
+      {Array.from({ length: 64 }, (_, i) => (
+        <mesh key={`fold-${i}`} position={[-2.26 + i * 4.52 / 63, 2.4, -0.98]} castShadow>
+          <cylinderGeometry args={[0.045, 0.045, 4.1, 8]} />
+          <meshStandardMaterial color={i % 2 ? '#fffaf2' : '#eee9e1'} roughness={0.95} />
+        </mesh>
+      ))}
+      {Array.from({ length: 5 }, (_, panel) => (
+        <group key={`drape-${panel}`}>
+          {Array.from({ length: 20 }, (_, i) => {
+            const t = i / 19;
+            return (
+              <mesh key={i} scale={[0.065, 0.14, 0.04]} position={[-2.25 + panel * 0.9 + t * 0.9, 2.15 - Math.sin(t * Math.PI) * 0.7, -0.86]}>
+                <sphereGeometry args={[1, 8, 6]} />
+                <meshStandardMaterial color="#fffaf4" roughness={0.95} />
+              </mesh>
+            );
+          })}
         </group>
       ))}
-      <pointLight position={[0, 2.9, 0]} intensity={14} color="#c9a8e8" distance={7} />
+      {[-1, 1].map((side) => (
+        <group key={side}>
+          <mesh position={[side * 0.98, 0.97, 0.35]} castShadow>
+            <boxGeometry args={[0.24, 0.35, 0.85]} />
+            <meshStandardMaterial color="#f4e8d5" roughness={0.85} />
+          </mesh>
+          <mesh position={[side * 1.93, 1.05, -0.25]} castShadow>
+            <cylinderGeometry args={[0.16, 0.08, 1.15, 20]} />
+            <meshStandardMaterial color="#c9cbd0" metalness={0.85} roughness={0.2} />
+          </mesh>
+          {Array.from({ length: 18 }, (_, i) => {
+            const angle = i * 2.39996;
+            const radius = 0.32 * Math.sqrt(i / 18);
+            return (
+              <mesh key={`vase-${i}`} position={[side * 1.93 + Math.cos(angle) * radius, 1.7 + 0.16 * Math.cos(i * 1.7), -0.25 + Math.sin(angle) * radius]} castShadow>
+                <sphereGeometry args={[0.13, 10, 8]} />
+                <meshStandardMaterial color={i % 3 ? '#fffaf0' : '#e8e5d6'} roughness={0.95} />
+              </mesh>
+            );
+          })}
+          {Array.from({ length: 28 }, (_, i) => (
+            <mesh key={`garland-${i}`} position={[side * (0.92 + 0.22 * Math.sin(i * 2.4)), 0.6 + i / 28 * 0.85, -0.15 + 0.22 * Math.cos(i * 2.4)]} castShadow>
+              <sphereGeometry args={[0.13, 10, 8]} />
+              <meshStandardMaterial color={i % 4 ? '#fffaf0' : '#e5e3d3'} roughness={0.95} />
+            </mesh>
+          ))}
+          {[0, 1, 2].map((i) => (
+            <group key={`candle-${i}`} position={[side * (1.35 + i * 0.15), 0.45, -0.65]}>
+              <mesh position={[0, (0.65 + i * 0.22) / 2, 0]}>
+                <cylinderGeometry args={[0.018, 0.025, 0.65 + i * 0.22, 8]} />
+                <meshStandardMaterial color="#c9cbd0" metalness={0.85} roughness={0.2} />
+              </mesh>
+              <mesh position={[0, 0.73 + i * 0.22, 0]}>
+                <cylinderGeometry args={[0.025, 0.025, 0.16, 8]} />
+                <meshStandardMaterial color="#fff4d7" emissive="#ffe0a3" emissiveIntensity={0.3} />
+              </mesh>
+            </group>
+          ))}
+        </group>
+      ))}
+      <mesh position={[0, 1.17, -0.05]} castShadow>
+        <boxGeometry args={[1.85, 0.6, 0.22]} />
+        <meshStandardMaterial color="#f4e8d5" roughness={0.85} />
+      </mesh>
       {/* table des mariés */}
       <mesh position={[0, 0.85, 0.6]} castShadow>
         <boxGeometry args={[2.2, 0.8, 0.8]} />
@@ -724,6 +774,30 @@ interface ShapeDef {
   seats: (count: number) => { x: number; z: number; angle: number }[];
   placeOffset: number; // distance centre→couvert
   seatDist: number; // distance centre→chaise
+}
+
+/* ---------- Forme de cœur (Shape extrudée) ---------- */
+let _heart: THREE.ExtrudeGeometry | null = null;
+function heartGeometry() {
+  if (!_heart) {
+    const s = new THREE.Shape();
+    s.moveTo(0.5, 0.5);
+    s.bezierCurveTo(0.5, 0.5, 0.4, 0, 0, 0);
+    s.bezierCurveTo(-0.6, 0, -0.6, 0.7, -0.6, 0.7);
+    s.bezierCurveTo(-0.6, 1.1, -0.3, 1.54, 0.5, 1.9);
+    s.bezierCurveTo(1.3, 1.54, 1.6, 1.1, 1.6, 0.7);
+    s.bezierCurveTo(1.6, 0.7, 1.6, 0, 1.0, 0);
+    s.bezierCurveTo(0.7, 0, 0.5, 0.5, 0.5, 0.5);
+    _heart = new THREE.ExtrudeGeometry(s, {
+      depth: 0.3,
+      bevelEnabled: true,
+      bevelSize: 0.06,
+      bevelThickness: 0.06,
+      bevelSegments: 4,
+    });
+    _heart.center();
+  }
+  return _heart;
 }
 
 const ellipseSeats = (a: number, b: number) => (count: number) =>

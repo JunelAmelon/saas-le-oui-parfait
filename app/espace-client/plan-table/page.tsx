@@ -255,13 +255,9 @@ export default function PlanTablePage() {
   // ---- État du plan ----
   const [planId, setPlanId] = useState<string | null>(null);
   const [room, setRoom] = useState<RoomConfig>({ width: 16, length: 16 });
-  const [tables, setTables] = useState<PlanTable[]>([
-    { id: 't1', shape: 'ronde', name: 'Table Mariés', x: 0, z: -4.5, rotation: 0, seatCount: 4, accent: '#88b7b5', seats: makeSeats(4) },
-    { id: 't2', shape: 'ronde', name: 'Table Famille', x: -4.4, z: -1.8, rotation: 0, seatCount: 6, accent: '#e8b4b8', seats: makeSeats(6) },
-  ]);
-  const [objects, setObjects] = useState<SceneObject[]>([
-    { id: 'o1', kind: 'piste', label: 'Piste de danse', x: 0, z: 6.1, rotation: 0 },
-  ]);
+  // Zéro donnée par défaut : nouveaux comptes = plan vide, wizard propose.
+  const [tables, setTables] = useState<PlanTable[]>([]);
+  const [objects, setObjects] = useState<SceneObject[]>([]);
   const [guests, setGuests] = useState<PlanGuest[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [assignTarget, setAssignTarget] = useState<{ tableId: string; seatIndex: number } | null>(null);
@@ -278,6 +274,20 @@ export default function PlanTablePage() {
   const [newGuestName, setNewGuestName] = useState('');
   const [loaded, setLoaded] = useState(false);
   const [captureNonce, setCaptureNonce] = useState(0);
+  const [resetOpen, setResetOpen] = useState(false);
+
+  // Réinitialisation : vide la salle, optionnellement les invités.
+  const resetPlan = (keepGuests: boolean) => {
+    pushHistory();
+    setTables([]);
+    setObjects([]);
+    setRoom({ width: 16, length: 16 });
+    setSelectedId(null);
+    setAssignTarget(null);
+    if (!keepGuests) setGuests([]);
+    setResetOpen(false);
+    toast.success(keepGuests ? 'Salle réinitialisée : invités conservés' : 'Plan entièrement effacé');
+  };
   const [wizardOpen, setWizardOpen] = useState(false);
   const [panelTab, setPanelTab] = useState<'composer' | 'placement'>('composer');
 
@@ -290,6 +300,24 @@ export default function PlanTablePage() {
     setHistory((h) => [...h.slice(-30), { tables, objects, guests, room }]);
     setFuture([]);
   }, [tables, objects, guests, room]);
+
+  const dragRecorded = useRef(false);
+  useEffect(() => {
+    const finishDrag = () => { dragRecorded.current = false; };
+    window.addEventListener('pointerup', finishDrag);
+    window.addEventListener('pointercancel', finishDrag);
+    window.addEventListener('blur', finishDrag);
+    return () => {
+      window.removeEventListener('pointerup', finishDrag);
+      window.removeEventListener('pointercancel', finishDrag);
+      window.removeEventListener('blur', finishDrag);
+    };
+  }, []);
+  const recordDrag = () => {
+    if (dragRecorded.current) return;
+    pushHistory();
+    dragRecorded.current = true;
+  };
 
   const undo = () => {
     if (!history.length) return;
@@ -320,8 +348,8 @@ export default function PlanTablePage() {
           if (Array.isArray(d.objects)) setObjects(d.objects);
           if (Array.isArray(d.guests)) setGuests(d.guests);
         }
-        // Premier passage : aucun plan sauvegardé → ouvrir l'assistant.
-        if (!docs[0]) setWizardOpen(true);
+        // Aucun plan OU plan vide → l'assistant s'ouvre pour aider.
+        if (!docs[0] || !(docs[0].tables || []).length) setWizardOpen(true);
       } catch (e) {
         console.error('plan-table load error:', e);
       } finally {
@@ -424,10 +452,19 @@ export default function PlanTablePage() {
     // collision : refuse le drop s'il chevauche une autre table
     const rr = (t: PlanTable) => ({ ronde: 1.9, ovale: 2.2, carree: 1.5, rectangle: 2.0 } as const)[t.shape];
     const clash = tables.some((t) => t.id !== id && Math.hypot(t.x - nx, t.z - nz) < (r + rr(t)) * 0.62);
-    if (!clash) patchTable(id, { x: nx, z: nz });
+    if (!clash && self && (self.x !== nx || self.z !== nz)) {
+      recordDrag();
+      patchTable(id, { x: nx, z: nz });
+    }
   };
-  const moveObject = (id: string, x: number, z: number) =>
-    setObjects((p) => p.map((o) => (o.id === id ? { ...o, x: clampRoom(x, room.width / 2), z: clampRoom(z, room.length / 2) } : o)));
+  const moveObject = (id: string, x: number, z: number) => {
+    const object = objects.find((o) => o.id === id);
+    const nx = clampRoom(x, room.width / 2);
+    const nz = clampRoom(z, room.length / 2);
+    if (!object || (object.x === nx && object.z === nz)) return;
+    recordDrag();
+    setObjects((p) => p.map((o) => (o.id === id ? { ...o, x: nx, z: nz } : o)));
+  };
   const removeTable = (id: string) => {
     pushHistory();
     setTables((p) => p.filter((t) => t.id !== id));
@@ -625,6 +662,11 @@ export default function PlanTablePage() {
               className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-brand-turquoise text-white text-[12.5px] font-semibold shadow hover:bg-brand-turquoise-hover transition-colors disabled:opacity-60">
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
               Sauvegarder
+            </button>
+            {/* réinitialiser tout : juste après Sauvegarder */}
+            <button onClick={() => setResetOpen(true)} title="Réinitialiser le plan"
+              className="w-9 h-9 rounded-full bg-red-50 hover:bg-red-100 text-red-500 flex items-center justify-center transition-colors">
+              <Trash2 className="w-4 h-4" />
             </button>
           </div>
         </div>
@@ -999,6 +1041,34 @@ export default function PlanTablePage() {
           </div>
         </div>
       </div>
+
+      {/* Réinitialisation : choix garder ou supprimer les invités */}
+      {resetOpen && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center p-4 bg-brand-purple/50 backdrop-blur-sm">
+          <div className="bg-white rounded-[20px] shadow-2xl w-full max-w-sm p-6">
+            <h3 className="text-lg font-bold text-brand-purple mb-1">Tout effacer ?</h3>
+            <p className="text-[13px] text-brand-gray mb-5">
+              Choisis ce que tu conserves. Les invités gardés passeront dans « non placés » pour être replacés ensuite.
+            </p>
+            <div className="space-y-2.5">
+              <button onClick={() => resetPlan(true)}
+                className="w-full text-left px-4 py-3 rounded-xl border border-[rgba(75,68,86,0.12)] hover:border-brand-turquoise hover:bg-brand-turquoise/5 transition-colors">
+                <p className="text-[13.5px] font-semibold text-brand-purple">Vider la salle, garder les invités</p>
+                <p className="text-[11.5px] text-brand-gray">Tables et objets supprimés · {guests.length} invité{guests.length > 1 ? 's' : ''} conservé{guests.length > 1 ? 's' : ''}</p>
+              </button>
+              <button onClick={() => resetPlan(false)}
+                className="w-full text-left px-4 py-3 rounded-xl border border-red-200 hover:bg-red-50 transition-colors">
+                <p className="text-[13.5px] font-semibold text-red-600">Tout supprimer</p>
+                <p className="text-[11.5px] text-red-400">Tables, objets ET invités effacés</p>
+              </button>
+              <button onClick={() => setResetOpen(false)}
+                className="w-full text-center text-[12.5px] font-semibold text-brand-gray hover:text-brand-purple py-1.5">
+                Annuler
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Assistant de création : génère salle + tables + objets */}
       {wizardOpen && (
