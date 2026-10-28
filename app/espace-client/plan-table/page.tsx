@@ -131,9 +131,44 @@ function TopDownView({
     window.addEventListener('pointerup', up);
   };
 
+  const [zoom, setZoom] = useState(1);
+  const [fit, setFit] = useState(true);
+  // Zoom : molette (ctrl ou simple), boutons +/−, « Ajuster » = tout voir.
+  const applyZoom = (dir: number) => {
+    setFit(false);
+    setZoom((z) => Math.min(2.5, Math.max(0.25, z * (dir > 0 ? 1.2 : 1 / 1.2))));
+  };
+
   return (
-    <div className="w-full h-full overflow-auto flex items-start justify-center p-3">
-      <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} className="max-w-none shrink-0">
+    <div className="relative w-full h-full">
+      {/* contrôles zoom */}
+      <div className="absolute top-3 right-3 z-10 flex items-center gap-1 bg-white/90 backdrop-blur rounded-full shadow-sm border border-[rgba(75,68,86,0.1)] p-1">
+        <button onClick={() => applyZoom(-1)} title="Dézoomer"
+          className="w-7 h-7 rounded-full text-brand-purple font-bold hover:bg-[#FAF9F7] flex items-center justify-center">−</button>
+        <span className="text-[10.5px] font-semibold text-brand-gray w-9 text-center">{Math.round(zoom * 100)}%</span>
+        <button onClick={() => applyZoom(1)} title="Zoomer"
+          className="w-7 h-7 rounded-full text-brand-purple font-bold hover:bg-[#FAF9F7] flex items-center justify-center">+</button>
+        <button onClick={() => { setFit(true); setZoom(1); }} title="Tout voir"
+          className="px-2.5 h-7 rounded-full text-[10.5px] font-semibold text-brand-purple hover:bg-[#FAF9F7]">
+          Ajuster
+        </button>
+      </div>
+      <div
+        className="w-full h-full overflow-auto flex items-start justify-center p-3"
+        onWheel={(e) => {
+          if (e.ctrlKey || Math.abs(e.deltaY) > 0) {
+            e.preventDefault();
+            applyZoom(e.deltaY < 0 ? 1 : -1);
+          }
+        }}
+      >
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        width={fit ? '100%' : W * zoom}
+        height={fit ? undefined : H * zoom}
+        className="max-w-none shrink-0"
+        preserveAspectRatio="xMidYMin meet"
+      >
       {/* salle (rectangle aux dimensions réelles, centré dans le cadre) */}
       <rect x={px(-room.width / 2)} y={pz(-room.length / 2)} width={room.width * SCALE} height={room.length * SCALE}
         fill="#f2eadf" stroke="#c9a96e" strokeWidth={2.5} rx={10} />
@@ -175,6 +210,7 @@ function TopDownView({
         );
       })}
       </svg>
+      </div>
     </div>
   );
 }
@@ -549,15 +585,15 @@ export default function PlanTablePage() {
               </button>
               <button onClick={() => { setWalkMode((w) => !w); setTour(false); setWalkHint(walkMode ? walkHint : true); }} disabled={view === '2d'}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-semibold transition-colors ${walkMode ? 'bg-brand-turquoise text-white' : 'text-brand-gray'} disabled:opacity-40`}>
-                <Users className="w-3.5 h-3.5" /> {walkMode ? 'Quitter la balade' : 'Se balader'}
+                <Users className="w-3.5 h-3.5" /> <span className="hidden sm:inline">{walkMode ? 'Quitter la balade' : 'Se balader'}</span>
               </button>
               <button onClick={() => { setTour((t) => !t); setWalkMode(false); }} disabled={view === '2d'}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-semibold transition-colors ${tour ? 'bg-brand-purple text-white' : 'text-brand-gray'} disabled:opacity-40`}>
-                <Move3d className="w-3.5 h-3.5" /> {tour ? 'Stop visite' : 'Visite guidée'}
+                <Move3d className="w-3.5 h-3.5" /> <span className="hidden sm:inline">{tour ? 'Stop visite' : 'Visite guidée'}</span>
               </button>
               <button onClick={() => setView('2d')}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-semibold transition-colors ${view === '2d' ? 'bg-brand-purple text-white' : 'text-brand-gray'}`}>
-                <LayoutGrid className="w-3.5 h-3.5" /> Vue du dessus
+                <LayoutGrid className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Vue du dessus</span><span className="sm:hidden">2D</span>
               </button>
             </div>
             {/* ambiance */}

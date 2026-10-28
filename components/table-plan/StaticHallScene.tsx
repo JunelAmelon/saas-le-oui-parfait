@@ -48,10 +48,17 @@ export type { TableShape } from '@/lib/table-plan/types';
 
 /* ============================ Pièces ============================ */
 
+import { DecorModel } from './DecorModel';
+
 /* ---------- Lustre en cristal suspendu ---------- */
 function Chandelier({ x, z }: { x: number; z: number }) {
+  // GLTF si /models/table-plan/chandelier.glb présent, sinon procédural.
   return (
-    <group position={[x, 4.6, z]}>
+    <DecorModel
+      decor="chandelier"
+      position={[x, 4.6, z]}
+      fallback={
+    <group>
       {/* tige */}
       <mesh position={[0, 0.5, 0]}>
         <cylinderGeometry args={[0.015, 0.015, 1, 8]} />
@@ -78,6 +85,8 @@ function Chandelier({ x, z }: { x: number; z: number }) {
       </mesh>
       <pointLight position={[0, -0.3, 0]} intensity={6} color="#ffe9c4" distance={6} />
     </group>
+      }
+    />
   );
 }
 
@@ -266,9 +275,10 @@ function Centerpiece({ accent, x = 0, z = 0 }: { accent: string; x?: number; z?:
         <cylinderGeometry args={[0.16, 0.05, 0.09, 20]} />
         <meshStandardMaterial color={C.gold} metalness={0.8} roughness={0.25} />
       </mesh>
-      {/* bouquet : vraies fleurs à pétales */}
+      {/* bouquet : GLTF si flower.glb, sinon fleurs à pétales procédurales */}
       {FLOWERS.map((f, i) => (
-        <Flower key={i} position={f.pos} color={f.col} size={f.s} tilt={f.tilt} />
+        <DecorModel key={i} decor="flower" position={f.pos}
+          fallback={<Flower position={f.pos} color={f.col} size={f.s} tilt={f.tilt} />} />
       ))}
       {/* feuilles vertes tombantes */}
       {[0.4, 1.6, 2.8, 4.0, 5.2].map((a, i) => (
@@ -319,7 +329,7 @@ function Chair({ accent, kind }: { accent: string; kind: SeatKind }) {
     );
   }
   const frame = kind === 'vip' ? C.gold : '#f0ece4';
-  return (
+  const napoleon = (
     <group>
       <mesh position={[0, 0.45, 0]} castShadow>
         <cylinderGeometry args={[0.24, 0.2, 0.06, 24]} />
@@ -343,6 +353,8 @@ function Chair({ accent, kind }: { accent: string; kind: SeatKind }) {
       ))}
     </group>
   );
+  // GLTF si /models/table-plan/chair.glb présent, sinon Napoléon procédural.
+  return <DecorModel decor="chair" fallback={napoleon} />;
 }
 
 
