@@ -19,6 +19,8 @@ import {
   X,
   Map,
   Car,
+  ChevronsLeft,
+  ChevronsRight,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useState, useEffect } from 'react';
@@ -44,19 +46,23 @@ const clientMenuItems: MenuItem[] = [
   { label: 'Galerie photos', icon: ImageIcon, href: '/espace-client/galerie' },
   { label: 'Mes prestataires', icon: Users, href: '/espace-client/prestataires' },
   { label: 'Fleurs', icon: Flower2, href: '/espace-client/fleurs', isComingSoon: true },
-  { label: 'Plan de table 3D', icon: Map, href: '/espace-client/plan-table', isComingSoon: true },
+  { label: 'Plan de table 3D', icon: Map, href: '/espace-client/plan-table' },
   { label: 'Service chauffeur', icon: Car, href: '/espace-client/chauffeur', isComingSoon: true },
 ];
 
 export function ClientSidebar() {
   const pathname = usePathname();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  // Sidebar repliée (desktop) : persiste + se ferme d'elle-même sur la page 3D.
+  const [collapsed, setCollapsed] = useState(false);
   const { signOut } = useAuth();
   const { client } = useClientData();
   const unreadMessages = useUnreadMessages({ role: 'client', id: client?.id });
 
   useEffect(() => {
     setIsMobileMenuOpen(false);
+    // Pages qui veulent toute la largeur (ex: plan de table 3D) → repli auto.
+    if (pathname.includes('/plan-table')) setCollapsed(true);
   }, [pathname]);
 
   useEffect(() => {
@@ -83,16 +89,26 @@ export function ClientSidebar() {
   const SidebarContent = () => (
     <>
       <div className="flex items-center gap-2.5 mb-10 px-2">
-        <Link href="/espace-client" className="flex items-center">
-          <Image
-            src="/logo-horizontal.png"
-            alt="Le Oui Parfait"
-            width={160}
-            height={44}
-            className="object-contain max-w-[150px] h-auto"
-            priority
-          />
-        </Link>
+        {!collapsed && (
+          <Link href="/espace-client" className="flex items-center">
+            <Image
+              src="/logo-horizontal.png"
+              alt="Le Oui Parfait"
+              width={160}
+              height={44}
+              className="object-contain max-w-[150px] h-auto"
+              priority
+            />
+          </Link>
+        )}
+        {/* Repli/dépli desktop */}
+        <button
+          onClick={() => setCollapsed((c) => !c)}
+          className="hidden md:flex ml-auto w-7 h-7 rounded-full bg-[#FAF9F7] hover:bg-[#f0ede8] items-center justify-center text-[#9C97A3] shrink-0"
+          title={collapsed ? 'Ouvrir le menu' : 'Réduire le menu'}
+        >
+          {collapsed ? <ChevronsRight className="w-3.5 h-3.5" /> : <ChevronsLeft className="w-3.5 h-3.5" />}
+        </button>
         <Button
           variant="ghost"
           size="icon"
@@ -103,10 +119,10 @@ export function ClientSidebar() {
         </Button>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto pr-1">
-        <div className="text-[10.5px] tracking-[0.15em] uppercase text-[#9C97A3] px-2 mb-2.5">
+      <div className={cn('flex-1 min-h-0 overflow-y-auto pr-1', collapsed && 'pr-0 overflow-x-hidden [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden')}>
+        {!collapsed && <div className="text-[10.5px] tracking-[0.15em] uppercase text-[#9C97A3] px-2 mb-2.5">
           Espace client
-        </div>
+        </div>}
         <ul className="space-y-0.5 mb-8">
           {mainItems.map((item) => (
             <li key={item.label}>
@@ -114,14 +130,15 @@ export function ClientSidebar() {
                 href={item.href}
                 className={cn(
                   'flex w-full items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors',
+                  collapsed && 'justify-center px-0',
                   isActive(item.href)
                     ? 'bg-[rgba(136,183,181,0.16)] text-[#4B4456]'
                     : 'text-[#5A5A5A] hover:bg-[rgba(75,68,86,0.07)]'
                 )}
               >
                 <item.icon className="h-[18px] w-[18px] shrink-0" />
-                <span className="flex-1">{item.label}</span>
-                {item.label === 'Messages' && unreadMessages > 0 ? (
+                {!collapsed && <span className="flex-1">{item.label}</span>}
+                {!collapsed && item.label === 'Messages' && unreadMessages > 0 ? (
                   <span className="ml-2 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[11px] leading-[18px] text-center">
                     {unreadMessages > 99 ? '99+' : unreadMessages}
                   </span>
@@ -133,18 +150,20 @@ export function ClientSidebar() {
 
         {comingItems.length > 0 && (
           <>
-            <div className="text-[10.5px] tracking-[0.15em] uppercase text-[#9C97A3] px-2 mb-2.5">
+            {!collapsed && <div className="text-[10.5px] tracking-[0.15em] uppercase text-[#9C97A3] px-2 mb-2.5">
               À venir
-            </div>
+            </div>}
             <ul className="space-y-0.5 mb-8">
               {comingItems.map((item) => (
                 <li key={item.label}>
-                  <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-[#5A5A5A] opacity-60 cursor-not-allowed">
+                  <div className={cn('flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-[#5A5A5A] opacity-60 cursor-not-allowed', collapsed && 'justify-center px-0')}>
                     <item.icon className="h-[18px] w-[18px] shrink-0" />
-                    <span className="flex-1">{item.label}</span>
-                    <span className="text-[9px] uppercase tracking-wide bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">
-                      Bientôt
-                    </span>
+                    {!collapsed && <span className="flex-1">{item.label}</span>}
+                    {!collapsed && (
+                      <span className="text-[9px] uppercase tracking-wide bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">
+                        Bientôt
+                      </span>
+                    )}
                   </div>
                 </li>
               ))}
@@ -154,31 +173,32 @@ export function ClientSidebar() {
       </div>
 
       <div>
-        <div className="text-[10.5px] tracking-[0.15em] uppercase text-[#9C97A3] px-2 mb-2.5">
+        {!collapsed && <div className="text-[10.5px] tracking-[0.15em] uppercase text-[#9C97A3] px-2 mb-2.5">
           Paramètres
-        </div>
+        </div>}
         <ul className="space-y-0.5">
           <li>
             <Link
               href="/espace-client/parametres"
               className={cn(
                 'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors',
+                collapsed && 'justify-center px-0',
                 isActive('/espace-client/parametres')
                   ? 'bg-[rgba(136,183,181,0.16)] text-[#4B4456]'
                   : 'text-[#5A5A5A] hover:bg-[rgba(75,68,86,0.07)]'
               )}
             >
               <Settings className="h-[18px] w-[18px] shrink-0" />
-              <span>Paramètres</span>
+              {!collapsed && <span>Paramètres</span>}
             </Link>
           </li>
           <li>
             <button
               onClick={() => void signOut()}
-              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-[#B9847F] hover:bg-[rgba(185,132,127,0.1)] transition-colors"
+              className={cn('w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-[#B9847F] hover:bg-[rgba(185,132,127,0.1)] transition-colors', collapsed && 'justify-center px-0')}
             >
               <LogOut className="h-[18px] w-[18px] shrink-0" />
-              <span>Déconnexion</span>
+              {!collapsed && <span>Déconnexion</span>}
             </button>
           </li>
         </ul>
@@ -197,7 +217,12 @@ export function ClientSidebar() {
         <Menu className="h-5 w-5" />
       </Button>
 
-      <aside className="hidden md:flex w-[230px] h-screen shrink-0 flex-col border-r border-[rgba(75,68,86,0.08)] py-8 px-5">
+      <aside
+        className={cn(
+          'hidden md:flex h-screen shrink-0 flex-col border-r border-[rgba(75,68,86,0.08)] py-8 transition-all duration-300 overflow-hidden',
+          collapsed ? 'w-[68px] px-3' : 'w-[230px] px-5'
+        )}
+      >
         <SidebarContent />
       </aside>
 
