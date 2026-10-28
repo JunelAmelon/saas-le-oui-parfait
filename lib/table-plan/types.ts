@@ -14,6 +14,7 @@ export type SeatKind = 'standard' | 'bebe' | 'pmr' | 'vip';
 export interface PlanGuest {
   id: string;
   name: string;
+  isChild?: boolean;
   /** Groupe libre : "Famille mariée", "Collègues"... (aide au placement). */
   group?: string;
   /** Note diététique visible par le traiteur : "sans gluten", "végétarien"... */

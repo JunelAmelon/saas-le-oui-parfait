@@ -13,6 +13,7 @@ import { OrbitControls, ContactShadows, Html, Float, PointerLockControls } from 
 import { useEffect } from 'react';
 import { EffectComposer, Bloom, Vignette } from '@react-three/postprocessing';
 import * as THREE from 'three';
+import { PersonStanding } from 'lucide-react';
 import type { PlanTable, SceneObject, SceneObjectKind, SeatKind, TableShape } from '@/lib/table-plan/types';
 
 /* ============================ Palette ============================ */
@@ -910,6 +911,7 @@ function Table3D({
   selected,
   assignTarget,
   guestName,
+  childGuestIds = [],
   onSelect,
   onSeatClick,
   onDragStart,
@@ -922,6 +924,7 @@ function Table3D({
   assignTarget: { tableId: string; seatIndex: number } | null;
   /** Résout guest_id → nom affiché. */
   guestName: (id: string) => string | undefined;
+  childGuestIds?: string[];
   onSelect: (id: string) => void;
   onSeatClick: (tableId: string, seatIndex: number) => void;
   onDragStart: () => void;
@@ -989,6 +992,11 @@ function Table3D({
             <Html zIndexRange={[60, 0]} center position={[0, 1.15, 0]} distanceFactor={10} className="pointer-events-none select-none">
               {name ? (
                 <div className="px-2 py-0.5 rounded-full bg-white/90 backdrop-blur-sm text-[10px] font-medium text-[#4B4456] shadow-sm whitespace-nowrap">
+                  {seat?.guest_id && childGuestIds.includes(seat.guest_id) && (
+                    <span title="Enfant" aria-label="Enfant" className="inline-flex align-middle mr-1">
+                      <PersonStanding size={16} color="#ea580c" strokeWidth={2.5} aria-hidden="true" />
+                    </span>
+                  )}
                   {name}
                 </div>
               ) : (
@@ -1315,6 +1323,7 @@ export function StaticHallScene({
   selectedId,
   assignTarget,
   guestName,
+  childGuestIds = [],
   onSelectTable,
   onSeatClick,
   onMoveTable,
@@ -1334,6 +1343,7 @@ export function StaticHallScene({
   selectedId: string | null;
   assignTarget: { tableId: string; seatIndex: number } | null;
   guestName: (id: string) => string | undefined;
+  childGuestIds?: string[];
   onSelectTable: (id: string | null) => void;
   onSeatClick: (tableId: string, seatIndex: number) => void;
   onMoveTable: (id: string, x: number, z: number) => void;
@@ -1429,6 +1439,7 @@ export function StaticHallScene({
             selected={t.id === selectedId}
             assignTarget={assignTarget}
             guestName={guestName}
+            childGuestIds={childGuestIds}
             onSelect={onSelectTable}
             onSeatClick={onSeatClick}
             onDragStart={() => setDragging(true)}

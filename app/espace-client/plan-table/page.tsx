@@ -17,7 +17,7 @@ import { getDocuments, updateDocument } from '@/lib/db';
 import { toast } from 'sonner';
 import {
   Loader2, Move3d, Plus, Trash2, Sun, Moon, Users, Save,
-  Undo2, Redo2, LayoutGrid, Armchair, Check, X,
+  Undo2, Redo2, LayoutGrid, Armchair, Check, X, PersonStanding,
 } from 'lucide-react';
 import type {
   PlanTable, PlanGuest, PlanSeat, SceneObject, SceneObjectKind,
@@ -78,9 +78,10 @@ const resizeSeats = (seats: PlanSeat[], count: number): PlanSeat[] => {
 /* ============================ Vue 2D (dessus) ============================ */
 
 function TopDownView({
-  tables, objects, room, selectedId, onSelect, onMoveTable, onMoveObject,
+  tables, objects, room, selectedId, onSelect, onMoveTable, onMoveObject, guests,
 }: {
   tables: PlanTable[]; objects: SceneObject[]; room: RoomConfig;
+  guests: PlanGuest[];
   selectedId: string | null;
   onSelect: (id: string | null) => void;
   onMoveTable: (id: string, x: number, z: number) => void;
@@ -199,8 +200,17 @@ function TopDownView({
             onPointerDown={(e) => { onSelect(t.id); drag(e, t.id, true); }} className="cursor-grab">
             {/* sièges aux positions exactes de la forme */}
             {t.seats.map((s, i) => (
-              <circle key={i} cx={seatPos[i].x * 1.05 * SCALE} cy={seatPos[i].z * 1.05 * SCALE} r={6}
-                fill={s.guest_id ? t.accent : '#fff'} stroke="#9C97A3" strokeWidth={1} />
+              <g key={i}>
+                <circle cx={seatPos[i].x * 1.05 * SCALE} cy={seatPos[i].z * 1.05 * SCALE} r={6}
+                  fill={s.guest_id ? t.accent : '#fff'} stroke="#9C97A3" strokeWidth={1} />
+                {guests.find((g) => g.id === s.guest_id)?.isChild && (
+                  <g aria-label="Enfant">
+                    <title>Enfant</title>
+                    <PersonStanding x={seatPos[i].x * 1.05 * SCALE - 5} y={seatPos[i].z * 1.05 * SCALE - 5}
+                      width={10} height={10} color="#ea580c" strokeWidth={2.5} />
+                  </g>
+                )}
+              </g>
             ))}
             {shapeEl}
             <circle cx={0} cy={0} r={1.1 * SCALE} fill="transparent"
@@ -681,6 +691,7 @@ export default function PlanTablePage() {
                 selectedId={selectedId}
                 assignTarget={assignTarget}
                 guestName={guestName}
+                childGuestIds={guests.filter((g) => g.isChild).map((g) => g.id)}
                 onSelectTable={setSelectedId}
                 onSeatClick={handleSeatClick}
                 onMoveTable={moveTable}
@@ -725,7 +736,7 @@ export default function PlanTablePage() {
               />
             ) : (
               <TopDownView
-                tables={tables} objects={objects} room={room}
+                tables={tables} objects={objects} room={room} guests={guests}
                 selectedId={selectedId} onSelect={setSelectedId}
                 onMoveTable={moveTable} onMoveObject={moveObject}
               />
@@ -825,6 +836,10 @@ export default function PlanTablePage() {
                           onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
                           className="flex-1 min-w-0 text-[12.5px] border border-transparent bg-[#FAF9F7] rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-turquoise/40"
                         />
+                        <label className="flex items-center gap-1 min-h-[44px] text-xs text-brand-purple shrink-0">
+                          <input type="checkbox" checked={!!g.isChild} onChange={(e) => patchGuest(g.id, { isChild: e.target.checked })} />
+                          Enfant
+                        </label>
                         <button onClick={() => removeGuest(g.id)} title="Supprimer l'invité"
                           className="w-6 h-6 rounded-full text-red-400 hover:bg-red-50 flex items-center justify-center shrink-0">
                           <X className="w-3.5 h-3.5" />
@@ -882,6 +897,13 @@ export default function PlanTablePage() {
                                 onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
                                 className={`flex-1 min-w-0 text-[12.5px] border rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-turquoise/40 ${s.guest_id ? 'border-transparent bg-[#FAF9F7]' : 'border-dashed border-[rgba(75,68,86,0.25)]'}`}
                               />
+                              {s.guest_id && (
+                                <label className="flex items-center gap-1 min-h-[44px] text-xs text-brand-purple shrink-0">
+                                  <input type="checkbox" checked={!!guests.find((g) => g.id === s.guest_id)?.isChild}
+                                    onChange={(e) => patchGuest(s.guest_id!, { isChild: e.target.checked })} />
+                                  Enfant
+                                </label>
+                              )}
                               {s.kind !== 'standard' && (
                                 <span className="text-[9.5px] font-semibold text-brand-turquoise uppercase">{s.kind}</span>
                               )}

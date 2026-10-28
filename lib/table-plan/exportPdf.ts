@@ -54,7 +54,7 @@ export function exportTraiteurPdf(tables: PlanTable[], guests: PlanGuest[], coup
     for (const s of seatedSeats) {
       const g = byId.get(s.guest_id!);
       if (!g) continue;
-      let line = `  ${s.index + 1}. ${g.name}`;
+      let line = `  ${s.index + 1}. ${g.name}${g.isChild ? ' (enfant)' : ''}`;
       if (s.kind !== 'standard') line += `  (${KIND_LABEL[s.kind] || s.kind})`;
       doc.text(line, 18, y);
       y += 5.2;
