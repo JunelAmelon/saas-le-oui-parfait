@@ -86,10 +86,13 @@ export function ClientSidebar() {
   const mainItems = clientMenuItems.filter((i) => !i.isComingSoon);
   const comingItems = clientMenuItems.filter((i) => i.isComingSoon);
 
-  const SidebarContent = () => (
+  // `expanded` = menu mobile : toujours déplié (le repli est desktop-only).
+  const SidebarContent = ({ expanded = false }: { expanded?: boolean }) => {
+    const c = expanded ? false : collapsed;
+    return (
     <>
       <div className="flex items-center gap-2.5 mb-10 px-2">
-        {!collapsed && (
+        {!c && (
           <Link href="/espace-client" className="flex items-center">
             <Image
               src="/logo-horizontal.png"
@@ -105,9 +108,9 @@ export function ClientSidebar() {
         <button
           onClick={() => setCollapsed((c) => !c)}
           className="hidden md:flex ml-auto w-7 h-7 rounded-full bg-[#FAF9F7] hover:bg-[#f0ede8] items-center justify-center text-[#9C97A3] shrink-0"
-          title={collapsed ? 'Ouvrir le menu' : 'Réduire le menu'}
+          title={c ? 'Ouvrir le menu' : 'Réduire le menu'}
         >
-          {collapsed ? <ChevronsRight className="w-3.5 h-3.5" /> : <ChevronsLeft className="w-3.5 h-3.5" />}
+          {c ? <ChevronsRight className="w-3.5 h-3.5" /> : <ChevronsLeft className="w-3.5 h-3.5" />}
         </button>
         <Button
           variant="ghost"
@@ -119,8 +122,8 @@ export function ClientSidebar() {
         </Button>
       </div>
 
-      <div className={cn('flex-1 min-h-0 overflow-y-auto pr-1', collapsed && 'pr-0 overflow-x-hidden [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden')}>
-        {!collapsed && <div className="text-[10.5px] tracking-[0.15em] uppercase text-[#9C97A3] px-2 mb-2.5">
+      <div className={cn('flex-1 min-h-0 overflow-y-auto pr-1', c && 'pr-0 overflow-x-hidden [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden')}>
+        {!c && <div className="text-[10.5px] tracking-[0.15em] uppercase text-[#9C97A3] px-2 mb-2.5">
           Espace client
         </div>}
         <ul className="space-y-0.5 mb-8">
@@ -130,15 +133,15 @@ export function ClientSidebar() {
                 href={item.href}
                 className={cn(
                   'flex w-full items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors',
-                  collapsed && 'justify-center px-0',
+                  c && 'justify-center px-0',
                   isActive(item.href)
                     ? 'bg-[rgba(136,183,181,0.16)] text-[#4B4456]'
                     : 'text-[#5A5A5A] hover:bg-[rgba(75,68,86,0.07)]'
                 )}
               >
                 <item.icon className="h-[18px] w-[18px] shrink-0" />
-                {!collapsed && <span className="flex-1">{item.label}</span>}
-                {!collapsed && item.label === 'Messages' && unreadMessages > 0 ? (
+                {!c && <span className="flex-1">{item.label}</span>}
+                {!c && item.label === 'Messages' && unreadMessages > 0 ? (
                   <span className="ml-2 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[11px] leading-[18px] text-center">
                     {unreadMessages > 99 ? '99+' : unreadMessages}
                   </span>
@@ -150,16 +153,16 @@ export function ClientSidebar() {
 
         {comingItems.length > 0 && (
           <>
-            {!collapsed && <div className="text-[10.5px] tracking-[0.15em] uppercase text-[#9C97A3] px-2 mb-2.5">
+            {!c && <div className="text-[10.5px] tracking-[0.15em] uppercase text-[#9C97A3] px-2 mb-2.5">
               À venir
             </div>}
             <ul className="space-y-0.5 mb-8">
               {comingItems.map((item) => (
                 <li key={item.label}>
-                  <div className={cn('flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-[#5A5A5A] opacity-60 cursor-not-allowed', collapsed && 'justify-center px-0')}>
+                  <div className={cn('flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-[#5A5A5A] opacity-60 cursor-not-allowed', c && 'justify-center px-0')}>
                     <item.icon className="h-[18px] w-[18px] shrink-0" />
-                    {!collapsed && <span className="flex-1">{item.label}</span>}
-                    {!collapsed && (
+                    {!c && <span className="flex-1">{item.label}</span>}
+                    {!c && (
                       <span className="text-[9px] uppercase tracking-wide bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">
                         Bientôt
                       </span>
@@ -173,7 +176,7 @@ export function ClientSidebar() {
       </div>
 
       <div>
-        {!collapsed && <div className="text-[10.5px] tracking-[0.15em] uppercase text-[#9C97A3] px-2 mb-2.5">
+        {!c && <div className="text-[10.5px] tracking-[0.15em] uppercase text-[#9C97A3] px-2 mb-2.5">
           Paramètres
         </div>}
         <ul className="space-y-0.5">
@@ -182,29 +185,30 @@ export function ClientSidebar() {
               href="/espace-client/parametres"
               className={cn(
                 'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors',
-                collapsed && 'justify-center px-0',
+                c && 'justify-center px-0',
                 isActive('/espace-client/parametres')
                   ? 'bg-[rgba(136,183,181,0.16)] text-[#4B4456]'
                   : 'text-[#5A5A5A] hover:bg-[rgba(75,68,86,0.07)]'
               )}
             >
               <Settings className="h-[18px] w-[18px] shrink-0" />
-              {!collapsed && <span>Paramètres</span>}
+              {!c && <span>Paramètres</span>}
             </Link>
           </li>
           <li>
             <button
               onClick={() => void signOut()}
-              className={cn('w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-[#B9847F] hover:bg-[rgba(185,132,127,0.1)] transition-colors', collapsed && 'justify-center px-0')}
+              className={cn('w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-[#B9847F] hover:bg-[rgba(185,132,127,0.1)] transition-colors', c && 'justify-center px-0')}
             >
               <LogOut className="h-[18px] w-[18px] shrink-0" />
-              {!collapsed && <span>Déconnexion</span>}
+              {!c && <span>Déconnexion</span>}
             </button>
           </li>
         </ul>
       </div>
     </>
-  );
+    );
+  };
 
   return (
     <>
@@ -233,7 +237,7 @@ export function ClientSidebar() {
             onClick={() => setIsMobileMenuOpen(false)}
           />
           <aside className="fixed left-0 top-0 z-50 h-screen supports-[height:100dvh]:h-[100dvh] w-[260px] bg-white flex flex-col md:hidden py-8 px-5 overflow-y-auto">
-            <SidebarContent />
+            <SidebarContent expanded />
           </aside>
         </>
       )}

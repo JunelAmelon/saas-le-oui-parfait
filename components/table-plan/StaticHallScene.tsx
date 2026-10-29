@@ -163,10 +163,10 @@ function Room({ mood, room }: { mood: Mood; room: { width: number; length: numbe
         <meshStandardMaterial color={C.trim} roughness={0.8} />
       </mesh>
       {/* échelle : étiquettes de cotes sur le sol */}
-      <Html zIndexRange={[60, 0]} center position={[HW - 1.2, 0.06, HL - 0.5]} rotation={[Math.PI / 2, 0, 0]} className="pointer-events-none select-none">
+      <Html zIndexRange={[40, 0]} center position={[HW - 1.2, 0.06, HL - 0.5]} rotation={[Math.PI / 2, 0, 0]} className="pointer-events-none select-none">
         <span className="text-[10px] text-[#9C97A3] font-semibold bg-white/70 px-1.5 rounded">{W} m</span>
       </Html>
-      <Html zIndexRange={[60, 0]} center position={[-HW + 0.5, 0.06, HL - 1.2]} rotation={[Math.PI / 2, 0, Math.PI / 2]} className="pointer-events-none select-none">
+      <Html zIndexRange={[40, 0]} center position={[-HW + 0.5, 0.06, HL - 1.2]} rotation={[Math.PI / 2, 0, Math.PI / 2]} className="pointer-events-none select-none">
         <span className="text-[10px] text-[#9C97A3] font-semibold bg-white/70 px-1.5 rounded">{L} m</span>
       </Html>
     </group>
@@ -840,7 +840,7 @@ function SceneObjectMesh({
           <meshBasicMaterial color={C.turquoise} transparent opacity={0.85} />
         </mesh>
       )}
-      <Html zIndexRange={[60, 0]} center position={[0, def.h + 0.45, 0]} distanceFactor={9} className="pointer-events-none select-none">
+      <Html zIndexRange={[40, 0]} center position={[0, def.h + 0.45, 0]} distanceFactor={9} className="pointer-events-none select-none">
         <div className="px-2.5 py-0.5 rounded-full bg-white/90 text-[11px] font-semibold text-[#4B4456] shadow whitespace-nowrap">
           {obj.label}
         </div>
@@ -1036,7 +1036,7 @@ function Table3D({
                 <meshBasicMaterial color={C.gold} transparent opacity={0.9} />
               </mesh>
             )}
-            <Html zIndexRange={[60, 0]} center position={[0, 1.15, 0]} distanceFactor={10} className="pointer-events-none select-none">
+            <Html zIndexRange={[40, 0]} center position={[0, 1.15, 0]} distanceFactor={10} className="pointer-events-none select-none">
               {name ? (
                 <div className="px-2 py-0.5 rounded-full bg-white/90 backdrop-blur-sm text-[10px] font-medium text-[#4B4456] shadow-sm whitespace-nowrap">
                   {seat?.guest_id && childGuestIds.includes(seat.guest_id) && (
@@ -1056,7 +1056,7 @@ function Table3D({
         );
       })}
 
-      <Html zIndexRange={[60, 0]} center position={[0, 2.0, 0]} distanceFactor={9} className="pointer-events-none select-none">
+      <Html zIndexRange={[40, 0]} center position={[0, 2.0, 0]} distanceFactor={9} className="pointer-events-none select-none">
         <div
           className="px-3 py-1 rounded-full text-[12px] font-semibold text-white shadow-md whitespace-nowrap"
           style={{ background: table.accent }}

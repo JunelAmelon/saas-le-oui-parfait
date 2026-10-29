@@ -358,8 +358,15 @@ export default function PlanTablePage() {
           if (Array.isArray(d.objects)) setObjects(d.objects);
           if (Array.isArray(d.guests)) setGuests(d.guests);
         }
-        // Aucun plan OU plan vide → l'assistant s'ouvre pour aider.
-        if (!docs[0] || !(docs[0].tables || []).length) setWizardOpen(true);
+        // Assistant auto UNIQUEMENT si plan totalement vide ou inexistant
+        // (jamais si l'utilisateur a déjà du contenu sauvegardé).
+        const plan = docs[0];
+        const empty =
+          !plan ||
+          (!(plan.tables || []).length &&
+            !(plan.objects || []).length &&
+            !(plan.guests || []).length);
+        if (empty) setWizardOpen(true);
       } catch (e) {
         console.error('plan-table load error:', e);
       } finally {
