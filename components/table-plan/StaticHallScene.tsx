@@ -14,7 +14,22 @@ import { useEffect } from 'react';
 import { EffectComposer, Bloom, Vignette } from '@react-three/postprocessing';
 import * as THREE from 'three';
 import { PersonStanding } from 'lucide-react';
-import type { PlanTable, SceneObject, SceneObjectKind, SeatKind, TableShape } from '@/lib/table-plan/types';
+import {
+  DEFAULT_DECOR,
+  type CenterpieceStyle,
+  type ChairStyle,
+  type DecorConfig,
+  type FloorStyle,
+  type PlanTable,
+  type SceneObject,
+  type SceneObjectKind,
+  type SeatKind,
+  type TableShape,
+  type TableSurfaceStyle,
+  type TablewareStyle,
+} from '@/lib/table-plan/types';
+
+const DecorContext = createContext<DecorConfig>(DEFAULT_DECOR);
 
 /* ============================ Palette ============================ */
 const C = {
@@ -46,6 +61,127 @@ export type { PlanTable } from '@/lib/table-plan/types';
 export type { TableShape } from '@/lib/table-plan/types';
 
 /* ==================== Textures procédurales ==================== */
+
+let _woodTableTex: THREE.CanvasTexture | null = null;
+function getWoodTableTexture(): THREE.CanvasTexture | null {
+  if (typeof document === 'undefined') return null;
+  if (_woodTableTex) return _woodTableTex;
+  const cv = document.createElement('canvas');
+  cv.width = 512;
+  cv.height = 512;
+  const ctx = cv.getContext('2d')!;
+  // Fond bois merisier / acajou chaud verni
+  const grad = ctx.createLinearGradient(0, 0, 512, 512);
+  grad.addColorStop(0, '#c5723c');
+  grad.addColorStop(0.5, '#b86230');
+  grad.addColorStop(1, '#c97843');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, 512, 512);
+  // Veines longitudinales fines du bois
+  for (let i = 0; i < 220; i++) {
+    const y = (i / 220) * 512;
+    ctx.strokeStyle = i % 3 === 0 ? 'rgba(115, 52, 18, 0.16)' : i % 2 === 0 ? 'rgba(235, 165, 110, 0.12)' : 'rgba(92, 40, 12, 0.10)';
+    ctx.lineWidth = 1 + (i % 3) * 0.6;
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    for (let x = 0; x <= 512; x += 32) {
+      const wave = Math.sin(x * 0.018 + i * 0.35) * 3.5;
+      ctx.lineTo(x, y + wave);
+    }
+    ctx.stroke();
+  }
+  const tex = new THREE.CanvasTexture(cv);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.anisotropy = 8;
+  _woodTableTex = tex;
+  return tex;
+}
+
+let _parquetFloorTex: THREE.CanvasTexture | null = null;
+function getParquetFloorTexture(): THREE.CanvasTexture | null {
+  if (typeof document === 'undefined') return null;
+  if (_parquetFloorTex) return _parquetFloorTex;
+  const cv = document.createElement('canvas');
+  cv.width = 256;
+  cv.height = 256;
+  const ctx = cv.getContext('2d')!;
+  ctx.fillStyle = '#a8835a';
+  ctx.fillRect(0, 0, 256, 256);
+  const tones = ['#9d774f', '#b28c63', '#916c45', '#ab865d'];
+  const step = 64;
+  for (let y = 0; y < 256; y += step) {
+    for (let x = 0; x < 256; x += step) {
+      ctx.fillStyle = tones[((x + y) / step) % tones.length];
+      ctx.beginPath();
+      ctx.moveTo(x, y + step / 2);
+      ctx.lineTo(x + step / 2, y);
+      ctx.lineTo(x + step, y + step / 2);
+      ctx.lineTo(x + step / 2, y + step);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(70, 46, 24, 0.32)';
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+    }
+  }
+  const tex = new THREE.CanvasTexture(cv);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(6, 6);
+  tex.anisotropy = 8;
+  _parquetFloorTex = tex;
+  return tex;
+}
+
+/* ---------- Géométries Lathe partagées (assiette porcelaine + verre à pied) ---------- */
+let _plateGeom: THREE.LatheGeometry | null = null;
+function getPlateGeometry(): THREE.LatheGeometry {
+  if (!_plateGeom) {
+    // Profil d'une assiette creuse en porcelaine (pied -> bassin creux -> aile large -> bord arrondi)
+    const pts = [
+      new THREE.Vector2(0.0, 0.002),
+      new THREE.Vector2(0.085, 0.002),
+      new THREE.Vector2(0.095, 0.0),
+      new THREE.Vector2(0.105, 0.008),
+      new THREE.Vector2(0.135, 0.022),
+      new THREE.Vector2(0.175, 0.031),
+      new THREE.Vector2(0.182, 0.034),
+      new THREE.Vector2(0.172, 0.036),
+      new THREE.Vector2(0.130, 0.025),
+      new THREE.Vector2(0.090, 0.008),
+      new THREE.Vector2(0.0, 0.006),
+    ];
+    _plateGeom = new THREE.LatheGeometry(pts, 40);
+    _plateGeom.computeVertexNormals();
+  }
+  return _plateGeom;
+}
+
+let _wineGlassGeom: THREE.LatheGeometry | null = null;
+function getWineGlassGeometry(): THREE.LatheGeometry {
+  if (!_wineGlassGeom) {
+    // Profil d'un verre à vin sur pied (socle plat -> tige fine -> calice tulipe)
+    const pts = [
+      new THREE.Vector2(0.0, 0.0),
+      new THREE.Vector2(0.036, 0.0),
+      new THREE.Vector2(0.034, 0.004),
+      new THREE.Vector2(0.006, 0.009),
+      new THREE.Vector2(0.0045, 0.055),
+      new THREE.Vector2(0.005, 0.105),
+      new THREE.Vector2(0.016, 0.118),
+      new THREE.Vector2(0.038, 0.145),
+      new THREE.Vector2(0.044, 0.185),
+      new THREE.Vector2(0.039, 0.225),
+      new THREE.Vector2(0.037, 0.225),
+      new THREE.Vector2(0.042, 0.185),
+      new THREE.Vector2(0.035, 0.146),
+      new THREE.Vector2(0.012, 0.120),
+      new THREE.Vector2(0.0, 0.115),
+    ];
+    _wineGlassGeom = new THREE.LatheGeometry(pts, 32);
+    _wineGlassGeom.computeVertexNormals();
+  }
+  return _wineGlassGeom;
+}
 
 /* ============================ Pièces ============================ */
 
@@ -96,29 +232,60 @@ function Room({ mood, room }: { mood: Mood; room: { width: number; length: numbe
   const L = room.length;
   const HW = W / 2;
   const HL = L / 2;
-  // Sol : grandes dalles (joints tous les ~1.6m)
+  const decor = useContext(DecorContext);
+  const floorStyle: FloorStyle = decor.floor || 'dalles';
+  const parquetTex = useMemo(() => getParquetFloorTexture(), []);
   const jointX = Math.max(1, Math.round(W / 1.6));
   const jointZ = Math.max(1, Math.round(L / 1.6));
+
   return (
     <group>
-      {/* Sol : dalles blanches brillantes */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-        <planeGeometry args={[W + 1, L + 1]} />
-        <meshStandardMaterial color="#f4f2ee" roughness={0.25} metalness={0.05} />
-      </mesh>
-      {/* joints de dalles */}
-      {Array.from({ length: jointX - 1 }, (_, i) => (
-        <mesh key={`gx${i}`} rotation={[-Math.PI / 2, 0, 0]} position={[-HW + ((i + 1) * W) / jointX, 0.005, 0]}>
-          <planeGeometry args={[0.02, L]} />
-          <meshStandardMaterial color="#dcd8d2" roughness={0.6} />
+      {/* Sol selon le style choisi (par défaut : dalles blanches historiques) */}
+      {floorStyle === 'parquet_chevron' ? (
+        <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+          <planeGeometry args={[W + 1, L + 1]} />
+          <meshStandardMaterial map={parquetTex || undefined} color="#b8936a" roughness={0.38} metalness={0.05} />
         </mesh>
-      ))}
-      {Array.from({ length: jointZ - 1 }, (_, i) => (
-        <mesh key={`gz${i}`} rotation={[-Math.PI / 2, 0, Math.PI / 2]} position={[0, 0.005, -HL + ((i + 1) * L) / jointZ]}>
-          <planeGeometry args={[0.02, W]} />
-          <meshStandardMaterial color="#dcd8d2" roughness={0.6} />
+      ) : floorStyle === 'parquet_clair' ? (
+        <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+          <planeGeometry args={[W + 1, L + 1]} />
+          <meshStandardMaterial map={parquetTex || undefined} color="#dfcaa8" roughness={0.42} metalness={0.04} />
         </mesh>
-      ))}
+      ) : floorStyle === 'marbre_veine' ? (
+        <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+          <planeGeometry args={[W + 1, L + 1]} />
+          <meshPhysicalMaterial color="#f8f8fa" roughness={0.1} metalness={0.05} clearcoat={0.9} clearcoatRoughness={0.1} />
+        </mesh>
+      ) : floorStyle === 'beton_cire' ? (
+        <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+          <planeGeometry args={[W + 1, L + 1]} />
+          <meshStandardMaterial color="#d2cdc4" roughness={0.55} metalness={0.08} />
+        </mesh>
+      ) : floorStyle === 'tapis_sable' ? (
+        <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+          <planeGeometry args={[W + 1, L + 1]} />
+          <meshStandardMaterial color="#e4d9c8" roughness={0.9} metalness={0.0} />
+        </mesh>
+      ) : (
+        <>
+          <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+            <planeGeometry args={[W + 1, L + 1]} />
+            <meshStandardMaterial color="#f4f2ee" roughness={0.25} metalness={0.05} />
+          </mesh>
+          {Array.from({ length: jointX - 1 }, (_, i) => (
+            <mesh key={`gx${i}`} rotation={[-Math.PI / 2, 0, 0]} position={[-HW + ((i + 1) * W) / jointX, 0.005, 0]}>
+              <planeGeometry args={[0.02, L]} />
+              <meshStandardMaterial color="#dcd8d2" roughness={0.6} />
+            </mesh>
+          ))}
+          {Array.from({ length: jointZ - 1 }, (_, i) => (
+            <mesh key={`gz${i}`} rotation={[-Math.PI / 2, 0, Math.PI / 2]} position={[0, 0.005, -HL + ((i + 1) * L) / jointZ]}>
+              <planeGeometry args={[0.02, W]} />
+              <meshStandardMaterial color="#dcd8d2" roughness={0.6} />
+            </mesh>
+          ))}
+        </>
+      )}
       {/* Murs : faces tournées vers l'intérieur → invisibles en orbite,
           visibles en balade (même principe que le plafond) */}
       <mesh position={[0, 2.8, -HL]} receiveShadow>
@@ -173,36 +340,173 @@ function Room({ mood, room }: { mood: Mood; room: { width: number; length: numbe
   );
 }
 
-/* ---------- Couvert ---------- */
-function PlaceSetting({ x, z, angle, accent }: { x: number; z: number; angle: number; accent: string }) {
+/* ---------- Couvert : supporte Classique (défaut), Prestige (photo), Filet d'or, Champêtre ---------- */
+function SilverFork({ x, z, scale = 1, color = '#e4e7ec', y = 0.786 }: { x: number; z: number; scale?: number; color?: string; y?: number }) {
   return (
-    <group position={[x, 0, z]} rotation={[0, angle, 0]}>
-      {/* assiette */}
-      <mesh position={[0, 0.82, 0]} castShadow>
-        <cylinderGeometry args={[0.14, 0.11, 0.018, 32]} />
-        <meshStandardMaterial color="#ffffff" roughness={0.3} />
+    <group position={[x, y, z]} scale={scale}>
+      <mesh position={[0, 0, 0.045]} castShadow>
+        <boxGeometry args={[0.011, 0.004, 0.095]} />
+        <meshStandardMaterial color={color} metalness={0.92} roughness={0.14} />
       </mesh>
-      <mesh position={[0, 0.833, 0]}>
-        <cylinderGeometry args={[0.105, 0.105, 0.004, 32]} />
-        <meshStandardMaterial color="#fdfcf9" roughness={0.35} />
+      <mesh position={[0, 0.001, -0.01]} castShadow>
+        <boxGeometry args={[0.007, 0.0035, 0.025]} />
+        <meshStandardMaterial color={color} metalness={0.92} roughness={0.14} />
       </mesh>
-      {/* serviette */}
-      <mesh position={[0, 0.845, 0]} rotation={[0, 0.6, 0]}>
-        <boxGeometry args={[0.07, 0.012, 0.07]} />
-        <meshStandardMaterial color={accent} roughness={0.8} />
+      <mesh position={[0, 0.002, -0.024]} castShadow>
+        <boxGeometry args={[0.02, 0.0035, 0.008]} />
+        <meshStandardMaterial color={color} metalness={0.92} roughness={0.14} />
       </mesh>
-      {/* verre */}
-      <mesh position={[0.2, 0.87, -0.08]} castShadow>
-        <cylinderGeometry args={[0.032, 0.026, 0.11, 16, 1, true]} />
-        <meshPhysicalMaterial color="#cfe3e8" roughness={0.05} transmission={0.7} thickness={0.02} transparent opacity={0.55} />
-      </mesh>
-      {/* couverts */}
-      {[-0.18, 0.18].map((cx, i) => (
-        <mesh key={i} position={[cx, 0.84, -0.02]} castShadow>
-          <boxGeometry args={[0.012, 0.008, 0.16]} />
-          <meshStandardMaterial color="#c8c8ce" metalness={0.85} roughness={0.25} />
+      {[-0.0075, -0.0025, 0.0025, 0.0075].map((tx, i) => (
+        <mesh key={i} position={[tx, 0.0025, -0.048]} castShadow>
+          <boxGeometry args={[0.0026, 0.003, 0.042]} />
+          <meshStandardMaterial color={color} metalness={0.92} roughness={0.14} />
         </mesh>
       ))}
+    </group>
+  );
+}
+
+function SilverKnife({ x, z, color = '#e4e7ec', y = 0.786 }: { x: number; z: number; color?: string; y?: number }) {
+  return (
+    <group position={[x, y, z]}>
+      <mesh position={[0, 0, 0.048]} castShadow>
+        <boxGeometry args={[0.012, 0.005, 0.095]} />
+        <meshStandardMaterial color={color} metalness={0.92} roughness={0.14} />
+      </mesh>
+      <mesh position={[-0.001, 0.001, -0.038]} castShadow>
+        <boxGeometry args={[0.014, 0.0025, 0.085]} />
+        <meshStandardMaterial color={color} metalness={0.95} roughness={0.1} />
+      </mesh>
+    </group>
+  );
+}
+
+function SilverSpoon({ x, z, rotationY = 0, scale = 1, color = '#e4e7ec', y = 0.786 }: { x: number; z: number; rotationY?: number; scale?: number; color?: string; y?: number }) {
+  return (
+    <group position={[x, y, z]} rotation={[0, rotationY, 0]} scale={scale}>
+      <mesh position={[0, 0, 0.042]} castShadow>
+        <boxGeometry args={[0.01, 0.004, 0.095]} />
+        <meshStandardMaterial color={color} metalness={0.92} roughness={0.14} />
+      </mesh>
+      <mesh position={[0, 0.002, -0.032]} scale={[1, 0.32, 1.45]} castShadow>
+        <sphereGeometry args={[0.018, 16, 12]} />
+        <meshStandardMaterial color={color} metalness={0.93} roughness={0.12} />
+      </mesh>
+    </group>
+  );
+}
+
+function StemmedGlass({ x, z, scale = 1, rimColor = '#ffffff', y = 0.783 }: { x: number; z: number; scale?: number; rimColor?: string; y?: number }) {
+  const geom = useMemo(() => getWineGlassGeometry(), []);
+  return (
+    <group position={[x, y, z]} scale={scale}>
+      <mesh geometry={geom} castShadow>
+        <meshPhysicalMaterial
+          color="#f7fafc"
+          roughness={0.08}
+          metalness={0.05}
+          transmission={0.78}
+          thickness={0.03}
+          ior={1.45}
+          transparent
+          opacity={0.72}
+        />
+      </mesh>
+      <mesh position={[0, 0.224, 0]} rotation={[Math.PI / 2, 0, 0]}>
+        <torusGeometry args={[0.038, 0.0016, 8, 28]} />
+        <meshStandardMaterial color={rimColor} roughness={0.15} metalness={0.6} transparent opacity={0.9} />
+      </mesh>
+    </group>
+  );
+}
+
+function PlaceSetting({ x, z, angle, accent }: { x: number; z: number; angle: number; accent: string }) {
+  const decor = useContext(DecorContext);
+  const style: TablewareStyle = decor.tableware || 'classique';
+  const plateGeom = useMemo(() => getPlateGeometry(), []);
+
+  // Mode par défaut = ancienne version classique
+  if (style === 'classique') {
+    return (
+      <group position={[x, 0, z]} rotation={[0, angle, 0]}>
+        {/* assiette */}
+        <mesh position={[0, 0.82, 0]} castShadow>
+          <cylinderGeometry args={[0.14, 0.11, 0.018, 32]} />
+          <meshStandardMaterial color="#ffffff" roughness={0.3} />
+        </mesh>
+        <mesh position={[0, 0.833, 0]}>
+          <cylinderGeometry args={[0.105, 0.105, 0.004, 32]} />
+          <meshStandardMaterial color="#fdfcf9" roughness={0.35} />
+        </mesh>
+        {/* serviette */}
+        <mesh position={[0, 0.845, 0]} rotation={[0, 0.6, 0]}>
+          <boxGeometry args={[0.07, 0.012, 0.07]} />
+          <meshStandardMaterial color={accent} roughness={0.8} />
+        </mesh>
+        {/* verre */}
+        <mesh position={[0.2, 0.87, -0.08]} castShadow>
+          <cylinderGeometry args={[0.032, 0.026, 0.11, 16, 1, true]} />
+          <meshPhysicalMaterial color="#cfe3e8" roughness={0.05} transmission={0.7} thickness={0.02} transparent opacity={0.55} />
+        </mesh>
+        {/* couverts */}
+        {[-0.18, 0.18].map((cx, i) => (
+          <mesh key={i} position={[cx, 0.84, -0.02]} castShadow>
+            <boxGeometry args={[0.012, 0.008, 0.16]} />
+            <meshStandardMaterial color="#c8c8ce" metalness={0.85} roughness={0.25} />
+          </mesh>
+        ))}
+      </group>
+    );
+  }
+
+  const isGold = style === 'filet_or';
+  const isRustic = style === 'champetre';
+  const cutleryCol = isGold ? '#d8b467' : '#e4e7ec';
+  const baseY = decor.tableStyle === 'nappe' ? 0.775 : 0.783;
+
+  return (
+    <group position={[x, 0, z]} rotation={[0, angle, 0]}>
+      {/* Sous-assiette dorée en mode filet d'or */}
+      {isGold && (
+        <mesh position={[0, baseY - 0.002, 0]} castShadow>
+          <cylinderGeometry args={[0.195, 0.18, 0.006, 40]} />
+          <meshStandardMaterial color="#d4af37" metalness={0.85} roughness={0.22} />
+        </mesh>
+      )}
+      {/* Assiette creuse en porcelaine glacée (ou grès sable en mode champêtre) */}
+      <mesh position={[0, baseY, 0]} geometry={plateGeom} castShadow receiveShadow>
+        <meshPhysicalMaterial
+          color={isRustic ? '#efe8dc' : '#ffffff'}
+          roughness={isRustic ? 0.45 : 0.12}
+          metalness={0.02}
+          clearcoat={isRustic ? 0.3 : 0.95}
+          clearcoatRoughness={0.08}
+          side={THREE.DoubleSide}
+        />
+      </mesh>
+      {/* Liseré intérieur (doré en mode filet_or, subtil en prestige) */}
+      <mesh position={[0, baseY + 0.01, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[0.102, 0.108, 36]} />
+        <meshStandardMaterial color={isGold ? '#d4af37' : '#e6e2dc'} metalness={isGold ? 0.85 : 0.1} roughness={isGold ? 0.2 : 0.4} />
+      </mesh>
+      {isRustic && (
+        <mesh position={[0, baseY + 0.018, 0]} rotation={[0, 0.35, 0]}>
+          <boxGeometry args={[0.09, 0.01, 0.14]} />
+          <meshStandardMaterial color={accent} roughness={0.85} />
+        </mesh>
+      )}
+
+      {/* Couverts gauche & droite */}
+      <SilverFork x={-0.215} z={0.01} scale={1} color={cutleryCol} y={baseY + 0.003} />
+      <SilverFork x={-0.25} z={0.018} scale={0.9} color={cutleryCol} y={baseY + 0.003} />
+      <SilverKnife x={0.21} z={0.01} color={cutleryCol} y={baseY + 0.003} />
+      <SilverSpoon x={0.252} z={0.015} scale={0.95} color={cutleryCol} y={baseY + 0.003} />
+      {!isRustic && <SilverSpoon x={0.01} z={-0.215} rotationY={Math.PI / 2} scale={0.78} color={cutleryCol} y={baseY + 0.003} />}
+
+      {/* Verres à pied en cristal */}
+      <StemmedGlass x={0.13} z={-0.22} scale={1.08} rimColor={isGold ? '#d4af37' : '#ffffff'} y={baseY} />
+      <StemmedGlass x={0.215} z={-0.175} scale={0.96} rimColor={isGold ? '#d4af37' : '#ffffff'} y={baseY} />
+      {!isRustic && <StemmedGlass x={0.18} z={-0.265} scale={0.86} rimColor={isGold ? '#d4af37' : '#ffffff'} y={baseY} />}
     </group>
   );
 }
@@ -250,20 +554,156 @@ function Flower({
   );
 }
 
-/* ---------- Centre de table : candelabra doré + bouquet vraies fleurs ---------- */
+/* ---------- Centre de table : Candelabre doré (défaut), Boule blanche (photo), Couronne, Eucalyptus, Bougeoirs, Aucun ---------- */
 function Centerpiece({ accent, x = 0, z = 0 }: { accent: string; x?: number; z?: number }) {
+  const decor = useContext(DecorContext);
+  const style: CenterpieceStyle = decor.centerpiece || 'candelabre';
+  const flowerTone = decor.flowerColor || accent;
+
+  const petalPositions = useMemo(() => {
+    const arr: { pos: [number, number, number]; rot: [number, number, number]; s: number }[] = [];
+    const count = 34;
+    for (let i = 0; i < count; i++) {
+      const phi = Math.acos(1 - (2 * (i + 0.5)) / count);
+      const theta = Math.PI * (1 + Math.sqrt(5)) * i;
+      const r = 0.22;
+      arr.push({
+        pos: [Math.sin(phi) * Math.cos(theta) * r, Math.cos(phi) * r * 0.92, Math.sin(phi) * Math.sin(theta) * r],
+        rot: [phi * 0.7, theta, (i % 3) * 0.4],
+        s: 0.9 + (i % 4) * 0.12,
+      });
+    }
+    return arr;
+  }, []);
+
+  if (style === 'aucun') return null;
+
+  if (style === 'boule_blanche') {
+    return (
+      <group position={[x, 0, z]}>
+        <mesh position={[0, 0.795, 0]} castShadow>
+          <cylinderGeometry args={[0.032, 0.095, 0.03, 24]} />
+          <meshPhysicalMaterial color="#f7f5f0" roughness={0.2} transmission={0.35} transparent opacity={0.9} />
+        </mesh>
+        <mesh position={[0, 1.09, 0]} castShadow>
+          <cylinderGeometry args={[0.022, 0.015, 0.58, 20]} />
+          <meshPhysicalMaterial color="#ffffff" roughness={0.18} transmission={0.45} transparent opacity={0.88} />
+        </mesh>
+        <mesh position={[0, 1.4, 0]} castShadow>
+          <cylinderGeometry args={[0.095, 0.022, 0.08, 24]} />
+          <meshPhysicalMaterial color="#ffffff" roughness={0.2} transmission={0.4} transparent opacity={0.9} />
+        </mesh>
+        <group position={[0, 1.58, 0]}>
+          <mesh castShadow>
+            <sphereGeometry args={[0.17, 20, 20]} />
+            <meshStandardMaterial color="#f6f5f2" roughness={0.75} />
+          </mesh>
+          {petalPositions.map((p, i) => (
+            <mesh key={i} position={p.pos} rotation={p.rot} scale={[p.s, p.s * 0.35, p.s * 1.15]} castShadow>
+              <sphereGeometry args={[0.068, 12, 10]} />
+              <meshStandardMaterial color={i % 3 === 0 ? flowerTone : '#ffffff'} roughness={0.55} />
+            </mesh>
+          ))}
+        </group>
+      </group>
+    );
+  }
+
+  if (style === 'couronne_basse') {
+    return (
+      <group position={[x, 0, z]}>
+        {/* Couronne de feuillage et fleurs basses */}
+        <mesh position={[0, 0.8, 0]} rotation={[Math.PI / 2, 0, 0]} castShadow>
+          <torusGeometry args={[0.22, 0.045, 12, 32]} />
+          <meshStandardMaterial color="#688868" roughness={0.85} />
+        </mesh>
+        {Array.from({ length: 12 }, (_, i) => {
+          const a = (i / 12) * Math.PI * 2;
+          return (
+            <Flower
+              key={i}
+              position={[Math.cos(a) * 0.22, 0.84, Math.sin(a) * 0.22]}
+              color={i % 2 === 0 ? flowerTone : '#ffffff'}
+              size={0.75}
+              tilt={0.25}
+            />
+          );
+        })}
+        {/* Trio de bougies au centre */}
+        {[
+          [0, 0.14],
+          [-0.08, 0.1],
+          [0.08, 0.12],
+        ].map(([cx, h], i) => (
+          <mesh key={i} position={[cx, 0.78 + h / 2, i === 0 ? -0.03 : 0.04]} castShadow>
+            <cylinderGeometry args={[0.028, 0.028, h, 14]} />
+            <meshStandardMaterial color="#fff8e8" emissive="#ffd995" emissiveIntensity={0.35} />
+          </mesh>
+        ))}
+      </group>
+    );
+  }
+
+  if (style === 'eucalyptus') {
+    return (
+      <group position={[x, 0, z]}>
+        <mesh position={[0, 0.82, 0]} castShadow>
+          <cylinderGeometry args={[0.09, 0.07, 0.1, 18]} />
+          <meshStandardMaterial color="#c9a96e" metalness={0.65} roughness={0.35} />
+        </mesh>
+        {Array.from({ length: 14 }, (_, i) => {
+          const a = (i / 14) * Math.PI * 2;
+          const r = 0.08 + (i % 3) * 0.07;
+          return (
+            <mesh key={i} position={[Math.cos(a) * r, 0.89 + (i % 2) * 0.04, Math.sin(a) * r]} rotation={[0.6, a, 0]} castShadow>
+              <sphereGeometry args={[0.045, 10, 8]} />
+              <meshStandardMaterial color={i % 3 === 0 ? '#ffffff' : i % 3 === 1 ? flowerTone : '#6e8c72'} roughness={0.8} />
+            </mesh>
+          );
+        })}
+      </group>
+    );
+  }
+
+  if (style === 'bougeoirs') {
+    return (
+      <group position={[x, 0, z]}>
+        {[
+          [-0.14, -0.06, 0.28],
+          [0, 0.06, 0.38],
+          [0.14, -0.04, 0.22],
+        ].map(([bx, bz, bh], i) => (
+          <group key={i} position={[bx, 0.78, bz]}>
+            <mesh position={[0, 0.01, 0]}>
+              <cylinderGeometry args={[0.045, 0.05, 0.02, 16]} />
+              <meshStandardMaterial color={C.gold} metalness={0.85} roughness={0.2} />
+            </mesh>
+            <mesh position={[0, bh / 2, 0]}>
+              <cylinderGeometry args={[0.008, 0.012, bh, 12]} />
+              <meshStandardMaterial color={C.gold} metalness={0.85} roughness={0.2} />
+            </mesh>
+            <mesh position={[0, bh + 0.06, 0]}>
+              <cylinderGeometry args={[0.016, 0.016, 0.12, 12]} />
+              <meshStandardMaterial color="#fff8e7" emissive="#ffdd99" emissiveIntensity={0.4} />
+            </mesh>
+          </group>
+        ))}
+      </group>
+    );
+  }
+
+  // Mode par défaut = candélabre doré + bouquet lys & roses historique
   const FLOWERS: { pos: [number, number, number]; col: string; s: number; tilt: number }[] = [
-    { pos: [0, 1.5, 0], col: accent, s: 1.3, tilt: 0.15 },
+    { pos: [0, 1.5, 0], col: flowerTone, s: 1.3, tilt: 0.15 },
     { pos: [0.14, 1.44, 0.06], col: C.rose, s: 1, tilt: 0.5 },
     { pos: [-0.13, 1.46, -0.05], col: '#fff', s: 1.05, tilt: 0.4 },
-    { pos: [0.06, 1.43, -0.13], col: accent, s: 0.9, tilt: 0.55 },
+    { pos: [0.06, 1.43, -0.13], col: flowerTone, s: 0.9, tilt: 0.55 },
     { pos: [-0.06, 1.45, 0.12], col: '#f6d9e0', s: 0.95, tilt: 0.5 },
     { pos: [0.11, 1.5, -0.09], col: C.rose, s: 0.8, tilt: 0.35 },
-    { pos: [-0.11, 1.49, 0.08], col: accent, s: 0.85, tilt: 0.45 },
+    { pos: [-0.11, 1.49, 0.08], col: flowerTone, s: 0.85, tilt: 0.45 },
   ];
   return (
     <group position={[x, 0, z]}>
-      {/* pied trompette doré : base → tige fine → coupe */}
       <mesh position={[0, 0.82, 0]} castShadow>
         <cylinderGeometry args={[0.16, 0.12, 0.04, 20]} />
         <meshStandardMaterial color={C.gold} metalness={0.8} roughness={0.25} />
@@ -276,15 +716,14 @@ function Centerpiece({ accent, x = 0, z = 0 }: { accent: string; x?: number; z?:
         <cylinderGeometry args={[0.16, 0.05, 0.09, 20]} />
         <meshStandardMaterial color={C.gold} metalness={0.8} roughness={0.25} />
       </mesh>
-      {/* bouquet : vrai modèle lys+roses si flower.glb présent,
-          sinon fleurs à pétales procédurales (un bouquet par table) */}
-      <DecorModel decor="flower" position={[0, 1.3, 0]}
+      <DecorModel
+        decor="flower"
+        position={[0, 1.3, 0]}
         fallback={
           <group>
             {FLOWERS.map((f, i) => (
               <Flower key={i} position={[f.pos[0], f.pos[1] - 1.3, f.pos[2]]} color={f.col} size={f.s} tilt={f.tilt} />
             ))}
-            {/* feuilles tombantes : uniquement dans le fallback procédural */}
             {[0.4, 1.6, 2.8, 4.0, 5.2].map((a, i) => (
               <mesh key={i} position={[Math.cos(a) * 0.19, 0.02, Math.sin(a) * 0.19]} rotation={[0.85, a, 0]} castShadow>
                 <boxGeometry args={[0.022, 0.24, 0.006]} />
@@ -292,14 +731,17 @@ function Centerpiece({ accent, x = 0, z = 0 }: { accent: string; x?: number; z?:
               </mesh>
             ))}
           </group>
-        } />
+        }
+      />
     </group>
   );
 }
 
-/* ---------- Chaise (kind : standard / bebe / pmr / vip) ---------- */
-// Base Napoléon blanche commune (siège + dossier à barreaux + pieds).
+/* ---------- Chaise : Napoléon (défaut), Chiavari bois/or/noire, Médaillon Louis XVI, Ghost ---------- */
 function Chair({ accent, kind }: { accent: string; kind: SeatKind }) {
+  const decor = useContext(DecorContext);
+  const chairStyle: ChairStyle = decor.chairStyle || 'napoleon';
+
   if (kind === 'bebe') {
     return (
       <group>
@@ -311,9 +753,9 @@ function Chair({ accent, kind }: { accent: string; kind: SeatKind }) {
           <boxGeometry args={[0.32, 0.34, 0.035]} />
           <meshStandardMaterial color={accent} roughness={0.6} />
         </mesh>
-        {[[-0.13,-0.13],[0.13,-0.13],[-0.13,0.13],[0.13,0.13]].map(([lx,lz],i)=>(
-          <mesh key={i} position={[lx,0.24,lz]} castShadow>
-            <cylinderGeometry args={[0.02,0.02,0.48,8]} />
+        {[[-0.13, -0.13], [0.13, -0.13], [-0.13, 0.13], [0.13, 0.13]].map(([lx, lz], i) => (
+          <mesh key={i} position={[lx, 0.24, lz]} castShadow>
+            <cylinderGeometry args={[0.02, 0.02, 0.48, 8]} />
             <meshStandardMaterial color={C.chairWood} roughness={0.5} />
           </mesh>
         ))}
@@ -334,32 +776,177 @@ function Chair({ accent, kind }: { accent: string; kind: SeatKind }) {
       </group>
     );
   }
-  const frame = kind === 'vip' ? C.gold : '#f0ece4';
-  const napoleon = (
-    <group>
-      <mesh position={[0, 0.45, 0]} castShadow>
-        <cylinderGeometry args={[0.24, 0.2, 0.06, 24]} />
-        <meshStandardMaterial color='#faf6ef' roughness={0.7} />
-      </mesh>
-      <mesh position={[0, 0.92, -0.2]} castShadow>
-        <boxGeometry args={[0.42, 0.05, 0.045]} />
-        <meshStandardMaterial color={frame} roughness={0.5} />
-      </mesh>
-      {[-0.16,-0.05,0.05,0.16].map((bx,i)=>(
-        <mesh key={i} position={[bx,0.68,-0.2]} castShadow>
-          <cylinderGeometry args={[0.015,0.015,0.46,8]} />
+
+  // Style par défaut = Napoléon historique
+  if (chairStyle === 'napoleon') {
+    const frame = kind === 'vip' ? C.gold : '#f0ece4';
+    return (
+      <group>
+        <mesh position={[0, 0.45, 0]} castShadow>
+          <cylinderGeometry args={[0.24, 0.2, 0.06, 24]} />
+          <meshStandardMaterial color="#faf6ef" roughness={0.7} />
+        </mesh>
+        <mesh position={[0, 0.92, -0.2]} castShadow>
+          <boxGeometry args={[0.42, 0.05, 0.045]} />
           <meshStandardMaterial color={frame} roughness={0.5} />
+        </mesh>
+        {[-0.16, -0.05, 0.05, 0.16].map((bx, i) => (
+          <mesh key={i} position={[bx, 0.68, -0.2]} castShadow>
+            <cylinderGeometry args={[0.015, 0.015, 0.46, 8]} />
+            <meshStandardMaterial color={frame} roughness={0.5} />
+          </mesh>
+        ))}
+        {[[-0.16, -0.16], [0.16, -0.16], [-0.16, 0.16], [0.16, 0.16]].map(([lx, lz], i) => (
+          <mesh key={i} position={[lx, 0.22, lz]} castShadow>
+            <cylinderGeometry args={[0.022, 0.018, 0.44, 8]} />
+            <meshStandardMaterial color={frame} roughness={0.5} />
+          </mesh>
+        ))}
+      </group>
+    );
+  }
+
+  // Style Ghost transparente
+  if (chairStyle === 'ghost') {
+    return (
+      <group>
+        <mesh position={[0, 0.45, 0]} castShadow>
+          <cylinderGeometry args={[0.22, 0.2, 0.035, 24]} />
+          <meshPhysicalMaterial color="#eef6fa" roughness={0.05} transmission={0.85} thickness={0.04} transparent opacity={0.55} />
+        </mesh>
+        <mesh position={[0, 0.74, -0.19]} scale={[1, 1.25, 0.2]} castShadow>
+          <sphereGeometry args={[0.2, 20, 16]} />
+          <meshPhysicalMaterial color="#eef6fa" roughness={0.05} transmission={0.85} thickness={0.04} transparent opacity={0.55} />
+        </mesh>
+        {[[-0.16, -0.16], [0.16, -0.16], [-0.16, 0.16], [0.16, 0.16]].map(([lx, lz], i) => (
+          <mesh key={i} position={[lx, 0.22, lz]} castShadow>
+            <cylinderGeometry args={[0.018, 0.014, 0.44, 10]} />
+            <meshPhysicalMaterial color="#eef6fa" roughness={0.08} transmission={0.8} transparent opacity={0.6} />
+          </mesh>
+        ))}
+      </group>
+    );
+  }
+
+  // Style Louis XVI Médaillon
+  if (chairStyle === 'medaillon') {
+    return (
+      <group>
+        <mesh position={[0, 0.45, 0]} castShadow>
+          <cylinderGeometry args={[0.23, 0.21, 0.06, 24]} />
+          <meshStandardMaterial color="#f5efe4" roughness={0.65} />
+        </mesh>
+        {/* Cadre ovale du médaillon */}
+        <mesh position={[0, 0.76, -0.19]} scale={[1, 1.25, 0.28]} castShadow>
+          <torusGeometry args={[0.17, 0.024, 12, 28]} />
+          <meshStandardMaterial color="#b99b72" roughness={0.45} />
+        </mesh>
+        {/* Tissu capitonné du médaillon */}
+        <mesh position={[0, 0.76, -0.19]} scale={[0.92, 1.15, 0.18]} castShadow>
+          <sphereGeometry args={[0.16, 18, 14]} />
+          <meshStandardMaterial color="#faf6ee" roughness={0.75} />
+        </mesh>
+        {[[-0.16, -0.16], [0.16, -0.16], [-0.16, 0.16], [0.16, 0.16]].map(([lx, lz], i) => (
+          <mesh key={i} position={[lx, 0.22, lz]} castShadow>
+            <cylinderGeometry args={[0.02, 0.014, 0.44, 10]} />
+            <meshStandardMaterial color="#b99b72" roughness={0.45} />
+          </mesh>
+        ))}
+      </group>
+    );
+  }
+
+  // Styles Chiavari (chiavari_bois, chiavari_or, chiavari_noire)
+  const woodColor =
+    kind === 'vip'
+      ? '#d4af37'
+      : chairStyle === 'chiavari_or'
+      ? '#d6b46c'
+      : chairStyle === 'chiavari_noire'
+      ? '#232028'
+      : '#be8a47';
+  const metalness = chairStyle === 'chiavari_or' ? 0.65 : 0.08;
+  const roughness = chairStyle === 'chiavari_or' ? 0.24 : 0.32;
+
+  return (
+    <group>
+      <mesh position={[0, 0.435, 0]} castShadow>
+        <boxGeometry args={[0.42, 0.032, 0.41]} />
+        <meshStandardMaterial color={woodColor} roughness={roughness} metalness={metalness} />
+      </mesh>
+      <mesh position={[0, 0.468, 0.005]} castShadow receiveShadow>
+        <boxGeometry args={[0.39, 0.038, 0.38]} />
+        <meshStandardMaterial color="#fbfaf7" roughness={0.65} />
+      </mesh>
+      {[
+        [-0.185, -0.18],
+        [0.185, -0.18],
+        [-0.185, 0.18],
+        [0.185, 0.18],
+      ].map(([lx, lz], i) => (
+        <mesh key={`leg-${i}`} position={[lx, 0.22, lz]} castShadow>
+          <cylinderGeometry args={[0.018, 0.014, 0.44, 12]} />
+          <meshStandardMaterial color={woodColor} roughness={roughness} metalness={metalness} />
         </mesh>
       ))}
-      {[[-0.16,-0.16],[0.16,-0.16],[-0.16,0.16],[0.16,0.16]].map(([lx,lz],i)=>(
-        <mesh key={i} position={[lx,0.22,lz]} castShadow>
-          <cylinderGeometry args={[0.022,0.018,0.44,8]} />
-          <meshStandardMaterial color={frame} roughness={0.5} />
+      {[-0.185, 0.185].map((lx, i) => (
+        <mesh key={`side-str-${i}`} position={[lx, 0.16, 0]} rotation={[Math.PI / 2, 0, 0]} castShadow>
+          <cylinderGeometry args={[0.01, 0.01, 0.36, 8]} />
+          <meshStandardMaterial color={woodColor} roughness={roughness} metalness={metalness} />
         </mesh>
+      ))}
+      {[-0.18, 0.18].map((lz, i) => (
+        <mesh key={`front-str-${i}`} position={[0, 0.18, lz]} rotation={[0, 0, Math.PI / 2]} castShadow>
+          <cylinderGeometry args={[0.01, 0.01, 0.37, 8]} />
+          <meshStandardMaterial color={woodColor} roughness={roughness} metalness={metalness} />
+        </mesh>
+      ))}
+      {[-0.185, 0.185].map((bx, i) => (
+        <group key={`post-${i}`} position={[bx, 0, -0.18]}>
+          <mesh position={[0, 0.72, 0]} castShadow>
+            <cylinderGeometry args={[0.018, 0.018, 0.56, 12]} />
+            <meshStandardMaterial color={woodColor} roughness={roughness} metalness={metalness} />
+          </mesh>
+          {[0.56, 0.70, 0.84].map((ry, j) => (
+            <mesh key={j} position={[0, ry, 0]} rotation={[Math.PI / 2, 0, 0]}>
+              <torusGeometry args={[0.02, 0.005, 8, 16]} />
+              <meshStandardMaterial color={woodColor} roughness={roughness} metalness={metalness} />
+            </mesh>
+          ))}
+          <mesh position={[0, 1.015, 0]} castShadow>
+            <sphereGeometry args={[0.026, 14, 14]} />
+            <meshStandardMaterial color={woodColor} roughness={roughness} metalness={metalness} />
+          </mesh>
+        </group>
+      ))}
+      <mesh position={[0, 0.955, -0.18]} rotation={[0, 0, Math.PI / 2]} castShadow>
+        <cylinderGeometry args={[0.016, 0.016, 0.37, 12]} />
+        <meshStandardMaterial color={woodColor} roughness={roughness} metalness={metalness} />
+      </mesh>
+      <mesh position={[0, 0.87, -0.18]} rotation={[0, 0, Math.PI / 2]} castShadow>
+        <cylinderGeometry args={[0.011, 0.011, 0.36, 10]} />
+        <meshStandardMaterial color={woodColor} roughness={roughness} metalness={metalness} />
+      </mesh>
+      <mesh position={[0, 0.50, -0.18]} rotation={[0, 0, Math.PI / 2]} castShadow>
+        <cylinderGeometry args={[0.012, 0.012, 0.36, 10]} />
+        <meshStandardMaterial color={woodColor} roughness={roughness} metalness={metalness} />
+      </mesh>
+      {[-0.115, -0.038, 0.038, 0.115].map((bx, i) => (
+        <group key={`spindle-${i}`} position={[bx, 0, -0.18]}>
+          <mesh position={[0, 0.685, 0]} castShadow>
+            <cylinderGeometry args={[0.01, 0.01, 0.37, 10]} />
+            <meshStandardMaterial color={woodColor} roughness={roughness} metalness={metalness} />
+          </mesh>
+          {[0.57, 0.65, 0.73, 0.80].map((ry, j) => (
+            <mesh key={j} position={[0, ry, 0]} scale={[1, 0.65, 1]}>
+              <sphereGeometry args={[0.015, 10, 8]} />
+              <meshStandardMaterial color={woodColor} roughness={roughness} metalness={metalness} />
+            </mesh>
+          ))}
+        </group>
       ))}
     </group>
   );
-  return napoleon;
 }
 
 
@@ -808,6 +1395,7 @@ function SceneObjectMesh({
   onDragStart,
   onMove,
   onDragEnd,
+  onRotate,
 }: {
   obj: SceneObject;
   selected: boolean;
@@ -815,9 +1403,27 @@ function SceneObjectMesh({
   onDragStart: () => void;
   onMove: (x: number, z: number) => void;
   onDragEnd: () => void;
+  onRotate?: (rotation: number) => void;
 }) {
   const def = OBJECT_DEFS[obj.kind];
   const drag = useFloorDrag((x, z) => onMove(x, z), onDragEnd, onDragStart, obj.id, obj);
+  const startRotateDrag = (e: React.PointerEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    if (!onRotate) return;
+    const startX = e.clientX;
+    const startRot = obj.rotation || 0;
+    const move = (ev: PointerEvent) => {
+      const delta = Math.round((ev.clientX - startX) * 0.8);
+      onRotate(((startRot + delta) % 360 + 360) % 360);
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  };
   return (
     <group
       position={[obj.x, 0, obj.z]}
@@ -840,9 +1446,58 @@ function SceneObjectMesh({
           <meshBasicMaterial color={C.turquoise} transparent opacity={0.85} />
         </mesh>
       )}
-      <Html zIndexRange={[40, 0]} center position={[0, def.h + 0.45, 0]} distanceFactor={9} className="pointer-events-none select-none">
-        <div className="px-2.5 py-0.5 rounded-full bg-white/90 text-[11px] font-semibold text-[#4B4456] shadow whitespace-nowrap">
-          {obj.label}
+      <Html zIndexRange={[50, 0]} center position={[0, def.h + 0.55, 0]} distanceFactor={9} className="select-none">
+        <div className="flex flex-col items-center gap-1.5">
+          {selected && onRotate && (
+            <div
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={(e) => e.stopPropagation()}
+              className="pointer-events-auto flex items-center gap-1 rounded-full bg-[#4B4456]/95 text-white px-2 py-1 shadow-lg border border-white/20"
+            >
+              <button
+                type="button"
+                onClick={() => onRotate(((obj.rotation - 45) % 360 + 360) % 360)}
+                title="Tourner de -45°"
+                className="w-6 h-6 rounded-full bg-white/15 hover:bg-brand-turquoise text-[11px] font-bold flex items-center justify-center transition-colors"
+              >
+                ↺
+              </button>
+              <button
+                type="button"
+                onClick={() => onRotate(((obj.rotation - 15) % 360 + 360) % 360)}
+                title="Tourner de -15°"
+                className="px-1.5 h-6 rounded-full bg-white/10 hover:bg-white/25 text-[10px] font-semibold flex items-center justify-center transition-colors"
+              >
+                -15°
+              </button>
+              <span
+                onPointerDown={startRotateDrag}
+                title="Glissez horizontalement pour tourner librement"
+                className="px-2 h-6 rounded-full bg-brand-turquoise text-white text-[10.5px] font-bold flex items-center justify-center cursor-ew-resize"
+              >
+                ⟳ {Math.round(obj.rotation || 0)}°
+              </span>
+              <button
+                type="button"
+                onClick={() => onRotate(((obj.rotation + 15) % 360 + 360) % 360)}
+                title="Tourner de +15°"
+                className="px-1.5 h-6 rounded-full bg-white/10 hover:bg-white/25 text-[10px] font-semibold flex items-center justify-center transition-colors"
+              >
+                +15°
+              </button>
+              <button
+                type="button"
+                onClick={() => onRotate(((obj.rotation + 45) % 360 + 360) % 360)}
+                title="Tourner de +45°"
+                className="w-6 h-6 rounded-full bg-white/15 hover:bg-brand-turquoise text-[11px] font-bold flex items-center justify-center transition-colors"
+              >
+                ↻
+              </button>
+            </div>
+          )}
+          <div className="pointer-events-none px-2.5 py-0.5 rounded-full bg-white/90 text-[11px] font-semibold text-[#4B4456] shadow whitespace-nowrap">
+            {obj.label}
+          </div>
         </div>
       </Html>
     </group>
@@ -901,53 +1556,219 @@ const rectSeats = (w: number, d: number) => (count: number) => {
   });
 };
 
+/* ---------- Pied de table tourné (blanc, bois ou doré selon le style) ---------- */
+function TurnedTableLeg({ x, z, color = '#f5f4f0', metalness = 0 }: { x: number; z: number; color?: string; metalness?: number }) {
+  return (
+    <group position={[x, 0, z]}>
+      <mesh position={[0, 0.65, 0]} castShadow>
+        <boxGeometry args={[0.095, 0.14, 0.095]} />
+        <meshStandardMaterial color={color} roughness={0.38} metalness={metalness} />
+      </mesh>
+      <mesh position={[0, 0.54, 0]} scale={[1, 0.68, 1]} castShadow>
+        <sphereGeometry args={[0.055, 16, 12]} />
+        <meshStandardMaterial color={color} roughness={0.36} metalness={metalness} />
+      </mesh>
+      <mesh position={[0, 0.47, 0]} scale={[1, 0.75, 1]} castShadow>
+        <sphereGeometry args={[0.05, 16, 12]} />
+        <meshStandardMaterial color={color} roughness={0.36} metalness={metalness} />
+      </mesh>
+      <mesh position={[0, 0.25, 0]} castShadow>
+        <cylinderGeometry args={[0.042, 0.032, 0.42, 16]} />
+        <meshStandardMaterial color={color} roughness={0.38} metalness={metalness} />
+      </mesh>
+      <mesh position={[0, 0.05, 0]} scale={[1, 0.6, 1]}>
+        <sphereGeometry args={[0.04, 14, 10]} />
+        <meshStandardMaterial color={color} roughness={0.38} metalness={metalness} />
+      </mesh>
+    </group>
+  );
+}
+
+function WoodTableSurface({ shape }: { shape: TableShape }) {
+  const decor = useContext(DecorContext);
+  const tableStyle: TableSurfaceStyle = decor.tableStyle || 'nappe';
+  const clothColor = decor.clothColor || C.cloth;
+  const woodTex = useMemo(() => getWoodTableTexture(), []);
+
+  // Mode par défaut = Nappe longue drapée historique
+  if (tableStyle === 'nappe') {
+    if (shape === 'ronde') {
+      return (
+        <mesh position={[0, 0.4, 0]} castShadow receiveShadow>
+          <cylinderGeometry args={[1.05, 1.1, 0.74, 48]} />
+          <meshStandardMaterial color={clothColor} roughness={0.85} />
+        </mesh>
+      );
+    }
+    if (shape === 'carree') {
+      return (
+        <mesh position={[0, 0.4, 0]} castShadow receiveShadow>
+          <boxGeometry args={[1.5, 0.74, 1.5]} />
+          <meshStandardMaterial color={clothColor} roughness={0.85} />
+        </mesh>
+      );
+    }
+    if (shape === 'rectangle') {
+      return (
+        <mesh position={[0, 0.4, 0]} castShadow receiveShadow>
+          <boxGeometry args={[2.7, 0.74, 1.15]} />
+          <meshStandardMaterial color={clothColor} roughness={0.85} />
+        </mesh>
+      );
+    }
+    return (
+      <mesh position={[0, 0.4, 0]} castShadow receiveShadow scale={[1.45, 1, 0.75]}>
+        <cylinderGeometry args={[1.05, 1.1, 0.74, 48]} />
+        <meshStandardMaterial color={clothColor} roughness={0.85} />
+      </mesh>
+    );
+  }
+
+  // Variantes plateau apparent : bois_verni (photo), bois_chene, bois_noyer, marbre_or
+  const topColor =
+    tableStyle === 'bois_chene'
+      ? '#d4ad7a'
+      : tableStyle === 'bois_noyer'
+      ? '#6b4429'
+      : tableStyle === 'marbre_or'
+      ? '#f7f6f4'
+      : '#c46d38';
+  const legColor =
+    tableStyle === 'bois_chene'
+      ? '#c59d68'
+      : tableStyle === 'bois_noyer'
+      ? '#242024'
+      : tableStyle === 'marbre_or'
+      ? '#d4af37'
+      : '#f5f4f0';
+  const legMetal = tableStyle === 'marbre_or' ? 0.75 : 0;
+
+  const topMat = (
+    <meshPhysicalMaterial
+      map={tableStyle === 'marbre_or' ? undefined : woodTex || undefined}
+      color={topColor}
+      roughness={tableStyle === 'marbre_or' ? 0.12 : 0.22}
+      metalness={tableStyle === 'marbre_or' ? 0.08 : 0.04}
+      clearcoat={0.85}
+      clearcoatRoughness={0.14}
+    />
+  );
+
+  if (shape === 'ronde') {
+    return (
+      <group>
+        <mesh position={[0, 0.76, 0]} castShadow receiveShadow>
+          <cylinderGeometry args={[1.12, 1.12, 0.042, 64]} />
+          {topMat}
+        </mesh>
+        <mesh position={[0, 0.76, 0]} rotation={[Math.PI / 2, 0, 0]} castShadow>
+          <torusGeometry args={[1.12, 0.022, 16, 64]} />
+          {topMat}
+        </mesh>
+        <mesh position={[0, 0.782, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <ringGeometry args={[1.055, 1.072, 64]} />
+          <meshStandardMaterial color={tableStyle === 'marbre_or' ? '#d4af37' : '#7c3e18'} roughness={0.4} metalness={legMetal} />
+        </mesh>
+        <mesh position={[0, 0.705, 0]} castShadow>
+          <cylinderGeometry args={[0.88, 0.88, 0.07, 40]} />
+          <meshStandardMaterial color={legColor} roughness={0.4} metalness={legMetal} />
+        </mesh>
+        {[
+          [-0.58, -0.58],
+          [0.58, -0.58],
+          [-0.58, 0.58],
+          [0.58, 0.58],
+        ].map(([lx, lz], i) => (
+          <TurnedTableLeg key={i} x={lx} z={lz} color={legColor} metalness={legMetal} />
+        ))}
+      </group>
+    );
+  }
+
+  if (shape === 'ovale') {
+    return (
+      <group>
+        <group scale={[1.42, 1, 0.78]}>
+          <mesh position={[0, 0.76, 0]} castShadow receiveShadow>
+            <cylinderGeometry args={[1.12, 1.12, 0.042, 64]} />
+            {topMat}
+          </mesh>
+          <mesh position={[0, 0.76, 0]} rotation={[Math.PI / 2, 0, 0]} castShadow>
+            <torusGeometry args={[1.12, 0.022, 16, 64]} />
+            {topMat}
+          </mesh>
+          <mesh position={[0, 0.705, 0]} castShadow>
+            <cylinderGeometry args={[0.88, 0.88, 0.07, 40]} />
+            <meshStandardMaterial color={legColor} roughness={0.4} metalness={legMetal} />
+          </mesh>
+        </group>
+        {[
+          [-0.85, -0.45],
+          [0.85, -0.45],
+          [-0.85, 0.45],
+          [0.85, 0.45],
+        ].map(([lx, lz], i) => (
+          <TurnedTableLeg key={i} x={lx} z={lz} color={legColor} metalness={legMetal} />
+        ))}
+      </group>
+    );
+  }
+
+  const w = shape === 'carree' ? 1.55 : 2.75;
+  const d = shape === 'carree' ? 1.55 : 1.22;
+  return (
+    <group>
+      <mesh position={[0, 0.76, 0]} castShadow receiveShadow>
+        <boxGeometry args={[w, 0.045, d]} />
+        {topMat}
+      </mesh>
+      <mesh position={[0, 0.76, 0]} castShadow>
+        <boxGeometry args={[w + 0.03, 0.026, d + 0.03]} />
+        {topMat}
+      </mesh>
+      <mesh position={[0, 0.705, 0]} castShadow>
+        <boxGeometry args={[w - 0.28, 0.07, d - 0.28]} />
+        <meshStandardMaterial color={legColor} roughness={0.4} metalness={legMetal} />
+      </mesh>
+      {[
+        [-(w / 2 - 0.22), -(d / 2 - 0.22)],
+        [w / 2 - 0.22, -(d / 2 - 0.22)],
+        [-(w / 2 - 0.22), d / 2 - 0.22],
+        [w / 2 - 0.22, d / 2 - 0.22],
+      ].map(([lx, lz], i) => (
+        <TurnedTableLeg key={i} x={lx} z={lz} color={legColor} metalness={legMetal} />
+      ))}
+    </group>
+  );
+}
+
 export const TABLE_SHAPES: Record<TableShape, ShapeDef> = {
   ronde: {
     label: 'Ronde',
-    top: () => (
-      <mesh position={[0, 0.4, 0]} castShadow receiveShadow>
-        <cylinderGeometry args={[1.05, 1.1, 0.74, 48]} />
-        <meshStandardMaterial color={C.cloth} roughness={0.85} />
-      </mesh>
-    ),
-    seats: (n) => ellipseSeats(1.75, 1.75)(n),
-    placeOffset: 0.68,
-    seatDist: 1.75,
+    top: () => <WoodTableSurface shape="ronde" />,
+    seats: (n) => ellipseSeats(1.62, 1.62)(n),
+    placeOffset: 0.78,
+    seatDist: 1.62,
   },
   carree: {
     label: 'Carrée',
-    top: () => (
-      <mesh position={[0, 0.4, 0]} castShadow receiveShadow>
-        <boxGeometry args={[1.5, 0.74, 1.5]} />
-        <meshStandardMaterial color={C.cloth} roughness={0.85} />
-      </mesh>
-    ),
-    seats: (n) => rectSeats(2.0, 2.0)(n),
-    placeOffset: 0.55,
+    top: () => <WoodTableSurface shape="carree" />,
+    seats: (n) => rectSeats(1.95, 1.95)(n),
+    placeOffset: 0.56,
     seatDist: 1.0,
   },
   rectangle: {
     label: 'Rectangle',
-    top: () => (
-      <mesh position={[0, 0.4, 0]} castShadow receiveShadow>
-        <boxGeometry args={[2.7, 0.74, 1.15]} />
-        <meshStandardMaterial color={C.cloth} roughness={0.85} />
-      </mesh>
-    ),
-    seats: (n) => rectSeats(3.4, 1.9)(n),
+    top: () => <WoodTableSurface shape="rectangle" />,
+    seats: (n) => rectSeats(3.3, 1.85)(n),
     placeOffset: 0.85,
     seatDist: 1.0,
   },
   ovale: {
     label: 'Ovale',
-    top: () => (
-      <mesh position={[0, 0.4, 0]} castShadow receiveShadow scale={[1.45, 1, 0.75]}>
-        <cylinderGeometry args={[1.05, 1.1, 0.74, 48]} />
-        <meshStandardMaterial color={C.cloth} roughness={0.85} />
-      </mesh>
-    ),
-    seats: (n) => ellipseSeats(2.15, 1.15)(n),
-    placeOffset: 0.68,
+    top: () => <WoodTableSurface shape="ovale" />,
+    seats: (n) => ellipseSeats(2.05, 1.15)(n),
+    placeOffset: 0.72,
     seatDist: 1.5,
   },
 };
@@ -964,6 +1785,7 @@ function Table3D({
   onDragStart,
   onMove,
   onDragEnd,
+  onRotate,
 }: {
   table: PlanTable;
   selected: boolean;
@@ -977,11 +1799,29 @@ function Table3D({
   onDragStart: () => void;
   onMove: (id: string, x: number, z: number) => void;
   onDragEnd: () => void;
+  onRotate?: (id: string, rotation: number) => void;
 }) {
   const def = TABLE_SHAPES[table.shape];
   const seats = def.seats(table.seatCount);
   // Drag : pointerdown sur la table → suit le sol, lève le drag à pointerup.
   const drag = useFloorDrag((x, z) => onMove(table.id, x, z), onDragEnd, onDragStart, table.id, table);
+  const startRotateDrag = (e: React.PointerEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    if (!onRotate) return;
+    const startX = e.clientX;
+    const startRot = table.rotation || 0;
+    const move = (ev: PointerEvent) => {
+      const delta = Math.round((ev.clientX - startX) * 0.8);
+      onRotate(table.id, ((startRot + delta) % 360 + 360) % 360);
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  };
 
   return (
     <group
@@ -1056,12 +1896,61 @@ function Table3D({
         );
       })}
 
-      <Html zIndexRange={[40, 0]} center position={[0, 2.0, 0]} distanceFactor={9} className="pointer-events-none select-none">
-        <div
-          className="px-3 py-1 rounded-full text-[12px] font-semibold text-white shadow-md whitespace-nowrap"
-          style={{ background: table.accent }}
-        >
-          {table.name} · {table.seats.filter((s) => s.guest_id).length}/{table.seatCount}
+      <Html zIndexRange={[50, 0]} center position={[0, 2.05, 0]} distanceFactor={9} className="select-none">
+        <div className="flex flex-col items-center gap-1.5">
+          {selected && onRotate && (
+            <div
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={(e) => e.stopPropagation()}
+              className="pointer-events-auto flex items-center gap-1 rounded-full bg-[#4B4456]/95 text-white px-2 py-1 shadow-lg border border-white/20"
+            >
+              <button
+                type="button"
+                onClick={() => onRotate(table.id, ((table.rotation - 45) % 360 + 360) % 360)}
+                title="Tourner de -45°"
+                className="w-6 h-6 rounded-full bg-white/15 hover:bg-brand-turquoise text-[11px] font-bold flex items-center justify-center transition-colors"
+              >
+                ↺
+              </button>
+              <button
+                type="button"
+                onClick={() => onRotate(table.id, ((table.rotation - 15) % 360 + 360) % 360)}
+                title="Tourner de -15°"
+                className="px-1.5 h-6 rounded-full bg-white/10 hover:bg-white/25 text-[10px] font-semibold flex items-center justify-center transition-colors"
+              >
+                -15°
+              </button>
+              <span
+                onPointerDown={startRotateDrag}
+                title="Glissez horizontalement pour tourner librement"
+                className="px-2 h-6 rounded-full bg-brand-turquoise text-white text-[10.5px] font-bold flex items-center justify-center cursor-ew-resize"
+              >
+                ⟳ {Math.round(table.rotation || 0)}°
+              </span>
+              <button
+                type="button"
+                onClick={() => onRotate(table.id, ((table.rotation + 15) % 360 + 360) % 360)}
+                title="Tourner de +15°"
+                className="px-1.5 h-6 rounded-full bg-white/10 hover:bg-white/25 text-[10px] font-semibold flex items-center justify-center transition-colors"
+              >
+                +15°
+              </button>
+              <button
+                type="button"
+                onClick={() => onRotate(table.id, ((table.rotation + 45) % 360 + 360) % 360)}
+                title="Tourner de +45°"
+                className="w-6 h-6 rounded-full bg-white/15 hover:bg-brand-turquoise text-[11px] font-bold flex items-center justify-center transition-colors"
+              >
+                ↻
+              </button>
+            </div>
+          )}
+          <div
+            className="pointer-events-none px-3 py-1 rounded-full text-[12px] font-semibold text-white shadow-md whitespace-nowrap"
+            style={{ background: table.accent }}
+          >
+            {table.name} · {table.seats.filter((s) => s.guest_id).length}/{table.seatCount}
+          </div>
         </div>
       </Html>
     </group>
@@ -1375,12 +2264,15 @@ export function StaticHallScene({
   onSeatClick,
   onMoveTable,
   onMoveObject,
+  onRotateTable,
+  onRotateObject,
   walkMode,
   tour,
   onTourEnd,
   flyTo,
   camRef,
   room,
+  decor,
   captureNonce,
   onCaptureViews,
   mood,
@@ -1395,12 +2287,15 @@ export function StaticHallScene({
   onSeatClick: (tableId: string, seatIndex: number) => void;
   onMoveTable: (id: string, x: number, z: number) => void;
   onMoveObject: (id: string, x: number, z: number) => void;
+  onRotateTable?: (id: string, rotation: number) => void;
+  onRotateObject?: (id: string, rotation: number) => void;
   walkMode?: boolean;
   tour?: boolean;
   onTourEnd?: () => void;
   flyTo?: { pos: [number, number, number]; look: [number, number, number] } | null;
   camRef?: React.MutableRefObject<{ x: number; z: number; dir: number } | null>;
   room?: { width: number; length: number };
+  decor?: DecorConfig;
   captureNonce?: number;
   onCaptureViews?: (imgs: string[]) => void;
   mood: Mood;
@@ -1435,6 +2330,7 @@ export function StaticHallScene({
           )}
         </div>
       )}
+      <DecorContext.Provider value={decor || DEFAULT_DECOR}>
       <DragMode.Provider value={{ allowed: editing, touchId: touchMoving ? movingId : null }}>
     <Canvas
       style={{ touchAction: 'none' }}
@@ -1476,6 +2372,7 @@ export function StaticHallScene({
             onDragStart={() => setDragging(true)}
             onMove={(x, z) => onMoveObject(o.id, x, z)}
             onDragEnd={() => setDragging(false)}
+            onRotate={onRotateObject ? (rot) => onRotateObject(o.id, rot) : undefined}
           />
         ))}
         {/* tables : sélection, drag, sièges cliquables */}
@@ -1492,6 +2389,7 @@ export function StaticHallScene({
             onDragStart={() => setDragging(true)}
             onMove={onMoveTable}
             onDragEnd={() => setDragging(false)}
+            onRotate={onRotateTable}
           />
         ))}
         <Float speed={1.4} rotationIntensity={0.4} floatIntensity={0.6}>
@@ -1520,6 +2418,7 @@ export function StaticHallScene({
       </EffectComposer>
     </Canvas>
       </DragMode.Provider>
+      </DecorContext.Provider>
     </div>
   );
 }
